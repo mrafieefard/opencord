@@ -82,6 +82,17 @@ describe('Composer and message actions', () => {
     expect(queryByTestId('composer-send')).toBeNull();
   });
 
+  it('the placeholder keeps to one line, and goes once there is text', async () => {
+    const { getByTestId, queryByTestId, getByPlaceholderText } = await render(
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
+    );
+    expect(getByTestId('composer-placeholder').props.numberOfLines).toBe(1);
+    await fireEvent.changeText(getByPlaceholderText('Message #general'), 'hi');
+    expect(queryByTestId('composer-placeholder')).toBeNull();
+  });
+
   it('the counter appears from 3,900 characters and sending stops above 4,000', async () => {
     const { getByPlaceholderText, queryByTestId, getByTestId } = await render(
       <GestureHandlerRootView>

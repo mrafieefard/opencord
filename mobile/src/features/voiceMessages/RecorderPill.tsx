@@ -7,14 +7,22 @@ import type { VoiceDraftRecord } from '@opencord/core-native';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  type SharedValue,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { clock } from '@/features/chat/attachments/VoiceMessageAttachment';
 import { draftItem, pauseVoice, playVoice, resumeVoice, seekVoice } from '@/state/actions/voiceMessages';
 import { useAppStore } from '@/state/store';
 import { GlassSurface, Icon, Text, space, useTheme } from '@/ui';
 
-import type { RecorderMode } from './useVoiceRecorder';
+import { CANCEL_DISTANCE, type RecorderMode } from './useVoiceRecorder';
 import { Waveform } from './Waveform';
 
 export interface RecorderPillProps {
@@ -23,17 +31,33 @@ export interface RecorderPillProps {
   draft: VoiceDraftRecord | null;
   onStop: () => void;
   height: number;
+  /** The finger's slide left, which "Slide to cancel" follows. */
+  dragX: SharedValue<number>;
 }
 
-export function RecorderPill({ mode, cancelArmed, draft, onStop, height }: RecorderPillProps) {
+export function RecorderPill({ mode, cancelArmed, draft, onStop, height, dragX }: RecorderPillProps) {
   return (
-    <GlassSurface style={[styles.pill, { minHeight: height, borderRadius: height / 2 }]} testID="voice-recorder">
-      {mode === 'draft' ? <DraftPreview draft={draft} /> : <Live mode={mode} cancelArmed={cancelArmed} onStop={onStop} />}
-    </GlassSurface>
+    // It fades in over the field, as Telegram's.
+    <Animated.View entering={FadeIn.duration(160)} style={styles.fill}>
+      <GlassSurface style={[styles.pill, { minHeight: height, borderRadius: height / 2 }]} testID="voice-recorder">
+        {mode === 'draft' ? (
+          <DraftPreview draft={draft} />
+        ) : (
+          <Live mode={mode} cancelArmed={cancelArmed} onStop={onStop} dragX={dragX} />
+        )}
+      </GlassSurface>
+    </Animated.View>
   );
 }
 
-function Live({ mode, cancelArmed, onStop }: { mode: 'holding' | 'locked'; cancelArmed: boolean; onStop: () => void }) {
+interface LiveProps {
+  mode: 'holding' | 'locked';
+  cancelArmed: boolean;
+  onStop: () => void;
+  dragX: SharedValue<number>;
+}
+
+function Live({ mode, cancelArmed, onStop, dragX }: LiveProps) {
   const { colors } = useTheme();
   const recording = useAppStore((state) => state.voiceRecording);
   const [now, setNow] = useState(() => Date.now());
@@ -46,6 +70,11 @@ function Live({ mode, cancelArmed, onStop }: { mode: 'holding' | 'locked'; cance
     pulse.set(withRepeat(withTiming(0.25, { duration: 600 }), -1, true));
   }, [pulse]);
   const dot = useAnimatedStyle(() => ({ opacity: pulse.get() }));
+  // "Slide to cancel" goes with the finger, fading as it nears cancelling.
+  const slide = useAnimatedStyle(() => ({
+    opacity: interpolate(dragX.get(), [-CANCEL_DISTANCE, 0], [0.2, 1], 'clamp'),
+    transform: [{ translateX: Math.max(dragX.get() * 0.5, -CANCEL_DISTANCE / 2) }],
+  }));
   const elapsed = recording ? now - recording.startedAtMs : 0;
 
   return (
@@ -64,9 +93,11 @@ function Live({ mode, cancelArmed, onStop }: { mode: 'holding' | 'locked'; cance
         </View>
       )}
       {mode === 'holding' && !cancelArmed && (
-        <Text variant="callout" color="textSecondary" numberOfLines={1}>
-          ‹ Slide to cancel
-        </Text>
+        <Animated.View style={slide}>
+          <Text variant="callout" color="textSecondary" numberOfLines={1}>
+            ‹ Slide to cancel
+          </Text>
+        </Animated.View>
       )}
       {mode === 'locked' && (
         <Touchable onPress={onStop} hitSlop={8}>
@@ -116,6 +147,7 @@ function DraftPreview({ draft }: { draft: VoiceDraftRecord | null }) {
 const DOT = 10;
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   pill: {
     flex: 1,
     flexDirection: 'row',

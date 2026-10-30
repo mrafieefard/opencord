@@ -6,7 +6,7 @@
 import type { VoiceDraftRecord } from '@opencord/core-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Gesture } from 'react-native-gesture-handler';
-import { useSharedValue } from 'react-native-reanimated';
+import { type SharedValue, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { report } from '@/core';
 import { toast } from '@/state/actions/ui';
@@ -34,6 +34,9 @@ export interface VoiceRecorder {
   draft: VoiceDraftRecord | null;
   /** On the mic button: hold, slide, let go; or a tap. */
   gesture: ReturnType<typeof Gesture.Exclusive>;
+  /** How far the finger has moved since the hold began, for the animations. */
+  dragX: SharedValue<number>;
+  dragY: SharedValue<number>;
   send: () => void;
   stop: () => void;
   remove: () => void;
@@ -50,11 +53,17 @@ export function useVoiceRecorder(serverKey: string, channelId: string): VoiceRec
   /** Let go before recording had started: finish once it has. */
   const releasedEarly = useSharedValue(false);
   const starting = useSharedValue(false);
+  const dragX = useSharedValue(0);
+  const dragY = useSharedValue(0);
 
   const setMode = useCallback((next: RecorderMode) => {
     modeNow.set(next);
     setModeState(next);
-  }, [modeNow]);
+    if (next !== 'holding') {
+      dragX.set(withSpring(0));
+      dragY.set(withSpring(0));
+    }
+  }, [modeNow, dragX, dragY]);
   const setArmed = useCallback((next: boolean) => {
     if (armedNow.get() === next) return;
     armedNow.set(next);
@@ -110,6 +119,8 @@ export function useVoiceRecorder(serverKey: string, channelId: string): VoiceRec
           .onStart(() => report(begin(), 'record a voice message'))
           .onUpdate((event) => {
             if (modeNow.get() !== 'holding') return;
+            dragX.set(Math.min(event.translationX, 0));
+            dragY.set(Math.min(event.translationY, 0));
             if (event.translationY < -LOCK_DISTANCE && !armedNow.get()) {
               setMode('locked');
               return;
@@ -121,7 +132,7 @@ export function useVoiceRecorder(serverKey: string, channelId: string): VoiceRec
           .runOnJS(true)
           .onEnd(() => toast(HOLD_HINT)),
       ),
-    [begin, release, setMode, setArmed, modeNow, armedNow],
+    [begin, release, setMode, setArmed, modeNow, armedNow, dragX, dragY],
   );
 
   // At the server's maximum (or the microphone gone): a held recording
@@ -172,5 +183,5 @@ export function useVoiceRecorder(serverKey: string, channelId: string): VoiceRec
     [modeNow],
   );
 
-  return { mode, cancelArmed, draft, gesture, send, stop, remove };
+  return { mode, cancelArmed, draft, gesture, dragX, dragY, send, stop, remove };
 }

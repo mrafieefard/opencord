@@ -4,7 +4,8 @@
 // message (held to record; useVoiceRecorder). Each is its own glass (iOS)
 // or raised surface (Android). ChatPane keeps it on the keyboard.
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { type LayoutChangeEvent, StyleSheet, Text as NativeText, TextInput, View } from 'react-native';
+import Animated, { FadeInDown, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { GestureDetector, Touchable } from 'react-native-gesture-handler';
@@ -24,8 +25,9 @@ import type { PickedFile } from '@/state/types';
 import { GlassSurface, Icon, Menu, Text, space, typography, useTheme, type MenuAction } from '@/ui';
 import { MAX_FONT_SCALE } from '@/ui/theme/typography';
 
+import { MicButton } from '@/features/voiceMessages/MicButton';
 import { RecorderPill } from '@/features/voiceMessages/RecorderPill';
-import { useVoiceRecorder } from '@/features/voiceMessages/useVoiceRecorder';
+import { LOCK_DISTANCE, useVoiceRecorder } from '@/features/voiceMessages/useVoiceRecorder';
 
 import { AttachmentChips } from './AttachmentChips';
 import { useDockBottom } from './dock';
@@ -44,6 +46,8 @@ const CONTROL = 44;
 const MAX_LINES = 6;
 const FIELD_PAD_V = (CONTROL - (typography.body.lineHeight ?? 22)) / 2;
 const FIELD_MAX = (typography.body.lineHeight ?? 22) * MAX_LINES + FIELD_PAD_V * 2;
+/** A line more or fewer: the field grows or shrinks over this, as Telegram's. */
+const GROW_MS = 160;
 
 export function Composer({ serverKey, channelId }: ComposerProps) {
   const { colors } = useTheme();
@@ -90,6 +94,26 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const canAttach = info ? info.access.attach : true;
   const canVoice = info ? info.access.sendVoiceMessages : true;
   const recorder = useVoiceRecorder(serverKey, channelId);
+
+  // The field's height follows its text, eased rather than jumping. An
+  // unseen copy of the text, as wide as the field's, says how tall the text
+  // is: a field of fixed height doesn't report its content's size on iOS.
+  const fieldHeight = useSharedValue(CONTROL);
+  const onMirrorLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const next = Math.min(Math.max(Math.ceil(event.nativeEvent.layout.height) + FIELD_PAD_V * 2, CONTROL), FIELD_MAX);
+      if (next !== fieldHeight.get()) fieldHeight.set(withTiming(next, { duration: GROW_MS }));
+    },
+    [fieldHeight],
+  );
+  const fieldStyle = useAnimatedStyle(() => ({ height: fieldHeight.get() }));
+  // The lock hint rises with the finger and fades as it reaches the lock.
+  // Only the shared value goes to the UI thread, not the recorder.
+  const { dragY } = recorder;
+  const lockStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(dragY.get(), [-LOCK_DISTANCE, 0], [0.4, 1], 'clamp'),
+    transform: [{ translateY: Math.max(dragY.get() * 0.5, -LOCK_DISTANCE / 2) }],
+  }));
 
   const attachActions: MenuAction[] = [
     { id: 'photo', title: 'Photo library', icon: 'photo' },
@@ -202,14 +226,34 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               </GlassSurface>
             )}
 
+            <Animated.View style={[styles.fieldBox, fieldStyle]}>
             <GlassSurface style={styles.field}>
+              {/* One line, cut with "…": a multiline field wraps its own
+                  placeholder, which stays for VoiceOver, unseen. */}
+              <NativeText
+                style={[typography.body, styles.mirror]}
+                maxFontSizeMultiplier={MAX_FONT_SCALE}
+                onLayout={onMirrorLayout}
+                aria-hidden
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {/* A last empty line is measured only with something on it. */}
+                {text.endsWith('\n') || text === '' ? `${text} ` : text}
+              </NativeText>
+              {text === '' && (
+                <Text variant="body" color="textMuted" numberOfLines={1} style={styles.placeholder} testID="composer-placeholder">
+                  {`Message #${channelName}`}
+                </Text>
+              )}
               <TextInput
                 ref={input}
                 style={[typography.body, styles.input, { color: colors.text }]}
                 placeholder={`Message #${channelName}`}
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor="transparent"
                 value={text}
                 onChangeText={handleChangeText}
+                scrollEnabled
                 multiline
                 maxFontSizeMultiplier={MAX_FONT_SCALE}
                 textAlignVertical="center"
@@ -230,6 +274,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 </Text>
               )}
             </GlassSurface>
+            </Animated.View>
           </>
         ) : (
           <>
@@ -248,6 +293,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               draft={recorder.draft}
               onStop={recorder.stop}
               height={CONTROL}
+              dragX={recorder.dragX}
             />
           </>
         )}
@@ -265,31 +311,24 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
         ) : canVoice && !isEditing ? (
           <View>
             {recorder.mode === 'holding' && (
-              <GlassSurface style={styles.lock} testID="voice-lock-hint">
-                <Icon name="lock" size={14} color="textSecondary" />
-                <Icon name="arrowUp" size={12} color="textSecondary" />
-              </GlassSurface>
+              <Animated.View entering={FadeInDown.duration(200)} style={styles.lock}>
+                <Animated.View style={lockStyle}>
+                  <GlassSurface style={styles.lockPill} testID="voice-lock-hint">
+                    <Icon name="lock" size={14} color="textSecondary" />
+                    <Icon name="arrowUp" size={12} color="textSecondary" />
+                  </GlassSurface>
+                </Animated.View>
+              </Animated.View>
             )}
             <GestureDetector gesture={recorder.gesture}>
               <View collapsable={false}>
-                {recorder.mode === 'holding' ? (
-                  <View style={[styles.control, { backgroundColor: recorder.cancelArmed ? colors.recording : colors.voice }]}>
-                    <Icon name="mic" size={22} color="onAccent" />
-                  </View>
-                ) : (
-                  <GlassSurface interactive style={styles.round}>
-                    <View
-                      style={styles.control}
-                      accessible
-                      accessibilityRole="button"
-                      accessibilityLabel="Record a voice message"
-                      accessibilityHint="Hold to record, let go to send"
-                      testID="composer-mic"
-                    >
-                      <Icon name="mic" size={22} color="text" />
-                    </View>
-                  </GlassSurface>
-                )}
+                <MicButton
+                  holding={recorder.mode === 'holding'}
+                  cancelArmed={recorder.cancelArmed}
+                  dragX={recorder.dragX}
+                  dragY={recorder.dragY}
+                  size={CONTROL}
+                />
               </View>
             </GestureDetector>
           </View>
@@ -359,30 +398,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  fieldBox: {
+    flex: 1,
+  },
   field: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    minHeight: CONTROL,
+    alignItems: 'stretch',
     borderRadius: CONTROL / 2,
     paddingHorizontal: space.md + 2,
+    overflow: 'hidden',
   },
   input: {
     flex: 1,
-    maxHeight: FIELD_MAX,
     paddingTop: FIELD_PAD_V,
     paddingBottom: FIELD_PAD_V,
     paddingHorizontal: 0,
     margin: 0,
   },
+  mirror: {
+    position: 'absolute',
+    left: space.md + 2,
+    right: space.md + 2,
+    top: 0,
+    opacity: 0,
+  },
+  placeholder: {
+    position: 'absolute',
+    left: space.md + 2,
+    right: space.md + 2,
+    top: FIELD_PAD_V,
+  },
   counter: {
     marginLeft: space.sm,
+    alignSelf: 'flex-end',
     paddingBottom: FIELD_PAD_V + 2,
   },
   lock: {
     position: 'absolute',
-    bottom: CONTROL + space.sm,
+    // Above the mic once it has swollen.
+    bottom: CONTROL + space.lg,
     left: (CONTROL - 32) / 2,
+  },
+  lockPill: {
     width: 32,
     height: 60,
     borderRadius: 16,
