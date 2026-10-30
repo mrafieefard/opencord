@@ -52,7 +52,7 @@ const GROW_MS = 160;
 export function Composer({ serverKey, channelId }: ComposerProps) {
   const { colors } = useTheme();
   const bottom = useDockBottom();
-  const { setFieldExtra } = useChatDock();
+  const { fieldGrowth } = useChatDock();
   const info = useChannelInfo(serverKey, channelId);
   const editing = useAppStore((state) => state.editingMessage);
   const isEditing = editing && editing.serverKey === serverKey && editing.channelId === channelId;
@@ -103,9 +103,11 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const onMirrorLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const next = Math.min(Math.max(Math.ceil(event.nativeEvent.layout.height) + FIELD_PAD_V * 2, CONTROL), FIELD_MAX);
-      if (next !== fieldHeight.get()) fieldHeight.set(withTiming(next, { duration: GROW_MS }));
+      if (next === fieldHeight.get()) return;
+      fieldHeight.set(withTiming(next, { duration: GROW_MS }));
+      fieldGrowth?.set(withTiming(next - CONTROL, { duration: GROW_MS }));
     },
-    [fieldHeight],
+    [fieldHeight, fieldGrowth],
   );
   const fieldStyle = useAnimatedStyle(() => ({ height: fieldHeight.get() }));
   // The lock hint rises with the finger and fades as it reaches the lock.
@@ -227,10 +229,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               </GlassSurface>
             )}
 
-            <Animated.View
-              style={[styles.fieldBox, fieldStyle]}
-              onLayout={(event) => setFieldExtra?.(Math.round(event.nativeEvent.layout.height) - CONTROL)}
-            >
+            {/* A one-line slot: the field grows up out of it, over the
+                messages, so the dock's size (and the list) never moves. */}
+            <View style={styles.fieldSlot}>
+            <Animated.View style={[styles.fieldBox, fieldStyle]}>
             <GlassSurface style={styles.field}>
               {/* One line, cut with "…": a multiline field wraps its own
                   placeholder, which stays for VoiceOver, unseen. */}
@@ -279,6 +281,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               )}
             </GlassSurface>
             </Animated.View>
+            </View>
           </>
         ) : (
           <>
@@ -402,8 +405,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fieldBox: {
+  fieldSlot: {
     flex: 1,
+    height: CONTROL,
+  },
+  fieldBox: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   field: {
     flex: 1,

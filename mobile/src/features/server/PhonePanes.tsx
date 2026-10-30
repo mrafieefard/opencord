@@ -188,7 +188,13 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
             importantForAccessibility={listOut ? 'no-hide-descendants' : 'auto'}
             accessibilityElementsHidden={listOut}
           >
-            <ContentPane serverKey={serverKey} open={open} onOpenSidebar={openSidebar} onOpenChannel={openChannel} />
+            <ContentPane
+              serverKey={serverKey}
+              open={open}
+              onOpenSidebar={openSidebar}
+              onOpenChannel={openChannel}
+              covered={listOut}
+            />
           </View>
           <Animated.View
             pointerEvents={covered ? 'auto' : 'none'}
