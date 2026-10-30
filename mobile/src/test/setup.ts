@@ -279,6 +279,13 @@ jest.mock('expo-router', () => ({
 }));
 
 // The voice call's foreground service is native: its calls are recorded.
-jest.mock('@opencord/voice-service', () => ({
-  VoiceService: { start: jest.fn(), stop: jest.fn() },
-}));
+jest.mock('@opencord/voice-service', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    VoiceService: { start: jest.fn(), stop: jest.fn() },
+    AudioRouteButton: ({ testID }: { testID?: string }) =>
+      React.createElement(View, { testID, accessible: true, accessibilityRole: 'button', accessibilityLabel: 'Audio output' }),
+    hasAudioRouteButton: true,
+  };
+});

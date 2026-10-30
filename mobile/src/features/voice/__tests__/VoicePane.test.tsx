@@ -131,6 +131,8 @@ describe('VoicePane', () => {
     expect(muteBtn).toBeTruthy();
     expect(getByTestId('control-deafen')).toBeTruthy();
     expect(getByTestId('control-music')).toBeTruthy();
+    // iOS: the sound output's button.
+    expect(getByTestId('control-output')).toBeTruthy();
     expect(getByTestId('control-leave')).toBeTruthy();
 
     await fireEvent.press(muteBtn);

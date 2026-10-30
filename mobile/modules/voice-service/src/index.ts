@@ -26,3 +26,6 @@ export const VoiceService = {
     native.stop();
   },
 };
+
+export { AudioRouteButton, hasAudioRouteButton } from './AudioRouteButton';
+export type { AudioRouteButtonProps } from './AudioRouteButton.types';
