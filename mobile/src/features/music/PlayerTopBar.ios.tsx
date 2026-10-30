@@ -26,7 +26,7 @@ export function PlayerTopBar({ channelName, onJoin, onClose }: PlayerTopBarProps
         </Text>
       </View>
       {onJoin && (
-        <Host matchContents colorScheme={scheme}>
+        <Host matchContents colorScheme={scheme} ignoreSafeArea="all">
           <SwiftButton
             label="Join"
             systemImage={icons.listen.ios}

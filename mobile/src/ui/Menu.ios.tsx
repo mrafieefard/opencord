@@ -40,7 +40,7 @@ export function Menu({ actions, onAction, trigger = 'press', fit = 'fill', backg
     }
     return (
       <View testID={testID} onLayout={hug ? undefined : measure} style={background && { backgroundColor: colors[background] }}>
-        <Host matchContents={hug || { vertical: true }} colorScheme={scheme}>
+        <Host matchContents={hug || { vertical: true }} colorScheme={scheme} ignoreSafeArea="all">
           <ContextMenu>
             <ContextMenu.Items>
               {actions.map((action) => (

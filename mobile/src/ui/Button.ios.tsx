@@ -44,7 +44,7 @@ export function Button({ title, onPress, variant, loading = false, disabled = fa
   // Loading keeps its colour and ignores presses; disabled is the system's grey.
   const label = disabled ? colors.textMuted : look.text;
   return (
-    <Host matchContents={{ vertical: true }} colorScheme={scheme} style={{ alignSelf: 'stretch' }}>
+    <Host matchContents={{ vertical: true }} colorScheme={scheme} ignoreSafeArea="all" style={{ alignSelf: 'stretch' }}>
       <SwiftButton
         onPress={loading || disabled ? () => {} : onPress}
         modifiers={[

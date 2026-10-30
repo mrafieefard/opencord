@@ -15,7 +15,7 @@ export interface GlassIconButtonProps {
 export function GlassIconButton({ icon, label, onPress }: GlassIconButtonProps) {
   const { colors, scheme } = useTheme();
   return (
-    <Host matchContents colorScheme={scheme}>
+    <Host matchContents colorScheme={scheme} ignoreSafeArea="all">
       <SwiftButton
         label={label}
         systemImage={icons[icon].ios}
