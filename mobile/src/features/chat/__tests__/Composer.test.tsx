@@ -277,7 +277,7 @@ describe('Composer and message actions', () => {
       CHANNELS.general,
       'Here are the docs',
       expect.any(String),
-      expect.arrayContaining([expect.objectContaining({ path: 'file:///cache/photo.jpg', filename: 'photo.jpg' })]),
+      expect.arrayContaining([expect.objectContaining({ path: '/cache/photo.jpg', filename: 'photo.jpg' })]),
     );
   });
 });

@@ -9,6 +9,7 @@ import { Touchable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
+import { filePath } from '@/core/paths';
 
 import {
   cancelEditingMessage,
@@ -96,7 +97,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       });
       if (!res.canceled && res.assets) {
         const picked: PickedFile[] = res.assets.map((asset) => ({
-          path: asset.uri,
+          path: filePath(asset.uri),
           filename: asset.fileName || asset.uri.split('/').pop() || 'photo.jpg',
           size: asset.fileSize ?? 0,
           mimeType: asset.mimeType ?? 'image/jpeg',
@@ -109,7 +110,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       });
       if (!res.canceled && res.assets) {
         const picked: PickedFile[] = res.assets.map((asset) => ({
-          path: asset.uri,
+          path: filePath(asset.uri),
           filename: asset.name,
           size: asset.size ?? 0,
           mimeType: asset.mimeType ?? 'application/octet-stream',

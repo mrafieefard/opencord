@@ -14,6 +14,11 @@ export function cacheDir(): string {
   return `${plain(Paths.cache.uri)}/opencord`;
 }
 
+/** A picked file's plain path: the core opens paths, not file:// URIs. */
+export function filePath(uri: string): string {
+  return uri.startsWith('file://') ? plain(uri) : uri;
+}
+
 export function fileUri(path: string): string {
   if (path.startsWith('file://')) return path;
   return `file://${path.startsWith('/') ? '' : '/'}${path}`;

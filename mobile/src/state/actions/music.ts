@@ -9,6 +9,7 @@ import {
 import { File } from 'expo-file-system';
 
 import { getCore } from '@/core';
+import { fileUri } from '@/core/paths';
 import { channelKey, type PickedFile } from '../types';
 import { useAppStore } from '../store';
 
@@ -160,7 +161,7 @@ export async function search(
 function deleteCopy(path: string): void {
   if (!path) return;
   try {
-    const file = new File(path);
+    const file = new File(fileUri(path));
     file.delete();
   } catch {
     // Harmless if missing or already deleted

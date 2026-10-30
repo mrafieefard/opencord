@@ -154,8 +154,8 @@ describe('Uploads', () => {
           size: 4_000_000,
         },
         {
-          name: 'track2.flac',
-          uri: 'file:///cache/track2.flac',
+          name: 'track 2.flac',
+          uri: 'file:///cache/track%202.flac',
           mimeType: 'audio/flac',
           size: 8_000_000,
         },
@@ -174,7 +174,8 @@ describe('Uploads', () => {
       NIGHT_OWLS,
       channelId,
       expect.any(String),
-      'file:///cache/track1.mp3',
+      // The core opens plain paths.
+      '/cache/track1.mp3',
       false,
     );
     expect(mockUploadSong).toHaveBeenNthCalledWith(
@@ -182,7 +183,7 @@ describe('Uploads', () => {
       NIGHT_OWLS,
       channelId,
       expect.any(String),
-      'file:///cache/track2.flac',
+      '/cache/track 2.flac',
       false,
     );
 
