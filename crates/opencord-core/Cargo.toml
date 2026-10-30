@@ -81,4 +81,4 @@ arboard = { version = "3.7.0", default-features = false, features = ["image-data
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # The session log's clock and its crash handler (D82).
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_SystemInformation"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Kernel", "Win32_System_LibraryLoader", "Win32_System_SystemInformation"] }

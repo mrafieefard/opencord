@@ -63,7 +63,23 @@ pub fn channel(id: i64) -> String {
     with(|aliases| aliases.channel(id))
 }
 
+/// `text` through the filter. A line logged while this thread already
+/// holds the table (a panic inside the filter) is withheld rather than
+/// waiting on itself.
 pub(super) fn scrub(text: &str, home: Option<&str>) -> String {
+    thread_local! {
+        static BUSY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    struct Leave;
+    impl Drop for Leave {
+        fn drop(&mut self) {
+            BUSY.with(|busy| busy.set(false));
+        }
+    }
+    if BUSY.with(|busy| busy.replace(true)) {
+        return "(line withheld: written while the log's filter was running)".to_owned();
+    }
+    let _leave = Leave;
     with(|aliases| super::scrub::line_with(aliases, text, home).into_owned())
 }
 

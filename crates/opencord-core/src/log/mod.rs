@@ -7,6 +7,7 @@
 //! when the channel is full a line is dropped and counted instead.
 
 pub mod alias;
+mod crash;
 mod format;
 mod scrub;
 mod writer;
@@ -72,6 +73,7 @@ pub fn start(dir: &Path, header: &[(String, String)]) -> io::Result<Session> {
         .map(|(key, value)| (key.clone(), alias::scrub(value, home())))
         .collect();
     let (file, session) = writer::open_session(dir, &header, &format::local_now().stamp())?;
+    let crash_file = file.try_clone()?;
     let (sender, receiver) = mpsc::sync_channel(QUEUE);
     std::thread::Builder::new()
         .name("opencord-log".into())
@@ -81,6 +83,7 @@ pub fn start(dir: &Path, header: &[(String, String)]) -> io::Result<Session> {
         sender,
         started,
     });
+    crash::install(crash_file, started);
     let filter = EnvFilter::new(LEVELS);
     if tracing_subscriber::registry()
         .with(SessionLayer.with_filter(filter))
@@ -226,7 +229,7 @@ impl<S: Subscriber> Layer<S> for SessionLayer {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::OnceLock;
 
     use super::*;
