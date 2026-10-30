@@ -11,7 +11,7 @@ import * as voiceActions from '@/state/actions/voice';
 import { onEvents } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
-import { ConnectedBar } from '../ConnectedBar';
+import { ConnectedBar, ConnectedVoiceRow } from '../ConnectedBar';
 
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn() },
@@ -176,5 +176,18 @@ describe('ConnectedBar', () => {
     const leaveBtn = getByTestId('connected-bar-leave');
     await fireEvent.press(leaveBtn);
     expect(leaveVoiceSpy).toHaveBeenCalled();
+  });
+
+  it('compact, the row keeps the channel and the mic, and still opens the channel', async () => {
+    await inLounge();
+    const { getByText, queryByText, getByTestId, queryByTestId } = await render(
+      <ConnectedVoiceRow serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} muted={false} compact />,
+    );
+    expect(getByText('Lounge')).toBeTruthy();
+    expect(queryByText('Night Owls')).toBeNull();
+    expect(getByTestId('connected-bar-mute')).toBeTruthy();
+    expect(queryByTestId('connected-bar-leave')).toBeNull();
+    await fireEvent.press(getByTestId('connected-bar-pressable'));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/server/[serverKey]', params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge } });
   });
 });

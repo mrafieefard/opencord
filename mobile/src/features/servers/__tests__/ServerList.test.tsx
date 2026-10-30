@@ -62,7 +62,7 @@ describe('ServerList', () => {
     ]);
     await settle();
 
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
     expect(screen.getByText('Night Owls')).toBeTruthy();
     expect(screen.getByText(/#general · Kai: evening all/)).toBeTruthy();
     expect(screen.getByText('1')).toBeTruthy();
@@ -83,14 +83,14 @@ describe('ServerList', () => {
       },
     });
 
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
     expect(screen.getByTestId(`voice-glyph-${NIGHT_OWLS}`)).toBeTruthy();
     expect(screen.queryByTestId(`voice-glyph-${RUST_CLUB}`)).toBeNull();
   });
 
   it('search filters by name', async () => {
     await setupServers();
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
     const search = mockNavOptions.headerSearchBarOptions as {
       onChangeText: (event: { nativeEvent: { text: string } }) => void;
     };
@@ -105,7 +105,7 @@ describe('ServerList', () => {
     await setupServers();
     const alertSpy = jest.spyOn(Alert, 'alert');
 
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
     const leaveButton = screen.getByTestId(`leave-server-${NIGHT_OWLS}`);
     fireEvent.press(leaveButton);
 
@@ -136,7 +136,7 @@ describe('ServerList', () => {
     ]);
     await settle();
 
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
     // The menu's items, once its row has been laid out.
     const menuItems = async (serverKey: string) => {
       await fireEvent(screen.getByTestId(`server-menu-${serverKey}`), 'layout', {
@@ -160,7 +160,7 @@ describe('ServerList', () => {
     ]);
     await settle();
 
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
     const list = screen.getByTestId('server-list');
     const refreshControl = list.props.refreshControl;
     expect(refreshControl).toBeDefined();
@@ -177,7 +177,7 @@ describe('ServerList', () => {
     freshStore({ scenario: 'empty' });
     useAppStore.setState({ servers: {}, order: [] });
 
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
     expect(screen.getByText('No servers yet')).toBeTruthy();
     expect(screen.getByText('Add one with an invite link or its address.')).toBeTruthy();
 
@@ -188,7 +188,7 @@ describe('ServerList', () => {
 
   it('tapping a row opens the server', async () => {
     await setupServers();
-    await renderScreen(<ServerListScreen />);
+    await renderScreen(<ServerListScreen searchable voiceBar />);
 
     fireEvent.press(screen.getByText('Night Owls'));
     expect(mockPush).toHaveBeenCalledWith('/server/fake-night-owls');

@@ -1,23 +1,12 @@
 import { Stack, router } from 'expo-router';
 
-import { IconButton, fonts, nativeHeaderScheme, useTheme } from '@/ui';
+import { listStackOptions } from '@/features/servers/listStack';
+import { IconButton, useTheme } from '@/ui';
 
 export default function ServersLayout() {
   const { colors, scheme } = useTheme();
   return (
-    <Stack
-      screenOptions={{
-        headerLargeTitle: true,
-        headerShadowVisible: false,
-        ...nativeHeaderScheme(scheme),
-        headerStyle: { backgroundColor: colors.sidebar },
-        headerLargeStyle: { backgroundColor: colors.sidebar },
-        headerTintColor: colors.text,
-        headerTitleStyle: { fontFamily: fonts.semiBold, color: colors.text },
-        headerLargeTitleStyle: { fontFamily: fonts.bold, color: colors.text },
-        contentStyle: { backgroundColor: colors.sidebar },
-      }}
-    >
+    <Stack screenOptions={listStackOptions(colors, scheme)}>
       <Stack.Screen
         name="index"
         options={{

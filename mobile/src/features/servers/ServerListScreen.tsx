@@ -27,7 +27,14 @@ import { useMinuteClock } from './useMinuteClock';
 const openServer = (serverKey: string) => router.push(`/server/${serverKey}`);
 const Separator = () => <Divider inset={ROW_INSET} />;
 
-export function ServerListScreen() {
+export interface ServerListScreenProps {
+  /** A search field in the header filters the list. */
+  searchable: boolean;
+  /** The voice bar at the screen's foot while in voice. */
+  voiceBar: boolean;
+}
+
+export function ServerListScreen({ searchable, voiceBar }: ServerListScreenProps) {
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const { colors } = useTheme();
@@ -37,6 +44,7 @@ export function ServerListScreen() {
   const locale = deviceLocale();
 
   useLayoutEffect(() => {
+    if (!searchable) return;
     navigation.setOptions({
       headerSearchBarOptions: {
         placeholder: 'Search',
@@ -49,7 +57,7 @@ export function ServerListScreen() {
         },
       },
     });
-  }, [navigation]);
+  }, [navigation, searchable]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -76,7 +84,7 @@ export function ServerListScreen() {
             onPress: () => router.push('/add-server'),
           }}
         />
-        <ConnectedBar />
+        {voiceBar && <ConnectedBar />}
       </View>
     );
   }
@@ -103,7 +111,7 @@ export function ServerListScreen() {
           query ? <EmptyState title="No servers found" /> : null
         }
       />
-      <ConnectedBar />
+      {voiceBar && <ConnectedBar />}
     </View>
   );
 }

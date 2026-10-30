@@ -57,6 +57,34 @@ interface ConnectedBarContentProps {
 function ConnectedBarContent({ serverKey, channelId, muted, onOpenHere, bottomInset }: ConnectedBarContentProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        styles.bar,
+        {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          height: BAR_HEIGHT + (bottomInset ? insets.bottom : 0),
+          paddingBottom: bottomInset ? insets.bottom : 0,
+        },
+      ]}
+    >
+      <ConnectedVoiceRow serverKey={serverKey} channelId={channelId} muted={muted} onOpenHere={onOpenHere} />
+    </View>
+  );
+}
+
+export interface ConnectedVoiceRowProps {
+  serverKey: string;
+  channelId: string;
+  muted: boolean;
+  onOpenHere?: (channelId: string) => void;
+  /** Only the channel and the mic, for a narrow place (iOS's inline tab accessory). */
+  compact?: boolean;
+}
+
+/** What the connected bar shows, without the bar: also iOS's tab bar accessory. */
+export function ConnectedVoiceRow({ serverKey, channelId, muted, onOpenHere, compact = false }: ConnectedVoiceRowProps) {
   const server = useServer(serverKey);
   const nowPlaying = useNowPlaying(serverKey, channelId);
 
@@ -81,17 +109,7 @@ function ConnectedBarContent({ serverKey, channelId, muted, onOpenHere, bottomIn
   }, [serverKey, channelId, onOpenHere]);
 
   return (
-    <View
-      style={[
-        styles.bar,
-        {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          height: BAR_HEIGHT + (bottomInset ? insets.bottom : 0),
-          paddingBottom: bottomInset ? insets.bottom : 0,
-        },
-      ]}
-    >
+    <View style={styles.row}>
       <Touchable
         onPress={handleOpen}
         style={styles.pressable}
@@ -106,9 +124,11 @@ function ConnectedBarContent({ serverKey, channelId, muted, onOpenHere, bottomIn
             <Text variant="headline" numberOfLines={1}>
               {channelName}
             </Text>
-            <Text variant="footnote" color="textSecondary" numberOfLines={1}>
-              {subtitle}
-            </Text>
+            {!compact && (
+              <Text variant="footnote" color="textSecondary" numberOfLines={1}>
+                {subtitle}
+              </Text>
+            )}
           </View>
         </View>
       </Touchable>
@@ -120,12 +140,14 @@ function ConnectedBarContent({ serverKey, channelId, muted, onOpenHere, bottomIn
           onPress={() => setMuted(!muted)}
           testID="connected-bar-mute"
         />
-        <IconButton
-          icon="leave"
-          label="Leave voice"
-          onPress={() => report(leaveVoice(), 'leave voice')}
-          testID="connected-bar-leave"
-        />
+        {!compact && (
+          <IconButton
+            icon="leave"
+            label="Leave voice"
+            onPress={() => report(leaveVoice(), 'leave voice')}
+            testID="connected-bar-leave"
+          />
+        )}
       </View>
     </View>
   );
@@ -137,6 +159,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: space.sm,
+  },
+  row: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   pressable: {
     flex: 1,
