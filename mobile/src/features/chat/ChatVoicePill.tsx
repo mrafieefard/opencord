@@ -9,6 +9,8 @@ import { ConnectedVoiceRow } from '@/features/voice/ConnectedBar';
 import { useMyVoice } from '@/state/selectors';
 import { GlassSurface, space } from '@/ui';
 
+import { callProgress } from '@/features/voice/callPosition';
+
 import { useChatDock } from './dock';
 
 const HEIGHT = 56;
@@ -18,7 +20,11 @@ export function ChatVoicePill() {
   const keyboardUp = useKeyboardState((state) => state.isVisible);
   const { fieldGrowth } = useChatDock();
   // It rises with the field as the field grows over the messages.
-  const rise = useAnimatedStyle(() => ({ transform: [{ translateY: -(fieldGrowth?.get() ?? 0) }] }));
+  // The call's glass grows out of it: once it does, the glass is the pill.
+  const rise = useAnimatedStyle(() => ({
+    opacity: callProgress.get() > 0.001 ? 0 : 1,
+    transform: [{ translateY: -(fieldGrowth?.get() ?? 0) }],
+  }));
   if (!myVoice || keyboardUp) return null;
   return (
     <Animated.View style={rise}>

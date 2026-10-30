@@ -37,6 +37,8 @@ export function initialState(): AppState {
     chatInFront: false,
     voicePageInFront: null,
     call: null,
+    callUp: false,
+    callFull: false,
     voiceSpeed: 1,
     voiceRecording: null,
     prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [] },

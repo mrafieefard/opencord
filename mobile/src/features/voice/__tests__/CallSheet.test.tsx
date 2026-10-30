@@ -30,8 +30,9 @@ describe('the call sheet', () => {
         <CallSheet />
       </GestureHandlerRootView>,
     );
-    // Nothing until a call is opened.
-    expect(screen.queryByTestId('call-sheet', { includeHiddenElements: true })).toBeNull();
+    // Mounted, unseen, for as long as the call lasts: ready to grow at once.
+    expect(screen.getByTestId('call-sheet', { includeHiddenElements: true })).toBeTruthy();
+    expect(callProgress.get()).toBe(0);
 
     await act(async () => {
       openCall(NIGHT_OWLS, CHANNELS.lounge);

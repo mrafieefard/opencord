@@ -23,8 +23,11 @@ export default function TabsLayout() {
   // Under every screen, a server's too, but a text channel in front.
   const chatInFront = useAppStore((state) => state.chatInFront);
   // Hiding the bar keeps its accessory on iOS: it goes too, and the chat
-  // shows the call above its composer instead.
-  const inVoice = myVoice !== null && !onItsPage && !chatInFront;
+  // shows the call above its composer instead. The call's glass grows out
+  // of it (it shows nothing meanwhile, VoiceAccessory); once the call is
+  // wholly open, and no finger is pulling it, it goes until the call shrinks.
+  const callFull = useAppStore((state) => state.callFull);
+  const inVoice = myVoice !== null && !onItsPage && !chatInFront && !callFull;
   return (
     <NativeTabs
       hidden={chatInFront}

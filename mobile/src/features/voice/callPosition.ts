@@ -23,20 +23,23 @@ export interface CallFrame {
 /** The bar the call grows out of (and shrinks back into); 0 wide until one is touched. */
 export const callOrigin = makeMutable<CallFrame>({ x: 0, y: 0, width: 0, height: 0 });
 
-/** The voice bars' pill: 56 pt high, its row inset 16 pt left and 4 pt right. */
+/** The voice bars' pill: 56 pt high (the tab bar's own is the system's), its row inset 16 pt left and 4 pt right. */
 export const BAR_HEIGHT = 56;
 const BAR_PAD_LEFT = 16;
 const BAR_PAD_RIGHT = 4;
 
-/** A voice bar's glass around its row: the row's frame, grown by the pill's own padding. */
+/**
+ * A voice bar's glass around its row: the row fills the pill's height, so
+ * only its sides grow by the pill's padding. The glass that grows into the
+ * call starts exactly there, as the bar it replaces.
+ */
 export function barFrame(row: CallFrame): CallFrame {
   'worklet';
-  const height = Math.max(row.height, BAR_HEIGHT);
   return {
     x: row.x - BAR_PAD_LEFT,
-    y: row.y - (height - row.height) / 2,
+    y: row.y,
     width: row.width + BAR_PAD_LEFT + BAR_PAD_RIGHT,
-    height,
+    height: row.height,
   };
 }
 

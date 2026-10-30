@@ -40,3 +40,13 @@ export function setVoicePageInFront(page: { serverKey: string; channelId: string
   if (held?.serverKey === page?.serverKey && held?.channelId === page?.channelId) return;
   useAppStore.setState({ voicePageInFront: page });
 }
+
+/** The call's glass has left its bar (or come back into it). */
+export function setCallUp(callUp: boolean): void {
+  if (useAppStore.getState().callUp !== callUp) useAppStore.setState({ callUp });
+}
+
+/** The call is wholly open (or no longer). */
+export function setCallFull(callFull: boolean): void {
+  if (useAppStore.getState().callFull !== callFull) useAppStore.setState({ callFull });
+}

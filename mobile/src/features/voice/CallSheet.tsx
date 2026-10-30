@@ -12,12 +12,11 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { interpolate, useAnimatedReaction, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { setCallFull, setCallUp } from '@/state/actions/ui';
 import { useMyVoice } from '@/state/selectors';
-import { useAppStore } from '@/state/store';
 import { GlassSurface, space, useTheme } from '@/ui';
 
 import {
-  BAR_HEIGHT,
   CALL_FLICK,
   CALL_SETTLE,
   CALL_SPRING,
@@ -31,8 +30,7 @@ import {
 import { ConnectedVoiceRow } from './ConnectedBar';
 import { VoicePane } from './VoicePane';
 
-/** The bar's pill and the open call's corners, as round as the screen's own. */
-const BAR_CORNER = BAR_HEIGHT / 2;
+/** The open call's corners, as round as the screen's own. */
 const OPEN_CORNER = 38;
 const SCRIM = 0.35;
 const GRABBER = { width: 36, height: 5 };
@@ -58,15 +56,25 @@ export function CallSheet() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const top = useCallTop();
   const fallback = useFallbackOrigin();
-  const call = useAppStore((state) => state.call);
-  const myVoice = useMyVoice();
-  const inIt = call !== null && myVoice?.serverKey === call.serverKey && myVoice.channelId === call.channelId;
+  // The call is this device's: there is one at most. Mounted (unseen) for
+  // as long as it lasts, so the glass is there the moment a bar is pulled.
+  const call = useMyVoice();
+  const inIt = call !== null;
   // Takes touches only while it is out of the bar, however little.
   const [up, setUp] = useState(false);
   useAnimatedReaction(
-    () => callProgress.get() > 0.01,
+    () => callProgress.get() > 0.001,
     (now, before) => {
-      if (now !== before) scheduleOnRN(setUp, now);
+      if (now !== before) {
+        scheduleOnRN(setUp, now);
+        scheduleOnRN(setCallUp, now);
+      }
+    },
+  );
+  useAnimatedReaction(
+    () => callProgress.get() > 0.999,
+    (now, before) => {
+      if (now !== before) scheduleOnRN(setCallFull, now);
     },
   );
 
@@ -99,15 +107,18 @@ export function CallSheet() {
       left: from.x * (1 - at),
       width: from.width + (screenWidth - from.width) * at,
       height: from.height + (openHeight - from.height) * at,
-      borderRadius: BAR_CORNER + (OPEN_CORNER - BAR_CORNER) * at,
+      // From the bar's capsule to the screen's corners.
+      borderRadius: from.height / 2 + (OPEN_CORNER - from.height / 2) * at,
     };
   });
   const scrimStyle = useAnimatedStyle(() => ({ opacity: callProgress.get() * SCRIM }));
   // The bar's row, as it was, fading as the glass leaves it behind.
   const rowStyle = useAnimatedStyle(() => {
     const touched = callOrigin.get();
+    const from = touched.width > 0 ? touched : fallback;
     return {
-      width: (touched.width > 0 ? touched : fallback).width,
+      width: from.width,
+      height: from.height,
       opacity: interpolate(callProgress.get(), [0, 0.2], [1, 0], 'clamp'),
     };
   });
@@ -135,7 +146,7 @@ export function CallSheet() {
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
-          {inIt && <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={myVoice.muted} />}
+          {inIt && <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={call.muted} picture />}
         </Animated.View>
         {/* The call, laid out at its open size so it doesn't reflow as the glass grows. */}
         <Animated.View style={[styles.call, { width: screenWidth, height: openHeight }, callStyle]}>
@@ -157,7 +168,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    height: BAR_HEIGHT,
     paddingLeft: space.lg,
     paddingRight: space.xs,
     flexDirection: 'row',
