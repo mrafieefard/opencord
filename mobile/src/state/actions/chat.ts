@@ -4,6 +4,7 @@ import { describeError, getCore } from '@/core';
 import { errorKind } from '@/core/errors';
 import { EMPTY_MESSAGES, mergeMessages } from '@/state/events';
 import { readPositions, useAppStore } from '@/state/store';
+import { markFreshSend } from '@/state/freshSends';
 import { channelKey, type PendingSend, type PickedFile } from '@/state/types';
 
 import { toast } from './ui';
@@ -212,6 +213,7 @@ export function markReadIfAtBottom(serverKey: string, channelId: string, atBotto
 
 export async function sendMessage(serverKey: string, channelId: string, content: string): Promise<void> {
   const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  markFreshSend(nonce);
   const key = channelKey(serverKey, channelId);
   const pendingSend: PendingSend = {
     nonce,
@@ -273,6 +275,7 @@ export async function sendWithFiles(
   files: PickedFile[],
 ): Promise<void> {
   const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  markFreshSend(nonce);
   const key = channelKey(serverKey, channelId);
   const pendingSend: PendingSend = {
     nonce,

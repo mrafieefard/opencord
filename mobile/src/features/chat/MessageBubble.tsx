@@ -17,6 +17,7 @@ import { MarkdownText } from './MarkdownText';
 import { AttachmentView } from './attachments/AttachmentView';
 import { textDirectionOf } from './bidi';
 import { MessageMenu } from './MessageMenu';
+import { SendRise } from './SendRise';
 
 export interface MessageBubbleProps {
   item: MessageBubbleItem;
@@ -164,7 +165,8 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
   );
 
   const groupEnd = position === 'last' || position === 'single';
-  return (
+  const nonce = pending?.nonce ?? message.nonce;
+  const row = (
     <View
       style={[styles.row, own ? styles.rowOwn : null, groupEnd ? styles.groupEnd : styles.inGroup]}
       testID={`bubble-${message.id}`}
@@ -186,6 +188,14 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
         </MessageMenu>
       )}
     </View>
+  );
+  // Keyed by the send, so a recycled cell rises only for its own message.
+  return own ? (
+    <SendRise key={nonce ?? message.id} nonce={nonce}>
+      {row}
+    </SendRise>
+  ) : (
+    row
   );
 });
 

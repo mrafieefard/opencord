@@ -1,7 +1,8 @@
 // The chat's dock: the voice bar and the composer, floating over the
 // bottom of the messages as Telegram's. The list scrolls under it, so it
 // leaves the dock's height free below its last message, and the keyboard
-// lifts both by the same amount.
+// lifts both by the same amount. A field grown past one line covers the
+// messages instead of moving them, as Telegram's.
 import { createContext, useContext } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SharedValue } from 'react-native-reanimated';
@@ -9,8 +10,10 @@ import type { SharedValue } from 'react-native-reanimated';
 import { space } from '@/ui';
 
 export interface ChatDock {
-  /** The dock's height, for the list's scroll range (keyboard-controller's extraContentPadding). */
+  /** The dock's height with a one-line field, for the list's scroll range (keyboard-controller's extraContentPadding). */
   padding?: SharedValue<number>;
+  /** The composer says how much taller than one line its field is. */
+  setFieldExtra?: (extra: number) => void;
   /** The same, for what floats above it (Jump to latest, the typing line). */
   height: number;
 }

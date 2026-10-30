@@ -30,7 +30,7 @@ import { RecorderPill } from '@/features/voiceMessages/RecorderPill';
 import { LOCK_DISTANCE, useVoiceRecorder } from '@/features/voiceMessages/useVoiceRecorder';
 
 import { AttachmentChips } from './AttachmentChips';
-import { useDockBottom } from './dock';
+import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
 import { useTypingNotifier } from './useTypingNotifier';
 
@@ -52,6 +52,7 @@ const GROW_MS = 160;
 export function Composer({ serverKey, channelId }: ComposerProps) {
   const { colors } = useTheme();
   const bottom = useDockBottom();
+  const { setFieldExtra } = useChatDock();
   const info = useChannelInfo(serverKey, channelId);
   const editing = useAppStore((state) => state.editingMessage);
   const isEditing = editing && editing.serverKey === serverKey && editing.channelId === channelId;
@@ -226,7 +227,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               </GlassSurface>
             )}
 
-            <Animated.View style={[styles.fieldBox, fieldStyle]}>
+            <Animated.View
+              style={[styles.fieldBox, fieldStyle]}
+              onLayout={(event) => setFieldExtra?.(Math.round(event.nativeEvent.layout.height) - CONTROL)}
+            >
             <GlassSurface style={styles.field}>
               {/* One line, cut with "…": a multiline field wraps its own
                   placeholder, which stays for VoiceOver, unseen. */}

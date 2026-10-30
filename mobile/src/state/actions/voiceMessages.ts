@@ -10,6 +10,7 @@ import { enterVoiceNoteAudio, leaveVoiceAudio } from '@/features/voice/audioSess
 import { ensureMicrophone, explainMicrophone } from '@/features/voice/micPermission';
 
 import { mergeMessages, playbackKey } from '../events';
+import { markFreshSend } from '../freshSends';
 import { useAppStore } from '../store';
 import { channelKey } from '../types';
 import { toast } from './ui';
@@ -83,6 +84,7 @@ export function discardDraft(draft: VoiceDraftRecord): void {
 export async function sendVoiceDraft(serverKey: string, channelId: string, draft: VoiceDraftRecord): Promise<void> {
   stopVoiceIf(draftItem(draft));
   const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  markFreshSend(nonce);
   try {
     const sent = await getCore().voiceMessageSend(serverKey, channelId, nonce, draft.draftId);
     const key = channelKey(serverKey, channelId);

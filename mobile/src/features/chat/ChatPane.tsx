@@ -1,7 +1,7 @@
 // A text channel's pane (spec §8.5): its header, then the messages, with
 // the dock (the voice bar and the composer) floating over their bottom as
 // Telegram's, the messages scrolling under it.
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useSharedValue } from 'react-native-reanimated';
@@ -30,12 +30,18 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
   const lift = useDockLift();
   const padding = useSharedValue(0);
   const [height, setHeight] = useState(0);
+  // The field's growth past one line: not given to the list, so it doesn't
+  // move while typing. The field lays out before the dock around it.
+  const fieldExtra = useRef(0);
+  const setFieldExtra = useCallback((extra: number) => {
+    fieldExtra.current = Math.max(extra, 0);
+  }, []);
   const onDockLayout = (event: LayoutChangeEvent) => {
     const next = Math.round(event.nativeEvent.layout.height);
-    padding.set(next);
+    padding.set(next - fieldExtra.current);
     setHeight(next);
   };
-  const dock = useMemo(() => ({ padding, height }), [padding, height]);
+  const dock = useMemo(() => ({ padding, height, setFieldExtra }), [padding, height, setFieldExtra]);
 
   return (
     <View style={[styles.pane, { backgroundColor: colors.chat }]}>
