@@ -105,7 +105,7 @@ Written first, before anything can fail:
   - the existing `developer.log` calls, routed into the log;
   - one line per key user action: connecting to or leaving a server, joining or leaving voice, opening the share dialog, picking a source, starting and stopping a share, starting to watch someone's share, changing a device, changing a video or voice setting.
 - **Panics in Rust:** a panic hook writes the message, the thread and a backtrace before the panic carries on.
-- **Native crashes on Windows:** an unhandled-exception filter writes the exception code, the faulting module's name and the offset into it, then flushes. D72's crash (heap corruption) would have shown up as `0xC0000374 in ntdll.dll`.
+- **Native crashes on Windows:** an unhandled-exception filter writes the exception code, the faulting module's name and the offset into it, then flushes. (Found while building: Windows' fail-fast crashes, such as D72's heap corruption `0xC0000374`, skip every handler in the process, so those sessions show only as having ended unexpectedly.)
   - macOS and Linux get the same through a signal handler that writes a fixed, preformatted line.
 - **A session that didn't end cleanly:** the next launch notices that its last line isn't `session ended` and marks it.
 

@@ -422,7 +422,7 @@ One dialog shell for both user and server settings, styled like Telegram's setti
 - **Notifications:** desktop notifications, mentions only, message sound, flash taskbar.
 - **Keybinds:** the table from §7.
 - **Trusted servers:** list of servers with address and pinned fingerprint, "Forget" action.
-- **About:** version, license, links.
+- **About:** version, license, links. On desktop, **Logs** (D82, docs/logs.md): export this session's log, export the last session's when it ended unexpectedly, open the logs folder.
 
 ### 8.2 Server settings (items shown only with the right permissions)
 - **Overview:** name, description, icon, open-join switch, read-only address and fingerprint.
