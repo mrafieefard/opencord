@@ -58,7 +58,7 @@ describe('a voice channel as a sheet', () => {
     expect(screen.getByText("No one's here yet")).toBeTruthy();
   });
 
-  it('a voice channel opens the sheet; the one this device is in opens its page', async () => {
+  it('a voice channel opens the sheet; the one this device is in opens the call', async () => {
     const core = await ready();
     await render(
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -72,7 +72,6 @@ describe('a voice channel as a sheet', () => {
     await core.voiceJoin(NIGHT_OWLS, CHANNELS.lounge);
     await pump(core);
     fireEvent.press(screen.getByRole('button', { name: 'Lounge' }));
-    expect(router.push).not.toHaveBeenCalled();
-    expect(await screen.findByLabelText('Leave voice')).toBeTruthy();
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/call/${CHANNELS.lounge}`);
   });
 });

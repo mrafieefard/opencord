@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { fireEvent, render } from '@testing-library/react-native';
 import {
   ConnectionRecord,
@@ -52,8 +53,8 @@ describe('ConnectedBar', () => {
     ]);
     await settle();
 
-    const { toJSON } = await render(<ConnectedBar />);
-    expect(toJSON()).toBeNull();
+    const { queryByTestId } = await render(<GestureHandlerRootView><ConnectedBar /></GestureHandlerRootView>);
+    expect(queryByTestId('connected-bar-pressable')).toBeNull();
   });
 
   it('the connected bar shows what plays and opens the voice channel', async () => {
@@ -93,50 +94,25 @@ describe('ConnectedBar', () => {
     ]);
     await settle();
 
-    const { getByText, getByTestId } = await render(<ConnectedBar />);
+    const { getByText, getByTestId } = await render(<GestureHandlerRootView><ConnectedBar /></GestureHandlerRootView>);
 
     expect(getByText('Lounge')).toBeTruthy();
     expect(getByText('♪ Sunflower — Post Malone')).toBeTruthy();
 
-    // Tapping the main bar opens the channel
+    // Tapping the main bar opens the call, from anywhere.
     const barTap = getByTestId('connected-bar-pressable');
     await fireEvent.press(barTap);
-    expect(router.push).toHaveBeenCalledWith({
-      pathname: '/servers/[serverKey]',
-      params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge },
-    });
-  });
-
-  it('on its own server the bar opens the channel in place', async () => {
-    await inLounge();
-    const openChannel = jest.fn();
-
-    const { getByTestId } = await render(<ConnectedBar serverKey={NIGHT_OWLS} onOpenChannel={openChannel} />);
-    await fireEvent.press(getByTestId('connected-bar-pressable'));
-
-    // Not a second server screen on top of this one.
-    expect(openChannel).toHaveBeenCalledWith(CHANNELS.lounge);
-    expect(router.push).not.toHaveBeenCalled();
-  });
-
-  it("on another server's screen the bar opens the voice channel's server", async () => {
-    await inLounge();
-    const openChannel = jest.fn();
-
-    const { getByTestId } = await render(<ConnectedBar serverKey="other" onOpenChannel={openChannel} />);
-    await fireEvent.press(getByTestId('connected-bar-pressable'));
-
-    expect(openChannel).not.toHaveBeenCalled();
-    expect(router.push).toHaveBeenCalledWith({
-      pathname: '/servers/[serverKey]',
-      params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge },
-    });
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/call/${CHANNELS.lounge}`);
   });
 
   it('beside the voice channel itself the bar hides', async () => {
     await inLounge();
-    const { toJSON } = await render(<ConnectedBar serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onOpenChannel={() => {}} />);
-    expect(toJSON()).toBeNull();
+    const { queryByTestId } = await render(
+      <GestureHandlerRootView>
+        <ConnectedBar serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />
+      </GestureHandlerRootView>,
+    );
+    expect(queryByTestId('connected-bar-pressable')).toBeNull();
   });
 
   it('tapping mute or leave in the connected bar acts on voice', async () => {
@@ -167,7 +143,7 @@ describe('ConnectedBar', () => {
     const setMutedSpy = jest.spyOn(voiceActions, 'setMuted').mockImplementation(() => {});
     const leaveVoiceSpy = jest.spyOn(voiceActions, 'leaveVoice').mockResolvedValue();
 
-    const { getByTestId } = await render(<ConnectedBar />);
+    const { getByTestId } = await render(<GestureHandlerRootView><ConnectedBar /></GestureHandlerRootView>);
 
     const muteBtn = getByTestId('connected-bar-mute');
     await fireEvent.press(muteBtn);
@@ -178,16 +154,18 @@ describe('ConnectedBar', () => {
     expect(leaveVoiceSpy).toHaveBeenCalled();
   });
 
-  it('compact, the row keeps the channel and the mic, and still opens the channel', async () => {
+  it('compact, the row keeps the channel and the mic, and still opens the call', async () => {
     await inLounge();
     const { getByText, queryByText, getByTestId, queryByTestId } = await render(
-      <ConnectedVoiceRow serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} muted={false} compact />,
+      <GestureHandlerRootView>
+        <ConnectedVoiceRow serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} muted={false} compact />
+      </GestureHandlerRootView>,
     );
     expect(getByText('Lounge')).toBeTruthy();
     expect(queryByText('Night Owls')).toBeNull();
     expect(getByTestId('connected-bar-mute')).toBeTruthy();
     expect(queryByTestId('connected-bar-leave')).toBeNull();
     await fireEvent.press(getByTestId('connected-bar-pressable'));
-    expect(router.push).toHaveBeenCalledWith({ pathname: '/servers/[serverKey]', params: { serverKey: NIGHT_OWLS, channel: CHANNELS.lounge } });
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/call/${CHANNELS.lounge}`);
   });
 });

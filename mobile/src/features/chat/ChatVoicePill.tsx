@@ -1,6 +1,6 @@
 // The voice connection over a chat, as the main page's above its tab bar:
-// a floating pill above the composer. It steps aside while the keyboard is
-// up, so the field keeps the room.
+// a floating pill above the composer, opening the call by a tap or a pull
+// up. It steps aside while the keyboard is up, so the field keeps the room.
 import { StyleSheet } from 'react-native';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -11,15 +11,9 @@ import { GlassSurface, space } from '@/ui';
 
 import { useChatDock } from './dock';
 
-export interface ChatVoicePillProps {
-  /** The server whose screen this is: its channels open in place. */
-  serverKey: string;
-  onOpenChannel: (channelId: string) => void;
-}
-
 const HEIGHT = 56;
 
-export function ChatVoicePill({ serverKey, onOpenChannel }: ChatVoicePillProps) {
+export function ChatVoicePill() {
   const myVoice = useMyVoice();
   const keyboardUp = useKeyboardState((state) => state.isVisible);
   const { fieldGrowth } = useChatDock();
@@ -33,7 +27,6 @@ export function ChatVoicePill({ serverKey, onOpenChannel }: ChatVoicePillProps) 
         serverKey={myVoice.serverKey}
         channelId={myVoice.channelId}
         muted={myVoice.muted}
-        onOpenHere={myVoice.serverKey === serverKey ? onOpenChannel : undefined}
       />
     </GlassSurface>
     </Animated.View>

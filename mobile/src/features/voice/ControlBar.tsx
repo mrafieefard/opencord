@@ -1,12 +1,13 @@
 // The voice call's controls (spec §8.6): 56 pt round buttons (Mute,
-// Deafen, Soundboard, Leave). Music and, on iOS, the sound output have
-// their buttons in the header. Toggles flip between surface/text (off)
+// Deafen, Soundboard, Leave), floating in one glass bar (iOS) or raised
+// surface (Android) over the call. Music and, on iOS, the sound output
+// have their buttons in the header. Toggles flip between surface/text (off)
 // and accent/onAccent (on), and their glyph shows the state; Leave is
 // recording with a white glyph.
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
-import { Icon, onHue, space, useTheme } from '@/ui';
+import { GlassSurface, Icon, onHue, space, useTheme } from '@/ui';
 
 export interface ControlBarProps {
   muted: boolean;
@@ -30,7 +31,7 @@ export function ControlBar({
   const { colors } = useTheme();
 
   return (
-    <View style={styles.bar}>
+    <GlassSurface style={styles.bar} testID="control-bar">
       {/* Mute */}
       <Touchable
         onPress={onToggleMute}
@@ -100,7 +101,7 @@ export function ControlBar({
           <Icon name="leave" size={24} tint={onHue} />
         </View>
       </Touchable>
-    </View>
+    </GlassSurface>
   );
 }
 
@@ -109,7 +110,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-evenly',
     alignItems: 'center',
-    paddingVertical: space.md,
+    paddingVertical: space.sm,
+    marginHorizontal: space.md,
+    marginBottom: space.sm,
+    borderRadius: BUTTON_SIZE / 2 + space.sm,
   },
   button: {
     width: BUTTON_SIZE,

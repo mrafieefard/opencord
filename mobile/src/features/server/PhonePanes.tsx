@@ -179,7 +179,7 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
           <ChannelList serverKey={serverKey} variant={full ? 'full' : 'sidebar'} selectedId={open?.id} onSelect={select} />
           {/* iOS shows the call above the tab bar instead (chrome.ts). */}
           {chrome.serversVoiceBar && (
-            <ConnectedBar serverKey={serverKey} channelId={full ? undefined : open?.id} onOpenChannel={openChannel} bottomInset />
+            <ConnectedBar serverKey={serverKey} channelId={full ? undefined : open?.id} bottomInset />
           )}
         </Animated.View>
         <Animated.View style={[styles.content, contentStyle]}>

@@ -1,32 +1,40 @@
 // The connected voice bar (spec §8.6): a 56 pt bar showing current voice
 // connection (channel, server or currently playing music) with mute and
-// leave buttons. A tap on the bar opens that voice channel: in place on
-// its own server's screen, else on top as that server's screen.
-import { router } from 'expo-router';
+// leave buttons. A tap on the bar opens the call (openCall), and so does
+// pulling it up: it lifts with the finger, as Apple Maps' sheet does.
 import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Touchable } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, Touchable } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { report } from '@/core';
 import { leaveVoice, setMuted } from '@/state/actions/voice';
 import { useMyVoice, useNowPlaying, useServer } from '@/state/selectors';
 import { Icon, IconButton, space, Text, useTheme } from '@/ui';
 
+import { openCall } from './openCall';
+
+/** How far a pull upwards opens the call, and how fast a flick does. */
+const PULL = 36;
+const FLICK = -600;
+/** The bar follows a pull by this share, up to LIFT_MAX. */
+const FOLLOW = 0.4;
+const LIFT_MAX = 28;
+
 export interface ConnectedBarProps {
   /** The server whose screen this is; none on Servers. */
   serverKey?: string;
   /** The channel open beside it: the bar hides when that is the voice channel. */
   channelId?: string;
-  /** Opens a channel of `serverKey`'s screen in place. */
-  onOpenChannel?: (channelId: string) => void;
   /** At the very bottom of the screen, the bar stands on the bottom inset. */
   bottomInset?: boolean;
 }
 
 const BAR_HEIGHT = 56;
 
-export function ConnectedBar({ serverKey, channelId, onOpenChannel, bottomInset = false }: ConnectedBarProps) {
+export function ConnectedBar({ serverKey, channelId, bottomInset = false }: ConnectedBarProps) {
   const myVoice = useMyVoice();
 
   // Hidden when not connected, or when already viewing that channel
@@ -40,7 +48,6 @@ export function ConnectedBar({ serverKey, channelId, onOpenChannel, bottomInset 
       serverKey={myVoice.serverKey}
       channelId={myVoice.channelId}
       muted={myVoice.muted}
-      onOpenHere={myVoice.serverKey === serverKey ? onOpenChannel : undefined}
       bottomInset={bottomInset}
     />
   );
@@ -50,11 +57,10 @@ interface ConnectedBarContentProps {
   serverKey: string;
   channelId: string;
   muted: boolean;
-  onOpenHere?: (channelId: string) => void;
   bottomInset: boolean;
 }
 
-function ConnectedBarContent({ serverKey, channelId, muted, onOpenHere, bottomInset }: ConnectedBarContentProps) {
+function ConnectedBarContent({ serverKey, channelId, muted, bottomInset }: ConnectedBarContentProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
@@ -69,7 +75,7 @@ function ConnectedBarContent({ serverKey, channelId, muted, onOpenHere, bottomIn
         },
       ]}
     >
-      <ConnectedVoiceRow serverKey={serverKey} channelId={channelId} muted={muted} onOpenHere={onOpenHere} />
+      <ConnectedVoiceRow serverKey={serverKey} channelId={channelId} muted={muted} />
     </View>
   );
 }
@@ -78,13 +84,12 @@ export interface ConnectedVoiceRowProps {
   serverKey: string;
   channelId: string;
   muted: boolean;
-  onOpenHere?: (channelId: string) => void;
   /** Only the channel and the mic, for a narrow place (iOS's inline tab accessory). */
   compact?: boolean;
 }
 
 /** What the connected bar shows, without the bar: also iOS's tab bar accessory. */
-export function ConnectedVoiceRow({ serverKey, channelId, muted, onOpenHere, compact = false }: ConnectedVoiceRowProps) {
+export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false }: ConnectedVoiceRowProps) {
   const server = useServer(serverKey);
   const nowPlaying = useNowPlaying(serverKey, channelId);
 
@@ -97,19 +102,27 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, onOpenHere, com
     ? `♪ ${nowPlaying.title}${nowPlaying.artist ? ` — ${nowPlaying.artist}` : ''}`
     : serverName;
 
-  const handleOpen = useCallback(() => {
-    if (onOpenHere) {
-      onOpenHere(channelId);
-      return;
-    }
-    router.push({
-      pathname: '/servers/[serverKey]',
-      params: { serverKey, channel: channelId },
+  const handleOpen = useCallback(() => openCall(serverKey, channelId), [serverKey, channelId]);
+
+  // Pulled up, the bar lifts with the finger; far or fast enough, the call opens.
+  const lift = useSharedValue(0);
+  const pull = Gesture.Pan()
+    .activeOffsetY(-8)
+    .failOffsetX([-16, 16])
+    .onUpdate((event) => {
+      lift.set(Math.max(Math.min(event.translationY, 0) * FOLLOW, -LIFT_MAX));
+    })
+    .onEnd((event) => {
+      if (event.translationY < -PULL || event.velocityY < FLICK) scheduleOnRN(handleOpen);
+    })
+    .onFinalize(() => {
+      lift.set(withSpring(0, { damping: 18, stiffness: 260 }));
     });
-  }, [serverKey, channelId, onOpenHere]);
+  const liftStyle = useAnimatedStyle(() => ({ transform: [{ translateY: lift.get() }] }));
 
   return (
-    <View style={styles.row}>
+    <GestureDetector gesture={pull}>
+    <Animated.View style={[styles.row, liftStyle]}>
       <Touchable
         onPress={handleOpen}
         style={styles.pressable}
@@ -149,7 +162,8 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, onOpenHere, com
           />
         )}
       </View>
-    </View>
+    </Animated.View>
+    </GestureDetector>
   );
 }
 

@@ -2,13 +2,14 @@
 // fixed sidebar beside the content from 768 pt wide. Back moves one step
 // out on a phone and always leaves on a tablet; the stack's swipe back is
 // on only where it can't be mistaken for opening the sidebar. A voice
-// channel opens as a sheet to join it, as Discord's; its page, with the
-// call's controls, opens once this device is in it.
+// channel opens as a sheet to join it, as Discord's; once this device is
+// in it, the call opens instead (openCall).
 import { ChannelKind, type ChannelRecord } from '@opencord/core-native';
 import { router, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { BackHandler, useWindowDimensions } from 'react-native';
 
+import { openCall } from '@/features/voice/openCall';
 import { useAppStore } from '@/state/store';
 
 import { PhonePanes } from './PhonePanes';
@@ -36,8 +37,10 @@ export function ServerScreen({ serverKey, channelId, startWithSidebar = false }:
       select: (channel: Pick<ChannelRecord, 'id'> & Partial<Pick<ChannelRecord, 'kind'>>) => {
         const mine = useAppStore.getState().myVoice;
         const inIt = mine?.serverKey === serverKey && mine.channelId === channel.id;
-        if (channel.kind === ChannelKind.Voice && !inIt) {
-          router.push(`/server/${serverKey}/voice/${channel.id}`);
+        if (channel.kind === ChannelKind.Voice) {
+          // Not in it: the sheet to join it. In it: the call.
+          if (inIt) openCall(serverKey, channel.id);
+          else router.push(`/server/${serverKey}/voice/${channel.id}`);
           return;
         }
         opened.select(channel);

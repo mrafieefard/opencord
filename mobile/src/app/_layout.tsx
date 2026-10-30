@@ -55,6 +55,16 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/call/[channelId]"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: [1],
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              contentStyle: { backgroundColor: colors.chat },
+            }}
+          />
+          <Stack.Screen
             name="server/[serverKey]/voice/[channelId]"
             options={{
               presentation: 'formSheet',
