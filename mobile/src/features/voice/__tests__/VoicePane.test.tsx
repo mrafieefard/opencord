@@ -10,7 +10,8 @@ import * as voiceActions from '@/state/actions/voice';
 import { useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
-import { tileLayout, VoicePane } from '../VoicePane';
+import { tileGrid } from '../tileGrid';
+import { VoicePane } from '../VoicePane';
 import { LinkBanner } from '../LinkBanner';
 import { ParticipantSheet } from '../ParticipantSheet';
 
@@ -246,12 +247,37 @@ describe('VoicePane', () => {
     expect(screen.getByRole('switch').props.accessibilityState).toMatchObject({ checked: false });
   });
 
-  it('tiles are two columns on a phone and more on a tablet', () => {
-    expect(tileLayout(412).columns).toBe(2);
-    expect(tileLayout(320).columns).toBe(2);
-    const tablet = tileLayout(960);
+  it('tiles fill the pane: one alone, two stacked, then two across on a phone, six rows at most', () => {
+    // A phone's room for the grid.
+    const [width, height, gap] = [378, 600, 12];
+    const one = tileGrid(1, width, height, gap);
+    expect(one).toMatchObject({ columns: 1, tileWidth: width, tileHeight: height });
+
+    const two = tileGrid(2, width, height, gap);
+    expect(two).toMatchObject({ columns: 1, tileWidth: width, tileHeight: (height - gap) / 2 });
+
+    // Three: two across, the last spanning its row.
+    const three = tileGrid(3, width, height, gap);
+    expect(three.columns).toBe(2);
+    expect(three.lastWidth).toBe(width);
+    expect(three.tileHeight).toBe((height - gap) / 2);
+
+    const four = tileGrid(4, width, height, gap);
+    expect(four).toMatchObject({ columns: 2, tileWidth: (width - gap) / 2, lastWidth: (width - gap) / 2 });
+
+    // Twelve fill six rows; more keep that size and scroll.
+    const sixRows = Math.floor((height - gap * 5) / 6);
+    expect(tileGrid(12, width, height, gap)).toMatchObject({ columns: 2, tileHeight: sixRows });
+    expect(tileGrid(20, width, height, gap)).toMatchObject({ columns: 2, tileHeight: sixRows });
+
+    // The avatar grows with its tile.
+    expect(one.avatar).toBeGreaterThan(tileGrid(12, width, height, gap).avatar);
+  });
+
+  it('a wide pane takes more columns, and puts two side by side', () => {
+    const tablet = tileGrid(8, 936, 700, 12);
     expect(tablet.columns).toBeGreaterThan(2);
-    expect(tablet.size).toBeLessThanOrEqual(200);
+    expect(tileGrid(2, 936, 700, 12).columns).toBe(2);
   });
 
   // Jest runs as iOS, where the call shows above the tab bar instead (chrome.ts):

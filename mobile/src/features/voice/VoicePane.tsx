@@ -21,6 +21,7 @@ import { ConnectedBar } from './ConnectedBar';
 import { ControlBar } from './ControlBar';
 import { LinkBanner } from './LinkBanner';
 import { ParticipantTile } from './ParticipantTile';
+import { tileGrid } from './tileGrid';
 
 export interface VoicePaneProps {
   serverKey: string;
@@ -35,23 +36,15 @@ export interface VoicePaneProps {
   headerGesture?: ReturnType<typeof Gesture.Pan>;
 }
 
-/** Tiles are at most this wide, so a wider pane has more columns: two on a phone, more on a tablet. */
-const TILE_MAX = 200;
-const MIN_COLUMNS = 2;
 const GAP = space.md;
 const PADDING = space.md;
-
-export function tileLayout(width: number): { columns: number; size: number } {
-  const inner = width - PADDING * 2;
-  const columns = Math.max(MIN_COLUMNS, Math.ceil((inner + GAP) / (TILE_MAX + GAP)));
-  return { columns, size: Math.floor((inner - GAP * (columns - 1)) / columns) };
-}
 
 export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, asCall = false, headerGesture }: VoicePaneProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
-  const [width, setWidth] = useState(windowWidth);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  // The grid's room, as it lays out: the tiles fill it.
+  const [room, setRoom] = useState({ width: windowWidth, height: windowHeight / 2 });
 
   const info = useChannelInfo(serverKey, channelId);
   useMusicSettingsLoader(serverKey);
@@ -74,11 +67,11 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const openSoundboard = useCallback(() => router.push(`/server/${serverKey}/soundboard/${channelId}`), [serverKey, channelId]);
   const openMember = useCallback((userId: string) => router.push(`/server/${serverKey}/member/${userId}`), [serverKey]);
   const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const next = event.nativeEvent.layout.width;
-    if (next > 0) setWidth(next);
+    const { width, height } = event.nativeEvent.layout;
+    if (width > 0 && height > 0) setRoom({ width, height });
   }, []);
 
-  const tile = tileLayout(width);
+  const grid = tileGrid(sorted.length, room.width - PADDING * 2, room.height - PADDING * 2, GAP);
   const userLimit = info?.channel.userLimit ?? 0;
   const reason =
     info?.access.connect === false
@@ -128,13 +121,15 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
           <EmptyState title="No one's here yet" />
         ) : (
           <View style={styles.tiles}>
-            {sorted.map((member) => (
+            {sorted.map((member, index) => (
               <ParticipantTile
                 key={member.userId}
                 serverKey={serverKey}
                 channelId={channelId}
                 member={member}
-                size={tile.size}
+                width={index === sorted.length - 1 ? grid.lastWidth : grid.tileWidth}
+                height={grid.tileHeight}
+                avatar={grid.avatar}
                 onPress={() => openMember(member.userId)}
               />
             ))}

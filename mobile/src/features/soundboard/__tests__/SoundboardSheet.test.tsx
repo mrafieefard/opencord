@@ -56,7 +56,7 @@ describe('the soundboard sheet', () => {
   it("rings the player's tile while the sound plays, then not", async () => {
     await inVoice();
     const member = { userId: '1001', name: 'Kai', muted: false, deafened: false, speaking: false, isSelf: false };
-    await render(<ParticipantTile serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} member={member} size={160} />);
+    await render(<ParticipantTile serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} member={member} width={160} height={160} />);
     expect(screen.queryByTestId('participant-sound-ring')).toBeNull();
 
     jest.useFakeTimers({ now: Date.now() });

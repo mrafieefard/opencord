@@ -1,5 +1,6 @@
-// A person in a voice channel (spec §8.6): a surface square, 16 pt corners,
-// a 64 pt avatar with a 3 pt voice ring while speaking, name and glyphs.
+// A person in a voice channel (spec §8.6): a surface tile, 16 pt corners,
+// sized to fill its share of the pane (tileGrid.ts), its avatar growing with
+// it, with a 3 pt voice ring while speaking, name and glyphs.
 // While a sound they played plays, a dashed ring sits outside the voice
 // ring (Phase 2 plan §11.7, as the desktop's soundboard_ring.dart).
 import { StyleSheet, View } from 'react-native';
@@ -14,7 +15,10 @@ export interface ParticipantTileProps {
   serverKey: string;
   channelId: string;
   member: VoiceMember;
-  size: number;
+  width: number;
+  height: number;
+  /** The avatar's size: it grows with the tile. */
+  avatar?: number;
   onPress?: () => void;
 }
 
@@ -23,7 +27,7 @@ const AVATAR = 64;
 const SOUND_RING = 2;
 const SOUND_GAP = 2;
 
-export function ParticipantTile({ serverKey, channelId, member, size, onPress }: ParticipantTileProps) {
+export function ParticipantTile({ serverKey, channelId, member, width, height, avatar = AVATAR, onPress }: ParticipantTileProps) {
   const { colors } = useTheme();
   const avatarFile = useImageFile(serverKey, member.avatarHash);
   const playing = useSoundRing(serverKey, channelId, member.userId);
@@ -34,19 +38,19 @@ export function ParticipantTile({ serverKey, channelId, member, size, onPress }:
         style={[
           styles.tile,
           {
-            width: size,
-            height: size,
+            width,
+            height,
             backgroundColor: colors.surface,
           },
         ]}
       >
         <View style={styles.ringed}>
-          <Avatar name={member.name} file={avatarFile} size={AVATAR} speaking={member.speaking} />
+          <Avatar name={member.name} file={avatarFile} size={avatar} speaking={member.speaking} />
           {playing && (
             <View
               testID="participant-sound-ring"
               pointerEvents="none"
-              style={[styles.soundRing, { borderColor: colors.text }]}
+              style={[styles.soundRing, { borderColor: colors.text, borderRadius: avatar }]}
             />
           )}
         </View>
@@ -71,7 +75,6 @@ const styles = StyleSheet.create({
   },
   soundRing: {
     ...StyleSheet.absoluteFill,
-    borderRadius: AVATAR,
     borderWidth: SOUND_RING,
     borderStyle: 'dashed',
   },
