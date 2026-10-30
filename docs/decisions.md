@@ -346,6 +346,11 @@ The Mac session's log is `docs/plans/macos.md` §7; this is what it decided. The
   - When a headset's microphone and speaker fall back within 2 s of each other, one notice tells of both; the second used to hide the first.
   - Switching cameras retries for up to 1 s while the camera switched from closes, so choosing the camera already on by its name (after Default) no longer fails as busy.
   - Debug builds optimize `aec3` and `nnnoiseless` like DeepFilterNet's crates: unoptimized, they took 79 % of a throttled Mac's audio thread and the call cut out.
+- **Found by running it.** A run under Xvfb crashed with `kill -SEGV` showed three things, now fixed with tests:
+  - The crash line was written, but the process didn't die: a sent signal faults nothing, so returning from the handler let the app carry on. A sent crash signal now goes to its default action.
+  - SIGTERM read as a crash.
+  - Dart names were taken for domains.
+  Reading the code back also found two more: a corrupt `update.json` would have stopped the app starting, and a clean quit followed by a few lines would have read as a crash.
 - **Checks.** `app/tool/macos/` holds the Mac's twins of the Linux checks (BlackHole, sox and `afplay` in place of PipeWire's sinks) and `serve_lan.sh` for calls across machines. Every acceptance passed, including AirPods during a call, sleep and wake, Continuity Camera, the "no double audio" test (Talker at −117.8 dBFS in the stream, the music at −12.0) and the call between the Mac, Linux and Windows. Not checked: two monitors with mixed DPI, HDR, macOS 13 and 14.0–14.1 (read only).
 
 ## D35: Windows (W0 to W8, 2026-10-13 to 2026-10-14)
@@ -1324,7 +1329,8 @@ The owner asked for a log a user can export after an error and send them, so Cla
   - The header holds only what's quick to read; the graphics cards and audio devices come as lines from a thread, so startup doesn't wait on DXGI or audio enumeration.
 - **Limits.**
   - **Windows fail-fast crashes** (heap corruption `0xC0000374`, as in D72) end the process without running any handler in it. Such a session shows only as having ended unexpectedly, with no crash line. A crash dump through WER's LocalDumps would be the next step.
-  - **A clean exit** is marked by `NativeWindow.quit` and by a C `atexit` hook. On Windows the hook runs after the library's other threads are gone, so the last second of lines may be missing, though `session ended` is still written.
+  - **A clean exit** is marked by `NativeWindow.quit` and by a C `atexit` hook. On Windows the hook runs after the library's other threads are gone, so the last second of lines may be missing, though `session ended` is still written. On macOS and Linux, SIGTERM, SIGINT and SIGHUP (logging out, `kill`) write `session ended (signal N)` and are then handed on, so they don't read as crashes.
+  - **The filter's host names:** a dotted name counts as a host only when it's lowercase and ends in a country code or a common top-level domain. Otherwise Dart's `CoreError.notInitialized()` came out as `host-1()`, which the first real run showed. An uppercase or unusual host in another crate's message can still pass through.
 - **Checks.**
   - **Rust:** 37 log tests in the core: rotation, the cap, folding, the header, a second start, an unwritable folder, a clean end followed by a few lines, the filter and its leak corpus, the panic hook, a real segfault in a child process, a normal exit in a child process, and the export.
   - **Media:** counters, the machine facts, and a PipeWire share whose source goes away logging `cause="source closed"`.

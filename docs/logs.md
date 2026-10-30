@@ -87,7 +87,7 @@ Lines after a message's first (stack traces, backtraces) are indented.
   - `ERROR panic  <message> thread=… location=…`, then a backtrace;
   - `FATAL native crash  code=0xC0000005 module=… offset=…` on Windows, or `signal=11 (SIGSEGV)` elsewhere.
   - Windows' fail-fast crashes (heap corruption, `0xC0000374`) skip every handler in the process. A session that ends without `session ended` and without a crash line is most likely one of those.
-- **The end:** `session ended`, the last line of every clean exit.
+- **The end:** `session ended`, near the end of every clean exit. `session ended (signal 15)` means the system or the user ended the app (logging out, `kill`), which isn't a crash. A session without either crashed or was killed outright (`kill -9`, a power cut).
 
 ## What's never in it
 
@@ -97,7 +97,8 @@ The core filters every line before it reaches the disk (`crates/opencord-core/sr
 |---|---|
 | A server's host | `server-A`, `server-B`…, the same all session |
 | An IP address | `public-ip-1`, `lan-ip-2` (private ranges, Tailscale's 100.64/10, link-local), `loopback`, `ipv6-public-1`, `ipv6-lan-1`; ports stay |
-| Another domain or URL | `https://host-1:8443`: scheme and port only, no path or query |
+| Another URL | `https://host-1:8443`: scheme and port only, no path or query |
+| Another host name | `host-1`: a lowercase dotted name ending in a country code or a common top-level domain (`.com`, `.dev`, `.local`…). `CoreError.notInitialized` and `provider.read` are code, and stay |
 | An e-mail address | `<email>` |
 | A user or channel id the core logs | `user-1`, `you` for the signed-in user, `channel-1` |
 | The home folder | `~` |
