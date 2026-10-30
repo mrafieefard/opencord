@@ -1,31 +1,23 @@
 // The Servers tab screen (spec §8.2):
-// - FlashList of server rows
+// - the server rows (ServerList: a FlashList on Android, a native list on iOS)
 // - Native search bar filtering by name
 // - Pull to refresh retrying disconnected servers
 // - Empty state offering "Add a server"
 
-import { FlashList } from '@shopify/flash-list';
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useLayoutEffect, useState } from 'react';
-import {
-  type NativeSyntheticEvent,
-  RefreshControl,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { type NativeSyntheticEvent, StyleSheet, View } from 'react-native';
 
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
 import { retryDisconnected } from '@/state/actions/servers';
 import { useServerRows } from '@/state/selectors';
-import type { ServerRow as ServerRowType } from '@/state/types';
-import { Divider, EmptyState, useTheme } from '@/ui';
+import { EmptyState, useTheme } from '@/ui';
 
 import { deviceLocale } from './formatTime';
-import { ROW_INSET, ServerRow } from './ServerRow';
+import { ServerList } from './ServerList';
 import { useMinuteClock } from './useMinuteClock';
 
 const openServer = (serverKey: string) => router.push(`/server/${serverKey}`);
-const Separator = () => <Divider inset={ROW_INSET} />;
 
 export interface ServerListScreenProps {
   /** A search field in the header filters the list. */
@@ -68,10 +60,7 @@ export function ServerListScreen({ searchable, voiceBar }: ServerListScreenProps
     }
   }, []);
 
-  const renderItem = useCallback(
-    ({ item }: { item: ServerRowType }) => <ServerRow row={item} nowMs={nowMs} locale={locale} onOpen={openServer} />,
-    [nowMs, locale],
-  );
+
 
   if (rows.length === 0 && !query) {
     return (
@@ -90,25 +79,14 @@ export function ServerListScreen({ searchable, voiceBar }: ServerListScreenProps
   }
 
   const list = (
-    <FlashList
-      testID="server-list"
-      data={rows}
-      keyExtractor={(item) => item.key}
-      renderItem={renderItem}
-      ItemSeparatorComponent={Separator}
-      contentInsetAdjustmentBehavior="automatic"
-      maintainVisibleContentPosition={{ disabled: true }}
-      keyboardDismissMode="on-drag"
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={colors.accent}
-        />
-      }
-      ListEmptyComponent={
-        query ? <EmptyState title="No servers found" /> : null
-      }
+    <ServerList
+      rows={rows}
+      nowMs={nowMs}
+      locale={locale}
+      onOpen={openServer}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      emptyTitle={query ? 'No servers found' : undefined}
     />
   );
   // The list is the screen's first view when nothing goes under it: iOS links

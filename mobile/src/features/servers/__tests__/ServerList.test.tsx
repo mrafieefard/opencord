@@ -13,6 +13,10 @@ function renderScreen(ui: React.ReactElement) {
   return render(<GestureHandlerRootView style={{ flex: 1 }}>{ui}</GestureHandlerRootView>);
 }
 
+// Android's list, its rows swiped with Gesture Handler (iOS's is SwiftUI's:
+// ServerList.ios.test.tsx).
+jest.mock('../ServerList', () => jest.requireActual('../ServerList.android'));
+
 const mockPush = jest.fn();
 let mockNavOptions: Record<string, unknown> = {};
 jest.mock('expo-router', () => ({

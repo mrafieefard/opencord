@@ -104,8 +104,23 @@ jest.mock('@expo/ui/swift-ui', () => {
   ContextMenu.Trigger = function Trigger({ children }: { children: React.ReactNode }) {
     return React.createElement(React.Fragment, null, children);
   };
+  // A row takes its tap through its onTapGesture modifier; its swipe
+  // actions sit beside it.
+  const SwipeActions = ({ children, testID, modifiers }: { children: React.ReactNode; testID?: string; modifiers?: { _onTapGesture?: () => void }[] }) =>
+    React.createElement(Pressable, { testID, onPress: modifiers?.find((m) => m && m._onTapGesture)?._onTapGesture }, children);
+  SwipeActions.Actions = function Actions({ children }: { children: React.ReactNode }) {
+    return React.createElement(View, null, children);
+  };
   return {
-    Host: ({ children, style }: { children: React.ReactNode; style?: unknown }) => React.createElement(View, { style }, children),
+    // Laid out at a phone's width as soon as it mounts.
+    Host: function Host({ children, style, testID, onLayoutContent }: { children: React.ReactNode; style?: unknown; testID?: string; onLayoutContent?: (event: { nativeEvent: { width: number; height: number } }) => void }) {
+      React.useEffect(() => onLayoutContent?.({ nativeEvent: { width: 390, height: 844 } }), [onLayoutContent]);
+      return React.createElement(View, { style, testID }, children);
+    },
+    // A list refreshes through its refreshable modifier.
+    List: ({ children, modifiers }: { children?: React.ReactNode; modifiers?: { _refreshable?: () => Promise<void> }[] }) =>
+      React.createElement(View, { accessible: true, accessibilityRole: 'list', onRefresh: modifiers?.find((m) => m && m._refreshable)?._refreshable }, children),
+    SwipeActions,
     ContextMenu,
     RNHostView: ({ children }: { children: React.ReactNode }) => children,
     // Named by its label, or by accessibilityLabel when it draws its own content.
@@ -188,6 +203,13 @@ jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   disabled: (d: boolean = true) => ({ _disabled: d }),
   tint: (t: string) => ({ _tint: t }),
   labelsHidden: () => ({ _labelsHidden: true }),
+  listRowInsets: () => ({}),
+  listRowBackground: () => ({}),
+  listRowSeparator: () => ({}),
+  listStyle: () => ({}),
+  scrollContentBackground: () => ({}),
+  refreshable: (action: () => Promise<void>) => ({ _refreshable: action }),
+  onTapGesture: (action: () => void) => ({ _onTapGesture: action }),
 }));
 
 // @expo/ui jetpack-compose mocks for Jest.
