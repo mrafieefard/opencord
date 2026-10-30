@@ -118,7 +118,36 @@ pub(crate) async fn open(
     pinned: Option<Fingerprint>,
 ) -> Result<Opened, HandshakeError> {
     // Registered first, so the filter replaces it in any line from here.
-    crate::log::alias::server(&address.host);
+    let server = crate::log::alias::server(&address.host);
+    let began = Instant::now();
+    let opened = handshake(address, pinned).await;
+    let after_ms = began.elapsed().as_millis();
+    match &opened {
+        Ok(opened) => {
+            crate::log::alias::server_facts(
+                &address.host,
+                &format!(
+                    "port {}, {}, protocol v{}",
+                    address.port,
+                    if opened.authority {
+                        "a certificate an authority vouches for"
+                    } else {
+                        "a pinned certificate"
+                    },
+                    opened.hello.protocol_version
+                ),
+            );
+            tracing::info!(%server, after_ms, "connected");
+        }
+        Err(error) => tracing::warn!(%server, after_ms, ?error, "could not connect"),
+    }
+    opened
+}
+
+async fn handshake(
+    address: &ServerAddress,
+    pinned: Option<Fingerprint>,
+) -> Result<Opened, HandshakeError> {
     let trust = TlsTrust::new(pinned);
     let tcp = timeout(
         CONNECT_TIMEOUT,
@@ -127,6 +156,10 @@ pub(crate) async fn open(
     .await
     .map_err(|_| HandshakeError::Transient("the connection timed out".to_owned()))?
     .map_err(|error| HandshakeError::Transient(error.to_string()))?;
+    // The address it reached: public or on the local network (D70).
+    if let Ok(peer) = tcp.peer_addr() {
+        tracing::debug!(peer = %crate::log::alias::address(peer.ip()), port = peer.port(), "tcp connected");
+    }
     let server_name = ServerName::try_from(address.host.clone())
         .map_err(|_| HandshakeError::Transient(format!("{} is not a valid host", address.host)))?;
     let tls = timeout(

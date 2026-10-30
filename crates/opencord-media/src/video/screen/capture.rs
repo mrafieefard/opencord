@@ -146,16 +146,25 @@ fn run(
     };
     let agreed: Agreed = Rc::new(Cell::new(None));
     let started_once = Rc::new(Cell::new(Some(started.clone())));
+    // Why the capture ended, for the session log (D82).
+    let cause = Rc::new(Cell::new("stopped"));
     let listener = stream
         .add_local_listener_with_user_data(())
         .state_changed({
             let mainloop = mainloop.clone();
             let started_once = Rc::clone(&started_once);
+            let cause = Rc::clone(&cause);
             move |_, _, old, state| match state {
                 pw::stream::StreamState::Error(message) => {
                     tracing::warn!(%message, "the screen stream failed");
-                    if let Some(started) = started_once.take() {
-                        let _ = started.send(Err(ScreenError::Failed(message)));
+                    match started_once.take() {
+                        Some(started) => {
+                            cause.set("error");
+                            let _ = started.send(Err(ScreenError::Failed(message)));
+                        }
+                        // Once streaming, PipeWire reports a source that
+                        // went away as an error ("defined target not found").
+                        None => cause.set("source closed"),
                     }
                     mainloop.quit();
                 }
@@ -165,6 +174,7 @@ fn run(
                         pw::stream::StreamState::Streaming | pw::stream::StreamState::Paused
                     ) =>
                 {
+                    cause.set("source closed");
                     mainloop.quit();
                 }
                 _ => {}
@@ -256,6 +266,7 @@ fn run(
     });
     mainloop.run();
     let _ = stream.disconnect();
+    tracing::info!(method = "pipewire", cause = cause.get(), "capture stopped");
 }
 
 /// What Opencord takes from a screen: 8-bit RGB in shared memory (no
@@ -392,6 +403,74 @@ mod tests {
         assert!(capture.finished());
         while received.try_recv().is_ok() {}
         assert!(received.recv_timeout(Duration::from_millis(100)).is_err());
+    }
+
+    /// Every event from every thread, kept for the test that reads them.
+    fn recorded() -> &'static std::sync::Mutex<Vec<String>> {
+        use tracing_subscriber::layer::SubscriberExt;
+
+        struct Record;
+        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Record {
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                struct Fields(String);
+                impl tracing::field::Visit for Fields {
+                    fn record_debug(
+                        &mut self,
+                        field: &tracing::field::Field,
+                        value: &dyn std::fmt::Debug,
+                    ) {
+                        self.0.push_str(&format!(" {}={value:?}", field.name()));
+                    }
+                }
+                let mut fields = Fields(String::new());
+                event.record(&mut fields);
+                recorded().lock().unwrap().push(fields.0);
+            }
+        }
+
+        static LINES: std::sync::OnceLock<std::sync::Mutex<Vec<String>>> =
+            std::sync::OnceLock::new();
+        LINES.get_or_init(|| {
+            let _ = tracing::subscriber::set_global_default(
+                tracing_subscriber::registry().with(Record),
+            );
+            std::sync::Mutex::new(Vec::new())
+        })
+    }
+
+    #[test]
+    fn stop_cause_is_reported() {
+        let lines = recorded();
+        let Some(screen) = virtual_screen(320, 180) else {
+            eprintln!("no PipeWire here");
+            return;
+        };
+        let (frames, received) = mpsc::sync_channel(4);
+        let capture = ScreenCapture::start(
+            Remote::Session,
+            Target::Named(screen.name.clone()),
+            30,
+            frames,
+        )
+        .unwrap();
+        next(&received);
+        drop(screen);
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !capture.finished() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        drop(capture);
+        let lines = lines.lock().unwrap();
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("capture stopped") && line.contains("\"source closed\"")),
+            "{lines:?}"
+        );
     }
 
     #[test]

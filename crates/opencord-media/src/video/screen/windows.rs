@@ -273,10 +273,23 @@ async fn start_with(
         },
     };
 
+    let fps = request.fps.max(1);
+    match what {
+        Chosen::Screen(_) => tracing::info!(kind = "screen", fps, capture_api, "share starting"),
+        // The window's app, never its title: titles can hold private text.
+        Chosen::Window(window) => tracing::info!(
+            kind = "window",
+            fps,
+            capture_api,
+            app = gdi::sound_process_of(window)
+                .and_then(gdi::app_of_process)
+                .unwrap_or_else(|| "unknown".to_owned()),
+            "share starting"
+        ),
+    }
     let stop = Arc::new(AtomicBool::new(false));
     let finished = Arc::new(AtomicBool::new(false));
     let (started, outcome) = mpsc::channel();
-    let fps = request.fps.max(1);
     let thread = std::thread::Builder::new()
         .name("opencord-screen".to_owned())
         .spawn({
@@ -343,9 +356,14 @@ fn graphics() -> Result<Graphics, ScreenError> {
                 Some(&mut context),
             )
         };
+        let error = made.as_ref().err().map(ToString::to_string);
         let (Ok(()), Some(device), Some(context)) = (made, device, context) else {
+            tracing::info!(?driver, ?error, "no Direct3D 11 device of this kind");
             continue;
         };
+        if driver == D3D_DRIVER_TYPE_WARP {
+            tracing::warn!("no usable GPU for capture; using WARP, in software");
+        }
         // SAFETY: a D3D11 device is a DXGI device; the WinRT wrapper takes
         // its own reference.
         let winrt = unsafe {
@@ -387,13 +405,24 @@ fn run(
     finished: &AtomicBool,
     started: &mpsc::Sender<Result<(u32, u32), ScreenError>>,
 ) {
+    let trying = Instant::now();
     let session = capture_api
         .then(|| {
             Session::open(what, fps)
-                .inspect_err(|error| tracing::warn!(%error, "the capture API refused; using GDI"))
+                .inspect_err(|error| {
+                    tracing::warn!(
+                        method = "wgc",
+                        %error,
+                        after_ms = trying.elapsed().as_millis(),
+                        "the capture API refused; using GDI"
+                    );
+                })
                 .ok()
         })
         .flatten();
+    if !capture_api {
+        tracing::info!(method = "gdi", "the capture API isn't there; using GDI");
+    }
     let mut told = false;
     if let Some(session) = session {
         if started.send(Ok(session.size)).is_err() {
@@ -402,7 +431,11 @@ fn run(
         told = true;
         match session.read(frames, stop, finished) {
             Ended::Done => return,
-            Ended::Silent => tracing::warn!("the capture API sent no frame; using GDI"),
+            Ended::Silent => tracing::warn!(
+                method = "wgc",
+                waited_s = FIRST_FRAME.as_secs(),
+                "the capture API sent no frame; using GDI"
+            ),
         }
     }
     read_with_gdi(
@@ -452,22 +485,84 @@ fn read_with_gdi(
     let gap = Duration::from_secs_f64(1.0 / f64::from(fps));
     let mut next = Instant::now();
     let mut looked = Instant::now();
+    let mut counts = Counts::new("gdi");
     while !stop.load(Ordering::Relaxed) {
         if looked.elapsed() >= GONE_CHECK {
             looked = Instant::now();
             if gone(&what) {
-                tracing::info!("the shared source went away");
+                tracing::info!(method = "gdi", cause = "source closed", "capture stopped");
                 finished.store(true, Ordering::Relaxed);
                 return;
             }
         }
         // Nothing while minimised: the sender keeps the last picture going
         // (§9.4).
-        if let Some(raw) = grabber.grab() {
+        match grabber.grab() {
             // Dropped while the encoder is behind.
-            let _ = frames.try_send(raw);
+            Some(raw) => counts.grabbed(frames.try_send(raw).is_ok()),
+            None => counts.empty(),
         }
+        counts.log_when_due();
         next = pace(next, gap);
+    }
+    tracing::info!(method = "gdi", cause = "stopped", "capture stopped");
+}
+
+/// A capture loop's counters, logged every few seconds (D82).
+struct Counts {
+    method: &'static str,
+    since: Instant,
+    first: Option<Instant>,
+    grabbed: u32,
+    queue_full: u32,
+    empty: u32,
+}
+
+impl Counts {
+    fn new(method: &'static str) -> Self {
+        Self {
+            method,
+            since: Instant::now(),
+            first: Some(Instant::now()),
+            grabbed: 0,
+            queue_full: 0,
+            empty: 0,
+        }
+    }
+
+    /// A frame captured; `queued` unless the sender was still busy.
+    fn grabbed(&mut self, queued: bool) {
+        if let Some(opened) = self.first.take() {
+            tracing::info!(
+                method = self.method,
+                after_ms = opened.elapsed().as_millis(),
+                "first frame captured"
+            );
+        }
+        self.grabbed += 1;
+        self.queue_full += u32::from(!queued);
+    }
+
+    /// Nothing to capture this time (a minimised window).
+    fn empty(&mut self) {
+        self.empty += 1;
+    }
+
+    fn log_when_due(&mut self) {
+        if self.since.elapsed() < crate::video::stats::EVERY {
+            return;
+        }
+        tracing::info!(
+            method = self.method,
+            grabbed = self.grabbed,
+            queue_full = self.queue_full,
+            nothing_new = self.empty,
+            "capturing"
+        );
+        *self = Self {
+            first: None,
+            ..Self::new(self.method)
+        };
     }
 }
 
@@ -532,9 +627,14 @@ impl Session {
         let _ = session.SetIsCursorCaptureEnabled(true);
         // No yellow border around what is shared, where Windows lets it go
         // (Windows 11); Windows 10 always draws it.
+        let asked = Instant::now();
         if borderless_allowed() {
             let _ = session.SetIsBorderRequired(false);
         }
+        tracing::debug!(
+            after_ms = asked.elapsed().as_millis(),
+            "the border was settled"
+        );
         // Windows 11 can hold the rate down itself, which saves the copy a
         // frame we would only drop costs. Where it cannot, `read` paces.
         let paced = session
@@ -577,7 +677,9 @@ impl Session {
         let gap = Duration::from_secs_f64(1.0 / f64::from(self.fps));
         let mut next = Instant::now();
         let mut looked = Instant::now();
+        let mut counts = Counts::new("wgc");
         while !stop.load(Ordering::Relaxed) {
+            counts.log_when_due();
             // Whether the source is still there is asked two ways. The
             // `Closed` event is the tidy one, but it is a WinRT event and
             // this thread pumps no messages, so it never arrives — measured:
@@ -587,13 +689,13 @@ impl Session {
             if looked.elapsed() >= GONE_CHECK {
                 looked = Instant::now();
                 if gone(&self.what) {
-                    tracing::info!("the shared source went away");
+                    tracing::info!(method = "wgc", cause = "source closed", "capture stopped");
                     finished.store(true, Ordering::Relaxed);
                     return Ended::Done;
                 }
             }
             if self.gone.load(Ordering::Relaxed) {
-                tracing::info!("the shared window was closed");
+                tracing::info!(method = "wgc", cause = "window closed", "capture stopped");
                 finished.store(true, Ordering::Relaxed);
                 return Ended::Done;
             }
@@ -607,6 +709,7 @@ impl Session {
                 {
                     return Ended::Silent;
                 }
+                counts.empty();
                 std::thread::sleep(POLL);
                 continue;
             };
@@ -635,13 +738,14 @@ impl Session {
 
             if let Some(raw) = copy_out(&self.graphics, &frame, &mut staging) {
                 // Dropped while the encoder is behind.
-                let _ = frames.try_send(raw);
+                counts.grabbed(frames.try_send(raw).is_ok());
             }
 
             if !self.paced {
                 next = pace(next, gap);
             }
         }
+        tracing::info!(method = "wgc", cause = "stopped", "capture stopped");
         Ended::Done
     }
 }

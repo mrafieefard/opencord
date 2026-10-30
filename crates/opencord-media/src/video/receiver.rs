@@ -12,6 +12,7 @@ use crate::transport::ReceivedVideo;
 use crate::video::codec::decoder::Decoder;
 use crate::video::codec::scale::Scaler;
 use crate::video::picture::Picture;
+use crate::video::stats::ReceiveStats;
 
 /// Layers taller than this decode in hardware where there is some.
 const HARDWARE_ABOVE: u16 = 360;
@@ -121,6 +122,8 @@ struct Receiving<S, L> {
     hold: Duration,
     #[cfg(target_os = "linux")]
     gpu: Option<GpuSink>,
+    /// For the session log (D82).
+    stats: ReceiveStats,
 }
 
 /// The most a picture waits for its sound.
@@ -140,11 +143,16 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
             hold: Duration::ZERO,
             #[cfg(target_os = "linux")]
             gpu: None,
+            stats: ReceiveStats::new(Instant::now()),
         }
     }
 
     fn run(&mut self, commands: &mpsc::Receiver<Command>) {
+        tracing::info!("watching a video track");
         while let Ok(command) = commands.recv() {
+            if let Some(line) = self.stats.due(Instant::now()) {
+                tracing::info!("receiving: {line}");
+            }
             match command {
                 Command::Size(width, height) => {
                     let hidden = width == 0 || height == 0;
@@ -163,6 +171,7 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
     }
 
     fn video(&mut self, video: &ReceivedVideo) {
+        self.stats.received();
         if self.size.0 == 0 || self.size.1 == 0 {
             return;
         }
@@ -174,6 +183,7 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
         }
         if self.awaiting_keyframe {
             // What came before it was missed, or could not be decoded.
+            self.stats.lost();
             (self.lost)();
             return;
         }
@@ -185,9 +195,17 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
         };
         if slot.is_none() {
             match Decoder::open(large) {
-                Ok(decoder) => *slot = Some(decoder),
+                Ok(decoder) => {
+                    tracing::info!(
+                        wanted_hardware = large,
+                        hardware = decoder.is_hardware(),
+                        height = self.height,
+                        "decoder opened"
+                    );
+                    *slot = Some(decoder);
+                }
                 Err(error) => {
-                    tracing::warn!(%error, "no decoder");
+                    tracing::warn!(%error, wanted_hardware = large, "no decoder");
                     return;
                 }
             }
@@ -201,6 +219,7 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
             match decoder.decode_gpu(&video.nal_units, video.arrived) {
                 Ok(decoded) => {
                     for decoded in decoded {
+                        self.stats.decoded();
                         match decoded {
                             Decoded::Gpu(picture) => self.present_gpu(picture, video.arrived),
                             Decoded::Picture(picture) => self.present(&picture, video.arrived),
@@ -209,6 +228,8 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
                 }
                 Err(error) => {
                     tracing::debug!(%error, "a picture could not be decoded");
+                    self.stats.decode_error();
+                    self.stats.lost();
                     *slot = None;
                     self.awaiting_keyframe = true;
                     (self.lost)();
@@ -219,11 +240,14 @@ impl<S: FnMut(Rgba), L: FnMut()> Receiving<S, L> {
         match decoder.decode(&video.nal_units, video.arrived) {
             Ok(pictures) => {
                 for picture in pictures {
+                    self.stats.decoded();
                     self.present(&picture, video.arrived);
                 }
             }
             Err(error) => {
                 tracing::debug!(%error, "a picture could not be decoded");
+                self.stats.decode_error();
+                self.stats.lost();
                 *slot = None;
                 self.awaiting_keyframe = true;
                 (self.lost)();
