@@ -126,7 +126,9 @@ export const MessageList = memo(function MessageList({
   }, [channelMsgs?.items, channelMsgs?.pending, selfId, firstUnreadId]);
 
   const atBottom = openChannelState?.atBottom ?? true;
-  const showJump = !atBottom || isScrolledUp;
+  // While recording, the mic's lock hint takes that corner.
+  const recording = useAppStore((state) => state.voiceRecording !== null);
+  const showJump = (!atBottom || isScrolledUp) && !recording;
   const unreadCount = activity?.unread ?? 0;
 
   const handleScroll = useCallback(
