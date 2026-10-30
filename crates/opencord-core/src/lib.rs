@@ -15,6 +15,7 @@ mod frb_generated;
 mod http;
 pub mod identity;
 mod lavalink;
+pub mod log;
 pub mod media;
 pub mod media_player;
 pub mod mirror;

@@ -40,6 +40,8 @@ tokio-tungstenite.workspace = true
 tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
+regex = "1.13.1"
 # Olm for private messages (design 2026-10-22 §10). Never write ratchet or
 # key agreement code here.
 vodozemac = "0.11.1"
@@ -58,6 +60,10 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 irondash_run_loop.workspace = true
 irondash_texture.workspace = true
 
+# The session log's clock and its crash handler (D82), on every Unix,
+# phones included.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.190"
 
 # One section per system (docs/plans/platforms.md): each session edits only
 # its own. A crate only one system needs goes here with its version, never
@@ -74,3 +80,5 @@ arboard = { version = "3.7.0", default-features = false, features = ["image-data
 [target.'cfg(target_os = "macos")'.dependencies]
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# The session log's clock and its crash handler (D82).
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_SystemInformation"] }
