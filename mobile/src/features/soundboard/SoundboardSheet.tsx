@@ -57,8 +57,11 @@ export function SoundboardSheet({ onClose }: SoundboardSheetProps) {
   };
   const tileWidth = width > 0 ? Math.floor((width - GAP * (COLUMNS - 1)) / COLUMNS) : 0;
 
+  // Kept as its own view: flattened, its children land in the sheet's own
+  // container, and react-native-screens then places the ScrollView at the
+  // top of the sheet, over the title and search (iOS 26; as MusicPlayer).
   return (
-    <View style={[styles.sheet, { backgroundColor: sheetLook.background(colors) }]}>
+    <View collapsable={false} style={[styles.sheet, { backgroundColor: sheetLook.background(colors) }]}>
       <SheetHeader title="Soundboard" onClose={close} />
       {picker ? (
         <>
