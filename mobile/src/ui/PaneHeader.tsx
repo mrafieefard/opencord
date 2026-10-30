@@ -27,18 +27,22 @@ export interface PaneHeaderProps {
   rightElement?: ReactNode;
   /** The tablet's split view draws no top inset for the content pane. */
   insetTop?: boolean;
+  /** No colour or line of its own: over glass (the call). */
+  clear?: boolean;
 }
 
 const centered = Platform.OS === 'ios';
 
-export function PaneHeader({ title, subtitle, titleIcon, left, right = [], rightElement, insetTop = true }: PaneHeaderProps) {
+export function PaneHeader({ title, subtitle, titleIcon, left, right = [], rightElement, insetTop = true, clear = false }: PaneHeaderProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <View
       style={[
         styles.header,
-        { paddingTop: insetTop ? insets.top : 0, backgroundColor: colors.sidebar, borderBottomColor: colors.border },
+        clear
+          ? { paddingTop: insetTop ? insets.top : 0, borderBottomWidth: 0 }
+          : { paddingTop: insetTop ? insets.top : 0, backgroundColor: colors.sidebar, borderBottomColor: colors.border },
       ]}
     >
       <View style={styles.bar}>

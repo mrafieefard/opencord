@@ -1,11 +1,12 @@
 // The connected voice bar (spec §8.6): a 56 pt bar showing current voice
 // connection (channel, server or currently playing music) with mute and
-// leave buttons. A tap on the bar opens the call (openCall), and so does
-// pulling it up: it lifts with the finger, as Apple Maps' sheet does.
-import { useCallback } from 'react';
-import { StyleSheet, View } from 'react-native';
+// leave buttons. A tap on the bar opens the call (callPosition.ts), and
+// pulling it up brings the call's sheet up under the finger, as Apple
+// Maps' sheet comes up, springing open or back on letting go.
+import { type ComponentRef, useCallback, useRef } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, Touchable } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -14,14 +15,18 @@ import { leaveVoice, setMuted } from '@/state/actions/voice';
 import { useMyVoice, useNowPlaying, useServer } from '@/state/selectors';
 import { Icon, IconButton, space, Text, useTheme } from '@/ui';
 
-import { openCall } from './openCall';
-
-/** How far a pull upwards opens the call, and how fast a flick does. */
-const PULL = 36;
-const FLICK = -600;
-/** The bar follows a pull by this share, up to LIFT_MAX. */
-const FOLLOW = 0.4;
-const LIFT_MAX = 28;
+import {
+  CALL_FLICK,
+  CALL_SETTLE,
+  CALL_SPRING,
+  barFrame,
+  callOrigin,
+  callProgress,
+  callTravel,
+  openCall,
+  showCall,
+  useCallTop,
+} from './callPosition';
 
 export interface ConnectedBarProps {
   /** The server whose screen this is; none on Servers. */
@@ -102,27 +107,39 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false
     ? `♪ ${nowPlaying.title}${nowPlaying.artist ? ` — ${nowPlaying.artist}` : ''}`
     : serverName;
 
+  // The call grows out of this bar's glass: where it is, measured the moment
+  // a finger lands on it, before a pull or a tap acts.
+  const rowRef = useRef<ComponentRef<typeof View>>(null);
+  const top = useCallTop();
+  const { height: screen } = useWindowDimensions();
+  const measureBar = useCallback(() => {
+    rowRef.current?.measureInWindow((x, y, width, height) => {
+      if (width > 0) callOrigin.set(barFrame({ x, y, width, height }));
+    });
+  }, []);
   const handleOpen = useCallback(() => openCall(serverKey, channelId), [serverKey, channelId]);
 
-  // Pulled up, the bar lifts with the finger; far or fast enough, the call opens.
-  const lift = useSharedValue(0);
+  // Pulled up, the glass grows under the finger; far or fast enough it
+  // springs open, else back into the bar.
   const pull = Gesture.Pan()
     .activeOffsetY(-8)
     .failOffsetX([-16, 16])
+    .onStart(() => {
+      scheduleOnRN(showCall, serverKey, channelId);
+    })
     .onUpdate((event) => {
-      lift.set(Math.max(Math.min(event.translationY, 0) * FOLLOW, -LIFT_MAX));
+      const travel = callTravel(callOrigin.get(), top, screen);
+      callProgress.set(Math.min(Math.max(-event.translationY / travel, 0), 1));
     })
     .onEnd((event) => {
-      if (event.translationY < -PULL || event.velocityY < FLICK) scheduleOnRN(handleOpen);
-    })
-    .onFinalize(() => {
-      lift.set(withSpring(0, { damping: 18, stiffness: 260 }));
+      const travel = callTravel(callOrigin.get(), top, screen);
+      const open = -event.translationY > travel * CALL_SETTLE || event.velocityY < -CALL_FLICK;
+      callProgress.set(withSpring(open ? 1 : 0, { ...CALL_SPRING, velocity: -event.velocityY / travel }));
     });
-  const liftStyle = useAnimatedStyle(() => ({ transform: [{ translateY: lift.get() }] }));
 
   return (
     <GestureDetector gesture={pull}>
-    <Animated.View style={[styles.row, liftStyle]}>
+    <View ref={rowRef} collapsable={false} style={styles.row} onTouchStart={measureBar}>
       <Touchable
         onPress={handleOpen}
         style={styles.pressable}
@@ -162,7 +179,7 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false
           />
         )}
       </View>
-    </Animated.View>
+    </View>
     </GestureDetector>
   );
 }

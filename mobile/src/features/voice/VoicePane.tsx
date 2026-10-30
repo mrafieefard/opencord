@@ -3,8 +3,9 @@
 // Not connected: tiles, Join voice button (or disabled reason).
 import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
@@ -15,6 +16,7 @@ import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/u
 
 import { chrome } from '@/features/servers/chrome';
 
+import { closeCall } from './callPosition';
 import { ConnectedBar } from './ConnectedBar';
 import { ControlBar } from './ControlBar';
 import { LinkBanner } from './LinkBanner';
@@ -27,11 +29,10 @@ export interface VoicePaneProps {
   onOpenSidebar?: () => void;
   /** Given, the connected bar sits at the bottom while in voice elsewhere, and opens channels with it. */
   onOpenChannel?: (channelId: string) => void;
-  /**
-   * The call's sheet (openCall): a chevron to put it away for the sidebar
-   * button, and it goes away by itself once this device leaves.
-   */
+  /** In the call sheet (CallSheet): a chevron to put it away for the sidebar button. */
   asCall?: boolean;
+  /** The sheet's drag, on the header too: dragging it down takes the sheet down. */
+  headerGesture?: ReturnType<typeof Gesture.Pan>;
 }
 
 /** Tiles are at most this wide, so a wider pane has more columns: two on a phone, more on a tablet. */
@@ -46,7 +47,7 @@ export function tileLayout(width: number): { columns: number; size: number } {
   return { columns, size: Math.floor((inner - GAP * (columns - 1)) / columns) };
 }
 
-export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, asCall = false }: VoicePaneProps) {
+export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, asCall = false, headerGesture }: VoicePaneProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -59,13 +60,6 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const members = useVoiceMembers(serverKey, channelId);
 
   const here = myVoice?.serverKey === serverKey && myVoice.channelId === channelId ? myVoice : null;
-  // The call sheet closes once this device is no longer in the call.
-  const wasHere = useRef(here !== null);
-  useEffect(() => {
-    if (!asCall) return;
-    if (here) wasHere.current = true;
-    else if (wasHere.current) router.back();
-  }, [asCall, here]);
   const showMusic = !!(musicSettings?.supported && musicSettings.enabled);
 
   // The user's own tile first.
@@ -93,17 +87,15 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
         ? 'This channel is full'
         : null;
 
-  // Kept as its own view: in the call's sheet, flattened children would let
-  // react-native-screens place the tiles' ScrollView over the header.
-  return (
-    <View collapsable={false} style={[styles.pane, { backgroundColor: colors.chat }]}>
+  const header = (
       <PaneHeader
         title={info?.channel.name ?? ''}
         titleIcon="voiceChannel"
         insetTop={!asCall}
+        clear={asCall}
         left={
           asCall
-            ? { icon: 'dismiss', label: 'Close', onPress: () => router.back() }
+            ? { icon: 'dismiss', label: 'Close', onPress: closeCall }
             : onOpenSidebar
               ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar }
               : undefined
@@ -118,6 +110,18 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
           ) : undefined
         }
       />
+  );
+
+  return (
+    // The call shows its glass through (CallSheet); a pane is the chat's colour.
+    <View style={[styles.pane, { backgroundColor: asCall ? 'transparent' : colors.chat }]}>
+      {headerGesture ? (
+        <GestureDetector gesture={headerGesture}>
+          <View collapsable={false}>{header}</View>
+        </GestureDetector>
+      ) : (
+        header
+      )}
       {here && <LinkBanner link={here.link} onRejoin={join} />}
       <ScrollView style={styles.fill} contentContainerStyle={styles.grid} onLayout={onLayout}>
         {sorted.length === 0 ? (

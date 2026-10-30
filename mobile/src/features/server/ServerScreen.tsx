@@ -3,13 +3,13 @@
 // out on a phone and always leaves on a tablet; the stack's swipe back is
 // on only where it can't be mistaken for opening the sidebar. A voice
 // channel opens as a sheet to join it, as Discord's; once this device is
-// in it, the call opens instead (openCall).
+// in it, the call opens instead (callPosition).
 import { ChannelKind, type ChannelRecord } from '@opencord/core-native';
 import { router, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { BackHandler, useWindowDimensions } from 'react-native';
 
-import { openCall } from '@/features/voice/openCall';
+import { openCall } from '@/features/voice/callPosition';
 import { useAppStore } from '@/state/store';
 
 import { PhonePanes } from './PhonePanes';

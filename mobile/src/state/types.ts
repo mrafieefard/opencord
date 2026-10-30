@@ -177,6 +177,8 @@ export interface AppState {
   voicePlayback: VoicePlayback | null;
   /** A text channel fills a phone's screen: the tab bar steps aside for typing. */
   chatInFront: boolean;
+  /** The call the call sheet shows (features/voice/callPosition.ts), open or not. */
+  call: { serverKey: string; channelId: string } | null;
   /** The voice page of a channel fills a phone's screen. */
   voicePageInFront: { serverKey: string; channelId: string } | null;
   /** Voice messages play at 1, 1.5 or 2 times. */

@@ -72,6 +72,7 @@ describe('a voice channel as a sheet', () => {
     await core.voiceJoin(NIGHT_OWLS, CHANNELS.lounge);
     await pump(core);
     fireEvent.press(screen.getByRole('button', { name: 'Lounge' }));
-    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/call/${CHANNELS.lounge}`);
+    expect(router.push).not.toHaveBeenCalled();
+    expect(useAppStore.getState().call).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge });
   });
 });

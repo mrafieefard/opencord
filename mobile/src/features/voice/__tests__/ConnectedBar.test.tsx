@@ -5,11 +5,10 @@ import {
   MobileEvent,
   VoiceLinkState,
 } from '@opencord/core-native';
-import { router } from 'expo-router';
 
 import { CHANNELS, NIGHT_OWLS, SELF_ID, snapshot } from '@/core/fake/world';
 import * as voiceActions from '@/state/actions/voice';
-import { onEvents } from '@/state/store';
+import { onEvents, useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
 import { ConnectedBar, ConnectedVoiceRow } from '../ConnectedBar';
@@ -102,7 +101,7 @@ describe('ConnectedBar', () => {
     // Tapping the main bar opens the call, from anywhere.
     const barTap = getByTestId('connected-bar-pressable');
     await fireEvent.press(barTap);
-    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/call/${CHANNELS.lounge}`);
+    expect(useAppStore.getState().call).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge });
   });
 
   it('beside the voice channel itself the bar hides', async () => {
@@ -166,6 +165,6 @@ describe('ConnectedBar', () => {
     expect(getByTestId('connected-bar-mute')).toBeTruthy();
     expect(queryByTestId('connected-bar-leave')).toBeNull();
     await fireEvent.press(getByTestId('connected-bar-pressable'));
-    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/call/${CHANNELS.lounge}`);
+    expect(useAppStore.getState().call).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge });
   });
 });

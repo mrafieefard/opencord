@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootGate } from '@/features/boot/BootGate';
 import { DETENTS, TWO_COLUMNS } from '@/features/music/sheet';
+import { CallSheet } from '@/features/voice/CallSheet';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui';
 
@@ -55,16 +56,6 @@ function Routes() {
             }}
           />
           <Stack.Screen
-            name="server/[serverKey]/call/[channelId]"
-            options={{
-              presentation: 'formSheet',
-              sheetAllowedDetents: [1],
-              sheetGrabberVisible: true,
-              sheetCornerRadius: sheetLook.cornerRadius,
-              contentStyle: { backgroundColor: colors.chat },
-            }}
-          />
-          <Stack.Screen
             name="server/[serverKey]/voice/[channelId]"
             options={{
               presentation: 'formSheet',
@@ -105,6 +96,7 @@ function Routes() {
         </Stack.Protected>
         <Stack.Screen name="dev/gallery" />
       </Stack>
+      {ready && <CallSheet />}
       <ToastHost />
       <DialogHost />
     </NavigationTheme>

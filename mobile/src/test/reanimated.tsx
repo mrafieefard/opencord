@@ -106,6 +106,8 @@ export const withTiming = <T,>(value: T) => value;
 export const withSpring = <T,>(value: T) => value;
 export const withDelay = <T,>(_ms: number, value: T) => value;
 export const withRepeat = <T,>(value: T) => value;
+export const makeMutable = useSharedValue;
+export const useAnimatedReaction = () => {};
 export const useReducedMotion = () => false;
 export const cancelAnimation = () => {};
 export const interpolate = (value: number, input: number[], output: number[]) => {
