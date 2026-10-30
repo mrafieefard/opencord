@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -29,6 +30,10 @@ final sessionLogProvider = Provider<SessionLog>((ref) => const SessionLog());
 /// What the About page does with a log; tests replace it.
 class SessionLogActions {
   const SessionLogActions();
+
+  /// Where to save, asked of the system; null when cancelled.
+  Future<String?> saveLocation(String suggestedName) async =>
+      (await getSaveLocation(suggestedName: suggestedName))?.path;
 
   Future<void> export(String source, String destination) =>
       sessionLogExport(source: source, destination: destination);
