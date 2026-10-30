@@ -10,6 +10,17 @@ use regex::{Captures, Regex};
 
 use super::alias::Aliases;
 
+/// Top-level domains beyond the two-letter country codes: `provider.read`
+/// in a Dart message stays, `chat.example.dev` doesn't.
+const TOP_LEVEL: &[&str] = &[
+    "com", "net", "org", "info", "biz", "edu", "gov", "mil", "int", "io", "xyz", "dev", "app",
+    "ai", "gg", "tv", "me", "cloud", "online", "site", "tech", "live", "link", "one", "top",
+    "club", "pro", "name", "mobi", "asia", "store", "shop", "blog", "page", "host", "space",
+    "world", "zone", "network", "digital", "services", "systems", "email", "chat", "social", "fun",
+    "games", "run", "win", "bot", "local", "lan", "internal", "home", "arpa", "onion", "lol",
+    "wtf", "art", "design", "media", "studio", "software", "website", "icu", "cyou",
+];
+
 /// Last labels that make a dotted word a file, not a domain.
 const FILE_EXTENSIONS: &[&str] = &[
     "rs",
@@ -43,7 +54,6 @@ const FILE_EXTENSIONS: &[&str] = &[
     "md",
     "html",
     "js",
-    "app",
     "plist",
     "framework",
     "dmg",
@@ -86,9 +96,11 @@ pattern!(
     r"(^|[^\w:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})($|[^\w:])"
 );
 pattern!(IPV4, r"\b(\d{1,3}(?:\.\d{1,3}){3})\b");
+// Lowercase only: `CoreError.notInitialized` and `RustRepository.start`
+// are code, and hosts in errors come lowercase.
 pattern!(
     DOMAIN,
-    r"(?i)\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+([a-z]{2,63})\b"
+    r"\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+([a-z]{2,63})\b"
 );
 pattern!(
     TOKEN,
@@ -163,11 +175,13 @@ pub(crate) fn line_with<'a>(
         },
     );
     apply(&mut text, &DOMAIN, &mut |caps| {
-        let last = caps[1].to_lowercase();
-        if FILE_EXTENSIONS.contains(&last.as_str()) {
-            caps[0].to_owned()
-        } else {
+        let last = &caps[1];
+        let host =
+            (last.len() == 2 || TOP_LEVEL.contains(&last)) && !FILE_EXTENSIONS.contains(&last);
+        if host {
             aliases.host(&caps[0])
+        } else {
+            caps[0].to_owned()
         }
     });
     apply(&mut text, &TOKEN, &mut |caps| {
@@ -283,6 +297,26 @@ mod tests {
                 Some(r"C:\Users\Amin")
             ),
             r"at ~\AppData\Local"
+        );
+    }
+
+    #[test]
+    fn code_names_are_not_domains() {
+        let mut aliases = Aliases::default();
+        let text = "CoreError.notInitialized() at RustRepository.startScreenShare, \
+                    provider.read and state.value, Opencord.app";
+        assert_eq!(scrub(&mut aliases, text), text);
+    }
+
+    #[test]
+    fn real_hosts_are_still_aliased() {
+        let mut aliases = Aliases::default();
+        assert_eq!(
+            scrub(
+                &mut aliases,
+                "lookup quiet-river-1234.trycloudflare.com, amin-pc.local and lavalink.example.dev"
+            ),
+            "lookup host-1, host-2 and host-3"
         );
     }
 
