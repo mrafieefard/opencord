@@ -15,6 +15,7 @@ import { Avatar, Icon, Menu, Text, radius, space, useTheme, type MenuAction } fr
 import type { GroupPosition, MessageBubbleItem } from './items';
 import { MarkdownText } from './MarkdownText';
 import { AttachmentView } from './attachments/AttachmentView';
+import { textDirectionOf } from './bidi';
 import { MessageMenu } from './MessageMenu';
 
 export interface MessageBubbleProps {
@@ -73,8 +74,11 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
   const hasText = message.content.length > 0;
   const hasAttachments = message.attachments.length > 0;
   const mediaOnly = !hasText && hasAttachments;
-  // The time goes over the text's last line unless something follows the text.
-  const timeOverText = hasText && !hasAttachments && !failed;
+  // The time goes over the text's last line unless something follows the
+  // text. A right-to-left text's last line ends on the left, under where the
+  // time is drawn, so the time takes its own row under it.
+  const rtl = hasText && textDirectionOf(message.content) === 'rtl';
+  const timeOverText = hasText && !hasAttachments && !failed && !rtl;
   // The clock takes an em more of the reserved room.
   const reserved = sending ? ` ${time}` : time;
   const padH = mediaOnly ? MEDIA_PAD : PAD_H;
@@ -125,6 +129,8 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
           // A long press opens the message's menu (Copy text copies), so
           // the text isn't selectable: selection would take the press.
           selectable={false}
+          // React Native aligns by the app's direction, not the text's.
+          style={rtl ? styles.rtlText : undefined}
           trailing={timeOverText ? reserved : undefined}
           trailingColor={own ? colors.bubbleOut : colors.bubbleIn}
         />
@@ -222,6 +228,10 @@ const styles = StyleSheet.create({
   },
   metaOver: {
     position: 'absolute',
+  },
+  rtlText: {
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   metaRow: {
     alignSelf: 'flex-end',
