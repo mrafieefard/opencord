@@ -1,6 +1,7 @@
 import { FlashList, type FlashListRef, type ListRenderItem } from '@shopify/flash-list';
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Platform,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -49,6 +50,9 @@ const ChatScrollView = forwardRef<KeyboardChatScrollViewRef, ScrollViewProps & K
         automaticallyAdjustContentInsets={false}
         contentInsetAdjustmentBehavior="never"
         offset={insets.bottom}
+        // Scrolling down drags the keyboard closed with the finger, as in
+        // WhatsApp and Telegram (Android has no interactive mode: a drag closes it).
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         {...props}
       />
     );
