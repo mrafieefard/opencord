@@ -7,7 +7,7 @@ import { StyleSheet, View } from 'react-native';
 import { useImageFile } from '@/features/servers/useImageFile';
 import { setUserLocalMute, setUserVolume } from '@/state/actions/voice';
 import { useMember, useServer, useUserAudio } from '@/state/selectors';
-import { Avatar, SheetHeader, Slider, Switch, Text, space, useSheetBottomInset, useTheme } from '@/ui';
+import { Avatar, SheetHeader, Slider, Switch, Text, sheetLook, space, useSheetBottomInset, useTheme } from '@/ui';
 
 export interface ParticipantSheetProps {
   serverKey: string;
@@ -36,7 +36,7 @@ export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantShee
   const close = onClose ?? (() => router.back());
 
   return (
-    <View style={[styles.sheet, { backgroundColor: colors.elevated, paddingBottom: bottomInset + space.lg }]}>
+    <View style={[styles.sheet, { backgroundColor: sheetLook.background(colors), paddingBottom: bottomInset + space.lg }]}>
       <SheetHeader
         title={name}
         leading={<Avatar name={name} file={avatarFile} size={AVATAR_SIZE} />}
@@ -47,7 +47,7 @@ export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantShee
           This is you.
         </Text>
       ) : (
-        <View style={styles.controls}>
+        <View style={[styles.controls, sheetLook.group(colors)]}>
           <View style={styles.section}>
             <View style={styles.labelRow}>
               <Text variant="body">Volume</Text>

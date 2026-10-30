@@ -5,12 +5,9 @@ import { Touchable } from 'react-native-gesture-handler';
 
 import { Icon, IconButton, Text, onHue, space, useTheme } from '@/ui';
 
-export interface PlayerTopBarProps {
-  channelName: string;
-  /** Given while the user isn't in the channel's voice. */
-  onJoin?: () => void;
-  onClose: () => void;
-}
+import type { PlayerTopBarProps } from './PlayerTopBar.types';
+
+export type { PlayerTopBarProps } from './PlayerTopBar.types';
 
 const HEIGHT = 52;
 const SIDE = 40;

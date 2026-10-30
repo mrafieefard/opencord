@@ -10,7 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BootGate } from '@/features/boot/BootGate';
 import { DETENTS, TWO_COLUMNS } from '@/features/music/sheet';
 import { useBoot } from '@/state/selectors';
-import { DialogHost, ThemeProvider, ToastHost, radius, useTheme } from '@/ui';
+import { DialogHost, ThemeProvider, ToastHost, radius, sheetLook, useTheme } from '@/ui';
 
 function Routes() {
   const boot = useBoot();
@@ -34,7 +34,7 @@ function Routes() {
               sheetAllowedDetents: 'fitToContents',
               sheetGrabberVisible: true,
               sheetCornerRadius: radius.sheet,
-              contentStyle: { backgroundColor: colors.elevated },
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
             }}
           />
           <Stack.Screen name="server/[serverKey]/index" />
@@ -45,7 +45,7 @@ function Routes() {
               sheetAllowedDetents: 'fitToContents',
               sheetGrabberVisible: true,
               sheetCornerRadius: radius.sheet,
-              contentStyle: { backgroundColor: colors.elevated },
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
             }}
           />
           <Stack.Screen
@@ -57,6 +57,7 @@ function Routes() {
               sheetInitialDetentIndex: width >= TWO_COLUMNS ? 'last' : 0,
               sheetGrabberVisible: true,
               sheetCornerRadius: radius.sheet,
+              // The player stays solid, as Apple Music's: its rows are.
               contentStyle: { backgroundColor: colors.elevated },
             }}
           />

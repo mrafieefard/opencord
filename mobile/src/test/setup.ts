@@ -94,10 +94,12 @@ jest.mock('expo-audio', () => ({
 jest.mock('@expo/ui/swift-ui', () => {
   const React = require('react');
   const { View, Text, Pressable } = require('react-native');
-  // A context menu shows its items beside its trigger, as menu items.
+  // A context menu shows its items beside its trigger; a button among them
+  // is a menu item.
+  const InMenu = React.createContext(false);
   const ContextMenu = ({ children }: { children: React.ReactNode }) => React.createElement(View, null, children);
   ContextMenu.Items = function Items({ children }: { children: React.ReactNode }) {
-    return React.createElement(View, null, children);
+    return React.createElement(InMenu.Provider, { value: true }, React.createElement(View, null, children));
   };
   ContextMenu.Trigger = function Trigger({ children }: { children: React.ReactNode }) {
     return React.createElement(React.Fragment, null, children);
@@ -106,20 +108,21 @@ jest.mock('@expo/ui/swift-ui', () => {
     Host: ({ children, style }: { children: React.ReactNode; style?: unknown }) => React.createElement(View, { style }, children),
     ContextMenu,
     RNHostView: ({ children }: { children: React.ReactNode }) => children,
-    // A menu's item passes its label; Button.ios.tsx's buttons draw their
-    // content and name it with accessibilityLabel.
-    Button: ({ label, role, onPress, modifiers, children }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean; _label?: string }[]; children?: React.ReactNode }) =>
-      React.createElement(
+    // Named by its label, or by accessibilityLabel when it draws its own content.
+    Button: function Button({ label, role, onPress, modifiers, children }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean; _label?: string }[]; children?: React.ReactNode }) {
+      const inMenu = React.useContext(InMenu);
+      return React.createElement(
         Pressable,
         {
-          accessibilityRole: label !== undefined ? 'menuitem' : 'button',
-          accessibilityLabel: label ?? modifiers?.find((m) => m && m._label)?._label,
+          accessibilityRole: inMenu ? 'menuitem' : 'button',
+          accessibilityLabel: modifiers?.find((m) => m && m._label)?._label ?? label,
           accessibilityHint: role === 'destructive' ? 'destructive' : undefined,
           disabled: modifiers?.some((m) => m && m._disabled) ?? false,
           onPress,
         },
         children,
-      ),
+      );
+    },
     HStack: ({ children }: { children?: React.ReactNode }) => React.createElement(View, null, children),
     Image: () => null,
     ProgressView: () => React.createElement(View, { accessibilityRole: 'progressbar' }),
@@ -174,6 +177,7 @@ jest.mock('@expo/ui/swift-ui', () => {
 jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   buttonStyle: (style: string) => ({ _buttonStyle: style }),
   buttonBorderShape: () => ({}),
+  labelStyle: () => ({}),
   controlSize: () => ({}),
   font: () => ({}),
   foregroundStyle: () => ({}),

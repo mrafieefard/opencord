@@ -3,7 +3,7 @@
 // as a 4 × 4 grid of groups to read out and compare.
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Icon, SheetGrabber, Text, radius, space, useTheme } from '@/ui';
+import { Button, Icon, SheetGrabber, Text, radius, sheetLook, space, useTheme } from '@/ui';
 
 export interface TrustStepProps {
   address: string;
@@ -38,7 +38,7 @@ export function TrustStep({ address, fingerprint, busy = false, error = null, on
   return (
     <View style={styles.container}>
       <SheetGrabber />
-      <View style={[styles.badge, { backgroundColor: colors.chat }]}>
+      <View style={[styles.badge, { backgroundColor: sheetLook.well(colors) }]}>
         <Icon name="lock" size={22} color="text" />
       </View>
 
@@ -58,7 +58,7 @@ export function TrustStep({ address, fingerprint, busy = false, error = null, on
       <View
         accessible
         accessibilityLabel={`Fingerprint ${formatFingerprint(fingerprint)}`}
-        style={[styles.fingerprintBox, { backgroundColor: colors.chat, borderColor: colors.border }]}
+        style={[styles.fingerprintBox, { backgroundColor: sheetLook.well(colors), borderColor: sheetLook.wellBorder(colors) }]}
       >
         <Text variant="caption" color="textMuted">
           SHA-256 fingerprint

@@ -6,7 +6,7 @@ import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { Button, Icon, SheetHeader, Text, radius, space, typography, useSheetBottomInset, useTheme, withAlpha } from '@/ui';
+import { Button, Icon, SheetHeader, Text, radius, sheetLook, space, typography, useSheetBottomInset, useTheme } from '@/ui';
 import { MAX_FONT_SCALE } from '@/ui/theme/typography';
 
 import { TrustStep } from './TrustStep';
@@ -18,8 +18,6 @@ export interface AddServerFormProps {
 }
 
 export const FIELD_HEIGHT = 52;
-/** The owner panel: a lighter well than the fields. */
-const PANEL_TINT = 0.5;
 
 export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
   const { colors } = useTheme();
@@ -46,7 +44,7 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
   const close = () => {
     if (router.canGoBack()) router.back();
   };
-  const sheet = [styles.sheet, { backgroundColor: colors.elevated, paddingBottom: bottomInset + space.lg }];
+  const sheet = [styles.sheet, { backgroundColor: sheetLook.background(colors), paddingBottom: bottomInset + space.lg }];
 
   if (trustPending !== null) {
     return (
@@ -101,7 +99,7 @@ export function AddServerForm({ initialLink, onSuccess }: AddServerFormProps) {
           )}
         </View>
 
-        <View style={[styles.owner, { backgroundColor: withAlpha(colors.chat, PANEL_TINT) }]}>
+        <View style={[styles.owner, { backgroundColor: sheetLook.panel(colors) }]}>
           <Touchable
             onPress={() => setShowClaimToken((prev) => !prev)}
             underlayColor={colors.selected}
@@ -156,10 +154,10 @@ interface FieldProps extends Pick<TextInputProps, 'value' | 'onChangeText' | 'pl
 function Field({ invalid = false, trailing, ...input }: FieldProps) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
-  const outline = invalid ? colors.recording : focused ? colors.textMuted : colors.border;
+  const outline = sheetLook.fieldOutline(colors, { focused, invalid });
   return (
     <View
-      style={[styles.field, { backgroundColor: colors.chat, borderColor: outline }]}
+      style={[styles.field, { backgroundColor: sheetLook.well(colors), borderColor: outline }]}
     >
       <TextInput
         {...input}
