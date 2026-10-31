@@ -435,8 +435,10 @@ mod tests {
             .unwrap()
             .unwrap();
         let text = std::fs::read_to_string(file.path()).unwrap();
-        assert!(
-            text.contains("FATAL native crash  signal=11 (SIGSEGV)"),
+        assert_eq!(
+            text.matches("FATAL native crash  signal=11 (SIGSEGV)")
+                .count(),
+            1,
             "{text}"
         );
     }
@@ -465,6 +467,18 @@ mod tests {
             .status()
             .unwrap();
         assert_eq!(status.signal(), Some(libc::SIGSEGV), "{status:?}");
+        let file = std::fs::read_dir(dir.path())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let text = std::fs::read_to_string(file.path()).unwrap();
+        assert_eq!(
+            text.matches("FATAL native crash  signal=11 (SIGSEGV)")
+                .count(),
+            1,
+            "{text}"
+        );
     }
 
     /// Logging out or `kill` ends the app with SIGTERM: not a crash.
