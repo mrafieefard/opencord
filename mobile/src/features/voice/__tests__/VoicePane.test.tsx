@@ -269,6 +269,9 @@ describe('VoicePane', () => {
     const sixRows = Math.floor((height - gap * 5) / 6);
     expect(tileGrid(12, width, height, gap)).toMatchObject({ columns: 2, tileHeight: sixRows });
     expect(tileGrid(20, width, height, gap)).toMatchObject({ columns: 2, tileHeight: sixRows });
+    // Only then does the grid scroll.
+    expect([1, 2, 5, 12].map((count) => tileGrid(count, width, height, gap).scrolls)).toEqual([false, false, false, false]);
+    expect(tileGrid(13, width, height, gap).scrolls).toBe(true);
 
     // The avatar grows with its tile.
     expect(one.avatar).toBeGreaterThan(tileGrid(12, width, height, gap).avatar);

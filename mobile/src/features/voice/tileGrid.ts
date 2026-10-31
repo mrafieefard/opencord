@@ -22,6 +22,8 @@ export interface TileGrid {
   /** A last tile alone on its row spans it (two columns, an odd count). */
   lastWidth: number;
   avatar: number;
+  /** More rows than show at once: only then does the grid scroll. */
+  scrolls: boolean;
 }
 
 /** The most columns a pane this wide takes: two on a phone. */
@@ -38,10 +40,11 @@ export function tileGrid(count: number, width: number, height: number, gap: numb
   const most = maxColumns(width, gap);
   const fit = Math.max(1, Math.floor((height + gap) / (MIN_HEIGHT + gap)));
   const sized = (columns: number) => {
-    const rows = Math.max(1, Math.min(Math.ceil(count / columns), MAX_ROWS, fit));
+    const needed = Math.ceil(count / columns);
+    const rows = Math.max(1, Math.min(needed, MAX_ROWS, fit));
     const tileWidth = Math.floor((width - gap * (columns - 1)) / columns);
     const tileHeight = Math.max(MIN_HEIGHT, Math.floor((height - gap * (rows - 1)) / rows));
-    return { columns, tileWidth, tileHeight };
+    return { columns, tileWidth, tileHeight, scrolls: needed > rows };
   };
   let best = sized(1);
   for (let columns = 2; columns <= Math.min(most, Math.max(count, 1)); columns += 1) {

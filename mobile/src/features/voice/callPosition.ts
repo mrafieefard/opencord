@@ -5,7 +5,8 @@
 // sheet's own and a tap all move the same glass: 0 is the bar, 1 is open.
 // `callOrigin` is where the bar was when it was last touched.
 import { useWindowDimensions } from 'react-native';
-import { makeMutable, withSpring, type WithSpringConfig } from 'react-native-reanimated';
+import { Gesture } from 'react-native-gesture-handler';
+import { makeMutable, type SharedValue, withSpring, type WithSpringConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { chrome } from '@/features/servers/chrome';
@@ -93,6 +94,39 @@ export function callTravel(origin: CallFrame, top: number, screen: number): numb
 /** Past this share of the way, or flicked, a drag carries on to the end. */
 export const CALL_SETTLE = 0.25;
 export const CALL_FLICK = 600;
+
+/**
+ * A downward drag on the open call: it shrinks back towards the bar with
+ * the finger, springing away or back on letting go. Given the scroll of
+ * what it is dragged on, it lets that scroll until it is at its top and
+ * takes over from there, as Apple Maps' card does.
+ */
+export function callDrag(top: number, screen: number, scrollY?: SharedValue<number>) {
+  // How far the finger had come when the call began to follow it; NaN until then.
+  const from = makeMutable(Number.NaN);
+  return Gesture.Pan()
+    .activeOffsetY(8)
+    .failOffsetX([-16, 16])
+    .onStart(() => {
+      from.set(scrollY ? Number.NaN : 0);
+    })
+    .onUpdate((event) => {
+      if (Number.isNaN(from.get())) {
+        if (!scrollY || scrollY.get() > 0.5 || event.translationY <= 0) return;
+        from.set(event.translationY);
+      }
+      const travel = callTravel(callOrigin.get(), top, screen);
+      const moved = event.translationY - from.get();
+      callProgress.set(Math.min(Math.max(1 - moved / travel, 0), 1));
+    })
+    .onEnd((event) => {
+      if (Number.isNaN(from.get())) return;
+      const travel = callTravel(callOrigin.get(), top, screen);
+      const moved = event.translationY - from.get();
+      const away = moved > travel * CALL_SETTLE || (moved > 0 && event.velocityY > CALL_FLICK);
+      callProgress.set(withSpring(away ? 0 : 1, { ...CALL_SPRING, velocity: -event.velocityY / travel }));
+    });
+}
 
 /** Which call the sheet shows; it doesn't move it. */
 export function showCall(serverKey: string, channelId: string): void {

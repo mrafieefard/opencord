@@ -14,7 +14,7 @@
 // app's own bars (ConnectedBar), and shows only while it is out of them.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 import Animated, {
   interpolate,
@@ -33,24 +33,20 @@ import { GlassSurface, space, useTheme } from '@/ui';
 
 import {
   BAR_HEIGHT,
-  CALL_FLICK,
-  CALL_SETTLE,
-  CALL_SPRING,
   type CallFrame,
   PILL_GAP,
+  callDrag,
   callOrigin,
   callProgress,
-  callTravel,
   closeCall,
   slotRise,
   useCallTop,
   useFallbackOrigin,
 } from './callPosition';
+import { CALL_MARGIN, openCorner } from './callInset';
 import { ConnectedVoiceRow } from './ConnectedBar';
 import { VoicePane } from './VoicePane';
 
-/** The open call's corners, as round as the screen's own. */
-const OPEN_CORNER = 38;
 const SCRIM = 0.35;
 /**
  * Growing, the glass fills in as Apple Maps' card does, solid once open.
@@ -126,22 +122,6 @@ function useRest(screenWidth: number, screenHeight: number): CallFrame | null {
   }, [place, slotY, slotHeight, screenWidth, screenHeight, tabInset]);
 }
 
-/** A downward drag on the call's top: it shrinks back towards the bar with the finger. */
-function dragDown(top: number, screen: number) {
-  return Gesture.Pan()
-    .activeOffsetY(8)
-    .failOffsetX([-16, 16])
-    .onUpdate((event) => {
-      const travel = callTravel(callOrigin.get(), top, screen);
-      callProgress.set(Math.min(Math.max(1 - event.translationY / travel, 0), 1));
-    })
-    .onEnd((event) => {
-      const travel = callTravel(callOrigin.get(), top, screen);
-      const away = event.translationY > travel * CALL_SETTLE || event.velocityY > CALL_FLICK;
-      callProgress.set(withSpring(away ? 0 : 1, { ...CALL_SPRING, velocity: -event.velocityY / travel }));
-    });
-}
-
 export function CallSheet() {
   const { colors } = useTheme();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -215,9 +195,13 @@ export function CallSheet() {
     return () => subscription.remove();
   }, [up]);
 
-  const grabberDrag = useMemo(() => dragDown(top, screenHeight), [top, screenHeight]);
-  const headerDrag = useMemo(() => dragDown(top, screenHeight), [top, screenHeight]);
-  const openHeight = screenHeight - top;
+  const grabberDrag = useMemo(() => callDrag(top, screenHeight), [top, screenHeight]);
+  const headerDrag = useMemo(() => callDrag(top, screenHeight), [top, screenHeight]);
+  // Open, it floats inset from the sides and bottom (iOS), its corners
+  // following the screen's.
+  const openWidth = screenWidth - CALL_MARGIN * 2;
+  const openHeight = screenHeight - top - CALL_MARGIN;
+  const corner = openCorner(screenWidth, screenHeight);
 
   // Where the glass grows from: the floating pill's place (risen with a
   // chat's field), or the bar last touched.
@@ -238,8 +222,8 @@ export function CallSheet() {
     return {
       opacity: Math.max(shown.get(), at > 0.001 ? 1 : 0),
       top: from.y + (top - from.y) * at,
-      left: from.x * (1 - at),
-      width: from.width + (screenWidth - from.width) * at,
+      left: from.x + (CALL_MARGIN - from.x) * at,
+      width: from.width + (openWidth - from.width) * at,
       height: from.height + (openHeight - from.height) * at,
     };
   });
@@ -247,7 +231,7 @@ export function CallSheet() {
   // and on what it holds alike.
   const cornerStyle = useAnimatedStyle(() => {
     const from = start();
-    return { borderRadius: from.height / 2 + (OPEN_CORNER - from.height / 2) * callProgress.get() };
+    return { borderRadius: from.height / 2 + (corner - from.height / 2) * callProgress.get() };
   });
   const fillStyle = useAnimatedStyle(() => ({
     opacity: interpolate(callProgress.get(), [FILL_FROM, FILL_TO], [0, 1], 'clamp'),
@@ -301,7 +285,7 @@ export function CallSheet() {
           </Animated.View>
           {/* The call, laid out at its open size so it doesn't reflow as the glass grows. */}
           <Animated.View
-            style={[styles.call, { width: screenWidth, height: openHeight }, callStyle]}
+            style={[styles.call, { width: openWidth, height: openHeight }, callStyle]}
             pointerEvents={up ? 'box-none' : 'none'}
             accessibilityElementsHidden={!up}
             importantForAccessibility={up ? 'auto' : 'no-hide-descendants'}

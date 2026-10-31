@@ -108,6 +108,10 @@ export const withDelay = <T,>(_ms: number, value: T) => value;
 export const withRepeat = <T,>(value: T) => value;
 export const makeMutable = useSharedValue;
 export const useAnimatedReaction = () => {};
+// A scroll handler is a plain one: tests scroll by firing onScroll.
+export function useAnimatedScrollHandler(handler: (event: { contentOffset: { x: number; y: number } }) => void) {
+  return (event: { nativeEvent: { contentOffset: { x: number; y: number } } }) => handler(event.nativeEvent);
+}
 export const useReducedMotion = () => false;
 export const cancelAnimation = () => {};
 export const interpolate = (value: number, input: number[], output: number[]) => {

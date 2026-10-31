@@ -4,8 +4,9 @@
 import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { type LayoutChangeEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { type LayoutChangeEvent, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
@@ -16,7 +17,8 @@ import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/u
 
 import { chrome } from '@/features/servers/chrome';
 
-import { closeCall } from './callPosition';
+import { CALL_MARGIN } from './callInset';
+import { callDrag, closeCall, useCallTop } from './callPosition';
 import { ConnectedBar } from './ConnectedBar';
 import { ControlBar } from './ControlBar';
 import { LinkBanner } from './LinkBanner';
@@ -66,6 +68,21 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const openMusic = useCallback(() => router.push(`/server/${serverKey}/music/${channelId}`), [serverKey, channelId]);
   const openSoundboard = useCallback(() => router.push(`/server/${serverKey}/soundboard/${channelId}`), [serverKey, channelId]);
   const openMember = useCallback((userId: string) => router.push(`/server/${serverKey}/member/${userId}`), [serverKey]);
+  // In the call, the grid scrolls only when not everyone fits; a pull down
+  // at its top (or anywhere, when it doesn't scroll) takes the call down.
+  const callTop = useCallTop();
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.set(event.contentOffset.y);
+  });
+  const gridDrag = useMemo(
+    () => (asCall ? Gesture.Simultaneous(callDrag(callTop, windowHeight, scrollY), Gesture.Native()) : null),
+    [asCall, callTop, windowHeight, scrollY],
+  );
+  // The call floats above the screen's bottom edge (callInset): less of the
+  // home indicator's room is its own.
+  const bottom = asCall ? Math.max(insets.bottom - CALL_MARGIN, space.md) : insets.bottom;
+
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     if (width > 0 && height > 0) setRoom({ width, height });
@@ -105,6 +122,38 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
       />
   );
 
+  const tiles = (
+    <Animated.ScrollView
+      style={styles.fill}
+      contentContainerStyle={styles.grid}
+      onLayout={onLayout}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      scrollEnabled={grid.scrolls}
+      // At its top a pull takes the call down instead of stretching the grid.
+      bounces={!asCall}
+    >
+      {sorted.length === 0 ? (
+        <EmptyState title="No one's here yet" />
+      ) : (
+        <View style={styles.tiles}>
+          {sorted.map((member, index) => (
+            <ParticipantTile
+              key={member.userId}
+              serverKey={serverKey}
+              channelId={channelId}
+              member={member}
+              width={index === sorted.length - 1 ? grid.lastWidth : grid.tileWidth}
+              height={grid.tileHeight}
+              avatar={grid.avatar}
+              onPress={() => openMember(member.userId)}
+            />
+          ))}
+        </View>
+      )}
+    </Animated.ScrollView>
+  );
+
   return (
     // The call shows its glass through (CallSheet); a pane is the chat's colour.
     <View style={[styles.pane, { backgroundColor: asCall ? 'transparent' : colors.chat }]}>
@@ -116,28 +165,13 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
         header
       )}
       {here && <LinkBanner link={here.link} onRejoin={join} />}
-      <ScrollView style={styles.fill} contentContainerStyle={styles.grid} onLayout={onLayout}>
-        {sorted.length === 0 ? (
-          <EmptyState title="No one's here yet" />
-        ) : (
-          <View style={styles.tiles}>
-            {sorted.map((member, index) => (
-              <ParticipantTile
-                key={member.userId}
-                serverKey={serverKey}
-                channelId={channelId}
-                member={member}
-                width={index === sorted.length - 1 ? grid.lastWidth : grid.tileWidth}
-                height={grid.tileHeight}
-                avatar={grid.avatar}
-                onPress={() => openMember(member.userId)}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+      {gridDrag ? (
+        <GestureDetector gesture={gridDrag}>{tiles}</GestureDetector>
+      ) : (
+        tiles
+      )}
       {here ? (
-        <View style={{ paddingBottom: insets.bottom }}>
+        <View style={{ paddingBottom: bottom }}>
           <ControlBar
             muted={here.muted}
             deafened={here.deafened}
