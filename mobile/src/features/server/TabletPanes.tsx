@@ -29,7 +29,7 @@ export function TabletPanes({ serverKey, panes }: TabletPanesProps) {
         <ChannelListHeader serverKey={serverKey} backLabel="Servers" onBack={leave} />
         <ChannelList serverKey={serverKey} variant="sidebar" selectedId={panes.open?.id} onSelect={panes.select} />
         {chrome.serversVoiceBar && (
-          <ConnectedBar serverKey={serverKey} channelId={panes.open?.id} bottomInset />
+          <ConnectedBar serverKey={serverKey} channelId={panes.open?.id} />
         )}
       </View>
       <View style={styles.content}>

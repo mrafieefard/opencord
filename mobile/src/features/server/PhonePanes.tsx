@@ -13,8 +13,8 @@
 // - `listWidth`: the list's own width. It changes only while the list is out
 //   of sight, or under the channel as the sidebar widens into the full list.
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { GestureDetector, Touchable, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedReaction,
@@ -174,12 +174,33 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
     back();
   }, [back, sidebarOpen]);
 
+  // The voice bar (Android) spans the screen, not only the sidebar, coming
+  // in and going out with the list.
+  const barStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: (progress.get() - 1) * width }],
+  }));
+  const [barHeight, setBarHeight] = useState(0);
+  const onBarLayout = useCallback((event: LayoutChangeEvent) => {
+    setBarHeight(Math.round(event.nativeEvent.layout.height));
+  }, []);
+
+  // Android's tab bar takes its room from the screen as it shows, with the
+  // sidebar out over a chat: the channel keeps its height, its foot under
+  // the tab bar, so its messages don't move as the sidebar comes and goes.
+  // Turned, the screen's height changes the other way: kept per width.
+  const [tallest, setTallest] = useState({ width: 0, height: 0 });
+  const onRootLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width: across, height } = event.nativeEvent.layout;
+    setTallest((was) => (was.width === across && was.height >= height ? was : { width: across, height }));
+  }, []);
+  const contentHeight = tallest.height > 0 ? { height: tallest.height } : styles.toBottom;
+
   const covered = !full && sidebarOpen;
   return (
     <GestureDetector gesture={pan}>
-      <View style={[styles.root, { backgroundColor: colors.sidebar }]}>
+      <View style={[styles.root, { backgroundColor: colors.sidebar }]} onLayout={onRootLayout}>
         <Animated.View
-          style={[styles.list, listStyle]}
+          style={[styles.list, { paddingBottom: barHeight }, listStyle]}
           importantForAccessibility={listOut ? 'auto' : 'no-hide-descendants'}
           accessibilityElementsHidden={!listOut}
         >
@@ -189,12 +210,8 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
             <ChannelListHeader serverKey={serverKey} backLabel="All channels" onBack={backToChannels} />
           )}
           <ChannelList serverKey={serverKey} variant={full ? 'full' : 'sidebar'} selectedId={open?.id} onSelect={select} />
-          {/* iOS shows the call above the tab bar instead (chrome.ts). */}
-          {chrome.serversVoiceBar && (
-            <ConnectedBar serverKey={serverKey} channelId={full ? undefined : open?.id} bottomInset />
-          )}
         </Animated.View>
-        <Animated.View style={[styles.content, contentStyle]}>
+        <Animated.View style={[styles.content, contentHeight, contentStyle]}>
           <View
             style={styles.fill}
             importantForAccessibility={listOut ? 'no-hide-descendants' : 'auto'}
@@ -217,6 +234,18 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
             </Touchable>
           </Animated.View>
         </Animated.View>
+        {/* iOS shows the call above the tab bar instead (chrome.ts). */}
+        {chrome.serversVoiceBar && (
+          <Animated.View
+            style={[styles.bar, barStyle]}
+            onLayout={onBarLayout}
+            pointerEvents="box-none"
+            importantForAccessibility={listOut ? 'auto' : 'no-hide-descendants'}
+            accessibilityElementsHidden={!listOut}
+          >
+            <ConnectedBar serverKey={serverKey} channelId={full ? undefined : open?.id} />
+          </Animated.View>
+        )}
       </View>
     </GestureDetector>
   );
@@ -225,7 +254,9 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
   list: { position: 'absolute', top: 0, bottom: 0, left: 0 },
-  content: { ...StyleSheet.absoluteFill },
+  content: { position: 'absolute', top: 0, left: 0, right: 0 },
+  toBottom: { bottom: 0 },
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   scrim: { ...StyleSheet.absoluteFill },
   fill: { flex: 1 },
 });

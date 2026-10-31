@@ -188,7 +188,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
           </View>
           {/* iOS shows the call above the tab bar instead (chrome.ts). */}
           {onOpenChannel && myVoice && chrome.serversVoiceBar ? (
-            <ConnectedBar serverKey={serverKey} channelId={channelId} bottomInset />
+            <ConnectedBar serverKey={serverKey} channelId={channelId} />
           ) : (
             <View style={{ height: insets.bottom }} />
           )}
