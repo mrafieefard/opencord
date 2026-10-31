@@ -28,6 +28,7 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `check_keybinds.ps1` | W2 step 7: push-to-talk on a global keybind, held from outside the app while Notepad has the focus. |
 | `check_key_recorder.ps1` | W2 step 6: what the app's key recorder makes of Print Screen, the Windows key and the right Alt. **Exits 2 for a key it cannot record at all** — see below. |
 | `check_v4.ps1` | Phase 2 V4 (W3 step 7): a voicebot's three-layer camera reaching a watching voicebot in a 360-pixel tile, every picture intact. The twin of `../check_v4.sh`. |
+| `build_ffmpeg.ps1` | Builds the FFmpeg the zip ships, as `../build_ffmpeg.sh` does for Linux: LGPL, shared, MSVC, with D3D11VA and the NVENC, AMF, Quick Sync and Media Foundation encoders. CI runs it and caches the result; `build_ffmpeg.sh` is its MSYS2 half, for FFmpeg's configure. |
 | `check_bundled_ffmpeg.ps1` | W3 step 5: takes FFmpeg away and checks the release build still starts and still encodes, on the DLLs it ships. |
 | `sample_video.ps1` | The mean colour of a rectangle of the app's window, copied off the screen. How W4 checks that red looks red, which Flutter cannot answer about a `Texture`. |
 | `check_v5.ps1` | W5: this PC's camera in a real call — on and off timings, the mirrored preview, and three voicebots watching at three sizes to see which layers go out. **Exits 2 when only the top layer is missing.** |

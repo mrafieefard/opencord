@@ -516,6 +516,11 @@ a commit, a push, and a line in §7.
    - BtbN's build carries every LGPL codec. A minimal build like Linux's
      (D32: only the codecs the engine uses) is a W8 follow-up; record the
      DLL sizes so the user can decide.
+   - Since 2026-10-31 CI builds that minimal FFmpeg itself
+     (`app/tool/windows/build_ffmpeg.ps1`, cached by its hash): BtbN deletes
+     dated builds after about two weeks, so a pinned asset stops existing.
+     BtbN's full build is still fine on a developer's PC, where its
+     `ffplay.exe` serves the hand checks.
    - In "Package Windows": add FFmpeg's license file next to the DLLs.
    - Record the zip's size before and after.
 7. **Voicebot:**

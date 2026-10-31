@@ -479,9 +479,41 @@ jobs:
         with:
           version: ${{ needs.version.outputs.version }}
 
-      # FFmpeg for the Windows codec layer, pinned in one place.
+      # FFmpeg for the Windows codec layer, built from source as on Linux
+      # (app/tool/windows/build_ffmpeg.ps1) and cached by its scripts. The
+      # zip carries its DLLs.
+      - name: Cache FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@v6
+        with:
+          path: C:\ffmpeg
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/tool/windows/build_ffmpeg.ps1', 'app/tool/windows/build_ffmpeg.sh') }}
+
+      # FFmpeg's configure is a shell script: the runner's own MSYS2 runs it.
+      - name: Use MSYS2
+        id: msys2
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          release: false
+          update: false
+          install: make diffutils
+
+      - name: Build FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        run: app/tool/windows/build_ffmpeg.ps1 C:\ffmpeg
+
+      # LLVM, which FFmpeg's bindings need, is already on windows-latest.
       - name: Use FFmpeg
-        uses: ./.github/actions/windows-ffmpeg
+        shell: pwsh
+        run: |
+          "FFMPEG_DIR=C:\ffmpeg" | Out-File $env:GITHUB_ENV -Append
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File $env:GITHUB_ENV -Append
+          'C:\ffmpeg\bin' | Out-File $env:GITHUB_PATH -Append
 
       # Cisco's OpenH264 for the video tests, as on Linux: runners have no
       # GPU encoder. The zip doesn't carry it.
