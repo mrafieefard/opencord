@@ -46,8 +46,13 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
   useEffect(() => {
     away.set(withTiming(covered ? 1 : 0, { duration: AWAY_MS }));
   }, [covered, away]);
+  // Never wholly faded out: iOS drops a Liquid Glass effect whose view
+  // reaches (near) no opacity and doesn't put it back, so the composer's
+  // field came back from the sidebar or the full channel list without its
+  // glass. Hidden under the sidebar's scrim, or off the screen, 5 % shows
+  // nothing.
   const awayStyle = useAnimatedStyle(() => ({
-    opacity: 1 - away.get(),
+    opacity: Math.max(1 - away.get(), AWAY_FLOOR),
     transform: [{ translateY: away.get() * AWAY_DROP }],
   }));
 
@@ -79,6 +84,8 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
 
 /** Stepping aside for the sidebar, and back. */
 const AWAY_MS = 220;
+/** The least the dock fades to, stepped aside: above where iOS drops its glass. */
+const AWAY_FLOOR = 0.05;
 
 const styles = StyleSheet.create({
   pane: { flex: 1 },
