@@ -1377,12 +1377,12 @@ Run this in a Claude Code session on the Mac, on `feat/mobile`, after Tasks 1–
 **Files:**
 - Modify: `docs/mobile.md`, `README.md`.
 
-- [ ] **Step 1: `docs/mobile.md`.**
+- [x] **Step 1: `docs/mobile.md`.**
   - A user guide in front of Task 3's "Developing" section: installing the APK, adding a server, the sidebar, voice in the background, the music player and its upload section.
   - What isn't there yet: spec §2's "Later" table.
   - Write it from the code ("Write docs from the code", `GEMINI.md`).
-- [ ] **Step 2: `README.md`.** A "Phones" part, with two screenshots from `scripts/screens.sh`: the server list and a chat with the sidebar open, in dark.
-- [ ] **Step 3: Run the hand checks** on the emulator, against a local server and a desktop client, and record each result in the ledger:
+- [x] **Step 2: `README.md`.** A "Phones" part, with two screenshots from `scripts/screens.sh`: the server list and a chat with the sidebar open, in dark.
+- [x] **Step 3: Run the hand checks** on the emulator, against a local server and a desktop client, and record each result in the ledger:
   - onboarding;
   - adding a server through the trust step;
   - unread counts against the desktop's for the same channels;
@@ -1393,6 +1393,6 @@ Run this in a Claude Code session on the Mac, on `feat/mobile`, after Tasks 1–
   - music: play, skip, seek and the queue;
   - an upload with progress, cancel and a retry;
   - the volume with the desktop's music playing.
-- [ ] **Step 4: Commit:** `docs(mobile): the phone apps' guide`.
+- [x] **Step 4: Commit:** `docs(mobile): the phone apps' guide`.
 
 **R5 stop:** milestone stop (D80: "The phone apps' first release").
