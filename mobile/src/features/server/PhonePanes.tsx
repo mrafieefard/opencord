@@ -16,10 +16,17 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureDetector, Touchable, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, type WithSpringConfig } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  type WithSpringConfig,
+} from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { chrome } from '@/features/servers/chrome';
+import { sidebarOut } from '@/features/voice/callPosition';
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
 import { setChatInFront, setVoicePageInFront } from '@/state/actions/ui';
 import { useTheme, withAlpha } from '@/ui';
@@ -80,6 +87,11 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
   const reach = useSharedValue(full ? width : narrow);
   const listWidth = useSharedValue(full ? width : narrow);
   const wasOut = useRef(listOut);
+  // The floating voice pill (iOS) follows the sidebar, frame by frame.
+  useAnimatedReaction(
+    () => progress.get(),
+    (now) => sidebarOut.set(now),
+  );
   // Where a drag has already sprung to: the state change it hands over
   // must not restart the spring (and lose the fling's speed). A drag that
   // changed nothing leaves a value no later change can match.

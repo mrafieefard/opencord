@@ -20,6 +20,14 @@ export const callProgress = makeMutable(0);
  */
 export const slotRise = makeMutable(0);
 
+/**
+ * How far a phone's sidebar is out over a chat: 0 with the chat in front,
+ * 1 with the list out (PhonePanes). In a chat, the floating pill moves with
+ * it between its room above the composer and its place above the tab bar,
+ * as the sidebar is dragged.
+ */
+export const sidebarOut = makeMutable(0);
+
 /** A frame on the screen, in points. */
 export interface CallFrame {
   x: number;

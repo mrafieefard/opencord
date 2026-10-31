@@ -40,6 +40,7 @@ import {
   callOrigin,
   callProgress,
   closeCall,
+  sidebarOut,
   slotRise,
   useCallTop,
   useFallbackOrigin,
@@ -84,16 +85,25 @@ function between(from: CallFrame, to: CallFrame, at: number): CallFrame {
   };
 }
 
+/** Where the floating pill rests; in a chat, also the tab bar's place it moves to with the sidebar. */
+interface Rest {
+  frame: CallFrame;
+  /** In a chat: above the tab bar, where the sidebar coming out takes it. */
+  tabs: CallFrame | null;
+}
+
 /**
  * Where the floating pill rests (iOS), if anywhere now: in a chat's room
- * for it, else above the tab bar while that shows. Not while typing, nor
- * over the call's own page.
+ * for it (or, as the sidebar comes out over the chat, on its way above the
+ * tab bar), else above the tab bar while that shows. Not while typing, nor
+ * over the call's own page. Both places are known before they are needed:
+ * the tab bar's from any tab, the chat's from the last chat (ChatVoicePill).
  */
 function useRest(
   call: { serverKey: string; channelId: string } | null,
   screenWidth: number,
   screenHeight: number,
-): CallFrame | null {
+): Rest | null {
   const slot = useAppStore((state) => state.voiceSlot);
   const chatInFront = useAppStore((state) => state.chatInFront);
   const tabInset = useAppStore((state) => state.tabInset);
@@ -115,15 +125,19 @@ function useRest(
   const slotY = slot?.y ?? 0;
   const slotHeight = slot?.height ?? 0;
   return useMemo(() => {
-    if (place === 'chat') return { x: CHAT_SIDE, y: slotY, width: screenWidth - CHAT_SIDE * 2, height: slotHeight };
-    if (place === 'tabs') {
-      return {
-        x: TAB_SIDE,
-        y: screenHeight - tabInset - PILL_GAP - BAR_HEIGHT,
-        width: screenWidth - TAB_SIDE * 2,
-        height: BAR_HEIGHT,
-      };
+    const tabs =
+      tabInset > 0
+        ? {
+            x: TAB_SIDE,
+            y: screenHeight - tabInset - PILL_GAP - BAR_HEIGHT,
+            width: screenWidth - TAB_SIDE * 2,
+            height: BAR_HEIGHT,
+          }
+        : null;
+    if (place === 'chat') {
+      return { frame: { x: CHAT_SIDE, y: slotY, width: screenWidth - CHAT_SIDE * 2, height: slotHeight }, tabs };
     }
+    if (place === 'tabs' && tabs) return { frame: tabs, tabs: null };
     return null;
   }, [place, slotY, slotHeight, screenWidth, screenHeight, tabInset]);
 }
@@ -168,9 +182,19 @@ export function CallSheet() {
   // moves, and fading in or out where it is as it comes or goes.
   // The call held while leaving keeps the pill where it was as it goes.
   const rest = useRest(call, screenWidth, screenHeight);
-  const moveFrom = useSharedValue<CallFrame>(rest ?? NO_FRAME);
-  const moveTo = useSharedValue<CallFrame>(rest ?? NO_FRAME);
+  const moveFrom = useSharedValue<CallFrame>(rest?.frame ?? NO_FRAME);
+  const moveTo = useSharedValue<CallFrame>(rest?.frame ?? NO_FRAME);
   const move = useSharedValue(1);
+  // In a chat, the tab bar's place the sidebar takes it to (blends: 1).
+  const tabsTo = useSharedValue<CallFrame>(rest?.tabs ?? NO_FRAME);
+  const blends = useSharedValue(rest?.tabs ? 1 : 0);
+  // Where it is now: on its way from where it was to its place, which in a
+  // chat is itself on the way to the tab bar as far as the sidebar is out.
+  const placed = useCallback((): CallFrame => {
+    'worklet';
+    const to = blends.get() ? between(moveTo.get(), tabsTo.get(), sidebarOut.get()) : moveTo.get();
+    return between(moveFrom.get(), to, move.get());
+  }, [moveFrom, moveTo, tabsTo, blends, move]);
   const shown = useSharedValue(rest ? 1 : 0);
   const wasShown = useRef(rest !== null);
   // Reanimated can lose the last frames of a layout animation that no
@@ -178,6 +202,8 @@ export function CallSheet() {
   // move settles, a render commits where it is.
   const [, setSettled] = useState(0);
   const settle = useCallback(() => setSettled((count) => count + 1), []);
+  // A frame after the end, so the render follows the last frame written.
+  const settleSoon = useCallback(() => setTimeout(settle, 50), [settle]);
   // Gone only once it has faded: without a place for a moment (between the
   // sidebar and a chat), it keeps where it was and moves from there.
   const forget = useCallback(() => {
@@ -193,11 +219,13 @@ export function CallSheet() {
       return;
     }
     // A drag measures its travel from here.
-    callOrigin.set(rest);
+    callOrigin.set(rest.frame);
     if (wasShown.current) {
       // From wherever it is now, mid-move or not.
-      moveFrom.set(between(moveFrom.get(), moveTo.get(), move.get()));
-      moveTo.set(rest);
+      moveFrom.set(placed());
+      moveTo.set(rest.frame);
+      tabsTo.set(rest.tabs ?? rest.frame);
+      blends.set(rest.tabs ? 1 : 0);
       move.set(0);
       move.set(
         withSpring(1, MOVE_SPRING, (done) => {
@@ -205,14 +233,26 @@ export function CallSheet() {
         }),
       );
     } else {
-      moveFrom.set(rest);
-      moveTo.set(rest);
+      moveFrom.set(rest.frame);
+      moveTo.set(rest.frame);
+      tabsTo.set(rest.tabs ?? rest.frame);
+      blends.set(rest.tabs ? 1 : 0);
       move.set(1);
     }
     wasShown.current = true;
     shown.set(withTiming(1, { duration: FADE_MS }));
-  }, [rest, moveFrom, moveTo, move, shown, settle, forget]);
+  }, [rest, moveFrom, moveTo, tabsTo, blends, move, shown, settle, forget, placed]);
   const resting = rest !== null;
+  // Likewise once the sidebar it follows in a chat has come to rest.
+  useAnimatedReaction(
+    () => {
+      const out = sidebarOut.get();
+      return out < 0.001 || out > 0.999;
+    },
+    (still, before) => {
+      if (still && before === false) scheduleOnRN(settleSoon);
+    },
+  );
 
   // Leaving the call puts it away.
   useEffect(() => {
@@ -241,8 +281,9 @@ export function CallSheet() {
   const start = (): CallFrame => {
     'worklet';
     if (chrome.floatingVoice) {
-      const at = between(moveFrom.get(), moveTo.get(), move.get());
-      return { ...at, y: at.y - slotRise.get() };
+      const at = placed();
+      // Risen with the chat's field, less as the sidebar takes it away.
+      return { ...at, y: at.y - slotRise.get() * (1 - blends.get() * sidebarOut.get()) };
     }
     const touched = callOrigin.get();
     return touched.width > 0 ? touched : fallback;
