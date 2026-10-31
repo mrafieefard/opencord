@@ -219,11 +219,13 @@ mod native {
             // SAFETY: `buf` holds `length` bytes; write is async-signal-safe.
             unsafe { libc::write(file.as_raw_fd(), buf.as_ptr().cast(), length) };
         }
-        // Sent rather than faulted: Linux numbers those 0 and below, macOS
-        // from 0x10001 (SI_USER); faults are small positive codes on both.
+        // Sent rather than faulted: Linux numbers those 0 and below, faults
+        // are small positive codes. macOS gives SIGSEGV, SIGBUS, SIGILL and
+        // SIGFPE a fault's code even when sent, so there every one is
+        // treated as sent: the default action ends the app either way.
         // SAFETY: the kernel passes a valid siginfo with SA_SIGINFO.
-        let sent =
-            unsafe { info.as_ref() }.is_none_or(|info| info.si_code <= 0 || info.si_code > 0x10000);
+        let sent = !cfg!(any(target_os = "linux", target_os = "android"))
+            || unsafe { info.as_ref() }.is_none_or(|info| info.si_code <= 0);
         let (Some(previous), Some(index)) = (
             PREVIOUS.get(),
             SIGNALS.iter().position(|&known| known == signal),
@@ -369,11 +371,15 @@ mod tests {
             std::str::from_utf8(&buf[..length]).unwrap(),
             "+12.345s FATAL native crash  code=0xC0000005 module=ntdll.dll offset=0x1234\n"
         );
-        let length = format_native(&mut buf, Duration::from_millis(5), Native::Signal(11));
-        assert_eq!(
-            std::str::from_utf8(&buf[..length]).unwrap(),
-            "+0.005s FATAL native crash  signal=11 (SIGSEGV)\n"
-        );
+        // Signal names exist only where there are signals.
+        #[cfg(unix)]
+        {
+            let length = format_native(&mut buf, Duration::from_millis(5), Native::Signal(11));
+            assert_eq!(
+                std::str::from_utf8(&buf[..length]).unwrap(),
+                "+0.005s FATAL native crash  signal=11 (SIGSEGV)\n"
+            );
+        }
     }
 
     #[test]
@@ -402,7 +408,8 @@ mod tests {
         let text = std::fs::read_to_string(&session.current).unwrap();
         assert!(text.contains("ERROR panic  boom in a test"), "{text}");
         assert!(
-            text.contains("location=crates/opencord-core/src/log/crash.rs"),
+            text.replace('\\', "/")
+                .contains("location=crates/opencord-core/src/log/crash.rs"),
             "{text}"
         );
     }

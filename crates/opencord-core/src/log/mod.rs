@@ -365,7 +365,11 @@ pub(crate) mod tests {
     }
 
     /// Runs itself again as a child that starts a session and exits
-    /// normally, then checks the child's session ended cleanly.
+    /// normally, then checks the child's session ended cleanly. Not on
+    /// Windows: Rust's `exit` there is `ExitProcess`, which skips an
+    /// executable's C exit hooks; the app's core is a DLL, whose hooks run
+    /// as it unloads.
+    #[cfg(unix)]
     #[test]
     fn a_normal_exit_ends_the_session() {
         if let Ok(dir) = std::env::var("OPENCORD_EXIT_TEST_DIR") {

@@ -360,7 +360,8 @@ mod tests {
 
     #[test]
     fn corpus_has_no_leaks() {
-        let corpus = include_str!("testdata/leaks.txt");
+        // A Windows checkout may give it CRLF line ends.
+        let corpus = include_str!("testdata/leaks.txt").replace("\r\n", "\n");
         let (secrets, lines) = corpus.split_once("\n---\n").unwrap();
         let mut aliases = Aliases::default();
         aliases.server("opencord2.mamad.xyz:443");
