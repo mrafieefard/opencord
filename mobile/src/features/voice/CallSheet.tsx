@@ -21,6 +21,7 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -67,6 +68,11 @@ const CHAT_SIDE = space.sm;
 /** Moving between its places, and showing or hiding. */
 const MOVE_SPRING = { damping: 30, stiffness: 320 };
 const FADE_MS = 160;
+/** Joining and leaving: the pill rises this far into its place, or sinks from it. */
+const PRESENCE_RISE = 24;
+const PRESENCE_SPRING = { damping: 18, stiffness: 220 };
+const LEAVE_MS = 240;
+const JOIN_DELAY_MS = 350;
 
 const NO_FRAME: CallFrame = { x: 0, y: 0, width: 0, height: BAR_HEIGHT };
 
@@ -86,8 +92,11 @@ function between(from: CallFrame, to: CallFrame, at: number): CallFrame {
  * for it, else above the tab bar while that shows. Not while typing, nor
  * over the call's own page.
  */
-function useRest(screenWidth: number, screenHeight: number): CallFrame | null {
-  const call = useMyVoice();
+function useRest(
+  call: { serverKey: string; channelId: string } | null,
+  screenWidth: number,
+  screenHeight: number,
+): CallFrame | null {
   const slot = useAppStore((state) => state.voiceSlot);
   const chatInFront = useAppStore((state) => state.chatInFront);
   const tabInset = useAppStore((state) => state.tabInset);
@@ -127,10 +136,29 @@ export function CallSheet() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const top = useCallTop();
   const fallback = useFallbackOrigin();
-  // The call is this device's: there is one at most. Mounted (unseen) for
-  // as long as it lasts, so the glass is there the moment a bar is pulled.
-  const call = useMyVoice();
-  const inIt = call !== null;
+  // The call is this device's: there is one at most. Mounted for as long
+  // as it lasts, so the glass is there the moment a bar is pulled, and a
+  // little longer: left, it is held while the pill slides away.
+  const myVoice = useMyVoice();
+  const inIt = myVoice !== null;
+  const [held, setHeld] = useState(myVoice);
+  if (myVoice !== null && myVoice !== held) setHeld(myVoice);
+  const call = myVoice ?? held;
+  const release = useCallback(() => setHeld(null), []);
+  // Joining, the pill rises into its place; leaving, it sinks and fades.
+  const presence = useSharedValue(0);
+  useEffect(() => {
+    if (inIt) {
+      // Joined from the voice channel's sheet, the pill rises once that has gone.
+      presence.set(withDelay(JOIN_DELAY_MS, withSpring(1, PRESENCE_SPRING)));
+    } else {
+      presence.set(
+        withTiming(0, { duration: LEAVE_MS }, (done) => {
+          if (done) scheduleOnRN(release);
+        }),
+      );
+    }
+  }, [inIt, presence, release]);
   // Out of the bar, however little: the call takes the touches, not the pill.
   const [up, setUp] = useState(false);
   useAnimatedReaction(
@@ -142,7 +170,8 @@ export function CallSheet() {
 
   // The floating pill (iOS): where it rests, moving there as its place
   // moves, and fading in or out where it is as it comes or goes.
-  const rest = useRest(screenWidth, screenHeight);
+  // The call held while leaving keeps the pill where it was as it goes.
+  const rest = useRest(call, screenWidth, screenHeight);
   const moveFrom = useSharedValue<CallFrame>(rest ?? NO_FRAME);
   const moveTo = useSharedValue<CallFrame>(rest ?? NO_FRAME);
   const move = useSharedValue(1);
@@ -219,8 +248,10 @@ export function CallSheet() {
   const frameStyle = useAnimatedStyle(() => {
     const at = callProgress.get();
     const from = start();
+    const here = presence.get();
     return {
-      opacity: Math.max(shown.get(), at > 0.001 ? 1 : 0),
+      opacity: Math.max(shown.get(), at > 0.001 ? 1 : 0) * Math.min(here * 1.5, 1),
+      transform: [{ translateY: (1 - here) * PRESENCE_RISE }, { scale: 0.9 + 0.1 * here }],
       top: from.y + (top - from.y) * at,
       left: from.x + (CALL_MARGIN - from.x) * at,
       width: from.width + (openWidth - from.width) * at,
@@ -281,7 +312,7 @@ export function CallSheet() {
             accessibilityElementsHidden={up || !resting}
             importantForAccessibility={!up && resting ? 'auto' : 'no-hide-descendants'}
           >
-            {inIt && <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={call.muted} inGlass />}
+            <ConnectedVoiceRow serverKey={call.serverKey} channelId={call.channelId} muted={call.muted} inGlass />
           </Animated.View>
           {/* The call, laid out at its open size so it doesn't reflow as the glass grows. */}
           <Animated.View
