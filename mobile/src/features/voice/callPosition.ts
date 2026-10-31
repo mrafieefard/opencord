@@ -39,10 +39,16 @@ export interface CallFrame {
 /** The bar the call grows out of (and shrinks back into); 0 wide until one is touched. */
 export const callOrigin = makeMutable<CallFrame>({ x: 0, y: 0, width: 0, height: 0 });
 
-/** The voice bars' pill: 56 pt high (the tab bar's own is the system's), its row inset 16 pt left and 4 pt right. */
+/**
+ * Whether that bar is a pill, whose round ends the call's corners grow
+ * from, or Android's square edge-to-edge bar (ConnectedBar).
+ */
+export const callOriginRound = makeMutable(true);
+
+/** The voice bars: 56 pt high (the tab bar's own is the system's), their row inset 16 pt left and 4 pt right. */
 export const BAR_HEIGHT = 56;
-const BAR_PAD_LEFT = 16;
-const BAR_PAD_RIGHT = 4;
+export const BAR_PAD_LEFT = 16;
+export const BAR_PAD_RIGHT = 4;
 
 /**
  * A voice bar's glass around its row: the row fills the pill's height, so

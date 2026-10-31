@@ -7,7 +7,6 @@ import { type ComponentRef, useCallback, useRef } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, Touchable } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { report } from '@/core';
@@ -16,11 +15,15 @@ import { useMyVoice, useNowPlaying, useServer } from '@/state/selectors';
 import { Icon, IconButton, space, Text, useTheme } from '@/ui';
 
 import {
+  BAR_HEIGHT,
+  BAR_PAD_LEFT,
+  BAR_PAD_RIGHT,
   CALL_FLICK,
   CALL_SETTLE,
   CALL_SPRING,
   barFrame,
   callOrigin,
+  callOriginRound,
   callProgress,
   callTravel,
   openCall,
@@ -33,13 +36,9 @@ export interface ConnectedBarProps {
   serverKey?: string;
   /** The channel open beside it: the bar hides when that is the voice channel. */
   channelId?: string;
-  /** At the very bottom of the screen, the bar stands on the bottom inset. */
-  bottomInset?: boolean;
 }
 
-const BAR_HEIGHT = 56;
-
-export function ConnectedBar({ serverKey, channelId, bottomInset = false }: ConnectedBarProps) {
+export function ConnectedBar({ serverKey, channelId }: ConnectedBarProps) {
   const myVoice = useMyVoice();
 
   // Hidden when not connected, or when already viewing that channel
@@ -53,7 +52,6 @@ export function ConnectedBar({ serverKey, channelId, bottomInset = false }: Conn
       serverKey={myVoice.serverKey}
       channelId={myVoice.channelId}
       muted={myVoice.muted}
-      bottomInset={bottomInset}
     />
   );
 }
@@ -62,12 +60,12 @@ interface ConnectedBarContentProps {
   serverKey: string;
   channelId: string;
   muted: boolean;
-  bottomInset: boolean;
 }
 
-function ConnectedBarContent({ serverKey, channelId, muted, bottomInset }: ConnectedBarContentProps) {
+// Android's screens end above the system's navigation bar, so the bar
+// never stands on a bottom inset: above the tab bar, or at a pane's foot.
+function ConnectedBarContent({ serverKey, channelId, muted }: ConnectedBarContentProps) {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   // The call's glass grows out of it: once it does, the glass is the bar.
   const away = useAnimatedStyle(() => ({ opacity: callProgress.get() > 0.001 ? 0 : 1 }));
   return (
@@ -78,12 +76,10 @@ function ConnectedBarContent({ serverKey, channelId, muted, bottomInset }: Conne
         {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: BAR_HEIGHT + (bottomInset ? insets.bottom : 0),
-          paddingBottom: bottomInset ? insets.bottom : 0,
         },
       ]}
     >
-      <ConnectedVoiceRow serverKey={serverKey} channelId={channelId} muted={muted} />
+      <ConnectedVoiceRow serverKey={serverKey} channelId={channelId} muted={muted} square />
     </Animated.View>
   );
 }
@@ -96,10 +92,19 @@ export interface ConnectedVoiceRowProps {
   inGlass?: boolean;
   /** Only the channel and the mic, for a narrow place. */
   compact?: boolean;
+  /** In Android's edge-to-edge bar, not a pill: the call grows from its square corners. */
+  square?: boolean;
 }
 
 /** What the connected bar shows, without the bar: also iOS's floating pill (CallSheet). */
-export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false, inGlass = false }: ConnectedVoiceRowProps) {
+export function ConnectedVoiceRow({
+  serverKey,
+  channelId,
+  muted,
+  compact = false,
+  inGlass = false,
+  square = false,
+}: ConnectedVoiceRowProps) {
   const server = useServer(serverKey);
   const nowPlaying = useNowPlaying(serverKey, channelId);
 
@@ -120,9 +125,11 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false
   const measureBar = useCallback(() => {
     if (inGlass) return;
     rowRef.current?.measureInWindow((x, y, width, height) => {
-      if (width > 0) callOrigin.set(barFrame({ x, y, width, height }));
+      if (width === 0) return;
+      callOrigin.set(barFrame({ x, y, width, height }));
+      callOriginRound.set(!square);
     });
-  }, [inGlass]);
+  }, [inGlass, square]);
   const handleOpen = useCallback(() => openCall(serverKey, channelId), [serverKey, channelId]);
 
   // Pulled up, the glass grows under the finger; far or fast enough it
@@ -191,11 +198,14 @@ export function ConnectedVoiceRow({ serverKey, channelId, muted, compact = false
 }
 
 const styles = StyleSheet.create({
+  // Inset as the pill's row (barFrame), so the call grows from the whole bar.
   bar: {
+    height: BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: space.sm,
+    paddingLeft: BAR_PAD_LEFT,
+    paddingRight: BAR_PAD_RIGHT,
   },
   row: {
     flex: 1,

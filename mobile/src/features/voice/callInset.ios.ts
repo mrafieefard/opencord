@@ -5,6 +5,9 @@ import { screenCorner } from './screenCorner';
 
 export const CALL_MARGIN = 8;
 
+/** Open, its bottom corners are round too, floating above the screen's edge. */
+export const OPEN_BOTTOM_ROUND = true;
+
 /** The open call's corner radius on a screen this size. */
 export function openCorner(width: number, height: number): number {
   return Math.max(screenCorner(width, height) - CALL_MARGIN, 16);

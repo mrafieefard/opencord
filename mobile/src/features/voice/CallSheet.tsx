@@ -39,6 +39,7 @@ import {
   PILL_GAP,
   callDrag,
   callOrigin,
+  callOriginRound,
   callProgress,
   closeCall,
   sidebarOut,
@@ -46,7 +47,7 @@ import {
   useCallTop,
   useFallbackOrigin,
 } from './callPosition';
-import { CALL_MARGIN, openCorner } from './callInset';
+import { CALL_MARGIN, OPEN_BOTTOM_ROUND, openCorner } from './callInset';
 import { ConnectedVoiceRow } from './ConnectedBar';
 import { VoicePane } from './VoicePane';
 
@@ -287,11 +288,22 @@ export function CallSheet() {
       height: from.height + (openHeight - from.height) * at,
     };
   });
-  // Its corners: from the bar's capsule to the screen's own, on the glass
-  // and on what it holds alike.
+  // Its corners: from the bar's (a pill's round ends, Android's square
+  // bar's none) to the screen's own, on the glass and on what it holds alike.
+  // On Android, standing on the screen's bottom edge, the bottom ones square.
   const cornerStyle = useAnimatedStyle(() => {
     const from = origin.get();
-    return { borderRadius: from.height / 2 + (corner - from.height / 2) * callProgress.get() };
+    const at = callProgress.get();
+    const start = chrome.floatingVoice || callOriginRound.get() ? from.height / 2 : 0;
+    const top = start + (corner - start) * at;
+    if (OPEN_BOTTOM_ROUND) return { borderRadius: top };
+    const bottom = start * (1 - at);
+    return {
+      borderTopLeftRadius: top,
+      borderTopRightRadius: top,
+      borderBottomLeftRadius: bottom,
+      borderBottomRightRadius: bottom,
+    };
   });
   const fillStyle = useAnimatedStyle(() => ({
     opacity: interpolate(callProgress.get(), [FILL_FROM, FILL_TO], [0, 1], 'clamp'),
