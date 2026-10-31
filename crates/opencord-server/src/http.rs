@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::{ConnectInfo, State};
-use axum::http::header::HOST;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -15,7 +14,8 @@ use serde::Serialize;
 
 use crate::domains::http_check::VERIFY_PATH;
 use crate::domains::web;
-use crate::network::proxy::ThroughLocalListener;
+use crate::network::main_port::Via;
+use crate::network::proxy::reached_through_proxy;
 use crate::state::AppState;
 use crate::{gateway, media, music, voice};
 
@@ -69,21 +69,15 @@ struct Info {
 async fn voice_gateway(
     State(state): State<Arc<AppState>>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
-    local: Option<axum::Extension<ThroughLocalListener>>,
+    via: Option<axum::Extension<Via>>,
     headers: HeaderMap,
     upgrade: WebSocketUpgrade,
 ) -> Response {
     let Some(node) = state.voice_nodes.embedded().cloned() else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let host = headers.get(HOST).and_then(|host| host.to_str().ok());
-    // A trusted peer alone is not enough: loopback is trusted by default,
-    // and an app on the server's own machine connects from there.
-    let forwarded = headers.contains_key("x-forwarded-for");
-    let proxied = local.is_some()
-        || (forwarded && state.network.settings().trusts(peer.ip()))
-        || host.is_some_and(|host| state.domains.behind_proxy(host));
-    if !proxied {
+    let via = via.map(|axum::Extension(via)| via);
+    if !reached_through_proxy(&state, peer, via, &headers) {
         return voice_gateway_upgrade(node, upgrade);
     }
     let public = state.network.current_public_ips();

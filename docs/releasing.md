@@ -12,7 +12,7 @@ Every push to `beta`, `canary` or `main` is a release. CI tests and builds the s
 
 A change goes through the channels in order:
 
-1. **Work happens on other branches.** Feature branches, `phase…` branches and the like run no CI/CD.
+1. **Work happens on other branches** and reaches these through pull requests (CLAUDE.md). A pull request into `beta`, `canary` or `main` runs the whole workflow on the merge it would make: the tests and builds on all three systems, the integration tests, and the Docker image, built but not pushed. Its installers are uploaded as artifacts to try. It releases nothing. Run `.github/check.sh` before opening or updating one: it runs the Linux checks here.
 2. **`beta`.** Merge finished work into `beta`, and every push makes the next beta, for testing.
 3. **`canary`.** When a beta is good, merge `beta` into `canary`. It's the same code, numbered as a canary of the same version.
 4. **`main`.** When the canary holds up, merge `canary` into `main`. That push releases the version.
@@ -91,18 +91,22 @@ The notes list the commits since the channel's previous release, grouped as brea
 
 ## For the updater
 
-The app's updater will read GitHub releases. Every release carries the same files under the same names, without the version in the name:
+The app's launcher (docs/updater.md) reads GitHub releases. Every release carries the same files under the same names, without the version in the name:
 
 | Key | File |
 | --- | --- |
 | `client-linux-x64` | `opencord-linux-x64.tar.gz` |
 | `client-windows-x64` | `opencord-windows-x64.zip` |
 | `client-macos-universal` | `opencord-macos.zip` |
+| `setup-windows-x64` | `opencord-setup-windows-x64.exe` |
+| `setup-macos-universal` | `opencord-setup-macos.dmg` |
+| `setup-linux-x64` | `opencord-setup-linux-x64` |
 | `server-linux-x64` | `opencord-server-linux-x64.tar.gz` |
 | `server-windows-x64` | `opencord-server-windows-x64.zip` |
 | `server-macos-universal` | `opencord-server-macos.tar.gz` |
 |  | `SHA256SUMS` |
 |  | `release.json` |
+|  | `release.json.sig`, when the signing key is set |
 
 `release.json` describes the release. Like Tauri's `latest.json` and electron-builder's `latest.yml`, it gives an updater everything in one small request:
 
@@ -137,7 +141,7 @@ How the updater should find an update:
 
    Because SemVer orders them, a beta user moves to the stable release once it's newer than their beta, and nobody is offered an older build.
 3. **Offer the update** if that version is higher than `appVersion`. Download the platform's `url`, and check its `size` and `sha256` before replacing anything.
-4. **Not done yet:** signing. Today the trust comes from HTTPS to github.com. Before the updater installs anything by itself, `release.json` should carry an Ed25519 signature, made in CI with a key kept in the repository's secrets, and the app should check it with the public key it ships with. That is how Tauri's updater works; Sparkle on macOS does the same.
+4. **Signing.** With the `UPDATE_SIGNING_KEY` secret set, CI signs `release.json` with Ed25519 into `release.json.sig`, and launchers built with the `UPDATE_PUBLIC_KEY` variable accept only signed releases, as Tauri's updater and Sparkle do. Without the secret, the trust comes from HTTPS to github.com. docs/updater.md says how to make the key.
 
 ## Setup on GitHub
 

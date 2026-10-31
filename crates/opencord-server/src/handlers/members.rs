@@ -30,8 +30,10 @@ pub async fn kick(ctx: &Ctx<'_>, request: proto::KickMember) -> Result<Response,
     let mut tx = ctx.state.db.begin().await?;
     channels::delete_overwrites_for_target(&mut tx, "member", request.user_id).await?;
     members::delete(&mut tx, request.user_id).await?;
+    crate::private::forget_member(&mut tx, request.user_id).await?;
     tx.commit().await?;
     remove_member(ctx, request.user_id, CloseCode::KICKED, &overwrite_channels);
+    ctx.state.private.forget(request.user_id);
     Ok(ack())
 }
 
@@ -66,10 +68,12 @@ pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, A
     if is_member {
         channels::delete_overwrites_for_target(&mut tx, "member", request.user_id).await?;
         members::delete(&mut tx, request.user_id).await?;
+        crate::private::forget_member(&mut tx, request.user_id).await?;
     }
     tx.commit().await?;
     if is_member {
         remove_member(ctx, request.user_id, CloseCode::BANNED, &overwrite_channels);
+        ctx.state.private.forget(request.user_id);
     }
     Ok(ack())
 }

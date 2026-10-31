@@ -84,10 +84,17 @@ T? neighborWhere<T>(
 /// Which server is open and the last channel opened on each (§16).
 @immutable
 class Selection {
-  const Selection({this.server, this.channels = const {}});
+  const Selection({
+    this.server,
+    this.channels = const {},
+    this.home = false,
+    this.peer,
+  });
 
   final String? server;
   final Map<String, int> channels;
+  final bool home;
+  final String? peer;
 }
 
 const navigationKey = 'ui.navigation';
@@ -108,14 +115,51 @@ class NavigationNotifier extends Notifier<Selection> {
             for (final MapEntry(:key, :value) in channels.entries)
               if (value is int) key: value,
         },
+        home: json['home'] is bool ? json['home']! as bool : false,
+        peer: json['peer'] is String ? json['peer']! as String : null,
       );
     } on FormatException {
       return const Selection();
     }
   }
 
+  void openHome() {
+    state = Selection(
+      server: state.server,
+      channels: state.channels,
+      home: true,
+      peer: state.peer,
+    );
+    _save();
+  }
+
+  void openFriends() {
+    state = Selection(
+      server: state.server,
+      channels: state.channels,
+      home: true,
+      peer: null,
+    );
+    _save();
+  }
+
+  void openConversation(String peer) {
+    state = Selection(
+      server: state.server,
+      channels: state.channels,
+      home: true,
+      peer: peer,
+    );
+    _save();
+  }
+
   void openServer(String serverKey) {
-    state = Selection(server: serverKey, channels: state.channels);
+    state = Selection(
+      server: serverKey,
+      channels: state.channels,
+      home: false,
+      peer: state.peer,
+    );
     _save();
   }
 
@@ -123,6 +167,8 @@ class NavigationNotifier extends Notifier<Selection> {
     state = Selection(
       server: serverKey,
       channels: {...state.channels, serverKey: channelId},
+      home: false,
+      peer: state.peer,
     );
     _save();
   }
@@ -131,13 +177,36 @@ class NavigationNotifier extends Notifier<Selection> {
       .read(keyValueStoreProvider)
       .write(
         navigationKey,
-        jsonEncode({'server': state.server, 'channels': state.channels}),
+        jsonEncode({
+          'server': state.server,
+          'channels': state.channels,
+          'home': state.home,
+          'peer': state.peer,
+        }),
       );
 }
 
 final navigationProvider = NotifierProvider<NavigationNotifier, Selection>(
   NavigationNotifier.new,
 );
+
+/// True when the home view (friends, direct messages) is shown: either
+/// Home was opened or the user has no servers joined (§6.1, §6.2).
+final homeShownProvider = Provider<bool>((ref) {
+  final home = ref.watch(navigationProvider.select((s) => s.home));
+  final empty = ref.watch(serverListProvider.select((s) => s.isEmpty));
+  return home || empty;
+});
+
+/// The peer of the currently open private conversation, if selected and not blocked.
+final currentPeerProvider = Provider<String?>((ref) {
+  final peer = ref.watch(navigationProvider.select((s) => s.peer));
+  if (peer == null) return null;
+  final contacts = ref.watch(privateContactsProvider);
+  final contact = contacts.byPeer[peer];
+  if (contact != null && contact.blocked) return null;
+  return peer;
+});
 
 /// The open server: the one chosen last if it still exists, else the
 /// first in the rail.

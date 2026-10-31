@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_devices WHERE user_id = $1 AND device_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "512aee5b0f8413abcc2a13d601f3e4dda9aab8894360f0837fccada0837ef9f3"
+}

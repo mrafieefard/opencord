@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT device_id FROM private_devices WHERE user_id = $1 ORDER BY created_at, rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "device_id",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "device_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "609943921d5229c293eef1eea445d49fd8e57a3255eca7311580eb664f184180"
+}

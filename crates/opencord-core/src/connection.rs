@@ -31,6 +31,7 @@ use crate::convert;
 use crate::identity::Identity;
 
 use crate::mirror::{GuildMirror, PermissionSnapshot};
+use crate::private::service::PrivateService;
 use crate::server_clock::ServerClock;
 use crate::store::Store;
 use crate::tofu::{TlsTrust, Verdict};
@@ -116,6 +117,37 @@ pub(crate) async fn open(
     address: &ServerAddress,
     pinned: Option<Fingerprint>,
 ) -> Result<Opened, HandshakeError> {
+    // Registered first, so the filter replaces it in any line from here.
+    let server = crate::log::alias::server(&address.host);
+    let began = Instant::now();
+    let opened = handshake(address, pinned).await;
+    let after_ms = began.elapsed().as_millis();
+    match &opened {
+        Ok(opened) => {
+            crate::log::alias::server_facts(
+                &address.host,
+                &format!(
+                    "port {}, {}, protocol v{}",
+                    address.port,
+                    if opened.authority {
+                        "a certificate an authority vouches for"
+                    } else {
+                        "a pinned certificate"
+                    },
+                    opened.hello.protocol_version
+                ),
+            );
+            tracing::info!(%server, after_ms, "connected");
+        }
+        Err(error) => tracing::warn!(%server, after_ms, ?error, "could not connect"),
+    }
+    opened
+}
+
+async fn handshake(
+    address: &ServerAddress,
+    pinned: Option<Fingerprint>,
+) -> Result<Opened, HandshakeError> {
     let trust = TlsTrust::new(pinned);
     let tcp = timeout(
         CONNECT_TIMEOUT,
@@ -124,6 +156,10 @@ pub(crate) async fn open(
     .await
     .map_err(|_| HandshakeError::Transient("the connection timed out".to_owned()))?
     .map_err(|error| HandshakeError::Transient(error.to_string()))?;
+    // The address it reached: public or on the local network (D70).
+    if let Ok(peer) = tcp.peer_addr() {
+        tracing::debug!(peer = %crate::log::alias::address(peer.ip()), port = peer.port(), "tcp connected");
+    }
     let server_name = ServerName::try_from(address.host.clone())
         .map_err(|_| HandshakeError::Transient(format!("{} is not a valid host", address.host)))?;
     let tls = timeout(
@@ -354,6 +390,7 @@ pub(crate) struct Context {
     pub clocks: Clocks,
     /// Sends waiting for their uploads' verdicts.
     pub uploads: Arc<Uploads>,
+    pub private: PrivateService,
 }
 
 /// Each server's clock against this device's, by server key.
@@ -739,7 +776,7 @@ impl Task {
                         continue;
                     }
                     if !own_address {
-                        tracing::debug!(%address, "connected through another of the server's addresses");
+                        tracing::debug!(address = %crate::log::alias::host(&address.host), "connected through another of the server's addresses");
                     }
                     self.remember_server_id(&id);
                     self.context
@@ -821,7 +858,18 @@ impl Task {
         let name = ready.server.as_ref().map(|server| server.name.clone());
         let user_id = ready.self_user.as_ref().map(|user| user.id);
         self.self_id = user_id;
+        if let Some(id) = user_id {
+            crate::log::alias::set_self(id);
+        }
         self.update_saved_server(name, user_id);
+        let server_id = self
+            .lock_store()
+            .server(&self.context.key)
+            .and_then(|saved| saved.server_id.clone())
+            .unwrap_or_default();
+        self.context
+            .private
+            .on_ready(&self.context.key, &server_id, &ready);
         self.emit(CoreEventPayload::Ready(convert::ready(ready)));
     }
 
@@ -861,6 +909,23 @@ impl Task {
         }
         if let proto::event::Kind::VoiceServerUpdate(update) = &kind {
             self.on_voice_server(update);
+        }
+        if matches!(
+            kind,
+            proto::event::Kind::MemberJoin(_)
+                | proto::event::Kind::MemberUpdate(_)
+                | proto::event::Kind::MemberLeave(_)
+        ) {
+            self.context
+                .private
+                .on_member_event(&self.context.key, &kind);
+        }
+        if let proto::event::Kind::PrivateSettingsUpdate(update) = &kind
+            && let Some(settings) = &update.settings
+        {
+            self.context
+                .private
+                .on_private_settings(&self.context.key, settings);
         }
         if let proto::event::Kind::ServerAddressesUpdate(update) = &kind
             && let Some(addresses) = &update.addresses
@@ -903,6 +968,17 @@ impl Task {
                     failed.upload_id,
                     failed.error.unwrap_or_default(),
                 );
+                None
+            }
+            // For the private messages service, not for the app.
+            proto::event::Kind::PendingEvent(event) => {
+                self.context.private.on_pending(&self.context.key, event);
+                None
+            }
+            proto::event::Kind::PrivateTypingStart(typing) => {
+                self.context
+                    .private
+                    .on_typing(&self.context.key, typing.user_id);
                 None
             }
 
@@ -1076,6 +1152,10 @@ impl Task {
     }
 
     fn emit_state(&self, state: ConnectionState) {
+        self.context.private.on_connection(
+            &self.context.key,
+            matches!(state, ConnectionState::Connected),
+        );
         self.emit(CoreEventPayload::ConnectionState(state));
     }
 

@@ -40,6 +40,8 @@ mod backend;
 mod backend;
 #[cfg(target_os = "windows")]
 mod windows_gdi;
+#[cfg(target_os = "windows")]
+mod windows_gdi_capture;
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 #[path = "unsupported.rs"]
@@ -147,6 +149,15 @@ impl Capture {
 
 pub fn support() -> ScreenSupport {
     backend::support()
+}
+
+/// Whether Windows.Graphics.Capture is there and works; `None` on other
+/// systems.
+pub fn capture_api() -> Option<bool> {
+    #[cfg(target_os = "windows")]
+    return Some(backend::capture_api_works());
+    #[cfg(not(target_os = "windows"))]
+    None
 }
 
 /// The sources Opencord's own picker offers; empty where the system picks.

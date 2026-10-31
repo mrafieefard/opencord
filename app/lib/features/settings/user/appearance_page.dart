@@ -77,7 +77,7 @@ class AppearancePage extends ConsumerWidget {
                   ChoiceCardOption(
                     value: MessageDensity.compact,
                     label: 'Compact',
-                    description: 'Lines, more on screen',
+                    description: 'Rows with avatars, more on screen',
                     preview: DensityMiniature(compact: true),
                   ),
                 ],
@@ -304,7 +304,7 @@ class _LeftHalf extends CustomClipper<Rect> {
   bool shouldReclip(_LeftHalf oldClipper) => false;
 }
 
-/// Bubbles or lines, drawn small for the density choice.
+/// Bubbles or rows, drawn small for the density choice.
 class DensityMiniature extends StatelessWidget {
   const DensityMiniature({super.key, required this.compact});
 
@@ -333,17 +333,36 @@ class DensityMiniature extends StatelessWidget {
           ? Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                for (final width in const [80.0, 64.0, 90.0, 52.0, 74.0])
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        bar(10, color: colors.hover),
-                        const SizedBox(width: 6),
-                        bar(width),
-                      ],
-                    ),
+                for (final (index, lines) in const [
+                  [80.0, 56.0],
+                  [64.0],
+                ].indexed) ...[
+                  if (index > 0) const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: colors.hover,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          bar(28, color: colors.textMuted),
+                          for (final width in lines) ...[
+                            const SizedBox(height: 3),
+                            bar(width),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
+                ],
               ],
             )
           : Column(

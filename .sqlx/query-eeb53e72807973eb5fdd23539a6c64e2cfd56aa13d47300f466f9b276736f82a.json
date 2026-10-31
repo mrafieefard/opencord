@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_one_time_keys WHERE rowid = (\n             SELECT rowid FROM private_one_time_keys\n             WHERE user_id = $1 AND device_id = $2\n             ORDER BY rowid LIMIT 1)\n         RETURNING key, signature",
+  "describe": {
+    "columns": [
+      {
+        "name": "key",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_one_time_keys",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "signature",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_one_time_keys",
+            "name": "signature"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "eeb53e72807973eb5fdd23539a6c64e2cfd56aa13d47300f466f9b276736f82a"
+}

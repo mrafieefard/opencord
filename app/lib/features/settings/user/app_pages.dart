@@ -1,13 +1,17 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/format.dart';
+import 'package:opencord/core/logs/session_log.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
@@ -615,6 +619,8 @@ class AboutPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
+    final installation = ref.watch(installationProvider);
+    final version = installation?.version ?? appVersion;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -625,9 +631,17 @@ class AboutPage extends ConsumerWidget {
           style: OcText.body.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: OcSpace.s20),
+        if (_desktop(Theme.of(context).platform)) ...[
+          const _UpdatesSection(),
+          const SizedBox(height: OcSpace.s24),
+          if (ref.watch(sessionLogProvider).current != null) ...[
+            const _LogsSection(),
+            const SizedBox(height: OcSpace.s24),
+          ],
+        ],
         SettingsSection(
           children: [
-            SettingsRow(title: 'App version', subtitle: appVersion, mono: true),
+            SettingsRow(title: 'App version', subtitle: version, mono: true),
             SettingsRow(
               title: 'Core version',
               subtitle: ref.watch(coreVersionProvider),
@@ -643,7 +657,7 @@ class AboutPage extends ConsumerWidget {
               onTap: () => showLicensePage(
                 context: context,
                 applicationName: 'Opencord',
-                applicationVersion: appVersion,
+                applicationVersion: version,
               ),
             ),
           ],
@@ -651,4 +665,175 @@ class AboutPage extends ConsumerWidget {
       ],
     );
   }
+}
+
+bool _desktop(TargetPlatform platform) =>
+    platform == TargetPlatform.linux ||
+    platform == TargetPlatform.windows ||
+    platform == TargetPlatform.macOS;
+
+/// The session logs (D82): this session's to send when something went
+/// wrong, the last one's when it crashed, and the folder with the rest.
+class _LogsSection extends ConsumerWidget {
+  const _LogsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final log = ref.watch(sessionLogProvider);
+    final current = log.current;
+    final crashed = log.previousCrashed;
+    final dir = log.dir;
+    return SettingsSection(
+      title: 'Logs',
+      footer:
+          'Logs never contain passwords, keys, messages or addresses. '
+          'The last 10 sessions are kept.',
+      children: [
+        if (current != null)
+          SettingsRow(
+            title: "Export this session's log",
+            subtitle: 'To send when something went wrong',
+            trailing: OcButton(
+              label: 'Export',
+              dense: true,
+              onPressed: () => _export(context, ref, current),
+            ),
+          ),
+        if (crashed != null)
+          SettingsRow(
+            title: "Export the last session's log",
+            subtitle: 'It ended unexpectedly',
+            trailing: OcButton(
+              label: 'Export',
+              dense: true,
+              onPressed: () => _export(context, ref, crashed),
+            ),
+          ),
+        if (dir != null)
+          SettingsRow(
+            title: 'Open logs folder',
+            trailing: OcButton(
+              label: 'Open',
+              dense: true,
+              onPressed: () async {
+                try {
+                  await ref.read(sessionLogActionsProvider).openFolder(dir);
+                } on Exception catch (error) {
+                  if (context.mounted) showOcToast(context, _reason(error));
+                }
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _export(BuildContext context, WidgetRef ref, String log) async {
+    final actions = ref.read(sessionLogActionsProvider);
+    final destination = await actions.saveLocation(exportName(log));
+    if (destination == null) return;
+    try {
+      await actions.export(log, destination);
+      if (context.mounted) showOcToast(context, 'Log saved');
+    } on Exception catch (error) {
+      if (context.mounted) {
+        showOcToast(context, "The log wasn't saved: ${_reason(error)}");
+      }
+    }
+  }
+}
+
+String _reason(Object error) =>
+    '$error'.replaceFirst(RegExp(r'^(Exception|CoreError\.\w+)[:(]\s*'), '');
+
+/// The update track (docs/updater.md): the launcher checks GitHub for the
+/// newest build of it each time Opencord starts.
+class _UpdatesSection extends ConsumerWidget {
+  const _UpdatesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final installation = ref.watch(installationProvider);
+    if (installation == null) {
+      return const SettingsSection(
+        title: 'Updates',
+        children: [
+          SettingsRow(
+            title: "This copy doesn't update itself",
+            subtitle:
+                'It was not installed with the Opencord installer. Install '
+                'Opencord from its releases page to get updates.',
+          ),
+        ],
+      );
+    }
+    final track = ref.watch(releaseTrackProvider);
+    return SettingsSection(
+      title: 'Updates',
+      footer:
+          'Opencord checks for updates each time it starts. Switching tracks '
+          "restarts it on that track's newest build.",
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(OcSpace.s12),
+          child: SettingsChoiceCards<ReleaseTrack>(
+            value: track ?? ReleaseTrack.stable,
+            onChanged: track == null
+                ? null
+                : (chosen) => _switchTrack(context, ref, installation, chosen),
+            options: [
+              for (final option in ReleaseTrack.values)
+                ChoiceCardOption(
+                  value: option,
+                  label: option.label,
+                  description: option.description,
+                ),
+            ],
+          ),
+        ),
+        if (installation.launcher != null)
+          SettingsRow(
+            title: 'Check for updates now',
+            subtitle: 'Restarts Opencord',
+            trailing: OcButton(
+              label: 'Restart',
+              dense: true,
+              onPressed: installation.restart,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Asks before switching to [chosen], then restarts on it: the launcher
+/// installs that track's newest build as the app starts again.
+Future<void> _switchTrack(
+  BuildContext context,
+  WidgetRef ref,
+  Installation installation,
+  ReleaseTrack chosen,
+) async {
+  if (chosen == ref.read(releaseTrackProvider)) return;
+  final restarts = installation.launcher != null;
+  final confirmed = await confirmAction(
+    context,
+    title: 'Switch to ${chosen.label}?',
+    message: restarts
+        ? 'Opencord restarts and opens on the newest ${chosen.label} build. '
+              'It may be older than the one you have now.'
+        : 'Opencord opens on the newest ${chosen.label} build the next time '
+              'it starts. It may be older than the one you have now.',
+    action: restarts ? 'Restart' : 'Switch',
+  );
+  if (!confirmed) return;
+  try {
+    await ref.read(releaseTrackProvider.notifier).set(chosen);
+  } on FileSystemException catch (error) {
+    if (context.mounted) {
+      showOcToast(context, "Couldn't switch tracks: ${error.message}");
+    }
+    return;
+  }
+  if (restarts) await installation.restart();
 }

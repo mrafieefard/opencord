@@ -8,8 +8,10 @@ import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 
-/// The small bar beside a hovered bubble (§4.5, Discord): React · Reply ·
-/// More. Each callback gets the button's global rectangle to anchor to.
+/// The small bar beside a hovered bubble (§4.5, Discord): React · Edit ·
+/// Reply · More, each only when given. Bubbles leave More out, as
+/// right-click opens the same menu. Each callback gets the button's global
+/// rectangle to anchor to.
 ///
 /// The bar names the hovered button itself instead of using tooltips: a
 /// tooltip is an overlay of its own, and nested inside the bar's overlay it
@@ -17,14 +19,19 @@ import 'package:opencord/ui/widgets/popover.dart';
 class HoverActionBar extends StatefulWidget {
   const HoverActionBar({
     super.key,
-    required this.onMore,
     this.onReact,
+    this.onEdit,
     this.onReply,
+    this.onMore,
   });
 
   final ValueChanged<Rect>? onReact;
+  final VoidCallback? onEdit;
   final VoidCallback? onReply;
-  final ValueChanged<Rect> onMore;
+  final ValueChanged<Rect>? onMore;
+
+  /// How many buttons the bar shows.
+  int get buttons => [onReact, onEdit, onReply, onMore].nonNulls.length;
 
   /// How wide the bar is with [buttons] buttons.
   static double widthFor(int buttons) =>
@@ -48,9 +55,11 @@ class _HoverActionBarState extends State<HoverActionBar> {
     final buttons = <(IconData, String, ValueChanged<Rect>)>[
       if (widget.onReact case final onReact?)
         (OcIcons.addReaction, 'Add reaction', onReact),
+      if (widget.onEdit case final onEdit?)
+        (OcIcons.edit, 'Edit', (_) => onEdit()),
       if (widget.onReply case final onReply?)
         (OcIcons.reply, 'Reply', (_) => onReply()),
-      (OcIcons.moreHoriz, 'More', widget.onMore),
+      if (widget.onMore case final onMore?) (OcIcons.moreHoriz, 'More', onMore),
     ];
     final hovered = _hovered;
     return Stack(

@@ -4,15 +4,16 @@
 //! music UDP port, and the frames go to the node as the channel's music.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 use anyhow::Context as _;
+use axum::Extension;
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::ws::rejection::WebSocketUpgradeRejection;
-use axum::extract::{Query, State};
-use axum::http::StatusCode;
+use axum::extract::{ConnectInfo, Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use opencord_proto::v1 as proto;
 use opencord_voice::bridge::{self, BridgeConfig, BridgeEvent, MusicBridge};
@@ -28,9 +29,12 @@ use crate::error::ApiError;
 use crate::lavalink::health::Health;
 use crate::lavalink::{HealthChange, lock};
 use crate::network::ClientAddr;
+use crate::network::main_port::Via;
+use crate::network::proxy::reached_through_proxy;
 use crate::state::AppState;
 
 pub mod artwork;
+pub mod local;
 pub mod player;
 pub mod queue;
 pub mod search;
@@ -131,7 +135,10 @@ pub struct BridgeQuery {
 /// (plan §13.2). Everything else on `/` is not found.
 pub async fn upgrade(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(connected): ConnectInfo<SocketAddr>,
     ClientAddr(peer): ClientAddr,
+    via: Option<Extension<Via>>,
+    headers: HeaderMap,
     Query(query): Query<BridgeQuery>,
     upgrade: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
 ) -> Response {
@@ -139,10 +146,19 @@ pub async fn upgrade(
     else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    // Through a tunnel or a reverse proxy (Traefik, Dokploy), Lavalink is
+    // told the public address for audio, as through a Cloudflare tunnel.
+    let proxied = reached_through_proxy(&state, connected, via.map(|Extension(via)| via), &headers);
     upgrade
         .max_message_size(BRIDGE_FRAME_BYTES)
         .max_frame_size(BRIDGE_FRAME_BYTES)
-        .on_upgrade(move |socket| async move { bridge.serve(socket, peer).await })
+        .on_upgrade(move |socket| async move {
+            if proxied {
+                bridge.serve_proxied(socket, peer).await;
+            } else {
+                bridge.serve(socket, peer).await;
+            }
+        })
 }
 
 /// Every channel's music, the music settings and who is blocked from
@@ -219,7 +235,7 @@ impl Music {
     }
 
     /// Sends to a channel's session, if it has one.
-    fn send_existing(&self, channel_id: i64, command: Command) {
+    pub(crate) fn send_existing(&self, channel_id: i64, command: Command) {
         if let Some(sender) = lock(&self.sessions).get(&channel_id) {
             let _ = sender.send(command);
         }
@@ -354,10 +370,11 @@ pub fn supported(state: &AppState) -> bool {
             || state.config.voice.mode == crate::config::VoiceMode::External)
 }
 
-/// Whether music can play here: supported, on in the settings, with a
-/// node added.
+/// Whether music can play here: supported and on in the settings.
+/// Uploaded songs need no Lavalink node (design 2026-10-24); Lavalink's
+/// tracks wait for one.
 pub fn configured(state: &AppState) -> bool {
-    supported(state) && state.music.settings().enabled && !state.lavalink.nodes().is_empty()
+    supported(state) && state.music.settings().enabled
 }
 
 /// The settings with what is available now: search sources at least one

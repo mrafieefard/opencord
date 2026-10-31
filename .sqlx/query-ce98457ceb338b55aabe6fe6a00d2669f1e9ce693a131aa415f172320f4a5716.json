@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_devices WHERE last_seen_at < $1\n           RETURNING user_id AS \"user_id!\", device_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "device_id",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "device_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null,
+      false
+    ]
+  },
+  "hash": "ce98457ceb338b55aabe6fe6a00d2669f1e9ce693a131aa415f172320f4a5716"
+}

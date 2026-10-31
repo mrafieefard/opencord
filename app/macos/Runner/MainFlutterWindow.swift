@@ -222,9 +222,16 @@ final class WindowChannel: NSObject, NSWindowDelegate {
         NSApp.requestUserAttention(.informationalRequest)
       }
     case "setLaunchAtLogin":
-      // A login item (desktop UI plan §15); macOS 13 and later.
-      if #available(macOS 13.0, *) {
-        let enabled = call.arguments as? Bool ?? false
+      let enabled = call.arguments as? Bool ?? false
+      // Installed by the launcher (docs/updater.md): login starts the
+      // launcher, so it updates first. This version's bundle goes with the
+      // next update, so it can't be the login item.
+      if let launcher = ProcessInfo.processInfo.environment["OPENCORD_LAUNCHER"],
+        !launcher.isEmpty
+      {
+        setLaunchAgent(enabled: enabled, launcher: launcher)
+      } else if #available(macOS 13.0, *) {
+        // A login item (desktop UI plan §15); macOS 13 and later.
         do {
           if enabled {
             try SMAppService.mainApp.register()
@@ -284,5 +291,35 @@ final class WindowChannel: NSObject, NSWindowDelegate {
 
   func windowDidResignKey(_ notification: Notification) {
     sendStatus()
+  }
+}
+
+/// `~/Library/LaunchAgents/dev.opencord.opencord.plist`, starting the
+/// launcher at login with `--autostart`. A login item would name this
+/// version's bundle, which the next update removes.
+private func setLaunchAgent(enabled: Bool, launcher: String) {
+  // The real home: inside the sandbox, the usual calls name the app's
+  // container. The entitlements let the app write this one folder there.
+  guard let home = getpwuid(getuid())?.pointee.pw_dir else { return }
+  let agents = URL(fileURLWithPath: String(cString: home))
+    .appendingPathComponent("Library/LaunchAgents")
+  let plist = agents.appendingPathComponent("dev.opencord.opencord.plist")
+  guard enabled else {
+    try? FileManager.default.removeItem(at: plist)
+    return
+  }
+  let agent: [String: Any] = [
+    "Label": "dev.opencord.opencord",
+    "ProgramArguments": [launcher, "--autostart"],
+    "RunAtLoad": true,
+    "ProcessType": "Interactive",
+  ]
+  do {
+    try FileManager.default.createDirectory(at: agents, withIntermediateDirectories: true)
+    let data = try PropertyListSerialization.data(
+      fromPropertyList: agent, format: .xml, options: 0)
+    try data.write(to: plist, options: .atomic)
+  } catch {
+    NSLog("Opencord could not write its launch agent: \(error)")
   }
 }

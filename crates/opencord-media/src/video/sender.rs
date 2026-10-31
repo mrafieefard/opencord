@@ -19,6 +19,7 @@ use crate::video::codec::raw::RawDecoder;
 use crate::video::codec::scale::Scaler;
 use crate::video::layers::{ScreenShape, ScreenSizes, screen_sizes};
 use crate::video::picture::{Picture, PixelFormat};
+use crate::video::stats::ShareStats;
 
 /// How long the thread waits for a frame before it looks at its commands.
 const WAIT: Duration = Duration::from_millis(100);
@@ -183,9 +184,19 @@ struct Sending<S, P> {
     preview: P,
     /// See [`VideoSender::encoder`].
     encoder: Arc<Mutex<Option<String>>>,
+    /// For the session log (D82).
+    stats: ShareStats,
 }
 
 impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
+    fn kind(&self) -> &'static str {
+        if self.screen.is_some() {
+            "screen"
+        } else {
+            "camera"
+        }
+    }
+
     fn new(
         track_id: String,
         layers: Vec<Layer>,
@@ -204,15 +215,30 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             send,
             preview,
             encoder: Arc::default(),
+            stats: ShareStats::new(Instant::now()),
         }
     }
 
     fn run(&mut self, frames: &Receiver<RawFrame>, commands: &Receiver<Command>) {
+        tracing::info!(
+            kind = self.kind(),
+            layers = self.layers.len(),
+            "a video track started"
+        );
+        self.sending(frames, commands);
+        let line = self.stats.line(Instant::now());
+        tracing::info!(kind = self.kind(), "a video track ended: {line}");
+    }
+
+    fn sending(&mut self, frames: &Receiver<RawFrame>, commands: &Receiver<Command>) {
         loop {
             let frame = match frames.recv_timeout(WAIT) {
                 Ok(mut frame) => {
+                    self.stats.captured();
                     // The newest frame wins when encoding falls behind.
                     while let Ok(newer) = frames.try_recv() {
+                        self.stats.captured();
+                        self.stats.dropped("encoder behind");
                         frame = newer;
                     }
                     Some(frame)
@@ -233,6 +259,9 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 self.frame(&frame);
             } else if repeat {
                 self.repeat();
+            }
+            if let Some(line) = self.stats.due(Instant::now()) {
+                tracing::info!(kind = self.kind(), "sending: {line}");
             }
         }
     }
@@ -290,6 +319,7 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 }
             }
             Command::Keyframe(layer) => {
+                self.stats.keyframe_requested();
                 if let Some(state) = self.layers.get_mut(usize::from(layer)) {
                     state.keyframe_due = true;
                 }
@@ -312,6 +342,7 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
             Ok(picture) => picture,
             Err(error) => {
                 tracing::debug!(%error, "a frame could not be read");
+                self.stats.dropped("unreadable");
                 return;
             }
         };
@@ -363,8 +394,16 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 };
                 match Encoder::open(config, &Backend::ALL) {
                     Ok(encoder) => {
-                        tracing::debug!(layer = %layer.rid, backend = ?encoder.backend(), "encoding");
                         let backend = encoder.backend();
+                        tracing::info!(
+                            layer = %layer.rid,
+                            ?backend,
+                            hardware = backend.is_hardware(),
+                            size = %format!("{}x{}", layer.width, layer.height),
+                            fps = layer.fps,
+                            bitrate = state.bitrate,
+                            "encoder chosen"
+                        );
                         *self.encoder.lock().unwrap_or_else(PoisonError::into_inner) =
                             Some(format!(
                                 "{backend:?} ({})",
@@ -379,6 +418,7 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                     }
                     Err(error) => {
                         tracing::warn!(%error, layer = %layer.rid, "no encoder for a layer");
+                        self.stats.dropped("no encoder");
                         continue;
                     }
                 }
@@ -387,18 +427,27 @@ impl<S: FnMut(VideoFrame), P: FnMut(&Picture)> Sending<S, P> {
                 continue;
             };
             let keyframe = std::mem::take(&mut state.keyframe_due);
+            let encoding = Instant::now();
             match encoder.encode(input, keyframe) {
-                Ok(Some(encoded)) => (self.send)(VideoFrame {
-                    track_id: self.track_id.clone(),
-                    layer: index as u8,
-                    keyframe: encoded.keyframe,
-                    width: u16::try_from(layer.width).unwrap_or(u16::MAX),
-                    height: u16::try_from(layer.height).unwrap_or(u16::MAX),
-                    captured: picture.captured,
-                    nal_units: encoded.nal_units,
-                }),
+                Ok(Some(encoded)) => {
+                    let now = Instant::now();
+                    self.stats.sent(now - encoding, encoded.keyframe);
+                    if let Some(after_ms) = self.stats.first_sent(now) {
+                        tracing::info!(layer = %layer.rid, after_ms, "first frame sent");
+                    }
+                    (self.send)(VideoFrame {
+                        track_id: self.track_id.clone(),
+                        layer: index as u8,
+                        keyframe: encoded.keyframe,
+                        width: u16::try_from(layer.width).unwrap_or(u16::MAX),
+                        height: u16::try_from(layer.height).unwrap_or(u16::MAX),
+                        captured: picture.captured,
+                        nal_units: encoded.nal_units,
+                    });
+                }
                 Ok(None) => state.keyframe_due |= keyframe,
                 Err(error) => {
+                    self.stats.dropped("encoder failed");
                     tracing::warn!(%error, layer = %layer.rid, "an encoder failed; opening another");
                     state.encoder = None;
                     state.keyframe_due = true;

@@ -196,7 +196,9 @@ impl MusicSettings {
             bridge_domain: self.bridge_domain.clone(),
             available_sources,
             supported,
-            configured: supported && self.enabled && has_nodes,
+            configured: supported && self.enabled,
+            has_nodes,
+            local_songs: true,
         }
     }
 }

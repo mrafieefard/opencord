@@ -11,10 +11,10 @@ class AppDelegate: FlutterAppDelegate {
     return true
   }
 
-  /// opencord:// links from the browser or the Finder (desktop UI plan
+  /// opencord:// and opencords:// links from the browser or the Finder (desktop UI plan
   /// §15). macOS keeps one instance, so they all arrive here.
   override func application(_ application: NSApplication, open urls: [URL]) {
-    for url in urls where url.scheme == "opencord" {
+    for url in urls where url.scheme == "opencord" || url.scheme == "opencords" {
       (mainFlutterWindow as? MainFlutterWindow)?.openLink(url.absoluteString)
     }
   }

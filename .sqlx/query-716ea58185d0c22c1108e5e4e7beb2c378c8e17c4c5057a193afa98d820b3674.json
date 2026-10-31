@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO private_recent_sends (user_id, device_id, send_id, created_at)\n         VALUES ($1, $2, $3, $4)\n         ON CONFLICT (user_id, device_id, send_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "716ea58185d0c22c1108e5e4e7beb2c378c8e17c4c5057a193afa98d820b3674"
+}

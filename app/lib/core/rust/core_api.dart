@@ -5,6 +5,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
 
 import 'package:opencord/src/rust/api/attachments.dart' as frb_attachments;
 import 'package:opencord/src/rust/api/client.dart' as frb;
+import 'package:opencord/src/rust/api/private.dart' as frb_private;
 import 'package:opencord/src/rust/api/types.dart' as core;
 
 /// The Rust core's calls (its generated bindings), behind an interface so
@@ -417,6 +418,24 @@ abstract interface class CoreApi {
 
   Future<core.MusicSession> musicSubscribe(String serverKey, int channelId);
 
+  Future<void> musicUploadSong({
+    required String serverKey,
+    required int channelId,
+    required String uploadId,
+    required String path,
+    required bool playNow,
+  });
+
+  void musicCancelSong({required String serverKey, required String uploadId});
+
+  Future<void> removeLocalSong(String serverKey, int songId);
+
+  Future<List<core.LocalSong>> fetchLocalSongs(
+    String serverKey,
+    String query,
+    int? beforeId,
+  );
+
   Future<void> musicUnsubscribe(String serverKey, int channelId);
 
   Future<core.MusicSession> musicEnqueue(
@@ -548,6 +567,12 @@ abstract interface class CoreApi {
     List<String>? blockedExtensions,
   });
 
+  Future<core.PrivateSettings> updatePrivateSettings({
+    required String serverKey,
+    bool? enabled,
+    bool? friendsOnly,
+  });
+
   Future<core.StorageInfo> storageGet({required String serverKey});
 
   Future<core.StorageInfo> storageAdd({
@@ -626,6 +651,65 @@ abstract interface class CoreApi {
   void mediaClose();
 
   bool mediaSupported();
+
+  Future<core.PrivateOpened> privateOpen(Uint8List key);
+
+  Stream<core.PrivateEvent> privateEventStream();
+
+  Future<List<core.PrivateContact>> privateContacts();
+
+  Future<List<core.PrivateMessage>> privateMessages(
+    String peer, {
+    String? before,
+    required int limit,
+  });
+
+  Future<core.PrivateMessage> privateSend(String peer, String content);
+
+  Future<void> privateEdit(String peer, String messageId, String content);
+
+  Future<void> privateDelete(String peer, String messageId);
+
+  Future<void> privateRetry(String messageId);
+
+  Future<void> friendRequestSend(String serverKey, int userId);
+
+  Future<void> friendRequestAnswer(String peer, {required bool accept});
+
+  Future<void> friendRequestCancel(String peer);
+
+  Future<void> friendRemove(String peer);
+
+  Future<void> messageRequestAccept(String peer);
+
+  Future<void> messageRequestIgnore(String peer);
+
+  Future<void> privateBlock(String peer);
+
+  Future<void> privateUnblock(String peer);
+
+  Future<core.PrivacySettingsData> privacySettings();
+
+  Future<void> setPrivacySettings(core.PrivacySettingsData settings);
+
+  Future<core.PrivateContact> privateOpenConversation(
+    String serverKey,
+    int userId,
+  );
+
+  Future<List<core.SharedServer>> privateSharedServers(String peer);
+
+  Future<void> privateMove(String peer, String serverKey);
+
+  Future<void> privateMoveToo(String peer, String messageId);
+
+  Future<void> privateTyping(String peer);
+
+  Future<void> privateMarkRead(String peer);
+
+  Future<void> privateSetMuted(String peer, {required bool muted});
+
+  Future<void> privateHide(String peer);
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -1361,6 +1445,40 @@ class FrbCoreApi implements CoreApi {
   );
 
   @override
+  Future<void> musicUploadSong({
+    required String serverKey,
+    required int channelId,
+    required String uploadId,
+    required String path,
+    required bool playNow,
+  }) => frb.musicUploadSong(
+    serverKey: serverKey,
+    channelId: channelId,
+    uploadId: uploadId,
+    path: path,
+    playNow: playNow,
+  );
+
+  @override
+  void musicCancelSong({required String serverKey, required String uploadId}) =>
+      frb.musicCancelSong(serverKey: serverKey, uploadId: uploadId);
+
+  @override
+  Future<void> removeLocalSong(String serverKey, int songId) =>
+      frb.removeLocalSong(serverKey: serverKey, songId: songId);
+
+  @override
+  Future<List<core.LocalSong>> fetchLocalSongs(
+    String serverKey,
+    String query,
+    int? beforeId,
+  ) => frb.fetchLocalSongs(
+    serverKey: serverKey,
+    query: query,
+    beforeId: beforeId,
+  );
+
+  @override
   Future<core.MusicSession> musicSubscribe(String serverKey, int channelId) =>
       frb.musicSubscribe(serverKey: serverKey, channelId: channelId);
 
@@ -1605,6 +1723,17 @@ class FrbCoreApi implements CoreApi {
   );
 
   @override
+  Future<core.PrivateSettings> updatePrivateSettings({
+    required String serverKey,
+    bool? enabled,
+    bool? friendsOnly,
+  }) => frb_private.updatePrivateSettings(
+    serverKey: serverKey,
+    enabled: enabled,
+    friendsOnly: friendsOnly,
+  );
+
+  @override
   Future<core.StorageInfo> storageGet({required String serverKey}) =>
       frb_attachments.storageGet(serverKey: serverKey);
 
@@ -1745,4 +1874,117 @@ class FrbCoreApi implements CoreApi {
 
   @override
   bool mediaSupported() => frb_attachments.mediaSupported();
+
+  @override
+  Future<core.PrivateOpened> privateOpen(Uint8List key) =>
+      frb_private.privateOpen(key: key);
+
+  @override
+  Stream<core.PrivateEvent> privateEventStream() =>
+      frb_private.privateEventStream();
+
+  @override
+  Future<List<core.PrivateContact>> privateContacts() =>
+      frb_private.privateContacts();
+
+  @override
+  Future<List<core.PrivateMessage>> privateMessages(
+    String peer, {
+    String? before,
+    required int limit,
+  }) => frb_private.privateMessages(peer: peer, before: before, limit: limit);
+
+  @override
+  Future<core.PrivateMessage> privateSend(String peer, String content) =>
+      frb_private.privateSend(peer: peer, content: content);
+
+  @override
+  Future<void> privateEdit(String peer, String messageId, String content) =>
+      frb_private.privateEdit(
+        peer: peer,
+        messageId: messageId,
+        content: content,
+      );
+
+  @override
+  Future<void> privateDelete(String peer, String messageId) =>
+      frb_private.privateDelete(peer: peer, messageId: messageId);
+
+  @override
+  Future<void> privateRetry(String messageId) =>
+      frb_private.privateRetry(messageId: messageId);
+
+  @override
+  Future<void> friendRequestSend(String serverKey, int userId) =>
+      frb_private.friendRequestSend(serverKey: serverKey, userId: userId);
+
+  @override
+  Future<void> friendRequestAnswer(String peer, {required bool accept}) =>
+      frb_private.friendRequestAnswer(peer: peer, accept: accept);
+
+  @override
+  Future<void> friendRequestCancel(String peer) =>
+      frb_private.friendRequestCancel(peer: peer);
+
+  @override
+  Future<void> friendRemove(String peer) =>
+      frb_private.friendRemove(peer: peer);
+
+  @override
+  Future<void> messageRequestAccept(String peer) =>
+      frb_private.messageRequestAccept(peer: peer);
+
+  @override
+  Future<void> messageRequestIgnore(String peer) =>
+      frb_private.messageRequestIgnore(peer: peer);
+
+  @override
+  Future<void> privateBlock(String peer) =>
+      frb_private.privateBlock(peer: peer);
+
+  @override
+  Future<void> privateUnblock(String peer) =>
+      frb_private.privateUnblock(peer: peer);
+
+  @override
+  Future<core.PrivacySettingsData> privacySettings() =>
+      frb_private.privacySettings();
+
+  @override
+  Future<void> setPrivacySettings(core.PrivacySettingsData settings) =>
+      frb_private.setPrivacySettings(settings: settings);
+
+  @override
+  Future<core.PrivateContact> privateOpenConversation(
+    String serverKey,
+    int userId,
+  ) =>
+      frb_private.privateOpenConversation(serverKey: serverKey, userId: userId);
+
+  @override
+  Future<List<core.SharedServer>> privateSharedServers(String peer) =>
+      frb_private.privateSharedServers(peer: peer);
+
+  @override
+  Future<void> privateMove(String peer, String serverKey) =>
+      frb_private.privateMove(peer: peer, serverKey: serverKey);
+
+  @override
+  Future<void> privateMoveToo(String peer, String messageId) =>
+      frb_private.privateMoveToo(peer: peer, messageId: messageId);
+
+  @override
+  Future<void> privateTyping(String peer) =>
+      frb_private.privateTyping(peer: peer);
+
+  @override
+  Future<void> privateMarkRead(String peer) =>
+      frb_private.privateMarkRead(peer: peer);
+
+  @override
+  Future<void> privateSetMuted(String peer, {required bool muted}) =>
+      frb_private.privateSetMuted(peer: peer, muted: muted);
+
+  @override
+  Future<void> privateHide(String peer) => frb_private.privateHide(peer: peer);
 }

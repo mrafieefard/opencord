@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) FROM private_pending WHERE user_id = $1 AND device_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "df95e19306a08f156ba333f1a724e497b208bcc6e06810dd666b756cc5ae7224"
+}

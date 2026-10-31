@@ -1,27 +1,27 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     as frb_types
     show Int64List;
 
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
-import 'package:opencord/core/model/music.dart';
-import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/storage.dart';
-import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/stream.dart';
+import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
@@ -33,8 +33,10 @@ import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/lavalink_mapping.dart';
 import 'package:opencord/core/rust/music_mapping.dart';
 import 'package:opencord/core/rust/network_mapping.dart';
+import 'package:opencord/core/rust/private_mapping.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 import 'package:opencord/src/rust/api/types.dart' as core;
 
 /// The app's repository over the Rust core (desktop UI plan §12 step 15,
@@ -49,8 +51,15 @@ class RustRepository implements OpencordRepository {
     this._positions,
     this._clock,
     this._saved,
-    this._identityUnavailable,
-  ) {
+    this._identityUnavailable, [
+    this._privateKey,
+  ]) {
+    if (_privateKey == null) {
+      _privateUnavailable = const RepoException(
+        RepoErrorKind.other,
+        "Private messages need the system keyring, which couldn't be used.",
+      );
+    }
     // Listed now: the tray and the server rail read them before start, and
     // they show while offline too.
     _servers = _listServers();
@@ -72,6 +81,7 @@ class RustRepository implements OpencordRepository {
     required IdentityStore identities,
     required KeyValueStore store,
     DateTime Function()? clock,
+    Uint8List? privateKey,
   }) async {
     SavedIdentity? saved;
     RepoException? unavailable;
@@ -87,6 +97,7 @@ class RustRepository implements OpencordRepository {
       clock ?? DateTime.now,
       saved,
       unavailable,
+      privateKey,
     );
   }
 
@@ -100,13 +111,17 @@ class RustRepository implements OpencordRepository {
   final ReadPositions _positions;
   final DateTime Function() _clock;
   final SavedIdentity? _saved;
+  final Uint8List? _privateKey;
   final _events = StreamController<RepoEvent>.broadcast();
   StreamSubscription<core.CoreEvent>? _coreEvents;
   StreamSubscription<core.MediaEvent>? _mediaEvents;
+  StreamSubscription<core.PrivateEvent>? _privateEvents;
 
   LocalIdentity? _identity;
   Uint8List? _secret;
   RepoException? _identityUnavailable;
+  RepoException? _privateUnavailable;
+  var _privateStartedFresh = false;
   var _servers = const <ServerSummary>[];
   var _presence = SelfPresence.online;
 
@@ -165,6 +180,7 @@ class RustRepository implements OpencordRepository {
   void start() {
     _coreEvents = _core.eventStream().listen(_onCoreEvent);
     _mediaEvents = _core.mediaEventStream().listen(_onMediaEvent);
+    _privateEvents = _core.privateEventStream().listen(_onPrivateEvent);
     if (_saved case final saved?) _useSaved(saved);
   }
 
@@ -172,7 +188,11 @@ class RustRepository implements OpencordRepository {
     try {
       _use(saved.secret, saved.displayName);
     } on RepoException catch (error) {
-      developer.log('The saved identity did not load: $error', name: 'core');
+      appLog(
+        'The saved identity did not load: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -180,6 +200,7 @@ class RustRepository implements OpencordRepository {
   void dispose() {
     _coreEvents?.cancel();
     _mediaEvents?.cancel();
+    _privateEvents?.cancel();
     _events.close();
   }
 
@@ -194,6 +215,7 @@ class RustRepository implements OpencordRepository {
     try {
       return await call();
     } on core.CoreError catch (error) {
+      _failed(error);
       throw errorFrom(error);
     }
   }
@@ -202,15 +224,32 @@ class RustRepository implements OpencordRepository {
     try {
       return call();
     } on core.CoreError catch (error) {
+      _failed(error);
       throw errorFrom(error);
     }
   }
+
+  /// A core call that failed, with the app's frames that made it, in the
+  /// session log (D82).
+  void _failed(core.CoreError error) => appLog(
+    'a core call failed',
+    name: 'core',
+    error: error,
+    stackTrace: StackTrace.fromString(
+      '${StackTrace.current}'.split('\n').skip(2).take(6).join('\n'),
+    ),
+    level: LogLevel.warn,
+  );
 
   List<ServerSummary> _listServers() {
     try {
       return [for (final server in _core.serversList()) serverFrom(server)];
     } on core.CoreError catch (error) {
-      developer.log('The server list did not load: $error', name: 'core');
+      appLog(
+        'The server list did not load: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
       return const [];
     }
   }
@@ -233,6 +272,24 @@ class RustRepository implements OpencordRepository {
       publicKeyHex: info.publicKeyHex,
     );
     _emit(const IdentityChanged());
+    if (_privateKey == null) {
+      _privateUnavailable = const RepoException(
+        RepoErrorKind.other,
+        "Private messages need the system keyring, which couldn't be used.",
+      );
+      _emit(const PrivateStateChanged());
+    } else {
+      unawaited(() async {
+        try {
+          final opened = await _core.privateOpen(_privateKey);
+          _privateStartedFresh = opened.startedFresh;
+          _privateUnavailable = null;
+        } on core.CoreError catch (error) {
+          _privateUnavailable = errorFrom(error);
+        }
+        _emit(const PrivateStateChanged());
+      }());
+    }
   }
 
   Uint8List get _currentSecret =>
@@ -332,7 +389,11 @@ class RustRepository implements OpencordRepository {
       if (ready.selfUser.avatarHash == _core.ownAvatarHash()) return;
       await _core.uploadAvatar(server);
     } on core.CoreError catch (error) {
-      developer.log('$server kept the old picture: $error', name: 'core');
+      appLog(
+        '$server kept the old picture: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -344,7 +405,11 @@ class RustRepository implements OpencordRepository {
     try {
       await _core.updateProfile(server, name);
     } on core.CoreError catch (error) {
-      developer.log('$server kept the old name: $error', name: 'core');
+      appLog(
+        '$server kept the old name: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -376,7 +441,7 @@ class RustRepository implements OpencordRepository {
       activity = await _recentActivity(server, ready);
     } on Exception catch (error, stack) {
       // The counts are a nicety: without them the server still goes on.
-      developer.log(
+      appLog(
         'Unread counts were not rebuilt',
         name: 'core',
         error: error,
@@ -446,10 +511,18 @@ class RustRepository implements OpencordRepository {
             .fetchMessages(server, channel, null, _recent)
             .timeout(_fetchTimeout);
       } on core.CoreError catch (error) {
-        developer.log('No history for $channel: $error', name: 'core');
+        appLog(
+          'No history for $channel: $error',
+          name: 'core',
+          level: LogLevel.warn,
+        );
         return;
       } on TimeoutException {
-        developer.log('History for $channel timed out', name: 'core');
+        appLog(
+          'History for $channel timed out',
+          name: 'core',
+          level: LogLevel.warn,
+        );
         return;
       }
       if (recent.isEmpty) {
@@ -666,6 +739,8 @@ class RustRepository implements OpencordRepository {
       ),
       core.CoreEventPayload_UploadSettingsUpdate(:final field0) =>
         UploadSettingsEvent(server, uploadSettingsFrom(field0)),
+      core.CoreEventPayload_PrivateSettingsUpdate(:final field0) =>
+        PrivateSettingsEvent(server, privateSettingsFrom(field0)),
       core.CoreEventPayload_StorageUpdate(:final field0) => StorageEvent(
         server,
         storageInfoFrom(field0),
@@ -683,6 +758,27 @@ class RustRepository implements OpencordRepository {
           channelId: channelId.toInt(),
           nonce: nonce,
           fileIndex: fileIndex,
+          sentBytes: sentBytes.toInt(),
+          totalBytes: totalBytes.toInt(),
+          phase: uploadPhaseFrom(phase),
+          error: switch (phase) {
+            core.UploadPhase_Failed(:final message) => message,
+            _ => null,
+          },
+        ),
+      core.CoreEventPayload_MusicUploadProgress(
+        :final channelId,
+        :final uploadId,
+        :final filename,
+        :final sentBytes,
+        :final totalBytes,
+        :final phase,
+      ) =>
+        MusicUploadEvent(
+          server,
+          channelId: channelId.toInt(),
+          uploadId: uploadId,
+          filename: filename,
           sentBytes: sentBytes.toInt(),
           totalBytes: totalBytes.toInt(),
           phase: uploadPhaseFrom(phase),
@@ -768,9 +864,11 @@ class RustRepository implements OpencordRepository {
     String linkOrAddress, {
     String? claimToken,
   }) async {
+    appLog('adding a server', name: 'servers');
     final result = addServerFrom(
       await _call(() => _core.serverAdd(linkOrAddress, claimToken)),
     );
+    appLog('adding a server: ${result.runtimeType}', name: 'servers');
     if (result is ServerAdded) _refreshServers();
     return result;
   }
@@ -781,6 +879,7 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> removeServer(String serverKey) async {
+    appLog('removing $serverKey', name: 'servers');
     await _call(() => _core.serverRemove(serverKey));
     _positions.forget(serverKey);
     _snapshots.remove(serverKey);
@@ -1114,7 +1213,11 @@ class RustRepository implements OpencordRepository {
       await _core.updatePresence(server, presenceTo(_presence));
     } on core.CoreError catch (error) {
       // Sent again after the next Ready.
-      developer.log('Presence not sent to $server: $error', name: 'core');
+      appLog(
+        'Presence not sent to $server: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -1493,6 +1596,44 @@ class RustRepository implements OpencordRepository {
   );
 
   @override
+  Future<void> musicUploadSong(
+    String serverKey,
+    int channelId, {
+    required String uploadId,
+    required String path,
+    bool playNow = false,
+  }) => _call(
+    () => _core.musicUploadSong(
+      serverKey: serverKey,
+      channelId: channelId,
+      uploadId: uploadId,
+      path: path,
+      playNow: playNow,
+    ),
+  );
+
+  @override
+  void musicCancelSong(String serverKey, String uploadId) => _now(
+    () => _core.musicCancelSong(serverKey: serverKey, uploadId: uploadId),
+  );
+
+  @override
+  Future<void> removeLocalSong(String serverKey, int songId) =>
+      _call(() => _core.removeLocalSong(serverKey, songId));
+
+  @override
+  Future<List<LocalSong>> fetchLocalSongs(
+    String serverKey, {
+    String query = '',
+    int? beforeId,
+  }) async => [
+    for (final song in await _call(
+      () => _core.fetchLocalSongs(serverKey, query, beforeId),
+    ))
+      localSongFrom(song),
+  ];
+
+  @override
   Future<MusicSession> musicSubscribe(String serverKey, int channelId) async =>
       musicSessionFrom(
         await _call(() => _core.musicSubscribe(serverKey, channelId)),
@@ -1685,12 +1826,14 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> joinVoice(String serverKey, int channelId) async {
+    appLog('joining voice on $serverKey', name: 'voice');
     await _call(() => _core.voiceJoin(serverKey, channelId));
     _ownVoice = (server: serverKey, channel: channelId);
   }
 
   @override
   Future<void> leaveVoice() async {
+    appLog('leaving voice', name: 'voice');
     _ownVoice = null;
     // Leaving voice turns the camera off and ends the screen share.
     _cameraOff();
@@ -1770,9 +1913,15 @@ class RustRepository implements OpencordRepository {
     bool audio = true,
     String? sourceId,
   }) async {
+    appLog(
+      'starting a screen share: quality ${quality.label}, sound $audio, '
+      '${sourceId == null ? "the system picks" : "source picked in the app"}',
+      name: 'share',
+    );
     final started = await _call(
       () => _core.screenShareStart(_screenRequest(quality, audio), sourceId),
     );
+    appLog('screen share started: ${started.sourceKind.name}', name: 'share');
     _screen = OwnScreenShare(
       key: started.streamKey,
       source: streamSourceFrom(started.sourceKind),
@@ -1856,12 +2005,16 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> stopScreenShare() async {
+    appLog('stopping the screen share', name: 'share');
     await _call(_core.screenShareStop);
     _screenOff();
   }
 
   @override
-  Future<void> watchStream(String key) => _call(() => _core.streamWatch(key));
+  Future<void> watchStream(String key) {
+    appLog('watching a stream', name: 'share');
+    return _call(() => _core.streamWatch(key));
+  }
 
   @override
   late final List<DefaultSound> defaultSounds = [
@@ -1970,8 +2123,10 @@ class RustRepository implements OpencordRepository {
       _now(() => _core.soundboardCloseDraft(draftId));
 
   @override
-  Future<void> unwatchStream(String key) =>
-      _call(() => _core.streamUnwatch(key));
+  Future<void> unwatchStream(String key) {
+    appLog('no longer watching a stream', name: 'share');
+    return _call(() => _core.streamUnwatch(key));
+  }
 
   /// Media's news as the app's; screens wait for V6.
   RepoEvent? _mediaEvent(core.MediaEvent event) => switch (event) {
@@ -2175,6 +2330,10 @@ class RustRepository implements OpencordRepository {
     if (muted != null) _now(() => _core.voiceSetSelfMute(muted));
     if (deafened != null) _now(() => _core.voiceSetSelfDeaf(deafened));
     if (camera == null || camera == _cameraOn) return;
+    appLog(
+      camera ? 'turning the camera on' : 'turning the camera off',
+      name: 'voice',
+    );
     if (!camera) {
       _now(_core.cameraStop);
       _cameraOff();
@@ -2332,6 +2491,21 @@ class RustRepository implements OpencordRepository {
       () => _core.updateUploadSettings(
         serverKey: serverKey,
         blockedExtensions: blockedExtensions,
+      ),
+    ),
+  );
+
+  @override
+  Future<ServerPrivateSettings> updatePrivateSettings(
+    String serverKey, {
+    bool? enabled,
+    bool? friendsOnly,
+  }) async => privateSettingsFrom(
+    await _call(
+      () => _core.updatePrivateSettings(
+        serverKey: serverKey,
+        enabled: enabled,
+        friendsOnly: friendsOnly,
       ),
     ),
   );
@@ -2516,4 +2690,152 @@ class RustRepository implements OpencordRepository {
 
   @override
   bool mediaSupported() => _now(_core.mediaSupported);
+
+  // Private messages (Milestone E4, Task 17) --------------------------------
+
+  void _onPrivateEvent(core.PrivateEvent event) {
+    switch (event) {
+      case core.PrivateEvent_ContactChanged(:final field0):
+        _emit(PrivateContactChanged(privateContactFrom(field0)));
+      case core.PrivateEvent_ContactRemoved(:final peer):
+        _emit(PrivateContactRemoved(peer));
+      case core.PrivateEvent_MessageAdded(:final field0):
+        _emit(PrivateMessageAdded(privateMessageFrom(field0)));
+      case core.PrivateEvent_MessageChanged(:final field0):
+        _emit(PrivateMessageChanged(privateMessageFrom(field0)));
+      case core.PrivateEvent_MessageDeleted(:final peer, :final messageId):
+        _emit(PrivateMessageDeleted(peer, messageId));
+      case core.PrivateEvent_Typing(:final peer):
+        _emit(PrivateTypingStarted(peer));
+      case core.PrivateEvent_FriendRequestReceived(:final peer, :final spam):
+        _emit(FriendRequestArrived(peer, spam));
+    }
+  }
+
+  @override
+  RepoException? get privateUnavailable => _privateUnavailable;
+
+  @override
+  bool get privateStartedFresh => _privateStartedFresh;
+
+  @override
+  void acknowledgePrivateStartedFresh() {
+    _privateStartedFresh = false;
+  }
+
+  @override
+  Future<List<PrivateContact>> privateContacts() => _call(
+    () async => [
+      for (final contact in await _core.privateContacts())
+        privateContactFrom(contact),
+    ],
+  );
+
+  @override
+  Future<List<PrivateMessage>> privateMessages(
+    String peer, {
+    String? before,
+    int limit = 50,
+  }) => _call(
+    () async => [
+      for (final message in await _core.privateMessages(
+        peer,
+        before: before,
+        limit: limit,
+      ))
+        privateMessageFrom(message),
+    ],
+  );
+
+  @override
+  Future<PrivateMessage> sendPrivateMessage(String peer, String content) =>
+      _call(
+        () async => privateMessageFrom(await _core.privateSend(peer, content)),
+      );
+
+  @override
+  Future<void> editPrivateMessage(
+    String peer,
+    String messageId,
+    String content,
+  ) => _call(() => _core.privateEdit(peer, messageId, content));
+
+  @override
+  Future<void> deletePrivateMessage(String peer, String messageId) =>
+      _call(() => _core.privateDelete(peer, messageId));
+
+  @override
+  Future<void> retryPrivateMessage(String messageId) =>
+      _call(() => _core.privateRetry(messageId));
+
+  @override
+  Future<void> sendFriendRequest(String serverKey, int userId) =>
+      _call(() => _core.friendRequestSend(serverKey, userId));
+
+  @override
+  Future<void> answerFriendRequest(String peer, {required bool accept}) =>
+      _call(() => _core.friendRequestAnswer(peer, accept: accept));
+
+  @override
+  Future<void> cancelFriendRequest(String peer) =>
+      _call(() => _core.friendRequestCancel(peer));
+
+  @override
+  Future<void> removeFriend(String peer) =>
+      _call(() => _core.friendRemove(peer));
+
+  @override
+  Future<void> acceptMessageRequest(String peer) =>
+      _call(() => _core.messageRequestAccept(peer));
+
+  @override
+  Future<void> ignoreMessageRequest(String peer) =>
+      _call(() => _core.messageRequestIgnore(peer));
+
+  @override
+  Future<void> blockUser(String peer) => _call(() => _core.privateBlock(peer));
+
+  @override
+  Future<void> unblockUser(String peer) =>
+      _call(() => _core.privateUnblock(peer));
+
+  @override
+  Future<PrivacySettings> privacySettings() =>
+      _call(() async => privacySettingsFrom(await _core.privacySettings()));
+
+  @override
+  Future<void> savePrivacySettings(PrivacySettings settings) =>
+      _call(() => _core.setPrivacySettings(privacySettingsTo(settings)));
+
+  @override
+  Future<PrivateContact> openConversation(String serverKey, int userId) =>
+      _call(
+        () async => privateContactFrom(
+          await _core.privateOpenConversation(serverKey, userId),
+        ),
+      );
+
+  @override
+  Future<void> moveConversation(String peer, String serverKey) =>
+      _call(() => _core.privateMove(peer, serverKey));
+
+  @override
+  Future<void> moveConversationToo(String peer, String messageId) =>
+      _call(() => _core.privateMoveToo(peer, messageId));
+
+  @override
+  Future<void> sendPrivateTyping(String peer) =>
+      _call(() => _core.privateTyping(peer));
+
+  @override
+  Future<void> markPrivateRead(String peer) =>
+      _call(() => _core.privateMarkRead(peer));
+
+  @override
+  Future<void> setPrivateMuted(String peer, {required bool muted}) =>
+      _call(() => _core.privateSetMuted(peer, muted: muted));
+
+  @override
+  Future<void> hideConversation(String peer) =>
+      _call(() => _core.privateHide(peer));
 }

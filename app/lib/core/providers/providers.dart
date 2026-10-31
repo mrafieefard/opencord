@@ -24,7 +24,9 @@ import 'package:opencord/core/providers/music_session_state.dart';
 import 'package:opencord/core/providers/music_state.dart';
 import 'package:opencord/core/providers/network_state.dart';
 import 'package:opencord/core/providers/pins_state.dart';
+import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/core/providers/presence_state.dart';
+import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/providers/server_state.dart';
 import 'package:opencord/core/providers/sound_state.dart';
 import 'package:opencord/core/providers/stream_state.dart';
@@ -33,7 +35,6 @@ import 'package:opencord/core/providers/user_audio.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
-import 'package:opencord/core/providers/playback_state.dart';
 
 export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
@@ -44,13 +45,14 @@ export 'package:opencord/core/providers/music_session_state.dart';
 export 'package:opencord/core/providers/music_state.dart';
 export 'package:opencord/core/providers/network_state.dart';
 export 'package:opencord/core/providers/pins_state.dart';
+export 'package:opencord/core/providers/playback_state.dart';
 export 'package:opencord/core/providers/presence_state.dart';
+export 'package:opencord/core/providers/private_state.dart';
 export 'package:opencord/core/providers/server_state.dart';
 export 'package:opencord/core/providers/sound_state.dart';
 export 'package:opencord/core/providers/stream_state.dart';
 export 'package:opencord/core/providers/typing_state.dart';
 export 'package:opencord/core/providers/user_audio.dart';
-export 'package:opencord/core/providers/playback_state.dart';
 
 /// A channel on a server: the key of per-channel providers.
 typedef ChannelRef = ({String server, int channel});
@@ -64,6 +66,7 @@ final eventPumpProvider = Provider<void>((ref) {
   final repository = ref.watch(repositoryProvider);
   final subscription = repository.events.listen((event) => _route(ref, event));
   ref.onDispose(subscription.cancel);
+  ref.read(privateContactsProvider);
   ref.listen(
     audioSettingsProvider,
     (_, audio) => repository.applyAudio(audio.config),
@@ -348,6 +351,39 @@ void _route(Ref ref, RepoEvent event) {
       ref
           .read(audioNoticeProvider.notifier)
           .show('High noise suppression was too slow here. Using Standard.');
+      return;
+    case PrivateContactChanged(:final contact):
+      ref.read(privateContactsProvider.notifier).onContactChanged(contact);
+      return;
+    case PrivateContactRemoved(:final peer):
+      ref.read(privateContactsProvider.notifier).onContactRemoved(peer);
+      return;
+    case PrivateStateChanged():
+      ref.read(privateContactsProvider.notifier).onStateChanged();
+      return;
+    case PrivateMessageAdded(:final message):
+      final conversation = privateConversationProvider(message.peer);
+      if (ref.exists(conversation)) {
+        ref.read(conversation.notifier).onMessageAdded(message);
+      }
+      ref.read(privateTypingProvider.notifier).onMessage(message.peer);
+      return;
+    case PrivateMessageChanged(:final message):
+      final conversation = privateConversationProvider(message.peer);
+      if (ref.exists(conversation)) {
+        ref.read(conversation.notifier).onMessageChanged(message);
+      }
+      return;
+    case PrivateMessageDeleted(:final peer, :final messageId):
+      final conversation = privateConversationProvider(peer);
+      if (ref.exists(conversation)) {
+        ref.read(conversation.notifier).onMessageDeleted(messageId);
+      }
+      return;
+    case PrivateTypingStarted(:final peer):
+      ref.read(privateTypingProvider.notifier).onTyping(peer);
+      return;
+    case FriendRequestArrived():
       return;
     default:
       break;
@@ -1562,6 +1598,7 @@ final unreadTotalProvider = Provider<int>((ref) {
       if (!prefs.muted(server.key, channel)) total += state.read.unread;
     }
   }
+  total += ref.watch(privateUnreadProvider);
   return total;
 });
 
@@ -1572,6 +1609,7 @@ final mentionTotalProvider = Provider<int>((ref) {
   for (final server in ref.watch(serverListProvider)) {
     total += ref.watch(activityProvider(server.key)).mentions;
   }
+  total += ref.watch(privateUnreadProvider);
   return total;
 });
 

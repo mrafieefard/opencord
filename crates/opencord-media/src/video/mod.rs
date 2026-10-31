@@ -11,3 +11,4 @@ pub mod receiver;
 pub mod screen;
 pub mod sender;
 pub mod stamp;
+pub(crate) mod stats;

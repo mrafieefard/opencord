@@ -12,6 +12,7 @@ import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
 import 'package:opencord/features/settings/server/roles_page.dart';
 import 'package:opencord/features/settings/server/soundboard_page.dart';
+import 'package:opencord/features/settings/server/private_messages_page.dart';
 import 'package:opencord/features/settings/server/uploads_page.dart';
 import 'package:opencord/features/settings/server/voice_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
@@ -57,6 +58,14 @@ List<SettingsPage> serverSettingsPages(
       icon: OcIcons.musicNote,
       group: 'Server',
       builder: (_) => ServerSoundboardPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.manageServer))
+    SettingsPage(
+      id: 'private',
+      label: 'Private messages',
+      icon: OcIcons.lock,
+      group: 'Server',
+      builder: (_) => ServerPrivateMessagesPage(serverKey: serverKey),
     ),
   if (data.can(Permissions.manageChannels))
     SettingsPage(

@@ -1,0 +1,23 @@
+mamad.xyz
+opencord2
+example.org
+example.com
+128.140.7.174
+192.168.0.122
+100.111.246.56
+2a01:4f8:c012:abcd::1
+hunter2secretpassword
+eyJhbGciOiJFZERTQSJ9
+amin
+trycloudflare.com
+---
+WARN  rustls::conn  Sending fatal alert BadCertificate to opencord2.mamad.xyz
+WARN  reqwest::connect  error sending request for url (https://opencord2.mamad.xyz/api/v1/attachments/9?token=hunter2secretpassword)
+INFO  core::connection  connected through another of the server's addresses address=128.140.7.174:443
+DEBUG core::voice  ice candidate udp 192.168.0.122:51820 typ host, srflx 2a01:4f8:c012:abcd::1 port 7712
+INFO  core::connection  tunnel https://quiet-river-1234.trycloudflare.com resolved to 100.111.246.56
+WARN  tungstenite::protocol  Authorization: Bearer eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiI0MiJ9.c2lnbmF0dXJlMTIzNDU2Nzg5
+ERROR app::start  Opencord could not start: PathNotFoundException: /home/amin/.local/share/opencord/x.db
+INFO  app::servers  added chat.example.org:8443 as a server; invite https://example.com/invite/AbCdEf123456
+WARN  core::http  GET http://[2a01:4f8:c012:abcd::1]:8080/health failed
+DEBUG sqlx::query  user=amin@example.com

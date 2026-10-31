@@ -53,10 +53,10 @@ impl Client {
         let request = Request::UpdateNetworkSettings(proto::UpdateNetworkSettings {
             main_port: changes.main_port,
             upnp_enabled: changes.upnp_enabled,
-            local_listener_port: changes.local_listener_port,
             trusted_proxies: list(changes.trusted_proxies),
             dns_resolvers: list(changes.dns_resolvers),
             acme_staging: changes.acme_staging,
+            ..Default::default()
         });
         network_info(self.request(key, request).await?)
     }
@@ -356,7 +356,6 @@ pub fn info_from(info: proto::NetworkInfo) -> NetworkInfo {
         settings: NetworkSettings {
             main_port: settings.main_port,
             upnp_enabled: settings.upnp_enabled,
-            local_listener_port: settings.local_listener_port,
             trusted_proxies: settings.trusted_proxies,
             dns_resolvers: settings.dns_resolvers,
             acme_staging: settings.acme_staging,

@@ -8,10 +8,14 @@ name: CI/CD
 #   canary -> v0.0.2-canary.N  pre-release, image :canary
 #   main   -> v0.0.2           release,     image :latest
 #
-# Nothing else runs it: work happens on other branches and reaches these by
-# merging.
+# Work happens on other branches and reaches these through pull requests
+# (CLAUDE.md). A pull request runs the same tests and builds on the merge
+# it would make, and uploads the installers to try, but releases nothing:
+# no version, no image pushed, no GitHub release.
 on:
   push:
+    branches: [beta, canary, main]
+  pull_request:
     branches: [beta, canary, main]
   workflow_dispatch:
 
@@ -34,7 +38,7 @@ env:
   # are tested with the server's; opencord-voice with the app's, as its tests
   # call in through the app's media crate and need its native libraries.
   SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto
-  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice
+  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher
   FLUTTER_VERSION: 3.44.0
   # Native libraries the app's crates build against on Linux: cpal's PipeWire
   # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
@@ -46,15 +50,15 @@ env:
 jobs:
   version:
     name: Version
-    if: contains(fromJSON('["beta", "canary", "main"]'), github.ref_name)
+    if: github.event_name == 'pull_request' || contains(fromJSON('["beta", "canary", "main"]'), github.ref_name)
     runs-on: ubuntu-latest
     outputs:
-      release: ${{ steps.next.outputs.release }}
+      release: ${{ steps.next.outputs.release || steps.pr.outputs.release }}
       existing: ${{ steps.next.outputs.existing }}
       version: ${{ steps.next.outputs.version }}
       core: ${{ steps.next.outputs.core }}
       tag: ${{ steps.next.outputs.tag }}
-      channel: ${{ steps.next.outputs.channel }}
+      channel: ${{ steps.next.outputs.channel || steps.pr.outputs.channel }}
       prerelease: ${{ steps.next.outputs.prerelease }}
       docker_tags: ${{ steps.next.outputs.docker_tags }}
       image: ${{ steps.image.outputs.image }}
@@ -63,7 +67,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A pull request releases nothing; its installers take the track of
+      # the branch it goes into.
+      - name: Pull request
+        if: github.event_name == 'pull_request'
+        id: pr
+        run: |
+          case "$GITHUB_BASE_REF" in
+            main) channel=stable ;;
+            *) channel="$GITHUB_BASE_REF" ;;
+          esac
+          {
+            echo "release=false"
+            echo "channel=$channel"
+          } >> "$GITHUB_OUTPUT"
+          echo "A pull request into $GITHUB_BASE_REF: checked, not released." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Next version
+        if: github.event_name != 'pull_request'
         id: next
         run: |
           python3 .github/release/version.py next --branch "$GITHUB_REF_NAME" --github-output
@@ -193,8 +214,13 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked $SERVER_CRATES --all-targets -- -D warnings
 
+      # macOS allows 256 open files by default; the tests' servers each
+      # keep a database pool, and SQLite says "unable to open database
+      # file" when they run out.
       - name: Test
-        run: cargo test --locked --no-fail-fast $SERVER_CRATES
+        run: |
+          ulimit -n 10240
+          cargo test --locked --no-fail-fast $SERVER_CRATES
 
       # Universal, like the app: Apple silicon and Intel in one binary.
       - name: Build
@@ -247,7 +273,9 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # A pull request's image is built, never pushed.
       - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -267,17 +295,22 @@ jobs:
             org.opencontainers.image.licenses=AGPL-3.0-or-later
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
-          outputs: type=image,name=${{ needs.version.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ needs.version.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
           cache-from: type=gha,scope=docker-${{ matrix.arch }}
-          cache-to: type=gha,scope=docker-${{ matrix.arch }},mode=max
+          # The image is pushed before the cache is saved; a cache that
+          # can't be saved (GitHub's store answers 404 when runs overlap)
+          # only makes the next build slower.
+          cache-to: type=gha,scope=docker-${{ matrix.arch }},mode=max,ignore-error=true
 
       - name: Keep the digest
+        if: github.event_name != 'pull_request'
         run: |
           mkdir -p "$RUNNER_TEMP/digests"
           digest='${{ steps.build.outputs.digest }}'
           touch "$RUNNER_TEMP/digests/${digest#sha256:}"
 
       - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request'
         with:
           name: digest-${{ matrix.arch }}
           path: ${{ runner.temp }}/digests/*
@@ -388,16 +421,35 @@ jobs:
             exit 1
           fi
 
+      # The launcher (docs/updater.md) is built for this run's track. The
+      # app carries a copy, which the installed launcher updates itself
+      # from; the same binary, run from anywhere else, is the installer.
+      - name: Launcher
+        env:
+          OPENCORD_TRACK: ${{ needs.version.outputs.channel }}
+          OPENCORD_UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
+        run: |
+          cargo build --locked --release -p opencord-launcher
+          cp target/release/opencord-launcher app/build/linux/x64/release/bundle/
+
       - name: Package
         working-directory: app
         run: |
           mkdir -p "$RUNNER_TEMP/dist"
           tar -C build/linux/x64/release --transform 's,^bundle,opencord,' \
             -czf "$RUNNER_TEMP/dist/opencord-linux-x64.tar.gz" bundle
+          cp ../target/release/opencord-launcher "$RUNNER_TEMP/dist/opencord-setup-linux-x64"
 
       - uses: actions/upload-artifact@v7
         with:
           path: ${{ runner.temp }}/dist/opencord-linux-x64.tar.gz
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-setup-linux-x64
           archive: false
           if-no-files-found: error
           retention-days: 30
@@ -476,22 +528,38 @@ jobs:
       # machines without the redistributable installed. FFmpeg's DLLs are
       # already there: the rust_builder bundles them (windows.md W3 step 5),
       # and its licence goes beside them, which LGPL §4 asks for.
+      # The launcher, as on Linux: inside the app, and as the installer.
+      - name: Launcher
+        env:
+          OPENCORD_TRACK: ${{ needs.version.outputs.channel }}
+          OPENCORD_UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
+        run: cargo build --locked --release -p opencord-launcher
+
       - name: Package
         working-directory: app
         shell: pwsh
         run: |
           $stage = Join-Path $env:RUNNER_TEMP 'opencord'
           Copy-Item build/windows/x64/runner/Release $stage -Recurse
+          Copy-Item ../target/release/opencord-launcher.exe $stage
           foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
             Copy-Item (Join-Path $env:WINDIR "System32/$dll") $stage
           }
           Copy-Item (Join-Path $env:FFMPEG_DIR 'LICENSE.txt') (Join-Path $stage 'FFMPEG-LICENSE.txt')
           New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'dist') | Out-Null
           Compress-Archive -Path $stage -DestinationPath (Join-Path $env:RUNNER_TEMP 'dist/opencord-windows-x64.zip')
+          Copy-Item ../target/release/opencord-launcher.exe (Join-Path $env:RUNNER_TEMP 'dist/opencord-setup-windows-x64.exe')
 
       - uses: actions/upload-artifact@v7
         with:
           path: ${{ runner.temp }}/dist/opencord-windows-x64.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-setup-windows-x64.exe
           archive: false
           if-no-files-found: error
           retention-days: 30
@@ -520,8 +588,13 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked $CLIENT_CRATES --all-targets -- -D warnings
 
+      # macOS allows 256 open files by default; the tests' servers each
+      # keep a database pool, and SQLite says "unable to open database
+      # file" when they run out.
       - name: Test
-        run: cargo test --locked --no-fail-fast $CLIENT_CRATES
+        run: |
+          ulimit -n 10240
+          cargo test --locked --no-fail-fast $CLIENT_CRATES
 
       - uses: subosito/flutter-action@v2
         with:
@@ -546,9 +619,57 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/Opencord.app \
             "$RUNNER_TEMP/dist/opencord-macos.zip"
 
+      # The launcher is its own small Opencord.app, on a disk image to drag
+      # into Applications. It stays as installed: a newer disk image
+      # replaces it (docs/updater.md).
+      - name: Launcher
+        env:
+          OPENCORD_TRACK: ${{ needs.version.outputs.channel }}
+          OPENCORD_UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --locked --release -p opencord-launcher --target "$target"
+          done
+          image="$RUNNER_TEMP/image"
+          app="$image/Opencord.app"
+          mkdir -p "$app/Contents/MacOS"
+          lipo -create -output "$app/Contents/MacOS/opencord-launcher" \
+            target/aarch64-apple-darwin/release/opencord-launcher \
+            target/x86_64-apple-darwin/release/opencord-launcher
+          version="${VERSION:-0.0.0}"
+          cat > "$app/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>opencord-launcher</string>
+            <key>CFBundleIdentifier</key><string>dev.opencord.launcher</string>
+            <key>CFBundleName</key><string>Opencord</string>
+            <key>CFBundleDisplayName</key><string>Opencord</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>${version%%-*}</string>
+            <key>CFBundleVersion</key><string>$GITHUB_RUN_NUMBER</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          codesign --force --sign - "$app"
+          ln -s /Applications "$image/Applications"
+          hdiutil create -volname Opencord -srcfolder "$image" -ov -format UDZO \
+            "$RUNNER_TEMP/dist/opencord-setup-macos.dmg"
+
       - uses: actions/upload-artifact@v7
         with:
           path: ${{ runner.temp }}/dist/opencord-macos.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/dist/opencord-setup-macos.dmg
           archive: false
           if-no-files-found: error
           retention-days: 30
@@ -622,6 +743,26 @@ jobs:
           IMAGE: ${{ needs.version.outputs.image }}
         run: python3 .github/release/version.py manifest --version "$VERSION" --image "$IMAGE" dist
 
+      # release.json.sig, which launchers built with UPDATE_PUBLIC_KEY
+      # require (docs/updater.md). Without the secret, nothing is signed.
+      - name: Sign
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if [[ -z "$UPDATE_SIGNING_KEY" ]]; then
+            echo "::warning::UPDATE_SIGNING_KEY is not set: release.json is not signed"
+            exit 0
+          fi
+          key="$RUNNER_TEMP/update-key.pem"
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key"
+          openssl pkeyutl -sign -inkey "$key" -rawin -in dist/release.json \
+            | openssl base64 -A > dist/release.json.sig
+          rm -f "$key"
+          openssl pkey -in <(printf '%s\n' "$UPDATE_SIGNING_KEY") -pubout > "$RUNNER_TEMP/update-key.pub"
+          openssl base64 -d -A <<< "$(cat dist/release.json.sig)" > "$RUNNER_TEMP/release.sig"
+          openssl pkeyutl -verify -pubin -inkey "$RUNNER_TEMP/update-key.pub" -rawin \
+            -in dist/release.json -sigfile "$RUNNER_TEMP/release.sig"
+
       - name: Notes
         env:
           VERSION: ${{ needs.version.outputs.version }}
@@ -640,15 +781,17 @@ jobs:
             echo
             echo "## App"
             echo
-            echo "| Platform | File |"
-            echo "| --- | --- |"
-            echo "| Linux (x64) | [opencord-linux-x64.tar.gz]($base/opencord-linux-x64.tar.gz) |"
-            echo "| Windows (x64) | [opencord-windows-x64.zip]($base/opencord-windows-x64.zip) |"
-            echo "| macOS (Apple silicon and Intel) | [opencord-macos.zip]($base/opencord-macos.zip) |"
+            echo "| Platform | Installer | Without installing |"
+            echo "| --- | --- | --- |"
+            echo "| Windows (x64) | [opencord-setup-windows-x64.exe]($base/opencord-setup-windows-x64.exe) | [opencord-windows-x64.zip]($base/opencord-windows-x64.zip) |"
+            echo "| macOS (Apple silicon and Intel) | [opencord-setup-macos.dmg]($base/opencord-setup-macos.dmg) | [opencord-macos.zip]($base/opencord-macos.zip) |"
+            echo "| Linux (x64) | [opencord-setup-linux-x64]($base/opencord-setup-linux-x64) | [opencord-linux-x64.tar.gz]($base/opencord-linux-x64.tar.gz) |"
             echo
-            echo "- **Linux:** extract and run \`opencord/opencord\`. Needs GTK 3, libsecret, PipeWire, ALSA and libva, which most desktops already have."
-            echo "- **Windows:** extract and run \`opencord\\opencord.exe\`."
-            echo "- **macOS:** the app isn't notarized yet. After unzipping, run \`xattr -dr com.apple.quarantine Opencord.app\` or allow it under System Settings > Privacy & Security."
+            echo "The installers install for you alone, with no administrator needed, and keep Opencord on the newest **$CHANNEL** build: it checks for updates each time it starts. Settings → About switches the track. A copy run from the zip or tarball doesn't update itself."
+            echo
+            echo "- **Windows:** run the installer. Windows may warn that the app is unrecognized (it isn't signed yet): choose More info → Run anyway."
+            echo "- **macOS:** open the disk image and drag Opencord to Applications. The app isn't notarized yet: run \`xattr -dr com.apple.quarantine /Applications/Opencord.app\` once, or allow it under System Settings > Privacy & Security."
+            echo "- **Linux:** run \`chmod +x opencord-setup-linux-x64 && ./opencord-setup-linux-x64\`; Opencord then appears with your other apps. Needs GTK 3, libsecret, PipeWire, ALSA and libva, which most desktops already have."
             echo
             echo "## Server"
             echo

@@ -66,6 +66,8 @@ pub struct AppState {
     pub commands: crate::commands::Commands,
     /// Media attachments and storage backends (Phase 4).
     pub attachments: crate::attachments::Attachments,
+    /// Private messages and friends (design 2026-10-22).
+    pub private: crate::private::PrivateMessages,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -96,6 +98,7 @@ impl AppState {
             &config,
             crate::tls::http_client().expect("the HTTPS client builds with the ring provider"),
         );
+        let private = crate::private::PrivateMessages::new(config.private_messages.enabled);
         Self {
             config,
             db,
@@ -116,6 +119,7 @@ impl AppState {
             music: crate::music::Music::default(),
             commands: crate::commands::Commands::default(),
             attachments,
+            private,
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),

@@ -8,6 +8,7 @@ import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/chat/message_item.dart';
 import 'package:opencord/features/chat/suggestion_list.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import '../../support/app.dart';
@@ -84,6 +85,44 @@ void main() {
     expect(_text(tester), isEmpty);
     expect(_messages(app, general).last.content, 'Hello from the composer');
     expect(_messages(app, general).last.sendState, SendState.sent);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the input turns right-to-left with a Persian first letter, '
+      'as on Telegram', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    TextDirection? direction() =>
+        tester.widget<TextField>(_input).textDirection;
+
+    expect(direction(), isNull);
+    await _type(tester, '12 سلام دنیا');
+    expect(direction(), TextDirection.rtl);
+    await _type(tester, 'hello سلام');
+    expect(direction(), TextDirection.ltr);
+    await _type(tester, '');
+    expect(direction(), isNull);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the input fills the width, with its buttons in the bar', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    final bar = tester.getRect(find.byType(Composer));
+    final input = tester.getRect(_input);
+    final attach = tester.getRect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is OcIconButton && widget.tooltip.startsWith('Attach files'),
+      ),
+    );
+    final emoji = tester.getRect(_button('Emoji'));
+    expect(attach.right, lessThanOrEqualTo(input.left));
+    expect(emoji.left, greaterThanOrEqualTo(input.right));
+    // Edge to edge: only the buttons and a small inset beside the field.
+    expect(input.width, greaterThan(bar.width - 4 * OcSize.hitDefault - 40));
     await app.dispose(tester);
   });
 

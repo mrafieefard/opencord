@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_friends\n         WHERE (owner_id = $1 AND friend_id = $2) OR (owner_id = $2 AND friend_id = $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "c4320b60cdd60d1a45c0744177ceaceb52ebcccdb67c0b8a011d9b6ceaa3ab65"
+}

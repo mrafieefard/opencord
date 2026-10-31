@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +10,8 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:opencord/app.dart';
 import 'package:opencord/core/app_info.dart';
+import 'package:opencord/core/logs/app_log.dart';
+import 'package:opencord/core/logs/session_log.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -19,17 +20,19 @@ import 'package:opencord/core/rust/core_key_value_store.dart';
 import 'package:opencord/core/rust/core_mapping.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/core/rust/media_cache_key_store.dart';
+import 'package:opencord/core/rust/private_key_store.dart';
 import 'package:opencord/core/rust/rust_repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/desktop/hotkey_binding.dart';
+import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/desktop/linux_notifications.dart';
 import 'package:opencord/features/desktop/linux_tray.dart';
 import 'package:opencord/features/desktop/login_item.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
 import 'package:opencord/features/desktop/notifications.dart';
 import 'package:opencord/features/desktop/tray.dart';
-import 'package:opencord/features/desktop/hotkey_binding.dart';
 import 'package:opencord/features/desktop/tray_binding.dart';
 import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/onboarding/startup_failed_app.dart';
@@ -38,6 +41,7 @@ import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/window/window_startup.dart';
 import 'package:opencord/src/rust/api/attachments.dart' as attachments;
 import 'package:opencord/src/rust/api/client.dart' as core;
+import 'package:opencord/src/rust/api/logs.dart' show LogFact, LogLevel;
 import 'package:opencord/src/rust/api/system.dart';
 import 'package:opencord/src/rust/api/types.dart' show CoreError;
 import 'package:opencord/src/rust/frb_generated.dart';
@@ -64,9 +68,32 @@ Future<ProviderContainer> startApp({
 }) async {
   await RustLib.init();
   final environment = Platform.environment;
+  final installation = desktop
+      ? Installation.find(
+          Platform.resolvedExecutable,
+          environment,
+          macOS: Platform.isMacOS,
+        )
+      : null;
+  // Before anything else that could fail, so the log has it (D82).
+  final sessionLog = desktop
+      ? await _startSessionLog(installation, profile: profile, mock: mock)
+      : const SessionLog();
   final dataDir = await _dataDir(profile);
   core.init(appDataDir: dataDir.path);
-  if (!mock) await _startMediaCache(profile);
+  Uint8List? privateKey;
+  if (!mock) {
+    await _startMediaCache(profile);
+    try {
+      privateKey = await PrivateKeyStore(profile: profile).load();
+    } on PlatformException catch (e) {
+      appLog(
+        'Private key store failed to load: $e',
+        name: 'core',
+        level: LogLevel.warn,
+      );
+    }
+  }
   registerFontLicenses();
 
   const store = CoreKeyValueStore();
@@ -95,10 +122,14 @@ Future<ProviderContainer> startApp({
           core: const FrbCoreApi(),
           identities: SecureIdentityStore(profile: profile),
           store: store,
+          privateKey: privateKey,
         );
   if (!mock) await _startVideo();
+  final launcher = installation?.launcher;
   final container = ProviderContainer(
     overrides: [
+      installationProvider.overrideWithValue(installation),
+      sessionLogProvider.overrideWithValue(sessionLog),
       keyValueStoreProvider.overrideWithValue(store),
       coreVersionProvider.overrideWithValue(coreVersion()),
       repositoryProvider.overrideWithValue(repository),
@@ -112,9 +143,10 @@ Future<ProviderContainer> startApp({
       // Profiles are for testing and leave the login item alone.
       loginItemProvider.overrideWithValue(switch (defaultTargetPlatform) {
         _ when profile.isNotEmpty || !desktop => const NoLoginItem(),
+        // The launcher, when there is one, so a start at login updates too.
         TargetPlatform.linux => XdgAutostart(
           configHome: xdgConfigHome(environment),
-          executable: Platform.resolvedExecutable,
+          executable: launcher ?? Platform.resolvedExecutable,
         ),
         TargetPlatform.windows ||
         TargetPlatform.macOS => RunnerLoginItem(window),
@@ -149,11 +181,12 @@ Future<Widget> startupWidget(
       child: const OpencordApp(),
     );
   } on Exception catch (error, stack) {
-    developer.log(
+    appLog(
       'Opencord could not start',
       name: 'start',
       error: error,
       stackTrace: stack,
+      level: LogLevel.error,
     );
     final shown = window();
     unawaited(shown.show());
@@ -175,9 +208,13 @@ Future<void> _startMediaCache(String profile) async {
     final key = await MediaCacheKeyStore(profile: profile).load();
     attachments.mediaCacheInit(key: key);
   } on PlatformException catch (error) {
-    developer.log('no media cache: ${error.message}', name: 'opencord');
+    appLog(
+      'no media cache: ${error.message}',
+      name: 'opencord',
+      level: LogLevel.warn,
+    );
   } on CoreError catch (error) {
-    developer.log('no media cache: $error', name: 'opencord');
+    appLog('no media cache: $error', name: 'opencord', level: LogLevel.warn);
   }
 }
 
@@ -189,8 +226,51 @@ Future<void> _startVideo() async {
     final engine = await EngineContext.instance.getEngineHandle();
     core.videoInit(engineHandle: engine);
   } on PlatformException catch (error) {
-    developer.log('no video textures: ${error.message}', name: 'opencord');
+    appLog(
+      'no video textures: ${error.message}',
+      name: 'opencord',
+      level: LogLevel.warn,
+    );
   } on MissingPluginException catch (error) {
-    developer.log('no video textures: ${error.message}', name: 'opencord');
+    appLog(
+      'no video textures: ${error.message}',
+      name: 'opencord',
+      level: LogLevel.warn,
+    );
   }
 }
+
+/// Starts this launch's session log in the support folder's `logs`, one
+/// for every profile, with what the app knows about itself at the top.
+Future<SessionLog> _startSessionLog(
+  Installation? installation, {
+  required String profile,
+  required bool mock,
+}) => startSessionLog(
+  dir: () async =>
+      '${(await getApplicationSupportDirectory()).path}'
+      '${Platform.pathSeparator}logs',
+  facts: () async {
+    final launcherLog = installation == null
+        ? null
+        : launcherLogTail(
+            '${installation.root.path}${Platform.pathSeparator}launcher.log',
+          );
+    return [
+      LogFact(key: 'app version', value: installation?.version ?? appVersion),
+      if (installation != null)
+        LogFact(key: 'track', value: (await installation.readTrack()).name),
+      LogFact(
+        key: 'started by',
+        value: installation?.launcher != null ? 'the launcher' : 'itself',
+      ),
+      LogFact(
+        key: 'profile',
+        value: profile.isEmpty ? 'default' : 'a test one',
+      ),
+      if (mock) const LogFact(key: 'core', value: 'the mock'),
+      ...displayFacts(),
+      if (launcherLog != null) LogFact(key: 'launcher log', value: launcherLog),
+    ];
+  },
+);

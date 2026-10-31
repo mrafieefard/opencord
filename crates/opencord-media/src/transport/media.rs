@@ -272,6 +272,13 @@ impl Media {
             .copied()
             .ok_or_else(|| TransportError::Connect(format!("{host} has no address")))?;
         let (socket, local_address) = connected_socket(remote_address).await?;
+        // Addresses become aliases in the session log (D82).
+        tracing::info!(
+            remote = %remote_address,
+            local = %local_address,
+            from = if candidate.ip.is_empty() { "the gateway's host" } else { "the node's candidate" },
+            "voice media connecting"
+        );
 
         let now = Instant::now();
         let local = IceCreds::new();
@@ -915,11 +922,13 @@ impl Media {
                 }
                 Ok(Output::Transmit(transmit)) => self.transmit(&transmit.contents),
                 Ok(Output::Event(Event::Connected)) => {
+                    tracing::info!("voice media connected");
                     let _ = events.send(VoiceEvent::MediaConnected);
                 }
                 Ok(Output::Event(Event::IceConnectionStateChange(
                     IceConnectionState::Disconnected,
                 ))) => {
+                    tracing::warn!("voice media disconnected");
                     let _ = events.send(VoiceEvent::MediaDisconnected);
                 }
                 Ok(Output::Event(Event::RtpPacket(packet))) => self.on_rtp(packet, events),
@@ -944,7 +953,7 @@ impl Media {
                 }
                 Ok(Output::Event(_)) => {}
                 Err(error) => {
-                    tracing::debug!(%error, "the media connection failed");
+                    tracing::warn!(%error, "the media connection failed");
                     let _ = events.send(VoiceEvent::MediaDisconnected);
                     self.timeout = Instant::now() + Duration::from_secs(3600);
                     return false;

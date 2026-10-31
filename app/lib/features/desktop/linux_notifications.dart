@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/features/desktop/notifications.dart';
+import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 
 const _service = 'org.freedesktop.Notifications';
 
@@ -38,7 +39,11 @@ class LinuxNotifications implements NotificationService {
     try {
       client = DBusClient.session();
     } on Exception catch (error) {
-      developer.log('No session bus for notifications: $error', name: 'notify');
+      appLog(
+        'No session bus for notifications: $error',
+        name: 'notify',
+        level: LogLevel.warn,
+      );
       return null;
     }
     return startOn(client);
@@ -101,7 +106,11 @@ class LinuxNotifications implements NotificationService {
     } on TimeoutException {
       _usable = false;
       _markup = null;
-      developer.log('No notification daemon answered', name: 'notify');
+      appLog(
+        'No notification daemon answered',
+        name: 'notify',
+        level: LogLevel.warn,
+      );
       return true;
     } on DBusMethodResponseException {
       return true;
@@ -150,9 +159,17 @@ class LinuxNotifications implements NotificationService {
       _links[reply.values.single.asUint32()] = notification.link;
     } on TimeoutException {
       _usable = false;
-      developer.log('No notification daemon answered', name: 'notify');
+      appLog(
+        'No notification daemon answered',
+        name: 'notify',
+        level: LogLevel.warn,
+      );
     } on DBusMethodResponseException catch (error) {
-      developer.log('A notification was refused: $error', name: 'notify');
+      appLog(
+        'A notification was refused: $error',
+        name: 'notify',
+        level: LogLevel.warn,
+      );
     }
   }
 

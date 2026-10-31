@@ -41,6 +41,7 @@ Message message(
 ReadySnapshot snapshot({
   Map<int, Message> lastMessages = const {},
   Map<int, ReadState> readStates = const {},
+  bool privateMessages = true,
 }) => ReadySnapshot(
   self: user(selfId, 'Alex'),
   info: const ServerInfo(
@@ -81,4 +82,5 @@ ReadySnapshot snapshot({
   },
   lastMessages: lastMessages,
   readStates: readStates,
+  privateMessages: privateMessages,
 );

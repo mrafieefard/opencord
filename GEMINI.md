@@ -2,12 +2,30 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-10-18-media-uploads.md`. The design it builds on is `docs/superpowers/specs/2026-10-18-media-uploads-design.md`.
+You are implementing `docs/superpowers/plans/2026-10-22-private-messages.md`: private messages, friends and offline delivery. The design it builds on is `docs/superpowers/specs/2026-10-22-private-messages-design.md`. The media uploads plan before it is finished.
 
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
-- Each milestone's code was reviewed and fixed after you finished it, and its decisions entry has a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
-- From A5 on, the plan gives behavior, interfaces, names and tests, not finished code. You write the code, and the rules below are what the review checks it against.
+- Each milestone ends in a pull request (see "Every change is a pull request"). Its code is reviewed and fixed there, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
+- The plan gives behavior, interfaces, names and tests, not finished code. Only the proto, the SQL and a few types are given exactly: copy those as they are. You write the rest, and the rules below are what the review checks it against.
+- Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
 - The user releases one milestone at a time. Stop at the end of each milestone and report.
+
+## Every change is a pull request
+
+Nothing is committed or pushed straight to `beta`, `canary` or `main`: each push to them is a release (docs/releasing.md). This holds for every plan from now on.
+
+- **Work on the plan's branch.** If the plan names none, ask the user which branch to use before the first commit.
+- **Before pushing,** run `.github/check.sh` (with the environment, as below). Everything passes. A failure that has nothing to do with your change is still reported, never skipped or hidden.
+- **At the end of each milestone,** push the branch and open a pull request into the branch the plan names:
+
+  ```bash
+  git push -u origin <branch>
+  gh pr create --base <target> --title "<milestone>" --body-file <report>
+  ```
+
+  The body is your milestone report: what was built, the deviations, how it was tested, and what couldn't be tested here (Windows, macOS, hardware).
+- **Read the pull request's checks.** CI runs the full workflow on it: Linux, Windows, macOS, the integration tests and the Docker image. Watch it with `gh pr checks <number> --watch`. Read each failure with `gh run view <run> --log-failed`, fix it on the same branch, run `.github/check.sh` again, then push. The three-attempts rule in "When you're stuck" applies to these failures too.
+- **Never merge.** The review happens on the pull request, and the user merges.
 
 ## Every build command loads the environment
 
@@ -50,6 +68,11 @@ Every rule here was broken at least once and caught in review.
   - A thread that can fail (opening a device, encoding) stores its error where the caller's next call returns it, and says so at once through the event stream.
   - `Err(_) => None` on a thread is the same swallowed error as anywhere else.
 - **Know how a library reports failure.** Iterators that just end, an `Option`, a default value: where an error and "nothing more" look the same, call the lower-level function that tells them apart. A download that fails halfway is a failure, not the end of the file.
+- **Log what a stranger's machine did** (D82, docs/logs.md). Every line may end up in a session log a user sends:
+  - In Rust, use `tracing`; in Flutter, use `appLog`, never `print` or bare `developer.log`.
+  - Log each step that can fail, with its outcome and `after_ms`.
+  - Name servers, addresses, users and channels through `crate::log::alias`.
+  - Never log message text, file names, window titles, tokens or keys.
 - **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up": fix the test's setup instead. When a test needs to stand in for something (a call, a device), put a small trait in front of it, as `TapEngine` does, and give the test a fake.
 
 ### Shared state and races
@@ -193,10 +216,10 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 
 If the same step fails **three times in a row**, stop retrying and ask Claude. "Fails" means the same test, build, lint or check still fails, or fails in a new way, after three different fix attempts. Claude is a stronger model that knows this codebase and wrote the plan.
 
-1. **Write the question** to `.superpowers/sdd/media/questions/NN-short-name.md`. `NN` counts up: `01`, `02`, … Use this template and fill in every part:
+1. **Write the question** to `.superpowers/sdd/private/questions/NN-short-name.md`. `NN` counts up: `01`, `02`, … Use this template and fill in every part:
 
    ```
-   I'm Gemini, implementing docs/superpowers/plans/2026-10-18-media-uploads.md in this repository. Don't edit any files: tell me the cause and the exact fix.
+   I'm Gemini, implementing docs/superpowers/plans/2026-10-22-private-messages.md in this repository. Don't edit any files: tell me the cause and the exact fix.
 
    Task and step: Task N, Step M: <title>
    What the plan asks: <quote the relevant lines>
@@ -213,7 +236,7 @@ If the same step fails **three times in a row**, stop retrying and ask Claude. "
 2. **Ask** from the repository root. It can take a few minutes:
 
    ```bash
-   claude -p "$(cat .superpowers/sdd/media/questions/NN-short-name.md)" --model opus --disallowedTools Edit Write NotebookEdit Bash
+   claude -p "$(cat .superpowers/sdd/private/questions/NN-short-name.md)" --model opus --disallowedTools Edit Write NotebookEdit Bash
    ```
 
 3. **Apply the answer.**
@@ -230,5 +253,5 @@ If the same step fails **three times in a row**, stop retrying and ask Claude. "
   - the plan and the design disagree;
   - a step can't be done as written;
   - a tool is missing;
-  - anything about scope, product choices, branches, pushing, or deleting work.
+  - anything about scope, product choices, merging, pushing anywhere but your own branch, or deleting work.
 - **Claude only advises.** In this mode it has no edit or shell tools. You make every change, and the change is yours.

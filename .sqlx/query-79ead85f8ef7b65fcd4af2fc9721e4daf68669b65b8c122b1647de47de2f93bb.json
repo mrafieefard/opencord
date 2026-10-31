@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_pending WHERE friend_request_id IN (\n             SELECT id FROM private_friend_requests WHERE from_id = $1 OR to_id = $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "79ead85f8ef7b65fcd4af2fc9721e4daf68669b65b8c122b1647de47de2f93bb"
+}

@@ -6,8 +6,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use futures_util::future::BoxFuture;
 use opencord_common::address::{
-    DEFAULT_PORT, Fingerprint, InviteLink, ServerAddress, format_fingerprint, parse_fingerprint,
+    AddressError, DEFAULT_PORT, Fingerprint, InviteLink, ServerAddress, format_fingerprint,
+    is_link, parse_fingerprint,
 };
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
@@ -20,11 +22,12 @@ use crate::api::types::{
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
     ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
     Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
-    Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest, ScreenShareStarted,
-    ScreenStream, Server, ServerChanges, ServerInfo, SoundDraft, SoundSelection, SoundboardSound,
-    SoundboardSoundChanges, StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind,
-    UploadSettings, User, VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges,
-    VoiceState,
+    PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened,
+    PrivateSettings, Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest,
+    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SharedServer, SoundDraft,
+    SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo, StorageTestResult,
+    StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant, VoiceCue, VoiceDraft,
+    VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -42,14 +45,17 @@ use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
 use crate::now_playing::{NowPlaying, Player};
+use crate::private::actions;
+use crate::private::outbox::{self, SendOptions};
+use crate::private::service::{PrivateService, Transport, parse_hex};
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
 use crate::voice_message::player::VoicePlayer;
 use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
 use opencord_media::hotkeys::Hotkeys;
+use proto::private_payload::Body as PayloadBody;
 
-const INVITE_SCHEME: &str = "opencord://";
 /// Voice server updates kept for a slow listener.
 const VOICE_SERVER_BACKLOG: usize = 16;
 /// A rejoin told to slow down tries this many times in all, waiting at
@@ -106,6 +112,58 @@ struct Inner {
     now_playing: Arc<NowPlaying>,
     voice_player: Arc<VoicePlayer>,
     media_player: Arc<crate::media_player::CoreMediaPlayer>,
+    private: PrivateService,
+}
+
+/// The private messages service's way to the client, held weakly.
+struct ClientTransport(Weak<Inner>);
+
+impl Transport for ClientTransport {
+    fn request(
+        &self,
+        server_key: &str,
+        kind: Request,
+    ) -> BoxFuture<'static, Result<Response, CoreError>> {
+        let client = self.0.upgrade().map(|inner| Client { inner });
+        let key = server_key.to_owned();
+        Box::pin(async move {
+            match client {
+                Some(client) => client.request(&key, kind).await,
+                None => Err(CoreError::NotConnected),
+            }
+        })
+    }
+
+    fn server_key_for(&self, server_id: &str) -> Option<String> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .lock_store()
+            .server_with_id(server_id)
+            .map(|saved| saved.key.clone())
+    }
+
+    fn server_id_of(&self, server_key: &str) -> Option<String> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .lock_store()
+            .server(server_key)
+            .and_then(|saved| saved.server_id.clone())
+    }
+
+    fn server_name(&self, server_key: &str) -> Option<String> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .lock_store()
+            .server(server_key)
+            .map(|saved| saved.name.clone())
+    }
+
+    fn identity(&self) -> Option<Identity> {
+        let inner = self.0.upgrade()?;
+        Client { inner }
+            .credentials()
+            .map(|credentials| credentials.identity)
+    }
 }
 
 /// The app's id, as its desktop file names it; the system's portals ask for
@@ -180,7 +238,7 @@ impl Client {
             MediaHttp::new(Arc::clone(&routes), Arc::clone(&media_tokens)),
         ));
         let client = Self {
-            inner: Arc::new(Inner {
+            inner: Arc::new_cyclic(|weak| Inner {
                 runtime: runtime.clone(),
                 events,
                 outward: outward.clone(),
@@ -207,6 +265,11 @@ impl Client {
                 now_playing: Arc::default(),
                 voice_player: Arc::default(),
                 media_player: Arc::default(),
+                private: PrivateService::new(
+                    runtime.clone(),
+                    data_dir.to_owned(),
+                    Arc::new(ClientTransport(weak.clone())),
+                ),
             }),
         };
         client.spawn_wake_watch();
@@ -357,12 +420,18 @@ impl Client {
         if let Some(previous) = previous {
             stop(previous).await;
         }
+        // The map is held while the task starts, as when connecting the
+        // saved servers: the task begins with `Ready`, which registers this
+        // device for private messages through the map, and must find the
+        // connection there.
+        let mut connections = self.lock_connections();
         let connection = connection::spawn(
             &self.inner.runtime,
             self.context(key.clone(), address, credentials),
             Some(Established::identified(opened, ready)),
         );
-        self.lock_connections().insert(key, connection);
+        connections.insert(key, connection);
+        drop(connections);
         Ok(AddServerOutcome::Added(server_view(&saved, pin)))
     }
 
@@ -386,6 +455,7 @@ impl Client {
 
     /// Disconnects and forgets the server and its pinned certificate.
     pub async fn remove_server(&self, key: &str) -> Result<(), CoreError> {
+        self.inner.private.before_remove(key).await;
         let connection = self.lock_connections().remove(key);
         if let Some(connection) = connection {
             stop(connection).await;
@@ -413,6 +483,164 @@ impl Client {
         for connection in connections {
             stop(connection).await;
         }
+    }
+
+    /// Opens private messages for the identity with the keychain's master
+    /// key, and registers this device on every server ready for them.
+    pub async fn private_open(&self, key: [u8; 32]) -> Result<PrivateOpened, CoreError> {
+        self.inner.private.open(key).await
+    }
+
+    /// Private events from now on; an earlier receiver hears nothing more.
+    pub fn private_events(&self) -> mpsc::UnboundedReceiver<PrivateEvent> {
+        self.inner.private.events()
+    }
+
+    pub async fn private_contacts(&self) -> Result<Vec<PrivateContact>, CoreError> {
+        self.inner.private.contacts().await
+    }
+
+    /// The conversation with `peer` (hex), newest first, before the message
+    /// `before` (hex); at most 100.
+    pub async fn private_messages(
+        &self,
+        peer: &str,
+        before: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<PrivateMessage>, CoreError> {
+        self.inner.private.messages(peer, before, limit).await
+    }
+
+    /// Sends a text to `peer` (hex) through the conversation's relay. It
+    /// comes back sent, or still sending when the connection ended first;
+    /// a refusal marks it failed and is returned.
+    pub async fn private_send(
+        &self,
+        peer: &str,
+        content: String,
+    ) -> Result<PrivateMessage, CoreError> {
+        let peer = parse_hex::<32>(peer, "that person isn't valid")?;
+        let body = PayloadBody::Text(proto::PrivateText { content });
+        outbox::send(&self.inner.private, peer, body, SendOptions::default())
+            .await?
+            .ok_or_else(|| CoreError::Storage {
+                message: "a sent text has no stored message".to_owned(),
+            })
+    }
+
+    /// Replaces the text of one's own sent message, once the server
+    /// accepted the edit.
+    pub async fn private_edit(
+        &self,
+        peer: &str,
+        message_id: &str,
+        content: String,
+    ) -> Result<(), CoreError> {
+        let peer = parse_hex::<32>(peer, "that person isn't valid")?;
+        let message_id = parse_hex::<16>(message_id, "that message isn't valid")?;
+        outbox::edit(&self.inner.private, peer, message_id, content).await
+    }
+
+    /// Deletes one's own message for everyone, once the server accepted it.
+    pub async fn private_delete(&self, peer: &str, message_id: &str) -> Result<(), CoreError> {
+        let peer = parse_hex::<32>(peer, "that person isn't valid")?;
+        let message_id = parse_hex::<16>(message_id, "that message isn't valid")?;
+        outbox::delete(&self.inner.private, peer, message_id).await
+    }
+
+    /// Sends a failed or unsent text again.
+    pub async fn private_retry(&self, message_id: &str) -> Result<(), CoreError> {
+        let message_id = parse_hex::<16>(message_id, "that message isn't valid")?;
+        outbox::retry(&self.inner.private, message_id).await
+    }
+
+    pub async fn friend_request_send(
+        &self,
+        server_key: &str,
+        user_id: i64,
+    ) -> Result<(), CoreError> {
+        actions::friend_request_send(&self.inner.private, server_key, user_id).await
+    }
+
+    pub async fn friend_request_answer(&self, peer: &str, accept: bool) -> Result<(), CoreError> {
+        actions::friend_request_answer(&self.inner.private, peer, accept).await
+    }
+
+    pub async fn friend_request_cancel(&self, peer: &str) -> Result<(), CoreError> {
+        actions::friend_request_cancel(&self.inner.private, peer).await
+    }
+
+    pub async fn friend_remove(&self, peer: &str) -> Result<(), CoreError> {
+        actions::friend_remove(&self.inner.private, peer).await
+    }
+
+    pub async fn message_request_accept(&self, peer: &str) -> Result<(), CoreError> {
+        actions::message_request_accept(&self.inner.private, peer).await
+    }
+
+    pub async fn message_request_ignore(&self, peer: &str) -> Result<(), CoreError> {
+        actions::message_request_ignore(&self.inner.private, peer).await
+    }
+
+    pub async fn private_block(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_block(&self.inner.private, peer).await
+    }
+
+    pub async fn private_unblock(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_unblock(&self.inner.private, peer).await
+    }
+
+    pub async fn privacy_settings(&self) -> Result<PrivacySettingsData, CoreError> {
+        actions::privacy_settings(&self.inner.private).await
+    }
+
+    pub async fn set_privacy_settings(
+        &self,
+        settings: PrivacySettingsData,
+    ) -> Result<(), CoreError> {
+        actions::set_privacy_settings(&self.inner.private, settings).await
+    }
+
+    pub async fn private_open_conversation(
+        &self,
+        server_key: &str,
+        user_id: i64,
+    ) -> Result<PrivateContact, CoreError> {
+        actions::private_open_conversation(&self.inner.private, server_key, user_id).await
+    }
+
+    pub fn private_shared_servers(&self, peer: &str) -> Vec<SharedServer> {
+        let order: Vec<String> = self
+            .lock_store()
+            .servers()
+            .iter()
+            .map(|s| s.key.clone())
+            .collect();
+        actions::private_shared_servers(&self.inner.private, &order, peer)
+    }
+
+    pub async fn private_move(&self, peer: &str, server_key: &str) -> Result<(), CoreError> {
+        actions::private_move(&self.inner.private, peer, server_key).await
+    }
+
+    pub async fn private_move_too(&self, peer: &str, message_id: &str) -> Result<(), CoreError> {
+        actions::private_move_too(&self.inner.private, peer, message_id).await
+    }
+
+    pub async fn private_typing(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_typing(&self.inner.private, peer).await
+    }
+
+    pub async fn private_mark_read(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_mark_read(&self.inner.private, peer).await
+    }
+
+    pub async fn private_set_muted(&self, peer: &str, muted: bool) -> Result<(), CoreError> {
+        actions::private_set_muted(&self.inner.private, peer, muted).await
+    }
+
+    pub async fn private_hide(&self, peer: &str) -> Result<(), CoreError> {
+        actions::private_hide(&self.inner.private, peer).await
     }
 
     pub async fn send_message(
@@ -1237,8 +1465,12 @@ impl Client {
             }
             self.sync_media();
         }
+        let channel = crate::log::alias::channel(channel_id);
+        tracing::info!(target: "opencord_core::voice", server = %crate::log::alias::server(key), %channel, "voice joining");
         let request = self.voice_update(channel_id);
-        let state = expect_voice_state(self.request(key, request).await?)?;
+        let state = expect_voice_state(self.request(key, request).await?)
+            .inspect_err(|error| tracing::warn!(target: "opencord_core::voice", %channel, %error, "voice join refused"))?;
+        tracing::info!(target: "opencord_core::voice", %channel, "voice joined");
         self.lock_voice().target = Some((key.to_owned(), channel_id));
         self.sync_media();
         Ok(convert::voice_state(state.clone(), &state.session_id))
@@ -1869,6 +2101,7 @@ impl Client {
             routes: Arc::clone(&self.inner.routes),
             clocks: Arc::clone(&self.inner.clocks),
             uploads: Arc::clone(&self.inner.uploads),
+            private: self.inner.private.clone(),
         }
     }
 
@@ -1925,15 +2158,24 @@ struct Target {
     fingerprint: Option<Fingerprint>,
 }
 
+/// An invite link, a bare `opencord://` or `opencords://` link, or
+/// `host[:port]`.
 fn parse_target(input: &str) -> Result<Target, CoreError> {
     let input = input.trim();
-    if input.starts_with(INVITE_SCHEME) {
-        let link = InviteLink::parse(input).map_err(invalid_input)?;
-        Ok(Target {
-            address: link.address,
-            invite_code: Some(link.code),
-            fingerprint: link.fingerprint,
-        })
+    if is_link(input) {
+        match InviteLink::parse(input) {
+            Ok(link) => Ok(Target {
+                address: link.address,
+                invite_code: Some(link.code),
+                fingerprint: link.fingerprint,
+            }),
+            Err(AddressError::NotAnInvite) => Ok(Target {
+                address: ServerAddress::parse_link(input).map_err(invalid_input)?,
+                invite_code: None,
+                fingerprint: None,
+            }),
+            Err(error) => Err(invalid_input(error)),
+        }
     } else {
         Ok(Target {
             address: parse_address(input)?,
@@ -2052,6 +2294,23 @@ impl Client {
         });
         match self.request(key, request).await? {
             Response::UploadSettings(settings) => Ok(convert::upload_settings(settings)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// MANAGE_SERVER. `None` leaves a setting as it is.
+    pub async fn update_private_settings(
+        &self,
+        key: &str,
+        enabled: Option<bool>,
+        friends_only: Option<bool>,
+    ) -> Result<PrivateSettings, CoreError> {
+        let request = Request::UpdatePrivateSettings(proto::UpdatePrivateSettings {
+            enabled,
+            friends_only,
+        });
+        match self.request(key, request).await? {
+            Response::PrivateSettings(settings) => Ok(convert::private_settings(settings)),
             other => Err(unexpected(&other)),
         }
     }
@@ -2304,9 +2563,13 @@ fn drop_pending(pending: crate::video::screen::Pending) {
     std::thread::spawn(move || drop(pending));
 }
 
+/// Names only the response's kind: its fields can hold keys, ciphertext
+/// and names, which never go into an error or a log.
 pub(crate) fn unexpected(response: &Response) -> CoreError {
+    let debug = format!("{response:?}");
+    let kind = debug.split(['(', ' ', '{']).next().unwrap_or_default();
     CoreError::Connection {
-        message: format!("the server sent an unexpected response: {response:?}"),
+        message: format!("the server sent an unexpected response: {kind}"),
     }
 }
 
@@ -2389,6 +2652,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn an_unexpected_response_names_only_its_kind() {
+        let response = Response::PendingEvents(proto::PendingEvents {
+            events: vec![proto::PendingEvent {
+                id: 1,
+                created_at_ms: 2,
+                kind: Some(proto::pending_event::Kind::PrivateMessage(
+                    proto::PrivateMessage {
+                        sender: Some(proto::User {
+                            id: 3,
+                            public_key: vec![7; 32],
+                            display_name: "Zebulon Quartz".to_owned(),
+                            avatar_hash: String::new(),
+                        }),
+                        sender_device_id: vec![8; 16],
+                        olm_type: 1,
+                        body: vec![9; 64],
+                        sent_at_ms: 4,
+                    },
+                )),
+            }],
+            more: false,
+        });
+
+        assert_eq!(
+            unexpected(&response).to_string(),
+            "could not connect: the server sent an unexpected response: PendingEvents"
+        );
+    }
+
+    #[test]
     fn targets_are_invite_links_or_addresses() {
         let link = parse_target(&format!(
             "opencord://chat.example.com:7711/invite/abc#fp={}",
@@ -2406,6 +2699,20 @@ mod tests {
             parse_target("opencord://host/join/x"),
             Err(CoreError::InvalidInput { .. })
         ));
+    }
+
+    #[test]
+    fn bare_links_name_a_server_on_their_schemes_port() {
+        let plain = parse_target("opencord://chat.example.com").unwrap();
+        let secure = parse_target("opencords://chat.example.com/").unwrap();
+        let invite = parse_target("opencords://chat.example.com/invite/abc").unwrap();
+
+        assert_eq!(plain.address.to_string(), "chat.example.com:7710");
+        assert_eq!(plain.invite_code, None);
+        assert_eq!(secure.address.to_string(), "chat.example.com:443");
+        assert_eq!(secure.invite_code, None);
+        assert_eq!(invite.address.to_string(), "chat.example.com:443");
+        assert_eq!(invite.invite_code.as_deref(), Some("abc"));
     }
 
     #[test]

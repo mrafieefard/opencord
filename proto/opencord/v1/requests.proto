@@ -7,6 +7,7 @@ import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
+import "opencord/v1/private.proto";
 
 message Request {
   oneof kind {
@@ -126,6 +127,28 @@ message Request {
     RemoveStorage remove_storage = 168;
     StartStorageMove start_storage_move = 169;
     StopStorageMove stop_storage_move = 170;
+
+    // Private messages and friends (design 2026-10-22).
+    RegisterDevice register_device = 180;
+    UploadKeys upload_keys = 181;
+    UnregisterDevice unregister_device = 182;
+    FetchDevices fetch_devices = 183;
+    ClaimKeys claim_keys = 184;
+    FetchPendingEvents fetch_pending_events = 185;
+    AckPendingEvents ack_pending_events = 186;
+    SendPrivateMessage send_private_message = 187;
+    StartPrivateTyping start_private_typing = 188;
+    UpdatePrivacy update_privacy = 189;
+    SendFriendRequest send_friend_request = 190;
+    AnswerFriendRequest answer_friend_request = 191;
+    CancelFriendRequest cancel_friend_request = 192;
+    RemoveFriend remove_friend = 193;
+    UpdatePrivateSettings update_private_settings = 194;
+
+    // Uploaded songs (design 2026-10-24).
+    MusicFindLocal music_find_local = 200;
+    RemoveLocalSong remove_local_song = 201;
+    FetchLocalSongs fetch_local_songs = 202;
   }
 }
 
@@ -166,6 +189,19 @@ message Response {
     Storage storage = 31;
     StorageTest storage_test = 32;
     UploadStatus upload_status = 33;
+
+    // Private messages and friends (design 2026-10-22).
+    DeviceRegistration device_registration = 34;
+    DeviceLists device_lists = 35;
+    ClaimedKeys claimed_keys = 36;
+    PendingEvents pending_events = 37;
+    PrivateMessageSent private_message_sent = 38;
+    FriendRequestCreated friend_request_created = 39;
+    PrivateSettings private_settings = 40;
+
+    // Uploaded songs (design 2026-10-24).
+    MusicLocalMatch music_local_match = 41;
+    LocalSongs local_songs = 42;
   }
 }
 

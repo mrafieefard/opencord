@@ -365,6 +365,20 @@ pub struct ReadySnapshot {
     /// The chat commands this user may see (Phase 3 plan §17.1).
     pub commands: CommandList,
     pub upload_settings: UploadSettings,
+    pub private_messages: bool,
+    pub private_settings: PrivateSettings,
+}
+
+/// What the owner chose for private messages on a server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PrivateSettings {
+    /// The server relays private messages.
+    pub enabled: bool,
+    /// Only between two members who are each other's friends.
+    pub friends_only: bool,
+    /// False when the server's config file turns them off; the owner then
+    /// can't turn them on.
+    pub allowed_by_config: bool,
 }
 
 /// One address a server is reached at.
@@ -592,6 +606,7 @@ pub enum CoreEventPayload {
     /// A command's reply only this device sees.
     EphemeralMessage(EphemeralMessage),
     UploadSettingsUpdate(UploadSettings),
+    PrivateSettingsUpdate(PrivateSettings),
     /// To the owner only.
     StorageUpdate(StorageInfo),
     /// A file staged with `stage_upload`, at most 10 times a second, and
@@ -599,6 +614,17 @@ pub enum CoreEventPayload {
     StagedUploadProgress {
         channel_id: i64,
         staged_id: String,
+        sent_bytes: u64,
+        total_bytes: u64,
+        phase: UploadPhase,
+    },
+    /// A song dropped on the music player (`music_upload_song`), at most 10
+    /// times a second, and once at each phase: `Preparing` while it is
+    /// checked against the server's songs, `Done` once it is queued.
+    MusicUploadProgress {
+        channel_id: i64,
+        upload_id: String,
+        filename: String,
         sent_bytes: u64,
         total_bytes: u64,
         phase: UploadPhase,
@@ -691,7 +717,6 @@ pub struct NetworkSettings {
     /// The main port from the next start; 0 keeps the configured one.
     pub main_port: u32,
     pub upnp_enabled: bool,
-    pub local_listener_port: u32,
     pub trusted_proxies: Vec<String>,
     pub dns_resolvers: Vec<String>,
     pub acme_staging: bool,
@@ -703,7 +728,6 @@ pub struct NetworkSettings {
 pub struct NetworkSettingsChanges {
     pub main_port: Option<u32>,
     pub upnp_enabled: Option<bool>,
-    pub local_listener_port: Option<u32>,
     pub trusted_proxies: Option<Vec<String>>,
     pub dns_resolvers: Option<Vec<String>>,
     pub acme_staging: Option<bool>,
@@ -979,6 +1003,12 @@ pub enum ErrorCode {
     StorageFull,
     VoiceMessageInvalid,
     VoiceMessageTooLong,
+    FriendRequestsClosed,
+    MessageRequestsClosed,
+    Undeliverable,
+    DeviceListChanged,
+    PrivateMessagesUnavailable,
+    FriendsOnly,
     Unknown,
 }
 
@@ -1641,8 +1671,13 @@ pub struct MusicSettings {
     pub available_sources: Vec<String>,
     /// Music is on in the server's configuration file and runs there.
     pub supported: bool,
-    /// Supported, enabled, and with a Lavalink node: members see music.
+    /// Supported and enabled: members see music. Uploaded songs play
+    /// without a Lavalink node.
     pub configured: bool,
+    /// A Lavalink node is added: search reaches Lavalink's sources.
+    pub has_nodes: bool,
+    /// The server takes uploaded songs; servers from before them don't.
+    pub local_songs: bool,
 }
 
 /// Changes to the music settings; what is `None` stays.
@@ -1690,6 +1725,24 @@ pub struct MusicTrack {
     pub uri: String,
     /// For `music_artwork`; empty without artwork.
     pub artwork_id: String,
+    /// An uploaded song's id (source "upload"); 0 for Lavalink's tracks.
+    pub local_song_id: i64,
+    /// In search results only: the searcher may remove this uploaded song
+    /// from the server.
+    pub removable: bool,
+}
+
+/// An uploaded song, as Server settings → Music lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalSong {
+    pub id: i64,
+    pub title: String,
+    pub artist: String,
+    pub duration_ms: u64,
+    pub size_bytes: u64,
+    pub filename: String,
+    pub uploader_id: i64,
+    pub created_at_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2060,4 +2113,110 @@ pub struct OutgoingFile {
 pub enum AttachmentVariant {
     Original,
     Thumbnail,
+}
+
+// Private messages (design 2026-10-22). They reach Dart in Task 16.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrivateOpened {
+    /// The old database couldn't be read with the key and was moved aside.
+    pub started_fresh: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FriendStatus {
+    None,
+    Outgoing,
+    Incoming,
+    Friends,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversationStatus {
+    None,
+    Request,
+    Accepted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrivateMessageKind {
+    Text,
+    Divider,
+    Moved,
+    Undecryptable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrivateSendState {
+    Received,
+    Sending,
+    Sent,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateContact {
+    /// Their public key, lowercase hex.
+    pub peer: String,
+    pub fingerprint: String,
+    /// The name last seen.
+    pub name: Option<String>,
+    pub friend: FriendStatus,
+    pub request_spam: bool,
+    pub blocked: bool,
+    pub conversation: ConversationStatus,
+    /// This device's key for the conversation's relay, if it saved that
+    /// server.
+    pub relay_server_key: Option<String>,
+    pub last_activity_ms: Option<i64>,
+    /// Incoming text after the last read.
+    pub unread: u32,
+    pub muted: bool,
+    pub hidden: bool,
+    /// The first line of the latest text, at most 100 characters.
+    pub preview: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateMessage {
+    /// Hex.
+    pub id: String,
+    pub peer: String,
+    pub outgoing: bool,
+    pub kind: PrivateMessageKind,
+    /// The text; a divider's or card's server name; empty otherwise.
+    pub content: String,
+    /// A divider's or card's server, if this device saved it.
+    pub server_key: Option<String>,
+    pub sent_at_ms: i64,
+    pub edited_at_ms: Option<i64>,
+    pub state: PrivateSendState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SharedServer {
+    pub server_key: String,
+    pub name: String,
+    pub connected: bool,
+    pub private_messages: bool,
+    /// Messages go there only between friends.
+    pub friends_only: bool,
+    pub peer_user_id: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrivacySettingsData {
+    pub allow_friend_requests: bool,
+    pub allow_message_requests: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrivateEvent {
+    ContactChanged(PrivateContact),
+    ContactRemoved { peer: String },
+    MessageAdded(PrivateMessage),
+    MessageChanged(PrivateMessage),
+    MessageDeleted { peer: String, message_id: String },
+    Typing { peer: String },
+    FriendRequestReceived { peer: String, spam: bool },
 }

@@ -489,6 +489,22 @@ impl Runtime {
             }
             NodeCommand::StopMusic { channel_id } => self.stop_music(now, channel_id),
             NodeCommand::ExpectMusic(_) => {}
+            NodeCommand::MusicFrame {
+                channel_id,
+                connection,
+                sequence,
+                timestamp,
+                opus,
+            } => {
+                let packet = crate::sfu::MusicPacket {
+                    connection,
+                    sequence,
+                    timestamp,
+                    opus,
+                    received_at: now,
+                };
+                self.music_frame(now, channel_id, &packet);
+            }
             NodeCommand::StreamViewers {
                 channel_id,
                 user_id,

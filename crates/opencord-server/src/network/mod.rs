@@ -14,6 +14,7 @@ use proto::event::Kind as Event;
 use proto::{PortProtocol, PortPurpose, PortState};
 use tokio::sync::{Notify, watch};
 
+pub mod main_port;
 pub mod ports;
 pub mod proxy;
 pub mod public_ip;
@@ -59,7 +60,6 @@ pub struct Network {
     wake: Notify,
     /// Sessions with the page open.
     watchers: Mutex<HashSet<String>>,
-    local: Mutex<Option<proxy::LocalListener>>,
     main_port: AtomicU16,
     listening: Mutex<Listening>,
     /// Where domain checks ask name servers: 53, but for tests.
@@ -84,7 +84,6 @@ impl Network {
             upnp: Upnp::default(),
             wake: Notify::new(),
             watchers: Mutex::new(HashSet::new()),
-            local: Mutex::new(None),
             main_port: AtomicU16::new(0),
             listening: Mutex::new(Listening::default()),
             name_server_port,
@@ -239,46 +238,12 @@ impl Network {
         }
     }
 
-    /// Starts the plain local listener for tunnels and proxies, or stops it.
-    pub async fn set_local_listener(&self, state: &Arc<AppState>, on: bool) -> std::io::Result<()> {
-        let wanted_port = self.settings().local_listener_port;
-        let running = lock(&self.local).as_ref().map(|local| local.port);
-        match (on, running) {
-            (true, Some(port)) if port == wanted_port => return Ok(()),
-            (false, None) => return Ok(()),
-            _ => {}
-        }
-        if let Some(old) = lock(&self.local).take() {
-            old.stop();
-        }
-        if on {
-            let listener = proxy::LocalListener::start(Arc::clone(state), wanted_port).await?;
-            *lock(&self.local) = Some(listener);
-        }
-        self.changed(state);
-        Ok(())
-    }
-
-    /// Closes the local listener as the server stops.
-    pub async fn close_local_listener(&self) {
-        let local = lock(&self.local).take();
-        if let Some(local) = local {
-            local.close().await;
-        }
-    }
-
-    /// The local listener's port, while it runs.
-    pub fn local_listener_port(&self) -> Option<u16> {
-        lock(&self.local).as_ref().map(|local| local.port)
-    }
-
     pub fn info(&self, state: &AppState) -> proto::NetworkInfo {
         let settings = self.settings();
         let used = effective(&settings);
         let status = self.upnp.status();
         let main_port = self.main_port.load(Ordering::Relaxed);
         let listening = *lock(&self.listening);
-        let local = lock(&self.local).as_ref().map(|local| local.port);
         let port = |purpose: PortPurpose, protocol: PortProtocol, port: u16, state: PortState| {
             let (mapping, mapping_error) = status.mapping(protocol, port);
             proto::PortStatus {
@@ -296,10 +261,6 @@ impl Network {
         };
         let (voice_port, voice_state) = listening_or_off(listening.voice);
         let (music_port, music_state) = listening_or_off(listening.music);
-        let (local_port, local_state) = match local {
-            Some(port) => (port, PortState::Listening),
-            None => (settings.local_listener_port, PortState::Off),
-        };
         let ports = vec![
             port(
                 PortPurpose::Main,
@@ -324,12 +285,6 @@ impl Network {
                 PortProtocol::Tcp,
                 ACME_HTTP_PORT,
                 ports::probe(PortProtocol::Tcp, ACME_HTTP_PORT),
-            ),
-            port(
-                PortPurpose::LocalProxy,
-                PortProtocol::Tcp,
-                local_port,
-                local_state,
             ),
         ];
         let next_main_port = match settings.main_port {

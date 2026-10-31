@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO private_blocks (owner_id, blocked_id) VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "58d9b28e436e81d6a14ebd40fce138138ead9af158b4440d19ffd119dab6d8c6"
+}

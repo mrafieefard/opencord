@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/mock/mock_music.dart';
+import 'package:opencord/core/mock/mock_private.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/stream.dart';
@@ -57,6 +58,11 @@ class MockRepository implements OpencordRepository {
        _identity = withIdentity ? _seededIdentity : null {
     _identityUnavailable = identityUnavailable;
     _world = buildMockWorld(_clock());
+    _privateWorld = MockPrivateWorld(
+      now: _clock(),
+      emit: _emit,
+      simulateLife: simulateLife,
+    );
   }
 
   static final _seededIdentity = LocalIdentity(
@@ -72,6 +78,24 @@ class MockRepository implements OpencordRepository {
   final bool simulateLife;
 
   late MockWorld _world;
+  late final MockPrivateWorld _privateWorld;
+
+  MockPrivateWorld get privateWorld => _privateWorld;
+
+  void emit(RepoEvent event) => _emit(event);
+  RepoException? _privateUnavailable;
+  var _privateStartedFresh = false;
+
+  void debugSetPrivateUnavailable(RepoException? error) {
+    _privateUnavailable = error;
+    _emit(const PrivateStateChanged());
+  }
+
+  void debugSetPrivateStartedFresh(bool value) {
+    _privateStartedFresh = value;
+    _emit(const PrivateStateChanged());
+  }
+
   final _events = StreamController<RepoEvent>.broadcast();
   final _timers = <Timer>{};
   final _retryTimers = <String, Timer>{};
@@ -216,6 +240,18 @@ class MockRepository implements OpencordRepository {
   NetworkInfo debugNetwork(String serverKey) => _server(serverKey).network;
 
   /// A notice from the server, as the owner would get one.
+  /// As if the owner (or the config file) changed private messages on
+  /// [serverKey] elsewhere.
+  void debugSetPrivateSettings(
+    String serverKey,
+    ServerPrivateSettings settings,
+  ) {
+    _server(serverKey)
+      ..privateSettings = settings
+      ..privateMessages = settings.enabled;
+    _emit(PrivateSettingsEvent(serverKey, settings));
+  }
+
   void debugNotice(String serverKey, ServerNotice notice) =>
       _emit(ServerNoticeReceived(serverKey, notice));
 
@@ -253,6 +289,9 @@ class MockRepository implements OpencordRepository {
     _retryTimers.clear();
     _leaveVoiceNow();
     _world.servers.clear();
+    _privateWorld.contacts.clear();
+    _privateWorld.messages.clear();
+    _emit(const PrivateStateChanged());
     _emit(const ServersChanged());
   }
 
@@ -373,10 +412,33 @@ class MockRepository implements OpencordRepository {
 
   // Servers ---------------------------------------------------------------
 
+  /// How an invite link starts, as the core writes it: the port only when
+  /// the scheme doesn't imply it (7710 for opencord://, 443 for
+  /// opencords://).
+  static String _linkStart(String host, int port) {
+    final bracketed = host.contains(':') ? '[$host]' : host;
+    return switch (port) {
+      7710 => 'opencord://$bracketed',
+      443 => 'opencords://$bracketed',
+      _ => 'opencord://$bracketed:$port',
+    };
+  }
+
+  /// [_linkStart] for a server key, `host:port` or `[ipv6]:port`.
+  static String _linkStartOfKey(String key) {
+    final colon = key.lastIndexOf(':');
+    final host = key.substring(0, colon).replaceAll(RegExp(r'[\[\]]'), '');
+    return _linkStart(host, int.parse(key.substring(colon + 1)));
+  }
+
   static final _invite = RegExp(
-    r'^opencord://([^/:#\s]+):(\d+)/invite/([A-Za-z0-9]+)(?:#fp=([0-9a-fA-F]{64}))?$',
+    r'^(?:opencord(s)?://)([^/:#\s]+)(?::(\d+))?/invite/([A-Za-z0-9]+)(?:#fp=([0-9a-fA-F]{64}))?$',
+    caseSensitive: false,
   );
-  static final _address = RegExp(r'^([A-Za-z0-9.-]+):(\d{1,5})$');
+  static final _address = RegExp(
+    r'^(?:opencord(s)?://)?([A-Za-z0-9.-]+)(?::(\d{1,5}))?/?$',
+    caseSensitive: false,
+  );
 
   @override
   Future<AddServerResult> addServer(
@@ -391,22 +453,24 @@ class MockRepository implements OpencordRepository {
     if (match == null) {
       throw const RepoException(
         RepoErrorKind.invalidArgument,
-        'Enter an invite link (opencord://…) or a host:port address.',
+        'Enter an invite link (opencord://…) or a host[:port] address.',
       );
     }
-    final key = '${match.group(1)!.toLowerCase()}:${match.group(2)}';
+    // Without a port: 7710, or 443 for opencords://.
+    final port = match.group(3) ?? (match.group(1) != null ? '443' : '7710');
+    final key = '${match.group(2)!.toLowerCase()}:$port';
     final existing = _world.servers.where((s) => s.key == key).firstOrNull;
     if (existing != null) {
       _connect(existing);
       return ServerAdded(existing.summary);
     }
-    if (match.group(1)!.startsWith('unreachable')) {
+    if (match.group(2)!.startsWith('unreachable')) {
       throw const RepoException(
         RepoErrorKind.connection,
         'Could not connect: connection refused.',
       );
     }
-    final linkFingerprint = invite?.group(4)?.toLowerCase();
+    final linkFingerprint = invite?.group(5)?.toLowerCase();
     if (linkFingerprint == null && !_trusted.contains(key)) {
       return ServerNeedsTrust(address: key, fingerprint: fakeFingerprint(key));
     }
@@ -1411,11 +1475,13 @@ class MockRepository implements OpencordRepository {
       code: code,
       link: switch (domain) {
         final domain? when domain.trustedCertificate =>
-          'opencord://${domain.display}/invite/$code',
+          '${_linkStart(domain.host, domain.port)}/invite/$code',
         final domain? =>
-          'opencord://${domain.display}/invite/$code#fp=${server.fingerprint}',
+          '${_linkStart(domain.host, domain.port)}/invite/$code'
+              '#fp=${server.fingerprint}',
         null =>
-          'opencord://${server.key}/invite/$code#fp=${server.fingerprint}',
+          '${_linkStartOfKey(server.key)}/invite/$code'
+              '#fp=${server.fingerprint}',
       },
       webLink: switch (domain) {
         final domain? when domain.port == 443 =>
@@ -1978,9 +2044,123 @@ class MockRepository implements OpencordRepository {
         'a search is 1 to 200 characters',
       );
     }
-    return _musicOf(
-      server,
-    ).search(query, source.isEmpty ? server.music.defaultSource : source);
+    final music = _musicOf(server);
+    final local = music.searchSongs(query);
+    if (!server.music.hasNodes) return MusicSearchResults(results: local);
+    final found = music.search(
+      query,
+      source.isEmpty ? server.music.defaultSource : source,
+    );
+    if (found.playlist != null) return found;
+    return MusicSearchResults(results: [...found.results, ...local]);
+  }
+
+  /// Song uploads cancelled, by upload id.
+  final _cancelledSongs = <String>{};
+
+  @override
+  Future<void> musicUploadSong(
+    String serverKey,
+    int channelId, {
+    required String uploadId,
+    required String path,
+    bool playNow = false,
+  }) async {
+    final server = _server(serverKey);
+    _musicAct(server, channelId, Permissions.musicAdd);
+    final music = _musicOf(server);
+    final filename = path.split(RegExp(r'[/\\]')).last;
+    const size = 4 * 1024 * 1024;
+    void progress(UploadPhase phase, int sent, {String? error}) => _emit(
+      MusicUploadEvent(
+        serverKey,
+        channelId: channelId,
+        uploadId: uploadId,
+        filename: filename,
+        sentBytes: sent,
+        totalBytes: size,
+        phase: phase,
+        error: error,
+      ),
+    );
+    Never fail(RepoException error) {
+      progress(UploadPhase.failed, 0, error: error.message);
+      throw error;
+    }
+
+    void stopIfCancelled() {
+      if (!_cancelledSongs.remove(uploadId)) return;
+      progress(UploadPhase.cancelled, 0);
+      throw const RepoException(RepoErrorKind.cancelled, 'Cancelled');
+    }
+
+    progress(UploadPhase.preparing, 0);
+    await _latency(40);
+    stopIfCancelled();
+    var song = music.songAt(path);
+    if (song == null) {
+      if (!isSongFile(path)) {
+        fail(
+          const RepoException(
+            RepoErrorKind.invalidArgument,
+            'The music player takes MP3, FLAC, M4A, AAC, Ogg and WAV files',
+          ),
+        );
+      }
+      try {
+        _require(server, Permissions.attachFiles, channelId);
+      } on RepoException catch (error) {
+        fail(error);
+      }
+      for (final part in [1, 2]) {
+        await _latency(60);
+        stopIfCancelled();
+        progress(UploadPhase.uploading, size * part ~/ 2);
+      }
+      progress(UploadPhase.processing, size);
+      await _latency(40);
+      song = music.addSong(path, server.selfId, _clock());
+    }
+    await musicEnqueue(
+      serverKey,
+      channelId,
+      [music.localResult(song).id],
+      placement: playNow ? MusicPlacement.now : MusicPlacement.end,
+    );
+    progress(UploadPhase.done, size);
+  }
+
+  @override
+  void musicCancelSong(String serverKey, String uploadId) =>
+      _cancelledSongs.add(uploadId);
+
+  @override
+  Future<void> removeLocalSong(String serverKey, int songId) async {
+    final server = _server(serverKey);
+    await _latency(40);
+    _musicOf(server).removeSong(songId);
+  }
+
+  @override
+  Future<List<LocalSong>> fetchLocalSongs(
+    String serverKey, {
+    String query = '',
+    int? beforeId,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.administrator);
+    await _latency(40);
+    final words = query.toLowerCase().split(' ').where((w) => w.isNotEmpty);
+    return [
+      for (final song in _musicOf(server).songs.values.toList().reversed)
+        if ((beforeId == null || song.id < beforeId) &&
+            words.every(
+              (word) => '${song.title} ${song.artist} ${song.filename}'
+                  .toLowerCase()
+                  .contains(word),
+            ))
+          song,
+    ];
   }
 
   @override
@@ -3178,8 +3358,6 @@ class MockRepository implements OpencordRepository {
     final next = NetworkSettings(
       mainPort: changes.mainPort ?? settings.mainPort,
       upnpEnabled: changes.upnpEnabled ?? settings.upnpEnabled,
-      localListenerPort:
-          changes.localListenerPort ?? settings.localListenerPort,
       trustedProxies: changes.trustedProxies ?? settings.trustedProxies,
       dnsResolvers: changes.dnsResolvers ?? settings.dnsResolvers,
       acmeStaging: changes.acmeStaging ?? settings.acmeStaging,
@@ -4206,6 +4384,34 @@ class MockRepository implements OpencordRepository {
   }
 
   @override
+  Future<ServerPrivateSettings> updatePrivateSettings(
+    String serverKey, {
+    bool? enabled,
+    bool? friendsOnly,
+  }) async {
+    final server = _server(serverKey);
+    _require(server, Permissions.manageServer);
+    await _latency();
+    final current = server.privateSettings;
+    if (enabled == true && !current.allowedByConfig) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        "Private messages are turned off in this server's config file.",
+      );
+    }
+    final updated = ServerPrivateSettings(
+      enabled: enabled ?? current.enabled,
+      friendsOnly: friendsOnly ?? current.friendsOnly,
+      allowedByConfig: current.allowedByConfig,
+    );
+    server
+      ..privateSettings = updated
+      ..privateMessages = updated.enabled;
+    _emit(PrivateSettingsEvent(serverKey, updated));
+    return updated;
+  }
+
+  @override
   Future<UploadSettings> updateUploadSettings(
     String serverKey, {
     List<String>? blockedExtensions,
@@ -4845,6 +5051,142 @@ class MockRepository implements OpencordRepository {
     }
     _media = null;
   }
+
+  // Private messages (Milestone E4, Task 17) --------------------------------
+
+  @override
+  RepoException? get privateUnavailable => _privateUnavailable;
+
+  @override
+  bool get privateStartedFresh => _privateStartedFresh;
+
+  @override
+  void acknowledgePrivateStartedFresh() {
+    _privateStartedFresh = false;
+  }
+
+  @override
+  Future<List<PrivateContact>> privateContacts() =>
+      _privateWorld.privateContacts();
+
+  @override
+  Future<List<PrivateMessage>> privateMessages(
+    String peer, {
+    String? before,
+    int limit = 50,
+  }) => _privateWorld.privateMessages(peer, before: before, limit: limit);
+
+  @override
+  Future<PrivateMessage> sendPrivateMessage(String peer, String content) =>
+      _privateWorld.sendPrivateMessage(peer, content, now: _clock());
+
+  @override
+  Future<void> editPrivateMessage(
+    String peer,
+    String messageId,
+    String content,
+  ) =>
+      _privateWorld.editPrivateMessage(peer, messageId, content, now: _clock());
+
+  @override
+  Future<void> deletePrivateMessage(String peer, String messageId) =>
+      _privateWorld.deletePrivateMessage(peer, messageId);
+
+  @override
+  Future<void> retryPrivateMessage(String messageId) =>
+      _privateWorld.retryPrivateMessage(messageId);
+
+  @override
+  Future<void> sendFriendRequest(String serverKey, int userId) {
+    final member = _world.servers
+        .where((s) => s.key == serverKey)
+        .firstOrNull
+        ?.members[userId];
+    if (member?.displayName == 'Quiet Quinn' || userId == 2009) {
+      throw const RepoException(
+        RepoErrorKind.friendRequestsClosed,
+        "This user isn't accepting friend requests.",
+      );
+    }
+    return _privateWorld.sendFriendRequest(serverKey, userId, now: _clock());
+  }
+
+  set answerFriendRequestFailure(RepoException? err) =>
+      _privateWorld.answerFriendRequestFailure = err;
+
+  set savePrivacySettingsFailure(RepoException? err) =>
+      _privateWorld.savePrivacySettingsFailure = err;
+
+  @override
+  Future<void> answerFriendRequest(String peer, {required bool accept}) =>
+      _privateWorld.answerFriendRequest(peer, accept: accept);
+
+  @override
+  Future<void> cancelFriendRequest(String peer) =>
+      _privateWorld.cancelFriendRequest(peer);
+
+  @override
+  Future<void> removeFriend(String peer) => _privateWorld.removeFriend(peer);
+
+  @override
+  Future<void> acceptMessageRequest(String peer) =>
+      _privateWorld.acceptMessageRequest(peer);
+
+  @override
+  Future<void> ignoreMessageRequest(String peer) =>
+      _privateWorld.ignoreMessageRequest(peer);
+
+  @override
+  Future<void> blockUser(String peer) => _privateWorld.blockUser(peer);
+
+  @override
+  Future<void> unblockUser(String peer) => _privateWorld.unblockUser(peer);
+
+  @override
+  Future<PrivacySettings> privacySettings() => _privateWorld.privacySettings();
+
+  @override
+  Future<void> savePrivacySettings(PrivacySettings settings) =>
+      _privateWorld.savePrivacySettings(settings);
+
+  @override
+  Future<PrivateContact> openConversation(String serverKey, int userId) =>
+      _privateWorld.openConversation(serverKey, userId, now: _clock());
+
+  @override
+  Future<void> moveConversation(String peer, String serverKey) =>
+      _privateWorld.moveConversation(
+        peer,
+        serverKey,
+        serverName:
+            _world.servers
+                .where((s) => s.key == serverKey)
+                .firstOrNull
+                ?.info
+                .name ??
+            serverKey,
+        now: _clock(),
+      );
+
+  @override
+  Future<void> moveConversationToo(String peer, String messageId) =>
+      _privateWorld.moveConversationToo(peer, messageId, now: _clock());
+
+  @override
+  Future<void> sendPrivateTyping(String peer) =>
+      _privateWorld.sendPrivateTyping(peer);
+
+  @override
+  Future<void> markPrivateRead(String peer) =>
+      _privateWorld.markPrivateRead(peer);
+
+  @override
+  Future<void> setPrivateMuted(String peer, {required bool muted}) =>
+      _privateWorld.setPrivateMuted(peer, muted: muted);
+
+  @override
+  Future<void> hideConversation(String peer) =>
+      _privateWorld.hideConversation(peer);
 }
 
 /// [domain] with some fields changed.

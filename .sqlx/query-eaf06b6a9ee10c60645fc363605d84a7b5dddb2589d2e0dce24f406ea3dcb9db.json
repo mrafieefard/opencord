@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_pending WHERE id IN (\n             SELECT id FROM private_pending\n             WHERE user_id = $1 AND device_id = $2\n             ORDER BY id DESC\n             LIMIT -1 OFFSET $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "eaf06b6a9ee10c60645fc363605d84a7b5dddb2589d2e0dce24f406ea3dcb9db"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_pending\n         WHERE user_id = $1 AND device_id = $2\n           AND id IN (SELECT value FROM json_each($3))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "de9fb0814dfa856d9bc66fac712ac096bfc6d3ad94d6fa65dd12f4533336a246"
+}

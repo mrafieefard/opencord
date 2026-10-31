@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/bidi.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/format.dart';
@@ -32,7 +33,6 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/measured_height.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
-import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/popover.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
@@ -545,129 +545,95 @@ class _ComposerState extends ConsumerState<Composer> {
     final editing = state.editing;
     final replyTo = state.replyTo;
     final about = editing ?? replyTo;
-    final composer = Container(
-      decoration: decoration,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: OcSize.messageColumn),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              OcSpace.s12,
-              OcSpace.s10,
-              OcSpace.s12,
-              OcSpace.s12,
+    final canAttach = data
+        .permissionsIn(_channel.channel)
+        .has(Permissions.attachFiles);
+    // Suggestions open above all of this, reply bar included.
+    final composer = CompositedTransformTarget(
+      link: _field,
+      child: ComposerFrame(
+        above: [
+          if (about != null)
+            ComposerContextBar(
+              editing: editing != null,
+              title: editing != null
+                  ? 'Edit message'
+                  : 'Reply to ${data.members[about.authorId]?.displayName ?? 'Unknown user'}',
+              preview: previewText(
+                messageSummary(about),
+                user: (id) => data.members[id]?.displayName,
+                channel: (id) => data.channels[id]?.name,
+              ),
+              onTap: () => widget.controller.jumpToMessage(about.id),
+              onClose: _composer.cancel,
             ),
-            // Suggestions open above all of this, reply bar included.
-            child: CompositedTransformTarget(
-              link: _field,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (about != null)
-                    ComposerContextBar(
-                      editing: editing != null,
-                      title: editing != null
-                          ? 'Edit message'
-                          : 'Reply to ${data.members[about.authorId]?.displayName ?? 'Unknown user'}',
-                      preview: previewText(
-                        messageSummary(about),
-                        user: (id) => data.members[id]?.displayName,
-                        channel: (id) => data.channels[id]?.name,
-                      ),
-                      onTap: () => widget.controller.jumpToMessage(about.id),
-                      onClose: _composer.cancel,
-                    ),
-                  if (state.staged.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: OcSpace.s8),
-                      child: StagedTiles(
-                        files: state.staged,
-                        limit: data.myUploadLimit,
-                        blocked: data.uploadSettings.blockedExtensions,
-                        maxFiles: data.uploadSettings.maxAttachments,
-                        onRemove: _composer.removeStaged,
-                      ),
-                    ),
-                  Stack(
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
-                            child: OcIconButton(
-                              icon: OcIcons.attachFile,
-                              tooltip:
-                                  data
-                                      .permissionsIn(_channel.channel)
-                                      .has(Permissions.attachFiles)
-                                  ? 'Attach files · up to ${formatFileSize(data.myUploadLimit)} each'
-                                  : "You can't attach files here",
-                              onPressed:
-                                  data
-                                      .permissionsIn(_channel.channel)
-                                      .has(Permissions.attachFiles)
-                                  ? () async {
-                                      final files = await openFiles();
-                                      if (files.isNotEmpty) {
-                                        await _composer.stagePaths(
-                                          files.map((f) => f.path).toList(),
-                                        );
-                                      }
-                                    }
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(width: OcSpace.s4),
-                          Expanded(child: _input(context, channel.name)),
-                          const SizedBox(width: OcSpace.s6),
-                          if (cooldown != null)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                right: OcSpace.s6,
-                                bottom: 11,
-                              ),
-                              child: _Countdown(until: cooldown),
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
-                            child:
-                                hasText ||
-                                    editing != null ||
-                                    state.staged.isNotEmpty
-                                ? OcIconButton(
-                                    icon: editing != null
-                                        ? OcIcons.check
-                                        : OcIcons.send,
-                                    tooltip: editing != null ? 'Save' : 'Send',
-                                    active: true,
-                                    activeStyle: OcActiveStyle.inverted,
-                                    onPressed:
-                                        (cooldown != null && editing == null) ||
-                                            state.hasProblem
-                                        ? null
-                                        : _submit,
-                                  )
-                                : (canVoice
-                                      ? MicButton(channel: _channel)
-                                      : const SizedBox.shrink()),
-                          ),
-                        ],
-                      ),
-                      if (isRecording)
-                        Positioned.fill(
-                          child: ColoredBox(
-                            color: colors.sidebar,
-                            child: RecordingBar(channel: _channel),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
+          if (state.staged.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: OcSpace.s4),
+              child: StagedTiles(
+                files: state.staged,
+                limit: data.myUploadLimit,
+                blocked: data.uploadSettings.blockedExtensions,
+                maxFiles: data.uploadSettings.maxAttachments,
+                onRemove: _composer.removeStaged,
               ),
             ),
+        ],
+        leading: [
+          OcIconButton(
+            icon: OcIcons.attachFile,
+            tooltip: canAttach
+                ? 'Attach files · up to ${formatFileSize(data.myUploadLimit)} each'
+                : "You can't attach files here",
+            onPressed: canAttach
+                ? () async {
+                    final files = await openFiles();
+                    if (files.isNotEmpty) {
+                      await _composer.stagePaths(
+                        files.map((f) => f.path).toList(),
+                      );
+                    }
+                  }
+                : null,
           ),
-        ),
+        ],
+        field: _input(context, channel.name),
+        trailing: [
+          if (cooldown != null)
+            Padding(
+              padding: const EdgeInsets.only(right: OcSpace.s6, bottom: 4),
+              child: _Countdown(until: cooldown),
+            ),
+          Builder(
+            builder: (context) => OcIconButton(
+              icon: OcIcons.mood,
+              tooltip: 'Emoji',
+              onPressed: () async {
+                final emoji = await showEmojiPicker(
+                  context,
+                  anchor: globalRectOf(context),
+                );
+                if (emoji == null || !mounted) return;
+                _focus.requestFocus();
+                _insert(emoji);
+              },
+            ),
+          ),
+          if (hasText || editing != null || state.staged.isNotEmpty)
+            OcIconButton(
+              icon: editing != null ? OcIcons.check : OcIcons.send,
+              tooltip: editing != null ? 'Save' : 'Send',
+              active: true,
+              activeStyle: OcActiveStyle.inverted,
+              onPressed:
+                  (cooldown != null && editing == null) || state.hasProblem
+                  ? null
+                  : _submit,
+            )
+          else if (canVoice)
+            MicButton(channel: _channel),
+        ],
+        cover: isRecording ? RecordingBar(channel: _channel) : null,
       ),
     );
     // Always wrapped, or the field would be rebuilt as typing starts.
@@ -699,7 +665,7 @@ class _ComposerState extends ConsumerState<Composer> {
           showWhenUnlinked: false,
           targetAnchor: Alignment.topLeft,
           followerAnchor: Alignment.bottomLeft,
-          offset: const Offset(OcSize.hitDefault + OcSpace.s4, -OcSpace.s6),
+          offset: const Offset(OcSpace.s8 + OcSize.hitDefault, -OcSpace.s6),
           child: SuggestionList(
             width: _fieldWidth(),
             suggestions: _suggestions,
@@ -737,32 +703,10 @@ class _ComposerState extends ConsumerState<Composer> {
               textInputAction: TextInputAction.newline,
               style: OcText.body.copyWith(color: context.oc.text),
               cursorColor: context.oc.text,
-              decoration: ocInputDecoration(
+              textDirection: textDirectionOf(_text.text),
+              decoration: composerFieldDecoration(
                 context,
-                hint: 'Message #$channelName',
-                radius: OcRadius.composer,
-                padding: const EdgeInsets.fromLTRB(
-                  OcSpace.s16,
-                  OcSpace.s10,
-                  OcSpace.s8,
-                  OcSpace.s10,
-                ),
-                suffix: Builder(
-                  builder: (context) => OcIconButton(
-                    icon: OcIcons.mood,
-                    tooltip: 'Emoji',
-                    size: OcIconButtonSize.compact,
-                    onPressed: () async {
-                      final emoji = await showEmojiPicker(
-                        context,
-                        anchor: globalRectOf(context),
-                      );
-                      if (emoji == null || !mounted) return;
-                      _focus.requestFocus();
-                      _insert(emoji);
-                    },
-                  ),
-                ),
+                'Message #$channelName',
               ),
             ),
           ),

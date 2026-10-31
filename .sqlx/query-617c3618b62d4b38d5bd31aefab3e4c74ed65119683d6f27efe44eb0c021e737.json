@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO private_friends (owner_id, friend_id) VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "617c3618b62d4b38d5bd31aefab3e4c74ed65119683d6f27efe44eb0c021e737"
+}

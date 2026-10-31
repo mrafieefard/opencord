@@ -114,7 +114,8 @@ class _TunnelDialogState extends ConsumerState<TunnelDialog> {
     final colors = context.oc;
     final network = ref.watch(networkProvider(widget.serverKey)).value;
     final tunnel = network?.tunnel ?? const TunnelStatus();
-    final local = network?.settings.localListenerPort ?? 7719;
+    // cloudflared forwards plain HTTP to the main port (D69).
+    final local = network?.listeningPort ?? 7710;
     final missing = !tunnel.hasCloudflared && _choice != _Choice.own;
     final ready = switch (_choice) {
       _Choice.quick => !missing,

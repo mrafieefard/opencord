@@ -1,6 +1,7 @@
 //! The user's identity: an Ed25519 key pair that never leaves the device.
 
 use opencord_common::auth::{self, Challenge, SigningKey};
+use opencord_common::private;
 use sha2::{Digest, Sha256};
 
 pub const SECRET_LEN: usize = 32;
@@ -65,6 +66,21 @@ impl Identity {
 
     pub fn sign_identify(&self, challenge: &Challenge) -> [u8; 64] {
         auth::sign(&self.key, challenge)
+    }
+
+    /// Vouches for one of this person's private messages devices.
+    pub fn sign_device(
+        &self,
+        device_id: &[u8; 16],
+        curve25519: &[u8; 32],
+        ed25519: &[u8; 32],
+    ) -> [u8; 64] {
+        private::sign_device(&self.key, device_id, curve25519, ed25519)
+    }
+
+    /// This person's permission for `grantee` to message them.
+    pub fn slip_for(&self, grantee: &[u8; 32]) -> [u8; 64] {
+        private::sign_slip(&self.key, grantee)
     }
 }
 
@@ -159,6 +175,41 @@ mod tests {
         );
         assert_eq!(fingerprint, public_key_fingerprint(&[7; 32]));
         assert_ne!(fingerprint, public_key_fingerprint(&[8; 32]));
+    }
+
+    #[test]
+    fn device_signatures_and_slips_verify_with_the_public_key() {
+        let identity = Identity::generate();
+        let other = Identity::generate();
+        let (device_id, curve25519, ed25519) = ([1; 16], [2; 32], [3; 32]);
+
+        let signature = identity.sign_device(&device_id, &curve25519, &ed25519);
+        let slip = identity.slip_for(&other.public_key());
+
+        assert!(private::verify_device(
+            &identity.public_key(),
+            &device_id,
+            &curve25519,
+            &ed25519,
+            &signature
+        ));
+        assert!(!private::verify_device(
+            &other.public_key(),
+            &device_id,
+            &curve25519,
+            &ed25519,
+            &signature
+        ));
+        assert!(private::verify_slip(
+            &identity.public_key(),
+            &other.public_key(),
+            &slip
+        ));
+        assert!(!private::verify_slip(
+            &other.public_key(),
+            &identity.public_key(),
+            &slip
+        ));
     }
 
     #[test]
