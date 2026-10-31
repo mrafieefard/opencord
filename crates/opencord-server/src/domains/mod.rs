@@ -101,12 +101,6 @@ impl DomainKind {
         )
     }
 
-    /// Reached through the plain listener on this machine; Cloudflare's
-    /// proxy comes to the main port over TLS instead.
-    pub fn through_local_listener(self) -> bool {
-        matches!(self, Self::Tunnel | Self::ReverseProxy)
-    }
-
     /// The main port answers for it with a certificate of its own: one from
     /// an authority, or, behind Cloudflare's proxy, the origin certificate
     /// the owner uploads.
@@ -693,20 +687,6 @@ pub fn check_until_verified(state: &Arc<AppState>, id: i64) {
             }
         }
     });
-}
-
-/// Runs the local listener while a tunnel or reverse-proxy domain exists
-/// (plan §5.2), and stops it when none does.
-pub async fn sync_local_listener(state: &Arc<AppState>) {
-    let wanted = state.tunnel.wanted()
-        || state
-            .domains
-            .all()
-            .iter()
-            .any(|domain| domain.kind.through_local_listener());
-    if let Err(error) = state.network.set_local_listener(state, wanted).await {
-        tracing::warn!(%error, "the local listener for tunnels and proxies could not start");
-    }
 }
 
 /// Runs one check and applies what it found.

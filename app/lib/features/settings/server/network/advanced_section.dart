@@ -30,7 +30,6 @@ class AdvancedNetworkSection extends ConsumerWidget {
           return repository.updateNetworkSettings(
             server,
             NetworkSettingsChanges(
-              localListenerPort: changes.localListenerPort,
               trustedProxies: changes.trustedProxies,
               dnsResolvers: changes.dnsResolvers,
               acmeStaging: changes.acmeStaging,
@@ -78,28 +77,6 @@ class AdvancedNetworkSection extends ConsumerWidget {
               'certificates are not trusted and show as Test.',
           value: settings.acmeStaging,
           onChanged: (on) => change(settings.copyWith(acmeStaging: on)),
-        ),
-        SettingsRow(
-          title: 'Local listener port',
-          subtitle:
-              'Tunnels and reverse proxies on this machine forward to '
-              'TCP ${settings.localListenerPort}, without TLS',
-          trailing: OcButton(
-            label: 'Change',
-            dense: true,
-            onPressed: () async {
-              final port = await askPort(
-                context,
-                title: 'Local listener port',
-                body:
-                    'Only programs on this machine can reach it. It runs '
-                    'while a tunnel or reverse-proxy domain exists.',
-                current: settings.localListenerPort,
-              );
-              if (port == null) return;
-              change(settings.copyWith(localListenerPort: port));
-            },
-          ),
         ),
         SettingsRow(
           title: 'Trusted proxies',

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, from_id, to_id, created_at FROM private_friend_requests\n         WHERE (from_id = $1 AND to_id = $2) OR (from_id = $2 AND to_id = $1)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_friend_requests",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "from_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_friend_requests",
+            "name": "from_id"
+          }
+        }
+      },
+      {
+        "name": "to_id",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_friend_requests",
+            "name": "to_id"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_friend_requests",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a0cf9502af7d5137f1cff097937771f734f51c5d2b5779d0341d13b38956f23e"
+}

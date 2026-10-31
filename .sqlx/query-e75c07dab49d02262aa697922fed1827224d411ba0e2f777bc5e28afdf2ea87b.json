@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT s.id, s.sha256, s.size_bytes, s.filename, s.title, s.artist,\n                         s.duration_ms, s.uploader_id, s.created_at\n                  FROM music_local_songs s\n                  JOIN music_local_song_owners o ON o.song_id = s.id\n                  WHERE o.user_id = $1\n                    AND LOWER(s.title || ' ' || s.artist || ' ' || s.filename) LIKE $2 ESCAPE '\\'\n                  ORDER BY s.id DESC\n                  LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "sha256",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "sha256"
+          }
+        }
+      },
+      {
+        "name": "size_bytes",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "filename",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "filename"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "artist",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "artist"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "uploader_id",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "uploader_id"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "music_local_songs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e75c07dab49d02262aa697922fed1827224d411ba0e2f777bc5e28afdf2ea87b"
+}

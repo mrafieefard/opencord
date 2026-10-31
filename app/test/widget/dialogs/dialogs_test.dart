@@ -138,7 +138,7 @@ void main() {
       await _pumpFor(tester, const Duration(milliseconds: 1500));
       expect(
         find.text(
-          'Enter an invite link (opencord://…) or a host:port address.',
+          'Enter an invite link (opencord://…) or a host[:port] address.',
         ),
         findsOneWidget,
       );
@@ -219,7 +219,8 @@ void main() {
     expect(find.byType(InviteDialog), findsOneWidget);
     await tester.tap(_button('Copy'));
     await tester.pump();
-    expect(copied, startsWith('opencord://$_dev/invite/'));
+    // Port 7710 is the scheme's own, so the link leaves it out.
+    expect(copied, startsWith('opencord://opencord.example/invite/'));
     expect(copied, contains('#fp='));
     final first = copied;
 

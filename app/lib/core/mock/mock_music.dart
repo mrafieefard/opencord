@@ -3,6 +3,7 @@
 /// queue rules, as far as the UI needs them.
 library;
 
+import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/repository/repository.dart';
 
@@ -20,6 +21,10 @@ class MockMusic {
   final _results = <String, MusicTrack>{};
   final _players = <int, MockPlayer>{};
   var _nextId = 0;
+
+  /// Uploaded songs (design 2026-10-24), by the path they came from: the
+  /// mock knows a file again by its path, as the server does by its hash.
+  final songs = <String, LocalSong>{};
 
   String _id(String prefix) => '$prefix-${_nextId++}';
 
@@ -67,6 +72,59 @@ class MockMusic {
         for (var n = 1; n <= 3; n++) result('$words $n', stream: stream),
       ],
     );
+  }
+
+  /// The song uploaded from [path], if it was.
+  LocalSong? songAt(String path) => songs[path];
+
+  /// Keeps the song uploaded from [path].
+  LocalSong addSong(String path, int uploaderId, DateTime at) {
+    final filename = path.split(RegExp(r'[/\\]')).last;
+    final dot = filename.lastIndexOf('.');
+    final song = LocalSong(
+      id: 1000 + songs.length,
+      title: dot > 0 ? filename.substring(0, dot) : filename,
+      artist: 'Mock Artist',
+      duration: Duration(seconds: 90 + filename.length),
+      sizeBytes: 4 * 1024 * 1024,
+      filename: filename,
+      uploaderId: uploaderId,
+      createdAt: at,
+    );
+    return songs[path] = song;
+  }
+
+  void removeSong(int songId) =>
+      songs.removeWhere((_, song) => song.id == songId);
+
+  /// A search result for an uploaded song.
+  MusicSearchResult localResult(LocalSong song) {
+    final id = _id('result');
+    final track = MusicTrack(
+      title: song.title,
+      artist: song.artist,
+      duration: song.duration,
+      source: 'upload',
+      sourceName: 'Local',
+      localSongId: song.id,
+      removable: true,
+    );
+    _results[id] = track;
+    return MusicSearchResult(id: id, track: track);
+  }
+
+  /// Uploaded songs matching every word of [query].
+  List<MusicSearchResult> searchSongs(String query) {
+    final words = query.toLowerCase().split(' ').where((w) => w.isNotEmpty);
+    return [
+      for (final song in songs.values)
+        if (words.every(
+          (word) => '${song.title} ${song.artist} ${song.filename}'
+              .toLowerCase()
+              .contains(word),
+        ))
+          localResult(song),
+    ];
   }
 
   /// [count] made-up tracks' result ids, for load checks.

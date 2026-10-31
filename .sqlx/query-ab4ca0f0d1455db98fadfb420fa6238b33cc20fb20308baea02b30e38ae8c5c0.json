@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT 1 AS one FROM music_local_song_owners WHERE song_id = $1 AND user_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "name": "one",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ab4ca0f0d1455db98fadfb420fa6238b33cc20fb20308baea02b30e38ae8c5c0"
+}

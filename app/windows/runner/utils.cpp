@@ -67,3 +67,18 @@ std::string Utf8FromUtf16(const wchar_t* utf16_string) {
   }
   return utf8_string;
 }
+
+bool StartedByLauncher() {
+  return ::GetEnvironmentVariableW(L"OPENCORD_LAUNCHER", nullptr, 0) > 1;
+}
+
+std::wstring LaunchTarget() {
+  wchar_t path[MAX_PATH];
+  DWORD length =
+      ::GetEnvironmentVariableW(L"OPENCORD_LAUNCHER", path, MAX_PATH);
+  if (length == 0 || length >= MAX_PATH) {
+    length = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
+    if (length == 0 || length == MAX_PATH) return L"";
+  }
+  return std::wstring(path, length);
+}

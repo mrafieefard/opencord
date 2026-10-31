@@ -10,6 +10,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer_state.dart';
+import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/members/member_profile.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/voice/user_audio_controls.dart';
@@ -324,12 +325,135 @@ class MemberActions {
   List<OcMenuEntry> menu(Member member) {
     final roles = manageableRoles();
     final canMention = ref.read(canMentionProvider(serverKey));
+    final isSelf = _isSelf(member);
+    final peer = member.user.publicKeyHex;
+    final contact = isSelf
+        ? null
+        : ref.read(privateContactsProvider).byPeer[peer];
+    final friendStatus = contact?.friend ?? FriendStatus.none;
+    final isBlocked = contact?.blocked ?? false;
+    final serverRelays = _data?.privateMessages ?? false;
+    final unavailable = ref.read(repositoryProvider).privateUnavailable;
+    final privateDisabled = !serverRelays || unavailable != null;
+
+    OcMenuItem? friendMenuItem;
+    if (!isSelf) {
+      switch (friendStatus) {
+        case FriendStatus.none:
+          friendMenuItem = OcMenuItem(
+            label: 'Add friend',
+            icon: OcIcons.personAdd,
+            onSelected: privateDisabled
+                ? null
+                : () async {
+                    try {
+                      await ref
+                          .read(repositoryProvider)
+                          .sendFriendRequest(serverKey, member.id);
+                    } on RepoException catch (e) {
+                      if (!context.mounted) return;
+                      await showPrivateFailure(
+                        context,
+                        e,
+                        name: member.displayName,
+                        server: _data?.info.name,
+                        action: PrivateAction.friendRequest,
+                      );
+                    }
+                  },
+          );
+        case FriendStatus.outgoing:
+          friendMenuItem = OcMenuItem(
+            label: 'Cancel friend request',
+            icon: OcIcons.close,
+            onSelected: privateDisabled
+                ? null
+                : () async {
+                    try {
+                      await ref
+                          .read(repositoryProvider)
+                          .cancelFriendRequest(peer);
+                      if (!context.mounted) return;
+                      showOcToast(context, 'Friend request cancelled');
+                    } on RepoException catch (e) {
+                      if (!context.mounted) return;
+                      await showPrivateFailure(
+                        context,
+                        e,
+                        name: member.displayName,
+                        server: _data?.info.name,
+                        action: PrivateAction.friendRequest,
+                      );
+                    }
+                  },
+          );
+        case FriendStatus.incoming:
+          friendMenuItem = OcMenuItem(
+            label: 'Accept friend request',
+            icon: OcIcons.check,
+            onSelected: privateDisabled
+                ? null
+                : () async {
+                    try {
+                      await ref
+                          .read(repositoryProvider)
+                          .answerFriendRequest(peer, accept: true);
+                    } on RepoException catch (e) {
+                      if (!context.mounted) return;
+                      await showPrivateFailure(
+                        context,
+                        e,
+                        name: member.displayName,
+                        server: _data?.info.name,
+                        action: PrivateAction.answer,
+                      );
+                    }
+                  },
+          );
+        case FriendStatus.friends:
+          friendMenuItem = const OcMenuItem(
+            label: 'Friends',
+            icon: OcIcons.check,
+            onSelected: null,
+          );
+      }
+    }
+
     return [
       OcMenuItem(
         label: 'Profile',
         icon: OcIcons.person,
         onSelected: () => profile(member),
       ),
+      if (!isSelf) ...[
+        OcMenuItem(
+          label: 'Message',
+          icon: OcIcons.chat,
+          onSelected: privateDisabled
+              ? null
+              : () async {
+                  try {
+                    final c = await ref
+                        .read(repositoryProvider)
+                        .openConversation(serverKey, member.id);
+                    if (!context.mounted) return;
+                    ref
+                        .read(navigationProvider.notifier)
+                        .openConversation(c.peer);
+                  } on RepoException catch (e) {
+                    if (!context.mounted) return;
+                    await showPrivateFailure(
+                      context,
+                      e,
+                      name: member.displayName,
+                      server: _data?.info.name,
+                      action: PrivateAction.message,
+                    );
+                  }
+                },
+        ),
+        ?friendMenuItem,
+      ],
       if (canMention)
         OcMenuItem(
           label: 'Mention',
@@ -382,6 +506,47 @@ class MemberActions {
           icon: OcIcons.block,
           onSelected: () => ban(member),
         ),
+      if (!isSelf) ...[
+        const OcMenuDivider(),
+        if (isBlocked)
+          OcMenuItem(
+            label: 'Unblock',
+            icon: OcIcons.block,
+            onSelected: () async {
+              try {
+                await ref.read(repositoryProvider).unblockUser(peer);
+              } on RepoException catch (e) {
+                if (!context.mounted) return;
+                await showPrivateFailure(
+                  context,
+                  e,
+                  name: member.displayName,
+                  server: _data?.info.name,
+                );
+              }
+            },
+          )
+        else
+          OcMenuItem(
+            label: 'Block',
+            icon: OcIcons.block,
+            onSelected: () async {
+              final confirmed = await confirmBlock(context, member.displayName);
+              if (!confirmed || !context.mounted) return;
+              try {
+                await ref.read(repositoryProvider).blockUser(peer);
+              } on RepoException catch (e) {
+                if (!context.mounted) return;
+                await showPrivateFailure(
+                  context,
+                  e,
+                  name: member.displayName,
+                  server: _data?.info.name,
+                );
+              }
+            },
+          ),
+      ],
     ];
   }
 

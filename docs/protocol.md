@@ -15,7 +15,7 @@ Conventions:
 - `Envelope.seq` is set only on server-to-client `Event` envelopes. It starts at 1 and increases by one per event within a session.
 - `Envelope.request_id` is chosen by the client for each `Request` and echoed on the matching `Response`.
 
-Invite links have the form `opencord://host:port/invite/CODE#fp=SHA256HEX`. The port defaults to 7710; the fingerprint is optional. IPv6 hosts use brackets.
+Invite links have the form `opencord://host:port/invite/CODE#fp=SHA256HEX`. Without a port, `opencord://` means 7710 and `opencords://` 443, for a server reached through a domain with a public certificate. The connection is TLS either way; only the default port differs. A bare `opencord://host` or `opencords://host` names a server without an invite, and a plain `host` means port 7710. Links the server and the app write leave the port out when the scheme implies it: `opencord://host/invite/CODE` for 7710, `opencords://host/invite/CODE` for 443, and `opencord://host:port/invite/CODE` otherwise. The fingerprint is optional. IPv6 hosts use brackets.
 
 ## Handshake
 
@@ -123,7 +123,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `WatchNetwork { watch }` | `network_info` | The owner; see [Domains and network](#domains-and-network) |
 | `SetPublicAddress { auto_detect, override_ipv4, override_ipv6 }` | `network_info` | The owner |
 | `DetectPublicAddress {}` | `network_info` | The owner |
-| `UpdateNetworkSettings { main_port?, upnp_enabled?, local_listener_port?, trusted_proxies?, dns_resolvers?, acme_staging? }` | `network_info` | The owner |
+| `UpdateNetworkSettings { main_port?, upnp_enabled?, trusted_proxies?, dns_resolvers?, acme_staging? }` (`local_listener_port` is ignored since D69) | `network_info` | The owner |
 | `AddDomain { hostname, kind, public_port? }` | `network_info` | The owner; at most 20 domains |
 | `UpdateDomain { domain_id, active?, primary?, public_port?, confirm }` | `network_info` | The owner |
 | `DeleteDomain { domain_id }` | `network_info` | The owner |
@@ -147,6 +147,21 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `ActivateStorage { storage_id }` | `storage` | The owner; a bucket must pass the test; not while files are moving |
 | `RemoveStorage { storage_id }` | `storage` | The owner; not the server's own storage, not the active one, and only once it holds no files and none wait to be deleted |
 | `StartStorageMove {}` / `StopStorageMove {}` | `storage` | The owner |
+| `RegisterDevice { device, one_time_keys, fallback_key }` | `device_registration` | A session after `Ready` on a server with `private_messages` enabled; once per session |
+| `UploadKeys { one_time_keys, fallback_key? }` | `device_registration` | The session's registered device |
+| `UnregisterDevice {}` | `ack` | The session's registered device |
+| `FetchDevices { user_ids }` | `device_lists` | Any member; 1 or 2 `user_ids` (caller and peer) |
+| `ClaimKeys { devices }` | `claimed_keys` | Any member; up to 20 devices |
+| `FetchPendingEvents { after_id?, limit? }` | `pending_events` | The session's registered device; `limit` 1–100 (0 means 100) |
+| `AckPendingEvents { ids }` | `ack` | The session's registered device; up to 500 ids |
+| `SendPrivateMessage { recipient_id, send_id, ciphertexts, slip? }` | `private_message_sent` | A member with a registered device; recipient must be a member; up to 20 ciphertexts, up to 32,768 bytes each; sender's rate limit |
+| `StartPrivateTyping { recipient_id, slip? }` | `ack` | A member; recipient must be a member |
+| `UpdatePrivacy { allow_friend_requests, allow_message_requests, blocked_user_ids, friend_user_ids }` | `ack` | Any member; up to 10,000 blocked IDs and 10,000 friend IDs; friends are kept only while the server's `friends_only` is on, and clients send them only then |
+| `SendFriendRequest { user_id, slip }` | `friend_request_created` | A member with a registered device; target must be a member and not caller; caller's slip required; 10 per minute |
+| `AnswerFriendRequest { request_id, accept, slip? }` | `ack` | The target of the pending request; slip required on accept |
+| `CancelFriendRequest { request_id }` | `ack` | The creator of the pending request |
+| `RemoveFriend { user_id }` | `ack` | Any member |
+| `UpdatePrivateSettings { enabled?, friends_only? }` | `private_settings` | Manage server; `enabled: true` is refused with `INVALID_ARGUMENT` when the config file turns private messages off |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -160,7 +175,7 @@ Details:
 - **Kicks and bans** end all of the target's sessions; those sessions cannot be resumed.
 - **Cleanup:** deleting a role removes it from every member and deletes its channel overwrites. Kicking or banning a member deletes their member overwrites.
 - **Deleted messages** disappear from history. They are kept in the database, marked as deleted.
-- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel, 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s, and 20 `CreateUpload` per minute. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
+- **Rate limits** are per user: 50 requests per 10 s, plus 5 messages per 5 s per channel, 10 `UpdateVoiceState` or `RefreshVoiceServer` per 10 s, 20 `CreateUpload` per minute, 10 `SendFriendRequest` per minute, and 5 `SendPrivateMessage` per 5 s per recipient. Over the limit, the response is `RATE_LIMITED` with `retry_after_ms`.
 
 ## Events
 
@@ -181,6 +196,9 @@ Every event goes to every session of the server, with these exceptions:
 | `ServerNotice` | Whom it concerns: the owner for the network, domains and certificates |
 | `UploadReady`, `UploadFailed` | The uploader's sessions |
 | `StorageUpdate` | The owner's sessions |
+| `PendingEvent` | The session(s) holding that registered device |
+| `PrivateTypingStart` | The recipient's active sessions; never stored |
+| `PrivateSettingsUpdate` | Every session |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
@@ -189,6 +207,7 @@ Other events:
 - Reordering sends one `ChannelUpdate` or `RoleUpdate` per moved item.
 - `SoundboardSoundCreate`, `SoundboardSoundUpdate` and `SoundboardSoundDelete` go to every session: everyone sees the soundboard.
 - `UploadSettingsUpdate` goes to every session when the blocked extensions or the voice message length change.
+- `PrivateSettingsUpdate` goes to every session when the owner turns private messages, or friends-only, on or off. `Ready.private_settings` carries the same on connect.
 
 When roles, member roles or overwrites change, the server recomputes visibility for every session and sends `ChannelCreate` or `ChannelDelete` accordingly. Clients recompute their own permissions from the roles, member and overwrite events with the shared resolver.
 
@@ -218,6 +237,12 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 | `STORAGE_UNAVAILABLE` | The bucket failed its test or can't be reached |
 | `STORAGE_FULL` | No room to receive the upload, or the storage is full |
 | `VOICE_MESSAGE_INVALID`, `VOICE_MESSAGE_TOO_LONG` | A voice message isn't Ogg Opus, or is over the server's length |
+| `FRIEND_REQUESTS_CLOSED` | The target user is not accepting friend requests |
+| `MESSAGE_REQUESTS_CLOSED` | The recipient only accepts messages from friends, and no friendship or valid slip exists |
+| `UNDELIVERABLE` | The recipient has blocked the caller, or has no registered devices |
+| `DEVICE_LIST_CHANGED` | The recipient's or caller's device set changed since the message was encrypted |
+| `PRIVATE_MESSAGES_UNAVAILABLE` | Private messages are disabled on this server, or the device is not registered |
+| `FRIENDS_ONLY` | The server relays private messages only between friends, and the two don't both list each other |
 
 ## Close codes
 
@@ -254,9 +279,12 @@ The bits are listed below.
 | 9 | `MANAGE_SERVER` | 25 | `USE_SOUNDBOARD` |
 | 10 | `ATTACH_FILES` | 26 | `USE_EXTERNAL_SOUNDS` |
 | 11 | `MENTION_EVERYONE` | 27 | `MANAGE_SOUNDBOARD` |
-| 12 | `CHANGE_NICKNAME` | 63 | `ADMINISTRATOR` |
-| 13 | `MANAGE_NICKNAMES` | | |
-| 14 | `SEND_VOICE_MESSAGES` | | |
+| 12 | `CHANGE_NICKNAME` | 28 | `MUSIC_ADD` |
+| 13 | `MANAGE_NICKNAMES` | 29 | `MUSIC_CONTROL` |
+| 14 | `SEND_VOICE_MESSAGES` | 30 | `MUSIC_MANAGE_QUEUE` |
+| | | 31 | `MUSIC_MANAGE` |
+| | | 32 | `MUSIC_ALL_LOCAL_SONGS` (search every uploaded song, not only one's own) |
+| | | 63 | `ADMINISTRATOR` |
 
 Resolution:
 1. The owner has every permission.
@@ -297,7 +325,7 @@ A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREA
 
 Files and voice messages travel over HTTPS beside the gateway, in pieces, then go out with a message. Which storage holds them, and how they're encrypted, is in [attachments.md](attachments.md).
 
-1. **`CreateUpload`** names the channel, the file's name and size, and its kind: `FILE`, or `VOICE_MESSAGE` (an Ogg Opus file, sent as `voice-message.ogg`). The server decides `IMAGE`, `VIDEO` and `AUDIO` itself, from the file's first bytes, and for an MP4 from its track list: sound without a picture is `AUDIO` whatever the brand. The sender's app may add what its own probe found, used only for layout: `width`, `height` and `duration_ms` for a video, `duration_ms` for a sound. It is checked in this order:
+1. **`CreateUpload`** names the channel, the file's name and size, and its kind: `FILE`, `VOICE_MESSAGE` (an Ogg Opus file, sent as `voice-message.ogg`), or `MUSIC` (a song for the music player; see [Uploaded songs](#uploaded-songs)). The server decides `IMAGE`, `VIDEO` and `AUDIO` itself, from the file's first bytes, and for an MP4 from its track list: sound without a picture is `AUDIO` whatever the brand. The sender's app may add what its own probe found, used only for layout: `width`, `height` and `duration_ms` for a video, `duration_ms` for a sound. It is checked in this order:
    - the kind (`INVALID_ARGUMENT`);
    - `VIEW_CHANNEL` and `SEND_MESSAGES` in a channel that takes messages, then `ATTACH_FILES` for a file or `SEND_VOICE_MESSAGES` for a voice message (`FORBIDDEN`);
    - the name is cleaned: only what follows the last `/` or `\` is kept, control characters go, leading spaces and trailing dots and spaces are trimmed, Windows device names (`con`, `nul`, `com1`…) get a leading `_`, an empty name becomes `file`, and a name over 200 characters is cut before its extension. Then a file whose name ends with a blocked extension is refused (`FILE_TYPE_BLOCKED`);
@@ -473,8 +501,20 @@ Phase 3 (`network.proto`). The owner's settings page asks for `NetworkInfo` with
 - **Invites.** `CreateInvite.domain_id` makes the invite for that active domain; without it, for the primary when there is one. `Invite.address` is its domain. An invite whose domain is turned off or deleted stops working. `GET /invite/<code>` is a small page (no JavaScript) with the server's name, member count, an `opencord://` link for the address the page was opened on (with the fingerprint unless an authority vouches for that domain) and a download link; a dead invite answers 404.
 
 - **Lavalink nodes.** `FetchLavalinkNodes`, `CreateLavalinkNode`, `UpdateLavalinkNode` (settings, password and `draining`, each optional), `DeleteLavalinkNode` and `TestLavalinkNode` need Manage server and answer `LavalinkNodes`: the nodes, the bridge checklist (`LavalinkBridge`), the last 50 node events and the channels playing. Passwords are never returned; at most 20 nodes. With `FetchLavalinkNodes.watch` the session gets `LavalinkNodeStatus` (a node changed, or `removed`) and `LavalinkNodeEvent` until it asks with `watch` false. `TestLavalinkNode` answers `Ack`; its three steps (`REST`, `WEBSOCKET`, `BRIDGE`, each `WAITING`, `RUNNING`, `PASSED`, `FAILED` or `SKIPPED` with a detail in plain words) arrive as `LavalinkTestProgress` to that session only, the last with `done`. When every enabled node is unavailable, members with Manage server get a `ServerNotice` keyed `music.nodes`. `MoveLavalinkPlayers { from_node_id, to_node_id? }` (Manage server) moves a node's channels now and answers `LavalinkNodes`. `LavalinkBridge` also carries the bridge's counters (`LavalinkBridgeStats`: connections, packets, decrypt failures, dropped, jitter) and `node_bridges`, the external voice nodes running a bridge.
-- **Music.** Every music request names a voice channel the member can see. `MusicSubscribe { channel_id, subscribe }` answers `MusicSession` and starts (or stops) the session's events for that gateway session; members connected to the channel get them anyway. The events are a whole `MusicSnapshot` when someone joins the channel, and otherwise a `MusicUpdate` per change: `base_version` and `version`, the state, position, modes and votes in full, `now_playing` when another item plays, and for the queue and history the ids removed, then placements in order (an item before another, or at the end; new items whole, others by id). A client applies an update only to the session at `base_version`, ignores one no newer than what it holds, and otherwise asks `FetchMusicSession { channel_id }` (anyone who can see the channel; answers `MusicSession`, subscribes to nothing). The diff and apply are `opencord_proto::music_sync`. A `MusicSession` has a `version` that grows with every change, the state (`IDLE`, `LOADING`, `PLAYING`, `PAUSED`), what plays, the queue, the last 50 played, the position at a server time, repeat and shuffle, whether it waits for a node or for listeners, and `skip_votes` (members who voted to skip) with `skip_votes_needed`. `MusicSearch { channel_id, query, source }` (Add music) answers `MusicSearchResults`: up to 15 results, or a playlist's, each with an opaque `result_id` good for 15 minutes and only for the member who searched. `MusicEnqueue { channel_id, result_ids, before_item_id?, placement, history_item_ids }` (search results, or recently played tracks by their item ids; Add music; a position, `NEXT` or `NOW` need Manage the queue), `MusicPlayback { channel_id, action, position_ms?, expected_item_id? }` (`PAUSE`, `RESUME`, `NEXT`, `PREVIOUS`, `SEEK` need Control playback, `NEXT` on one's own track only Add music, `STOP` Manage music), `MusicVoteSkip { channel_id, expected_item_id }` (connected listeners; callers with Control playback or own-track Add music skip immediately; others add their vote, advancing the track when `skip_votes_needed` is reached), `MusicSetMode`, `MusicQueueMove { item_id, before_item_id? }` and `MusicQueueClear` (Manage the queue) and `MusicQueueRemove` (one's own with Add music, others' with Manage the queue) answer the `MusicSession` after the change. With `expected_item_id`, `NEXT`, `PREVIOUS`, `SEEK` and `MusicVoteSkip` fail with `MUSIC_STALE` when another item plays. Controlling music needs being connected to the channel unless the member holds Manage music. Rate limits: 10 searches, 10 enqueues and 20 other changes per 10 seconds. `MusicNotice` lines go to a channel's subscribers, `MusicNowPlaying` (with the source's name, for the now-playing card) to everyone who can see the channel. `FetchMusicSettings` (anyone) and `UpdateMusicSettings` (Manage music; fields left out stay) answer `MusicSettings`, which also carries the sources a healthy node offers now, `supported` and `configured` (supported, on, and with a node added: clients show music); changes, and nodes added or deleted, reach everyone as `MusicSettingsUpdate`. `FetchMusicBlocks` and `MusicBlockMember { user_id, blocked, reason }` (Manage music; blocking needs a higher role) answer `MusicBlocks`. Errors: `MUSIC_NOT_CONFIGURED`, `MUSIC_NODE_UNAVAILABLE`, `MUSIC_NOT_IN_CHANNEL`, `MUSIC_BLOCKED`, `MUSIC_QUEUE_FULL`, `MUSIC_MEMBER_LIMIT`, `MUSIC_TRACK_TOO_LONG`, `MUSIC_STREAMS_NOT_ALLOWED`, `MUSIC_SOURCE_NOT_ALLOWED`, `MUSIC_LINK_NOT_ALLOWED`, `MUSIC_STALE`. Encoded tracks and Lavalink identifiers never reach clients.
+- **Music.** Every music request names a voice channel the member can see. `MusicSubscribe { channel_id, subscribe }` answers `MusicSession` and starts (or stops) the session's events for that gateway session; members connected to the channel get them anyway. The events are a whole `MusicSnapshot` when someone joins the channel, and otherwise a `MusicUpdate` per change: `base_version` and `version`, the state, position, modes and votes in full, `now_playing` when another item plays, and for the queue and history the ids removed, then placements in order (an item before another, or at the end; new items whole, others by id). A client applies an update only to the session at `base_version`, ignores one no newer than what it holds, and otherwise asks `FetchMusicSession { channel_id }` (anyone who can see the channel; answers `MusicSession`, subscribes to nothing). The diff and apply are `opencord_proto::music_sync`. A `MusicSession` has a `version` that grows with every change, the state (`IDLE`, `LOADING`, `PLAYING`, `PAUSED`), what plays, the queue, the last 50 played, the position at a server time, repeat and shuffle, whether it waits for a node or for listeners, and `skip_votes` (members who voted to skip) with `skip_votes_needed`. `MusicSearch { channel_id, query, source }` (Add music) answers `MusicSearchResults`: up to 15 results, or a playlist's, each with an opaque `result_id` good for 15 minutes and only for the member who searched. `MusicEnqueue { channel_id, result_ids, before_item_id?, placement, history_item_ids }` (search results, or recently played tracks by their item ids; Add music; a position, `NEXT` or `NOW` need Manage the queue), `MusicPlayback { channel_id, action, position_ms?, expected_item_id? }` (`PAUSE`, `RESUME`, `NEXT`, `PREVIOUS`, `SEEK` need Control playback, `NEXT` on one's own track only Add music, `STOP` Manage music), `MusicVoteSkip { channel_id, expected_item_id }` (connected listeners; callers with Control playback or own-track Add music skip immediately; others add their vote, advancing the track when `skip_votes_needed` is reached), `MusicSetMode`, `MusicQueueMove { item_id, before_item_id? }` and `MusicQueueClear` (Manage the queue) and `MusicQueueRemove` (one's own with Add music, others' with Manage the queue) answer the `MusicSession` after the change. With `expected_item_id`, `NEXT`, `PREVIOUS`, `SEEK` and `MusicVoteSkip` fail with `MUSIC_STALE` when another item plays. Controlling music needs being connected to the channel unless the member holds Manage music. Rate limits: 10 searches, 10 enqueues and 20 other changes per 10 seconds. `MusicNotice` lines go to a channel's subscribers, `MusicNowPlaying` (with the source's name, for the now-playing card) to everyone who can see the channel. `FetchMusicSettings` (anyone) and `UpdateMusicSettings` (Manage music; fields left out stay) answer `MusicSettings`, which also carries the sources a healthy node offers now, `supported`, `configured` (supported and on: clients show music), `has_nodes` (a Lavalink node is added) and `local_songs` (the server takes uploaded songs; servers from before them leave it false, and answer `MusicFindLocal` with `INVALID_ARGUMENT` "the request is empty"); changes, and nodes added or deleted, reach everyone as `MusicSettingsUpdate`. `FetchMusicBlocks` and `MusicBlockMember { user_id, blocked, reason }` (Manage music; blocking needs a higher role) answer `MusicBlocks`. Uploaded songs play without a node: see below. Errors: `MUSIC_NOT_CONFIGURED`, `MUSIC_NODE_UNAVAILABLE`, `MUSIC_NOT_IN_CHANNEL`, `MUSIC_BLOCKED`, `MUSIC_QUEUE_FULL`, `MUSIC_MEMBER_LIMIT`, `MUSIC_TRACK_TOO_LONG`, `MUSIC_STREAMS_NOT_ALLOWED`, `MUSIC_SOURCE_NOT_ALLOWED`, `MUSIC_LINK_NOT_ALLOWED`, `MUSIC_STALE`. Encoded tracks and Lavalink identifiers never reach clients.
 - **Commands.** `ExecuteCommand { channel_id, name, options, nonce }` executes a built-in slash command (Phase 3 §17). Public results appear as a message by whoever ran the command (`kind = command_result`, with `interaction { user_id, command }`); "only you" replies and errors are ephemeral, sent to that session only (`EphemeralMessage { channel_id, nonce, content }`). `AutocompleteCommand { channel_id, name, option, value }` answers up to 10 choices (rate limited to 5 per second). `CommandsUpdate` announces the available commands when settings or feature states change. `FetchCommandSettings` and `UpdateCommandSettings` (Manage server) configure disabled commands, allowed channels per command, and whether results are private by default (`results_private`). Errors: `COMMAND_UNKNOWN`, `COMMAND_DISABLED`, `COMMAND_NOT_ALLOWED_HERE`, `COMMAND_INVALID_OPTIONS`.
+
+### Uploaded songs
+
+Songs dropped on the music player (design 2026-10-24) are kept once per server by their SHA-256, and this server plays them itself, without Lavalink. [music.md](music.md#uploaded-songs) explains them for owners.
+
+- **`MusicFindLocal { channel_id, sha256, size_bytes }`** (Add music, connected to the channel or Manage music) answers `MusicLocalMatch { result? }`: when the server has a file of that hash and size, a search result to queue it with `MusicEnqueue`. A caller who also holds `ATTACH_FILES` becomes one of the song's owners. Clients ask before uploading, so a known file is never sent again.
+- **`CreateUpload`** with kind `MUSIC` names the voice channel; it needs Add music (connected, or Manage music) and `ATTACH_FILES` there, a filename ending in `.mp3`, `.flac`, `.m4a`, `.aac`, `.ogg`, `.oga` or `.wav` (`INVALID_ARGUMENT`), and the sender's upload limit; it may not be empty. Pieces and finish are as for any upload. Processing decodes the whole file: one that isn't MP3, FLAC, AAC/M4A, Ogg Vorbis or WAV audio, or lasts under a second, fails with `INVALID_ARGUMENT`. A file the server already has is not kept again: the sender becomes an owner of the song there is. `UploadReady` follows either way; the client then asks `MusicFindLocal` again for the result to queue.
+- **Tracks.** An uploaded song's `MusicTrack` has `source` `upload`, `source_display_name` `Local` and its `local_song_id`. `MusicSearch` lists uploaded songs after Lavalink's results, at most 10, matching every word in the title, artist or filename: every song for a caller with `MUSIC_ALL_LOCAL_SONGS` in the channel, else the caller's own. With no Lavalink node, search finds uploaded songs only, and a link answers `MUSIC_NODE_UNAVAILABLE`. In search results, `removable` says whether the caller may remove the song.
+- **`RemoveLocalSong { song_id }`** answers `ack`. An owner stops owning the song, which is deleted when nobody owns it; an administrator deletes it for everyone. Others get `FORBIDDEN`. Queue items of a deleted song are skipped with the notice "This song was removed from the server".
+- **`FetchLocalSongs { query, before_id? }`** (base `ADMINISTRATOR`) answers `LocalSongs`: every song, newest first, 50 at a time.
+
+Playing a song, the server sends 20 ms frames of 48 kHz stereo Opus to the node serving the channel: the embedded node's music input, or an external node as `MusicFrame { channel_id, connection, sequence, timestamp, opus }` over the control channel. Listeners hear them as the channel's music stream, as they hear Lavalink's.
 
 ### Voice limits
 
@@ -495,3 +535,98 @@ Phase 3 (`network.proto`). The owner's settings page asks for `NetworkInfo` with
 | Sounds playing at once | 3 per voice channel |
 
 **Music on external voice nodes** (Phase 3). A node whose `Register` has `music` runs an audio bridge at its endpoint. For a channel it serves, the main server sends `ExpectMusicBridge { channel_id, user_id, token, session_id, strict, lavalink_addresses }` before pointing Lavalink at it, and `CancelMusicBridge` when the music stops. The node answers with `MusicBridgeStatus { channel_id, kind, connection, code, address }` (`CONNECTED`, `CLOSED`, `DISCOVERED`, `REFUSED`, `AUDIO`, `SILENT`), which the main server takes only for channels that node serves.
+
+## Private messages
+
+Private messages, friend requests, and offline delivery flow through shared servers when `Ready.private_messages` is `true`. Servers act as untrusted relays: messages are end-to-end encrypted with Olm (`vodozemac`) and stored only while waiting for offline recipient devices.
+
+### Registration and keys
+
+1. After `Ready`, a client sends `RegisterDevice { device, one_time_keys, fallback_key }` once per session to bind the connection to that device.
+2. A user may register up to 10 devices (`MAX_DEVICES_PER_USER`). An 11th registration unregisters the device seen longest ago and purges its waiting events.
+3. The server stores up to 100 one-time keys (`MAX_STORED_ONE_TIME_KEYS`) per device. When fewer than 20 remain (`ONE_TIME_KEYS_TARGET`), the client uploads more using `UploadKeys`. The signed fallback prekey is rotated by the client every 30 days (`FALLBACK_ROTATION_MS`).
+4. `UnregisterDevice` removes the device and its prekeys from the server.
+
+### Pending events and acknowledgements
+
+1. Undelivered events (incoming friend requests, sent copies, answers, cancellations, removals, and encrypted messages) are buffered as `PendingEvent` rows in `private_pending` on the server.
+2. Live events reach the active WebSocket session holding the registered device. Offline devices fetch them on reconnect.
+3. Events remain on the server until confirmed with `AckPendingEvents { ids }` (up to 500 ids, `MAX_ACK_IDS`).
+4. Retention limits from server configuration (`[private_messages]`):
+   - `max_pending_per_device` (default 5,000, range 100–100,000): when exceeded, the oldest pending events for that device are dropped.
+   - `undelivered_days` (default 30, range 1–365): pending events older than this are purged.
+   - `device_expiry_days` (default 60, range 7–365): devices unseen for this duration are deleted along with their waiting events.
+
+### Paging
+
+- Clients fetch waiting events with `FetchPendingEvents { after_id, limit }`.
+- `limit` ranges from 1 to 100 (0 defaults to 100, `PENDING_PAGE_EVENTS`).
+- The server returns events in oldest-first order, capped at 786,432 bytes (`PENDING_PAGE_BYTES`) plus envelope overhead per page. If additional events remain, `PendingEvents.more` is set to `true`.
+
+### Order of checks for messages (`SendPrivateMessage`)
+
+The server verifies, in order:
+1. Private messages are enabled on the server: the config file allows them and the owner has them on (`PrivateSettings.enabled`).
+2. The session has a registered device (otherwise `PRIVATE_MESSAGES_UNAVAILABLE`).
+3. The recipient is a member of the server, and is not the caller.
+4. The recipient has not blocked the caller (otherwise `UNDELIVERABLE`).
+5. Where `friends_only` is on, each lists the other in `friend_user_ids` (otherwise `FRIENDS_ONLY`). Typing gets the same check and is dropped silently.
+6. The recipient accepts message requests (`allow_message_requests`), or the caller supplies the recipient's verified permission slip (otherwise `MESSAGE_REQUESTS_CLOSED`).
+7. The recipient has registered devices, and the provided ciphertexts cover all registered devices of the recipient and all other registered devices of the caller (otherwise `DEVICE_LIST_CHANGED`).
+8. Shape checks: at most 20 ciphertexts (`MAX_CIPHERTEXTS`), each at most 32,768 bytes (`MAX_CIPHERTEXT_BYTES`), and `send_id` is 16 bytes (`SEND_ID_LEN`).
+9. Rate limit: at most 5 messages per 5 seconds per recipient (`PRIVATE_MESSAGE_RATE`).
+10. Idempotency: a duplicate `send_id` within 24 hours (`RECENT_SEND_TTL_MS`) stores nothing and returns `PrivateMessageSent` with the original timestamp.
+
+### Order of checks for friend requests (`SendFriendRequest`)
+
+The server verifies, in order:
+1. Private messages are enabled on the server.
+2. The session has a registered device.
+3. The target is a member of the server, and is not the caller.
+4. The target has not blocked the caller (otherwise `UNDELIVERABLE`).
+5. The target accepts friend requests (`allow_friend_requests`, otherwise `FRIEND_REQUESTS_CLOSED`).
+6. The target has at least one registered device (otherwise `PRIVATE_MESSAGES_UNAVAILABLE`).
+7. The caller's permission slip for the target verifies against the caller's identity key.
+8. The caller has fewer than 100 pending outgoing friend requests (`MAX_OUTGOING_FRIEND_REQUESTS`).
+9. No request exists between the two users in either direction (otherwise `CONFLICT`).
+10. Rate limit: at most 10 requests per minute per user (`FRIEND_REQUEST_RATE`).
+
+### Permission slips
+
+A permission slip is a 64-byte Ed25519 signature by the granter's identity key over `slip_payload` (84 bytes):
+```
+"opencord-dm-allow-v1" (20 bytes) || granter_public_key (32 bytes) || grantee_public_key (32 bytes)
+```
+Slips allow the grantee to send messages even if the granter has closed message requests (`allow_message_requests = false`). A slip can only be invalidated by blocking the sender.
+
+### Signing payloads
+
+All cryptographic signatures use Ed25519 (`ed25519_dalek`):
+- **Device signature (`device_payload`, 98 bytes):** signed by the user's identity key, producing a 64-byte signature:
+  ```
+  "opencord-device-v1" (18 bytes) || device_id (16 bytes) || curve25519 (32 bytes) || ed25519 (32 bytes)
+  ```
+- **Prekey signature (`prekey_payload`, 67 bytes):** signed by the device's Ed25519 key, producing a 64-byte signature:
+  ```
+  "opencord-prekey-v1" (18 bytes) || device_id (16 bytes) || key (32 bytes) || fallback (1 byte: 1 or 0)
+  ```
+- **Permission slip signature (`slip_payload`, 84 bytes):** signed by the granter's identity key, producing a 64-byte signature:
+  ```
+  "opencord-dm-allow-v1" (20 bytes) || granter (32 bytes) || grantee (32 bytes)
+  ```
+
+### Payload format
+
+Inside Olm message ciphertexts, the decrypted plaintext is a protobuf `PrivatePayload`:
+- `message_id`: 16 random bytes (`MESSAGE_ID_LEN`).
+- `sent_at_ms`: int64 (author's local timestamp).
+- `recipient_public_key`: 32 bytes (recipient's identity public key).
+- `slip`: 64 bytes (optional permission slip from the recipient).
+- `body`: one of:
+  - `PrivateText`: `content` (string).
+  - `PrivateEdit`: `message_id` (16 bytes), `content` (string).
+  - `PrivateDelete`: `message_id` (16 bytes).
+  - `RelayMoved`: `server_id` (16 bytes), `server_name` (string).
+  - `RequestAccepted`: `{}`.
+  - `SessionReset`: `{}`.
+

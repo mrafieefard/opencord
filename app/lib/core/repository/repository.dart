@@ -24,6 +24,8 @@ import 'package:opencord/core/repository/events.dart';
 export 'package:opencord/core/repository/events.dart';
 import 'package:opencord/core/model/media_handle.dart';
 export 'package:opencord/core/model/media_handle.dart';
+import 'package:opencord/core/model/private.dart';
+export 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/voice_message.dart';
 export 'package:opencord/core/model/voice_message.dart';
 
@@ -189,6 +191,21 @@ enum RepoErrorKind {
 
   /// The upload, download, or operation was cancelled.
   cancelled,
+
+  /// The target is not accepting friend requests (§6.7).
+  friendRequestsClosed,
+
+  /// The target only accepts messages from friends (§6.7).
+  messageRequestsClosed,
+
+  /// The message or friend request could not be delivered (§6.7).
+  undeliverable,
+
+  /// Private messages are unavailable or not relayed on this server (§6.7).
+  privateMessagesUnavailable,
+
+  /// The server relays private messages only between friends.
+  friendsOnly,
 
   unauthorized,
   forbidden,
@@ -616,6 +633,32 @@ abstract interface class OpencordRepository {
     String source = '',
   });
 
+  /// Queues the song at [path] in [channelId], uploading it first when the
+  /// server doesn't have it (design 2026-10-24); [MusicUploadEvent]s follow
+  /// under [uploadId]. [playNow] plays it at once. Completes when it is
+  /// queued; throws when it fails or is cancelled.
+  Future<void> musicUploadSong(
+    String serverKey,
+    int channelId, {
+    required String uploadId,
+    required String path,
+    bool playNow = false,
+  });
+
+  /// Stops a song's upload.
+  void musicCancelSong(String serverKey, String uploadId);
+
+  /// Removes an uploaded song: the caller's own, or (administrators) the
+  /// song for everyone.
+  Future<void> removeLocalSong(String serverKey, int songId);
+
+  /// Every uploaded song, newest first, 50 at a time; administrators only.
+  Future<List<LocalSong>> fetchLocalSongs(
+    String serverKey, {
+    String query = '',
+    int? beforeId,
+  });
+
   /// The channel's player; its changes come as [MusicSessionChanged] from
   /// now on, even when not connected to the channel (§14.3).
   Future<MusicSession> musicSubscribe(String serverKey, int channelId);
@@ -950,6 +993,14 @@ abstract interface class OpencordRepository {
     List<String>? blockedExtensions,
   });
 
+  /// Manage server: whether the server relays private messages, and only
+  /// between friends. Null leaves a setting as it is.
+  Future<ServerPrivateSettings> updatePrivateSettings(
+    String serverKey, {
+    bool? enabled,
+    bool? friendsOnly,
+  });
+
   Future<StorageInfo> storage(String serverKey);
 
   Future<StorageInfo> addStorage(String serverKey, String name, S3Config s3);
@@ -1026,6 +1077,70 @@ abstract interface class OpencordRepository {
   void mediaClose();
 
   bool mediaSupported();
+
+  // Private messages (Milestone E4, Task 17) --------------------------------
+
+  /// Unavailable when the keyring could not be opened or initialized.
+  RepoException? get privateUnavailable;
+
+  /// Whether private messages opened fresh after moving a damaged database aside.
+  bool get privateStartedFresh;
+
+  void acknowledgePrivateStartedFresh();
+
+  Future<List<PrivateContact>> privateContacts();
+
+  Future<List<PrivateMessage>> privateMessages(
+    String peer, {
+    String? before,
+    int limit = 50,
+  });
+
+  Future<PrivateMessage> sendPrivateMessage(String peer, String content);
+
+  Future<void> editPrivateMessage(
+    String peer,
+    String messageId,
+    String content,
+  );
+
+  Future<void> deletePrivateMessage(String peer, String messageId);
+
+  Future<void> retryPrivateMessage(String messageId);
+
+  Future<void> sendFriendRequest(String serverKey, int userId);
+
+  Future<void> answerFriendRequest(String peer, {required bool accept});
+
+  Future<void> cancelFriendRequest(String peer);
+
+  Future<void> removeFriend(String peer);
+
+  Future<void> acceptMessageRequest(String peer);
+
+  Future<void> ignoreMessageRequest(String peer);
+
+  Future<void> blockUser(String peer);
+
+  Future<void> unblockUser(String peer);
+
+  Future<PrivacySettings> privacySettings();
+
+  Future<void> savePrivacySettings(PrivacySettings settings);
+
+  Future<PrivateContact> openConversation(String serverKey, int userId);
+
+  Future<void> moveConversation(String peer, String serverKey);
+
+  Future<void> moveConversationToo(String peer, String messageId);
+
+  Future<void> sendPrivateTyping(String peer);
+
+  Future<void> markPrivateRead(String peer);
+
+  Future<void> setPrivateMuted(String peer, {required bool muted});
+
+  Future<void> hideConversation(String peer);
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

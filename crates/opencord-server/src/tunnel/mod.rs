@@ -267,7 +267,6 @@ pub async fn stop(state: &Arc<AppState>) -> Result<(), ApiError> {
     if let Some(id) = quick_domain {
         state.domains.remove_own(state, id).await?;
     }
-    crate::domains::sync_local_listener(state).await;
     state.network.changed(state);
     tracing::info!("the tunnel was stopped");
     Ok(())
@@ -324,19 +323,8 @@ async fn run(state: &Arc<AppState>, kind: Kind, hostname: String) -> Result<(), 
         inner.run = Some(cancel.clone());
     }
     lock(&state.tunnel.log).clear();
-    crate::domains::sync_local_listener(state).await;
-    let Some(port) = state.network.local_listener_port() else {
-        let port = state.network.settings().local_listener_port;
-        let error = format!(
-            "the local listener could not start on port {port}: another program may use it; \
-             choose another port under Advanced"
-        );
-        state
-            .tunnel
-            .set_state(proto::TunnelState::Failed, Some(error.clone()));
-        state.network.changed(state);
-        return Err(ApiError::invalid_argument(error));
-    };
+    // cloudflared sends plain HTTP to the main port, from this machine.
+    let port = state.network.main_port();
     state.network.changed(state);
     let state = Arc::clone(state);
     tokio::spawn(async move {

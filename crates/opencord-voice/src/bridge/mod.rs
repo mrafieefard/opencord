@@ -312,7 +312,14 @@ impl MusicBridge {
     /// Serves one WebSocket from Lavalink until it closes. `peer` is where
     /// it came from (a trusted proxy's `X-Forwarded-For`, when behind one).
     pub async fn serve(&self, socket: axum::extract::ws::WebSocket, peer: SocketAddr) {
-        gateway::serve(self.clone(), socket, peer).await;
+        gateway::serve(self.clone(), socket, peer, false).await;
+    }
+
+    /// [`Self::serve`] for a Lavalink that came through a tunnel or a
+    /// reverse proxy: its audio goes to the server's public address, when
+    /// known, since `peer` may be only the proxy.
+    pub async fn serve_proxied(&self, socket: axum::extract::ws::WebSocket, peer: SocketAddr) {
+        gateway::serve(self.clone(), socket, peer, true).await;
     }
 
     fn lock(&self) -> MutexGuard<'_, Shared> {

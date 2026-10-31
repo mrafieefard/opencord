@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["VoiceServiceModule"]
+  },
+  "android": {
+    "modules": ["dev.opencord.voiceservice.VoiceServiceModule"]
+  }
+}

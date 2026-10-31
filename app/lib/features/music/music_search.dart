@@ -10,6 +10,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_artwork.dart';
+import 'package:opencord/features/music/music_drop.dart';
 import 'package:opencord/features/music/music_source_icon.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -75,6 +76,11 @@ class MusicSearchNotifier extends Notifier<MusicSearchState> {
       query: words,
       results: found,
     );
+  }
+
+  /// Searches again for what was asked: an uploaded song was removed.
+  Future<void> refresh() async {
+    if (state.searching) await search(state.query);
   }
 
   /// Back to the queue.
@@ -217,7 +223,8 @@ class _MusicSearchFieldState extends ConsumerState<MusicSearchField> {
 
     final field = OcTextField(
       controller: _controller,
-      hint: 'Add a song',
+      // Without Lavalink, search finds uploaded songs only.
+      hint: settings?.hasNodes ?? true ? 'Add a song' : 'Find an uploaded song',
       prefix: selector,
       autofocus: widget.autofocus && access.canAdd,
       enabled: access.canAdd,
@@ -333,6 +340,17 @@ class MusicResultRow extends ConsumerWidget {
 
   void _menu(BuildContext context, WidgetRef ref, Offset position) {
     final manage = ref.read(musicAccessProvider(channel)).canManageQueue;
+    final track = result.track;
+    // Design 2026-10-24: one's own uploaded songs, or anyone's for an
+    // administrator.
+    final removable =
+        track.isLocal &&
+        (track.removable ||
+            (ref
+                    .read(serverProvider(channel.server))
+                    .data
+                    ?.can(Permissions.administrator) ??
+                false));
     showOcMenu(
       context: context,
       position: position,
@@ -360,6 +378,18 @@ class MusicResultRow extends ConsumerWidget {
                 ], placement: MusicPlacement.now)
               : null,
         ),
+        if (removable) ...[
+          const OcMenuDivider(),
+          OcMenuItem(
+            label: 'Remove from server',
+            icon: OcIcons.delete,
+            onSelected: () async {
+              if (await removeLocalSong(context, ref, channel.server, track)) {
+                await ref.read(musicSearchProvider(channel).notifier).refresh();
+              }
+            },
+          ),
+        ],
       ],
     );
   }

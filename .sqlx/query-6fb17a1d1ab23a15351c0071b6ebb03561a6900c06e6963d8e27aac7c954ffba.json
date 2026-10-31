@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO music_local_songs\n             (id, sha256, size_bytes, filename, title, artist, duration_ms, uploader_id, created_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "6fb17a1d1ab23a15351c0071b6ebb03561a6900c06e6963d8e27aac7c954ffba"
+}

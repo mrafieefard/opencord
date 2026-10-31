@@ -23,6 +23,32 @@ void main() {
       );
     });
 
+    test('without a port, opencord:// means 7710 and opencords:// 443', () {
+      expect(
+        parseAppLink('opencord://chat.example/c/5'),
+        const ChannelAppLink('chat.example:7710', 5),
+      );
+      expect(
+        parseAppLink('opencords://chat.example/c/5/6'),
+        const ChannelAppLink('chat.example:443', 5, 6),
+      );
+      expect(
+        parseAppLink('opencords://chat.example:8443/c/5'),
+        const ChannelAppLink('chat.example:8443', 5),
+      );
+    });
+
+    test('an opencords:// invite opens like any other', () {
+      const link = 'opencords://chat.example/invite/AbC123';
+
+      expect(parseAppLink(link), const InviteAppLink(link));
+      expect(parseAppLinkServer(link), 'chat.example:443');
+      expect(
+        parseAppLinkServer('opencord://chat.example/invite/AbC123'),
+        'chat.example:7710',
+      );
+    });
+
     test('other text is not an app link', () {
       for (final text in [
         'https://opencord.example/c/1',

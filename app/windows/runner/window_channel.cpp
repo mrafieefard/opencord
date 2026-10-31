@@ -21,10 +21,9 @@ void SetLaunchAtLogin(bool enabled) {
     return;
   }
   if (enabled) {
-    wchar_t path[MAX_PATH];
-    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (length > 0 && length < MAX_PATH) {
-      const std::wstring command = L"\"" + std::wstring(path, length) + L"\"";
+    const std::wstring target = LaunchTarget();
+    if (!target.empty()) {
+      const std::wstring command = L"\"" + target + L"\"";
       RegSetValueExW(key, L"Opencord", 0, REG_SZ,
                      reinterpret_cast<const BYTE*>(command.c_str()),
                      static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));

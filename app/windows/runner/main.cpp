@@ -1,5 +1,6 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <shobjidl.h>
 #include <windows.h>
 
 #include "flutter_window.h"
@@ -14,6 +15,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     return EXIT_SUCCESS;
   }
   single_instance::RegisterLinkScheme();
+  // The launcher's shortcuts carry this ID, so the taskbar groups and pins
+  // the app as the launcher's, not as one version's executable.
+  if (StartedByLauncher()) {
+    ::SetCurrentProcessExplicitAppUserModelID(L"dev.opencord.opencord");
+  }
 
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.

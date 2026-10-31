@@ -1,0 +1,37 @@
+{
+  "name": "@opencord/core-native",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Opencord's client core for React Native: crates/opencord-mobile through uniffi-bindgen-react-native.",
+  "license": "MPL-2.0",
+  "author": "Opencord",
+  "homepage": "https://github.com/mrafieefard/opencord",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrafieefard/opencord.git",
+    "directory": "mobile/packages/core-native"
+  },
+  "main": "./src/index.tsx",
+  "react-native": "./src/index.tsx",
+  "source": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "scripts": {
+    "ubrn": "ubrn"
+  },
+  "dependencies": {
+    "@ubjs/core": "0.31.0-6",
+    "uniffi-bindgen-react-native": "0.31.0-6"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "codegenConfig": {
+    "name": "OpencordCoreNativeSpec",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "dev.opencord.corenative"
+    }
+  }
+}

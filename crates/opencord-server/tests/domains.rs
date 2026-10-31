@@ -292,7 +292,7 @@ async fn invites_go_through_a_domain_and_die_with_it() {
     assert!(page.contains("Test Server"));
     assert!(page.contains("1 member"));
     assert!(page.contains(&format!(
-        "opencord://other.example.com:443/invite/{}#fp=",
+        "opencords://other.example.com/invite/{}#fp=",
         through_other.code
     )));
     assert!(page.len() < 20_000);
@@ -361,21 +361,11 @@ async fn the_verify_token_is_served_for_http_checks() {
 }
 
 #[tokio::test]
-async fn a_proxy_domain_runs_the_local_listener_while_it_exists() {
+async fn a_proxy_domain_is_served_plain_on_the_main_port() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let dns = FakeDns::start().await;
     let server = server_with(&dns).await;
     let (mut owner, _) = owner_of(&server, &dns).await;
-    let port = std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
-    owner
-        .ok(Kind::UpdateNetworkSettings(proto::UpdateNetworkSettings {
-            local_listener_port: Some(u32::from(port)),
-            ..Default::default()
-        }))
-        .await;
 
     let added = info(
         owner
@@ -390,29 +380,25 @@ async fn a_proxy_domain_runs_the_local_listener_while_it_exists() {
     let proxied = domain(&added, "chat.example.com");
     assert_eq!(proxied.public_port, 443, "behind a proxy, 443 by default");
     assert!(proxied.trusted_certificate);
-    let local = added
-        .ports
-        .iter()
-        .find(|p| p.purpose == proto::PortPurpose::LocalProxy as i32)
-        .unwrap();
-    assert_eq!(local.state, proto::PortState::Listening as i32);
     assert!(
-        tokio::net::TcpStream::connect(("127.0.0.1", port))
-            .await
-            .is_ok()
+        added
+            .ports
+            .iter()
+            .all(|p| p.purpose != proto::PortPurpose::LocalProxy as i32),
+        "no second port"
     );
-
-    let removed = info(
-        owner
-            .ok(Kind::DeleteDomain(proto::DeleteDomain {
-                domain_id: proxied.id,
-            }))
-            .await,
-    );
-    let local = removed
-        .ports
-        .iter()
-        .find(|p| p.purpose == proto::PortPurpose::LocalProxy as i32)
+    // The proxy, on this machine, forwards plain HTTP to the main port.
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", server.handle.local_addr.port()))
+        .await
         .unwrap();
-    assert_eq!(local.state, proto::PortState::Off as i32);
+    stream
+        .write_all(
+            b"GET /.well-known/opencord/verify HTTP/1.1\r\nHost: chat.example.com\r\n\
+              X-Forwarded-For: 198.51.100.7\r\nConnection: close\r\n\r\n",
+        )
+        .await
+        .unwrap();
+    let mut reply = String::new();
+    stream.read_to_string(&mut reply).await.unwrap();
+    assert!(reply.starts_with("HTTP/1.1 200"), "{reply}");
 }

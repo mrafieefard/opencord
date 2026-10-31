@@ -163,7 +163,6 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
               (DomainKind.own, 'Its DNS points here'),
               (DomainKind.reverseProxy, 'Through a reverse proxy'),
               (DomainKind.tunnel, 'Through my Cloudflare Tunnel'),
-              (DomainKind.cloudflareProxy, "Through Cloudflare's proxy"),
             ],
             value: _kind,
             onChanged: (kind) => setState(() => _kind = kind),
@@ -176,10 +175,6 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
             DomainKind.tunnel =>
               'cloudflared, run by you, forwards the hostname to Opencord; '
                   'Cloudflare provides the certificate.',
-            DomainKind.cloudflareProxy =>
-              'Records proxied by Cloudflare (orange cloud): people connect '
-                  "to Cloudflare on 443 with its certificate, and it comes "
-                  "to this server's main port.",
             _ =>
               'Caddy, Nginx, Traefik or a tunnel such as ngrok handles '
                   'the certificate and forwards to Opencord.',
@@ -208,7 +203,8 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
     final colors = context.oc;
     final network = _network;
     final address = network?.publicAddress ?? const PublicAddress();
-    final local = network?.settings.localListenerPort ?? 7719;
+    // Proxies forward plain HTTP to the main port (D69).
+    final local = network?.listeningPort ?? 7710;
     final records = <(String, String)>[
       if (address.ipv4.isNotEmpty) ('A', address.ipv4),
       if (address.ipv6.isNotEmpty) ('AAAA', address.ipv6),
@@ -217,7 +213,6 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
     return OcDialog(
       title: switch (domain.kind) {
         DomainKind.tunnel => 'Point the tunnel here',
-        DomainKind.cloudflareProxy => 'Point Cloudflare here',
         _ when own => 'Create the DNS records',
         _ => 'Point the proxy here',
       },
@@ -252,44 +247,9 @@ class _AddDomainDialogState extends ConsumerState<AddDomainDialog> {
               ),
             const SizedBox(height: OcSpace.s12),
             Text(
-              'Using Cloudflare? Set the records to DNS only (grey cloud), or '
-              "add the domain as one through Cloudflare's proxy: the proxy "
-              'forwards only web traffic on a few ports, and no UDP for '
-              'voice.',
-              style: OcText.small.copyWith(color: colors.textMuted),
-            ),
-          ] else if (domain.kind == DomainKind.cloudflareProxy) ...[
-            Text(
-              "In Cloudflare's DNS for ${domain.hostname}, create these "
-              'records with the proxy on (orange cloud):',
-            ),
-            const SizedBox(height: OcSpace.s12),
-            if (records.isEmpty)
-              const InlineError(
-                "This server's public address is not known yet: detect it "
-                'or set it under Public address first.',
-              ),
-            for (final (type, value) in records)
-              _CopyLine(
-                label: '$type  ${domain.hostname}  →  $value',
-                copy: value,
-              ),
-            const SizedBox(height: OcSpace.s12),
-            Text(
-              cloudflarePortNote(network?.listeningPort ?? 7710),
-              style: OcText.small.copyWith(color: colors.textMuted),
-            ),
-            const SizedBox(height: OcSpace.s8),
-            Text(
-              'Under SSL/TLS, choose Full (strict) and create an origin '
-              'certificate (SSL/TLS, then Origin Server), then Upload origin '
-              "certificate from this domain's menu; or choose Full, which "
-              "accepts this server's own certificate.",
-              style: OcText.small.copyWith(color: colors.textMuted),
-            ),
-            const SizedBox(height: OcSpace.s8),
-            Text(
-              udpNote(network),
+              'Using Cloudflare? Set the records to DNS only (grey cloud): '
+              'its proxy forwards only web traffic on a few ports, and no '
+              'UDP for voice.',
               style: OcText.small.copyWith(color: colors.textMuted),
             ),
           ] else if (domain.kind == DomainKind.tunnel) ...[
@@ -419,18 +379,3 @@ class _CopyLine extends StatelessWidget {
     );
   }
 }
-
-/// The ports Cloudflare's proxy brings HTTPS to.
-const _cloudflareHttpsPorts = {443, 2053, 2083, 2087, 2096, 8443};
-
-/// How Cloudflare's proxy reaches a server whose main port is [main]: on
-/// the port people connect to, unless an Origin Rule sends it elsewhere.
-String cloudflarePortNote(int main) => main == 443
-    ? "Cloudflare connects to this server's main port, 443: open it."
-    : _cloudflareHttpsPorts.contains(main)
-    ? 'Cloudflare connects to the port people use. With the main port '
-          '$main, give the domain the port $main here, or add an Origin Rule '
-          '(Rules, then Origin Rules) with Destination port $main.'
-    : 'Cloudflare connects to port 443. Make the main port 443, or add an '
-          'Origin Rule (Rules, then Origin Rules) with Destination port '
-          '$main; either way, open it.';

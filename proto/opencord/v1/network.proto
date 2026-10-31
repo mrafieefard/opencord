@@ -34,7 +34,8 @@ enum PortPurpose {
   PORT_PURPOSE_MUSIC = 3;
   // Let's Encrypt's HTTP challenge, only while a certificate is requested.
   PORT_PURPOSE_ACME_HTTP = 4;
-  // Plain, on this machine only, for tunnels and reverse proxies.
+  // The plain listener for tunnels and reverse proxies. No longer sent:
+  // they use the main port (D69).
   PORT_PURPOSE_LOCAL_PROXY = 5;
 }
 
@@ -81,8 +82,8 @@ message NetworkSettings {
   uint32 main_port = 1;
   // Open the ports on the router with UPnP (§5.2).
   bool upnp_enabled = 2;
-  // The plain local listener for tunnels and reverse proxies.
-  uint32 local_listener_port = 3;
+  // Unused since tunnels and reverse proxies use the main port (D69): 0.
+  uint32 local_listener_port = 3 [deprecated = true];
   // Addresses or CIDR ranges whose X-Forwarded-For is believed.
   repeated string trusted_proxies = 4;
   // Resolvers domain checks find name servers with (§6.2).
@@ -282,7 +283,8 @@ message DetectPublicAddress {}
 message UpdateNetworkSettings {
   optional uint32 main_port = 1;
   optional bool upnp_enabled = 2;
-  optional uint32 local_listener_port = 3;
+  // Ignored since tunnels and reverse proxies use the main port (D69).
+  optional uint32 local_listener_port = 3 [deprecated = true];
   optional StringList trusted_proxies = 4;
   optional StringList dns_resolvers = 5;
   optional bool acme_staging = 6;

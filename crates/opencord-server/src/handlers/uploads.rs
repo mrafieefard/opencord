@@ -19,10 +19,14 @@ use crate::permissions::{require_base, require_channel};
 use crate::state::{Audience, now_ms};
 
 pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Response, ApiError> {
-    // 1. kind is FILE or VOICE_MESSAGE [INVALID_ARGUMENT]
+    // 1. kind is FILE, VOICE_MESSAGE or MUSIC [INVALID_ARGUMENT]
     let kind = match proto::AttachmentKind::try_from(request.kind) {
         Ok(proto::AttachmentKind::File) => proto::AttachmentKind::File,
         Ok(proto::AttachmentKind::VoiceMessage) => proto::AttachmentKind::VoiceMessage,
+        Ok(proto::AttachmentKind::Music) => {
+            let filename = music_upload(ctx, &request)?;
+            return start(ctx, &request, "music", filename).await;
+        }
         _ => return Err(ApiError::invalid_argument("invalid attachment kind")),
     };
 
@@ -85,6 +89,46 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
         return Err(ApiError::invalid_argument("voice messages cannot be empty"));
     }
 
+    let kind_str = match kind {
+        proto::AttachmentKind::VoiceMessage => "voice",
+        _ => "file",
+    };
+    start(ctx, &request, kind_str, filename).await
+}
+
+/// A song for the music player (design 2026-10-24): one who may add music
+/// to the voice channel and attach files there, a file the player takes,
+/// within their upload limit. Returns its filename.
+fn music_upload(ctx: &Ctx<'_>, request: &proto::CreateUpload) -> Result<String, ApiError> {
+    super::music::may_act(
+        ctx,
+        request.channel_id,
+        Permissions::MUSIC_ADD | Permissions::ATTACH_FILES,
+    )?;
+    let filename = upload::sanitize_filename(&request.filename);
+    if !crate::music::local::is_song_file(&filename) {
+        return Err(ApiError::invalid_argument(
+            "The music player takes MP3, FLAC, M4A, AAC, Ogg and WAV files",
+        ));
+    }
+    if request.size_bytes == 0 {
+        return Err(ApiError::invalid_argument("the file is empty"));
+    }
+    let guild = ctx.state.guild();
+    let limit = guild.upload_limit(ctx.user_id, ctx.state.attachments.max_file_bytes());
+    if request.size_bytes > limit {
+        return Err(ApiError::file_too_large(limit));
+    }
+    Ok(filename)
+}
+
+/// Checks what every upload needs, then makes its row and temp file.
+async fn start(
+    ctx: &Ctx<'_>,
+    request: &proto::CreateUpload,
+    kind_str: &str,
+    filename: String,
+) -> Result<Response, ApiError> {
     // 8. rate_limits.check_upload(user) [RATE_LIMITED]
     ctx.state
         .rate_limits
@@ -131,11 +175,6 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
     })?;
 
     let active_storage_id = ctx.state.attachments.active_id();
-    let kind_str = match kind {
-        proto::AttachmentKind::File => "file",
-        proto::AttachmentKind::VoiceMessage => "voice",
-        _ => "file",
-    };
     let width = request.width.map(|w| (w as i64).clamp(1, 16_384));
     let height = request.height.map(|h| (h as i64).clamp(1, 16_384));
     let duration_ms = request.duration_ms.map(|d| (d as i64).clamp(1, 86_400_000));

@@ -7,6 +7,6 @@ Exec=opencord %u
 Icon=dev.opencord.opencord
 Terminal=false
 Categories=Network;InstantMessaging;Chat;
-MimeType=x-scheme-handler/opencord;
+MimeType=x-scheme-handler/opencord;x-scheme-handler/opencords;
 StartupWMClass=dev.opencord.opencord
 StartupNotify=true

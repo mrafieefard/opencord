@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_friends WHERE owner_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "6cf4d913fa005eadffde07322ce81e7e3a8237e4ac32d7092834ec6351dc6b3f"
+}

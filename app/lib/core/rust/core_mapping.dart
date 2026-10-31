@@ -367,7 +367,16 @@ ReadySnapshot snapshotFrom(
   addresses: serverAddressesFrom(ready.addresses),
   commands: commandListFrom(ready.commands),
   uploadSettings: uploadSettingsFrom(ready.uploadSettings),
+  privateMessages: ready.privateMessages,
+  privateSettings: privateSettingsFrom(ready.privateSettings),
 );
+
+ServerPrivateSettings privateSettingsFrom(core.PrivateSettings s) =>
+    ServerPrivateSettings(
+      enabled: s.enabled,
+      friendsOnly: s.friendsOnly,
+      allowedByConfig: s.allowedByConfig,
+    );
 
 UploadSettings uploadSettingsFrom(core.UploadSettings s) => UploadSettings(
   blockedExtensions: s.blockedExtensions,
@@ -582,6 +591,13 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.uploadOffsetMismatch => RepoErrorKind.conflict,
   core.ErrorCode.storageUnavailable => RepoErrorKind.storageUnavailable,
   core.ErrorCode.storageFull => RepoErrorKind.storageFull,
+  core.ErrorCode.friendRequestsClosed => RepoErrorKind.friendRequestsClosed,
+  core.ErrorCode.messageRequestsClosed => RepoErrorKind.messageRequestsClosed,
+  core.ErrorCode.undeliverable => RepoErrorKind.undeliverable,
+  core.ErrorCode.privateMessagesUnavailable =>
+    RepoErrorKind.privateMessagesUnavailable,
+  core.ErrorCode.friendsOnly => RepoErrorKind.friendsOnly,
+  core.ErrorCode.deviceListChanged => RepoErrorKind.other,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };
 

@@ -13,12 +13,14 @@ use crate::state::AppState;
 mod channels;
 mod commands;
 mod domains;
+mod friends;
 mod invites;
 mod lavalink;
 mod members;
 mod messages;
 pub(crate) mod music;
 mod network;
+mod private;
 mod profile;
 mod roles;
 pub(crate) mod settings;
@@ -34,6 +36,7 @@ pub struct Ctx<'a> {
     pub user_id: i64,
     /// The gateway session the request came on.
     pub session_id: &'a str,
+    pub session: &'a Arc<Session>,
 }
 
 pub async fn handle(
@@ -45,6 +48,7 @@ pub async fn handle(
         state,
         user_id: session.user_id,
         session_id: &session.id,
+        session,
     };
     let result = match state.rate_limits.check_request(ctx.user_id) {
         Ok(()) => dispatch(&ctx, request).await,
@@ -140,6 +144,9 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdateMusicSettings(request) => music::update_settings(ctx, request).await,
         Kind::FetchMusicBlocks(_) => music::fetch_blocks(ctx),
         Kind::MusicBlockMember(request) => music::block_member(ctx, request).await,
+        Kind::MusicFindLocal(request) => music::find_local(ctx, request).await,
+        Kind::RemoveLocalSong(request) => music::remove_local_song(ctx, request).await,
+        Kind::FetchLocalSongs(request) => music::fetch_local_songs(ctx, request).await,
         Kind::ExecuteCommand(request) => commands::execute(ctx, request).await,
         Kind::AutocompleteCommand(request) => commands::autocomplete(ctx, request).await,
         Kind::FetchCommandSettings(_) => commands::fetch_settings(ctx),
@@ -155,6 +162,23 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::RemoveStorage(request) => storage::remove(ctx, request).await,
         Kind::StartStorageMove(_) => storage::start_move(ctx).await,
         Kind::StopStorageMove(_) => storage::stop_move(ctx).await,
+        Kind::RegisterDevice(request) => private::register_device(ctx, request).await,
+        Kind::UploadKeys(request) => private::upload_keys(ctx, request).await,
+        Kind::UnregisterDevice(_) => private::unregister_device(ctx).await,
+        Kind::FetchDevices(request) => private::fetch_devices(ctx, request).await,
+        Kind::ClaimKeys(request) => private::claim_keys(ctx, request).await,
+        Kind::UpdatePrivacy(request) => private::update_privacy(ctx, request).await,
+        Kind::FetchPendingEvents(request) => private::fetch_pending_events(ctx, request).await,
+        Kind::AckPendingEvents(request) => private::ack_pending_events(ctx, request).await,
+        Kind::SendPrivateMessage(request) => private::send_private_message(ctx, request).await,
+        Kind::StartPrivateTyping(request) => private::start_private_typing(ctx, &request),
+        Kind::SendFriendRequest(request) => friends::send_friend_request(ctx, request).await,
+        Kind::AnswerFriendRequest(request) => friends::answer_friend_request(ctx, request).await,
+        Kind::CancelFriendRequest(request) => friends::cancel_friend_request(ctx, request).await,
+        Kind::RemoveFriend(request) => friends::remove_friend(ctx, request).await,
+        Kind::UpdatePrivateSettings(request) => {
+            private::update_private_settings(ctx, request).await
+        }
     }
 }
 

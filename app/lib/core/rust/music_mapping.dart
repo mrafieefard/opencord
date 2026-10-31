@@ -21,6 +21,8 @@ MusicSettings musicSettingsFrom(core.MusicSettings settings) => MusicSettings(
   availableSources: settings.availableSources,
   supported: settings.supported,
   configured: settings.configured,
+  hasNodes: settings.hasNodes,
+  localSongs: settings.localSongs,
 );
 
 /// Only what differs from [before]; the rest stays as the server has it.
@@ -69,6 +71,8 @@ MusicTrack musicTrackFrom(core.MusicTrack track) => MusicTrack(
   sourceName: track.sourceDisplayName,
   uri: track.uri,
   artworkId: track.artworkId,
+  localSongId: track.localSongId.toInt(),
+  removable: track.removable,
 );
 
 MusicQueueItem musicItemFrom(core.MusicQueueItem item) => MusicQueueItem(
@@ -132,3 +136,14 @@ core.MusicPlacement musicPlacementTo(MusicPlacement placement) =>
       MusicPlacement.next => core.MusicPlacement.next,
       MusicPlacement.now => core.MusicPlacement.now,
     };
+
+LocalSong localSongFrom(core.LocalSong song) => LocalSong(
+  id: song.id.toInt(),
+  title: song.title,
+  artist: song.artist,
+  duration: Duration(milliseconds: song.durationMs.toInt()),
+  sizeBytes: song.sizeBytes.toInt(),
+  filename: song.filename,
+  uploaderId: song.uploaderId.toInt(),
+  createdAt: DateTime.fromMillisecondsSinceEpoch(song.createdAtMs.toInt()),
+);

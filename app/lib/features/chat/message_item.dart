@@ -21,8 +21,8 @@ typedef SelectionChanged = void Function(String? selected);
 
 /// A message row and what can be done to it (§4.5, §16):
 ///
-/// * a hover bar beside the bubble, which lingers 150 ms after the pointer
-///   leaves so it can be reached;
+/// * a hover bar beside the bubble, gone as soon as the pointer leaves the
+///   row and the bar, as Discord's is;
 /// * double-click to reply, except on buttons and links inside it;
 /// * the context menu by right-click, on the message or one of its files
 ///   ([AttachmentTarget]), or Shift+F10 and the Menu key while
@@ -56,14 +56,29 @@ class MessageItem extends StatefulWidget {
   /// top edge at the right, like Discord's.
   final bool compact;
 
-  static const hideDelay = Duration(milliseconds: 150);
-
   @override
   State<MessageItem> createState() => _MessageItemState();
 }
 
 class _MenuIntent extends Intent {
   const _MenuIntent();
+}
+
+/// Whether the pointer is on a message row or its hover bar, for rows that
+/// change while hovered (compact density shows the time and a background).
+class MessageHover extends InheritedNotifier<ValueNotifier<bool>> {
+  const MessageHover({
+    super.key,
+    required ValueNotifier<bool> hovered,
+    required super.child,
+  }) : super(notifier: hovered);
+
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<MessageHover>()
+          ?.notifier
+          ?.value ??
+      false;
 }
 
 /// Where the hover bar sits relative to the bubble.
@@ -73,8 +88,8 @@ class _MessageItemState extends State<MessageItem> {
   final _link = LayerLink();
   final _bubbleKey = GlobalKey();
   final _bar = OverlayPortalController();
+  final _hovered = ValueNotifier(false);
   _Placement? _placement;
-  Timer? _hide;
   bool _overRow = false;
   bool _overBar = false;
   bool _focusRing = false;
@@ -87,25 +102,46 @@ class _MessageItemState extends State<MessageItem> {
   Message get _message => widget.message;
 
   bool get _hasBar =>
-      _message.sendState != SendState.pending && !_message.isSystem;
+      _message.sendState != SendState.pending &&
+      !_message.isSystem &&
+      _barFor(_message).buttons > 0;
 
   @override
   void dispose() {
-    _hide?.cancel();
+    _hovered.dispose();
     super.dispose();
   }
 
   void _show() {
-    _hide?.cancel();
+    _hovered.value = true;
     if (!_hasBar || _bar.isShowing) return;
     _placement = _place();
     _bar.show();
   }
 
-  int get _buttons =>
-      1 +
-      (widget.actions.canReact(_message) ? 1 : 0) +
-      (widget.actions.canReply(_message) ? 1 : 0);
+  /// React, Edit and Reply when they apply; More only on compact lines,
+  /// since a bubble's menu is a right-click away.
+  HoverActionBar _barFor(Message message) {
+    final actions = widget.actions;
+    return HoverActionBar(
+      onReact: actions.canReact(message)
+          ? (anchor) => actions.react(message, anchor: anchor)
+          : null,
+      onEdit: widget.compact && actions.canEdit(message)
+          ? () => actions.edit(message)
+          : null,
+      onReply: actions.canReply(message) ? () => actions.reply(message) : null,
+      onMore: widget.compact
+          ? (anchor) => actions.showMenu(
+              message,
+              position: anchor.bottomLeft,
+              selection: _selection,
+            )
+          : null,
+    );
+  }
+
+  int get _buttons => _barFor(_message).buttons;
 
   /// Beside the bubble on its outer side when there is room, otherwise on
   /// its top corner; against its bottom when its top has scrolled away.
@@ -148,10 +184,13 @@ class _MessageItemState extends State<MessageItem> {
     );
   }
 
+  /// Hides the bar once the pointer event that left has been handled:
+  /// leaving the row for its bar enters the bar in the same event.
   void _scheduleHide() {
-    _hide?.cancel();
-    _hide = Timer(MessageItem.hideDelay, () {
-      if (mounted && !_overRow && !_overBar && _bar.isShowing) _bar.hide();
+    scheduleMicrotask(() {
+      if (!mounted || _overRow || _overBar) return;
+      _hovered.value = false;
+      if (_bar.isShowing) _bar.hide();
     });
   }
 
@@ -256,7 +295,6 @@ class _MessageItemState extends State<MessageItem> {
 
   @override
   Widget build(BuildContext context) {
-    final actions = widget.actions;
     final message = _message;
     final colors = context.oc;
     final anchored = CompositedTransformTarget(
@@ -286,19 +324,7 @@ class _MessageItemState extends State<MessageItem> {
               _overBar = false;
               _scheduleHide();
             },
-            child: HoverActionBar(
-              onReact: actions.canReact(message)
-                  ? (anchor) => actions.react(message, anchor: anchor)
-                  : null,
-              onReply: actions.canReply(message)
-                  ? () => actions.reply(message)
-                  : null,
-              onMore: (anchor) => actions.showMenu(
-                message,
-                position: anchor.bottomLeft,
-                selection: _selection,
-              ),
-            ),
+            child: _barFor(message),
           ),
         ),
       ),
@@ -334,7 +360,7 @@ class _MessageItemState extends State<MessageItem> {
                     : null,
               ),
               child: widget.compact
-                  ? anchored
+                  ? MessageHover(hovered: _hovered, child: anchored)
                   : MessageLine(
                       own: widget.own,
                       first: widget.first,

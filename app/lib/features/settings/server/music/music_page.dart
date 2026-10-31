@@ -5,6 +5,7 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/settings/server/music/lavalink_section.dart';
+import 'package:opencord/features/settings/server/music/local_songs_section.dart';
 import 'package:opencord/features/settings/server/music/music_blocks_section.dart';
 import 'package:opencord/features/settings/server/music/music_settings_section.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -13,8 +14,9 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_spinner.dart';
 
 /// Server settings → Music (Phase 3 plan §12.8, §16.2): the music settings
-/// and blocked members for members who manage music, the Lavalink nodes
-/// (live while the page is open) for those who manage the server.
+/// and blocked members for members who manage music, uploaded songs for
+/// administrators (design 2026-10-24), the Lavalink nodes (live while the
+/// page is open) for those who manage the server.
 class ServerMusicPage extends ConsumerWidget {
   const ServerMusicPage({super.key, required this.serverKey});
 
@@ -22,11 +24,12 @@ class ServerMusicPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final (manageMusic, manageServer) = ref.watch(
+    final (manageMusic, manageServer, admin) = ref.watch(
       serverProvider(serverKey).select(
         (s) => (
           s.data?.can(Permissions.musicManage) ?? false,
           s.data?.can(Permissions.manageServer) ?? false,
+          s.data?.can(Permissions.administrator) ?? false,
         ),
       ),
     );
@@ -44,6 +47,10 @@ class ServerMusicPage extends ConsumerWidget {
           ),
           const SizedBox(height: OcSpace.s24),
           MusicBlocksSection(serverKey: serverKey),
+        ],
+        if (admin) ...[
+          const SizedBox(height: OcSpace.s24),
+          LocalSongsSection(serverKey: serverKey),
         ],
         if (manageMusic && manageServer) const SizedBox(height: OcSpace.s32),
         if (manageServer)

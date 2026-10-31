@@ -186,6 +186,16 @@ class ChatRowView extends StatelessWidget {
     final onReplyTap = message.replyToId == null
         ? null
         : () => actions.onJumpTo(message.replyToId!);
+    Widget avatar() => Hoverable(
+      onTap: () => actions.onProfile(message.authorId),
+      semanticLabel: '$author, profile',
+      focusRadius: BorderRadius.circular(OcSize.messageAvatar / 2),
+      builder: (context, state) => MemberAvatar(
+        serverKey: actions.message.channel.server,
+        userId: message.authorId,
+        name: author,
+      ),
+    );
     if (compact) {
       return MessageItem(
         message: message,
@@ -198,6 +208,7 @@ class ChatRowView extends StatelessWidget {
           serverKey: actions.message.channel.server,
           first: row.first,
           author: author,
+          avatar: row.first ? avatar() : null,
           role: row.first ? lookups.role(message.authorId) : null,
           reply: lookups.reply(message),
           mentionsMe: row.mentionsMe,
@@ -217,18 +228,7 @@ class ChatRowView extends StatelessWidget {
       own: row.own,
       first: row.first,
       actions: actions.message,
-      avatar: row.showAvatar
-          ? Hoverable(
-              onTap: () => actions.onProfile(message.authorId),
-              semanticLabel: '$author, profile',
-              focusRadius: BorderRadius.circular(OcSize.messageAvatar / 2),
-              builder: (context, state) => MemberAvatar(
-                serverKey: actions.message.channel.server,
-                userId: message.authorId,
-                name: author,
-              ),
-            )
-          : null,
+      avatar: row.showAvatar ? avatar() : null,
       builder: (onSelectionChanged) => MessageBubble(
         message: message,
         serverKey: actions.message.channel.server,

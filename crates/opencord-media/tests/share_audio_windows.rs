@@ -4,12 +4,11 @@
 //!
 //!     cargo test -p opencord-media --test share_audio_windows -- --ignored --nocapture
 //!
-//! **These have never run.** Process loopback needs Windows build 20348 and
-//! the PC this was written on is 19045, so every one of them skips here with
-//! a line saying so. They are written against Microsoft's
-//! ApplicationLoopback sample's behaviour and the contract in
-//! `share_audio/mod.rs`; the first Windows 11 machine to run them is what
-//! settles whether the backend works (windows.md §7, W7).
+//! Process loopback needs Windows 10 2004 (build 19041); below that every
+//! one of them skips with a line saying so. They are written against
+//! Microsoft's ApplicationLoopback sample's behaviour and the contract in
+//! `share_audio/mod.rs`, and have yet to be run on a machine that can
+//! share sound (windows.md §7, W7).
 //!
 //! Nothing is audible: the tones go to the VB-CABLE device, not the
 //! speakers. `OPENCORD_TEST_SINK` names the device to play into, and
@@ -32,7 +31,7 @@ fn sink() -> String {
 }
 
 /// Says why, and that the test did nothing.
-fn needs_windows_11() -> bool {
+fn cannot_share_sound() -> bool {
     let support = support();
     if !support.supported {
         eprintln!(
@@ -124,7 +123,7 @@ impl Drop for Killed {
 #[test]
 #[ignore = "plays tones and captures them"]
 fn a_screen_hears_another_app_but_not_this_process() {
-    if needs_windows_11() {
+    if cannot_share_sound() {
         return;
     }
     eprintln!("tones go to {}", sink());
@@ -148,7 +147,7 @@ fn a_screen_hears_another_app_but_not_this_process() {
 #[test]
 #[ignore = "plays tones and captures them"]
 fn a_window_hears_only_its_own_app() {
-    if needs_windows_11() {
+    if cannot_share_sound() {
         return;
     }
     let mut wanted = tone(1_000);
@@ -180,7 +179,7 @@ fn a_window_hears_only_its_own_app() {
 #[test]
 #[ignore = "plays tones and captures them"]
 fn sharing_another_source_while_live_switches_what_is_heard() {
-    if needs_windows_11() {
+    if cannot_share_sound() {
         return;
     }
     let mut first = tone(1_000);
@@ -219,7 +218,7 @@ fn sharing_another_source_while_live_switches_what_is_heard() {
 #[test]
 #[ignore = "needs process loopback"]
 fn nothing_chosen_captures_nothing_without_failing() {
-    if needs_windows_11() {
+    if cannot_share_sound() {
         return;
     }
     let (frames, arriving) = sync_channel(4);

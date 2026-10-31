@@ -7,6 +7,7 @@ import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
+import "opencord/v1/private.proto";
 
 // Events about a channel are only sent to sessions that can view it.
 message Event {
@@ -87,6 +88,14 @@ message Event {
     UploadFailed upload_failed = 112;
     // To the owner only.
     StorageUpdate storage_update = 113;
+
+    // Private messages and friends (design 2026-10-22).
+    // To the sessions holding that device.
+    PendingEvent pending_event = 120;
+    // To the recipient's sessions; never stored.
+    PrivateTypingStart private_typing_start = 121;
+    // To everyone.
+    PrivateSettingsUpdate private_settings_update = 122;
   }
 }
 

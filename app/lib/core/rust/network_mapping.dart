@@ -24,7 +24,6 @@ NetworkInfo networkInfoFrom(core.NetworkInfo info) {
     settings: NetworkSettings(
       mainPort: settings.mainPort,
       upnpEnabled: settings.upnpEnabled,
-      localListenerPort: settings.localListenerPort,
       trustedProxies: settings.trustedProxies,
       dnsResolvers: settings.dnsResolvers,
       acmeStaging: settings.acmeStaging,
@@ -216,7 +215,6 @@ core.NetworkSettingsChanges networkChangesTo(NetworkSettingsChanges changes) =>
     core.NetworkSettingsChanges(
       mainPort: changes.mainPort,
       upnpEnabled: changes.upnpEnabled,
-      localListenerPort: changes.localListenerPort,
       trustedProxies: changes.trustedProxies,
       dnsResolvers: changes.dnsResolvers,
       acmeStaging: changes.acmeStaging,

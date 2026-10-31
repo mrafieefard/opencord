@@ -137,7 +137,10 @@ void main() {
       await tester.tap(find.text('Copy link'));
       await _pumpFor(tester, const Duration(milliseconds: 200));
 
-      expect(clipboard.copied, startsWith('opencord://$_dev/invite/$code'));
+      expect(
+        clipboard.copied,
+        startsWith('opencord://opencord.example/invite/$code'),
+      );
       await app.dispose(tester);
     });
   });

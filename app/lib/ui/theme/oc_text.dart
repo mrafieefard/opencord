@@ -6,8 +6,18 @@ abstract final class OcText {
   static const String fontFamily = 'Inter';
   static const String monoFamily = 'JetBrainsMono';
 
+  /// Color emoji, named so they win over whatever font the system would
+  /// pick for a glyph Inter lacks (a monochrome symbol font, on some Linux
+  /// systems). Each system has one of them.
+  static const List<String> emojiFamilies = [
+    'Noto Color Emoji',
+    'Apple Color Emoji',
+    'Segoe UI Emoji',
+  ];
+
   static const _base = TextStyle(
     fontFamily: fontFamily,
+    fontFamilyFallback: emojiFamilies,
     leadingDistribution: TextLeadingDistribution.even,
     decoration: TextDecoration.none,
   );
