@@ -14,7 +14,7 @@ import { setVoiceSlot } from '@/state/actions/ui';
 import { useMyVoice } from '@/state/selectors';
 import { space } from '@/ui';
 
-import { useChatDock } from './dock';
+import { AWAY_DROP, useChatDock } from './dock';
 
 /** The dock moves a little while it settles (the keyboard going, the sidebar leaving): measured again once it has. */
 const SETTLED_MS = 300;
@@ -27,15 +27,17 @@ export interface ChatVoicePillProps {
 export function ChatVoicePill({ covered = false }: ChatVoicePillProps) {
   const myVoice = useMyVoice();
   const keyboardUp = useKeyboardState((state) => state.isVisible);
-  const { fieldGrowth } = useChatDock();
+  const { fieldGrowth, away } = useChatDock();
   const slotRef = useRef<ComponentRef<typeof View>>(null);
   const holds = myVoice !== null && !keyboardUp && !covered;
 
+  // Where the room is once the dock is in place: coming back from the
+  // sidebar, the dock is still lower by what is left of its step aside.
   const measure = useCallback(() => {
     slotRef.current?.measureInWindow((_x, y, _width, height) => {
-      if (height > 0) setVoiceSlot({ y, height });
+      if (height > 0) setVoiceSlot({ y: Math.round(y - (away?.get() ?? 0) * AWAY_DROP), height });
     });
-  }, []);
+  }, [away]);
   useEffect(() => {
     if (!holds) return undefined;
     measure();

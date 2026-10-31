@@ -11,7 +11,7 @@ import { PaneHeader, useTheme } from '@/ui';
 
 import { ChatVoicePill } from './ChatVoicePill';
 import { Composer } from './Composer';
-import { ChatDockContext, useDockLift } from './dock';
+import { AWAY_DROP, ChatDockContext, useDockLift } from './dock';
 import { MessageList } from './MessageList';
 
 export interface ChatPaneProps {
@@ -41,8 +41,8 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
     padding.set(next);
     setHeight(next);
   };
-  const dock = useMemo(() => ({ padding, height, fieldGrowth }), [padding, height, fieldGrowth]);
   const away = useSharedValue(covered ? 1 : 0);
+  const dock = useMemo(() => ({ padding, height, fieldGrowth, away }), [padding, height, fieldGrowth, away]);
   useEffect(() => {
     away.set(withTiming(covered ? 1 : 0, { duration: AWAY_MS }));
   }, [covered, away]);
@@ -79,7 +79,6 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
 
 /** Stepping aside for the sidebar, and back. */
 const AWAY_MS = 220;
-const AWAY_DROP = 24;
 
 const styles = StyleSheet.create({
   pane: { flex: 1 },

@@ -17,11 +17,11 @@ import { BackHandler, Platform, Pressable, StyleSheet, View, useWindowDimensions
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 import Animated, {
+  Easing,
   interpolate,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -68,11 +68,8 @@ const CHAT_SIDE = space.sm;
 /** Moving between its places, and showing or hiding. */
 const MOVE_SPRING = { damping: 30, stiffness: 320 };
 const FADE_MS = 160;
-/** Joining and leaving: the pill rises this far into its place, or sinks from it. */
-const PRESENCE_RISE = 24;
-const PRESENCE_SPRING = { damping: 18, stiffness: 220 };
-const LEAVE_MS = 240;
-const JOIN_DELAY_MS = 350;
+/** Joining and leaving: the pill fades in or out where it rests, as UIKit's own do. */
+const PRESENCE_FADE = { duration: 200, easing: Easing.inOut(Easing.ease) };
 
 const NO_FRAME: CallFrame = { x: 0, y: 0, width: 0, height: BAR_HEIGHT };
 
@@ -145,15 +142,14 @@ export function CallSheet() {
   if (myVoice !== null && myVoice !== held) setHeld(myVoice);
   const call = myVoice ?? held;
   const release = useCallback(() => setHeld(null), []);
-  // Joining, the pill rises into its place; leaving, it sinks and fades.
+  // Joining, the pill fades in where it rests; leaving, it fades out there.
   const presence = useSharedValue(0);
   useEffect(() => {
     if (inIt) {
-      // Joined from the voice channel's sheet, the pill rises once that has gone.
-      presence.set(withDelay(JOIN_DELAY_MS, withSpring(1, PRESENCE_SPRING)));
+      presence.set(withTiming(1, PRESENCE_FADE));
     } else {
       presence.set(
-        withTiming(0, { duration: LEAVE_MS }, (done) => {
+        withTiming(0, PRESENCE_FADE, (done) => {
           if (done) scheduleOnRN(release);
         }),
       );
@@ -182,10 +178,18 @@ export function CallSheet() {
   // move settles, a render commits where it is.
   const [, setSettled] = useState(0);
   const settle = useCallback(() => setSettled((count) => count + 1), []);
+  // Gone only once it has faded: without a place for a moment (between the
+  // sidebar and a chat), it keeps where it was and moves from there.
+  const forget = useCallback(() => {
+    wasShown.current = false;
+  }, []);
   useEffect(() => {
     if (!rest) {
-      wasShown.current = false;
-      shown.set(withTiming(0, { duration: FADE_MS }));
+      shown.set(
+        withTiming(0, { duration: FADE_MS }, (done) => {
+          if (done) scheduleOnRN(forget);
+        }),
+      );
       return;
     }
     // A drag measures its travel from here.
@@ -207,7 +211,7 @@ export function CallSheet() {
     }
     wasShown.current = true;
     shown.set(withTiming(1, { duration: FADE_MS }));
-  }, [rest, moveFrom, moveTo, move, shown, settle]);
+  }, [rest, moveFrom, moveTo, move, shown, settle, forget]);
   const resting = rest !== null;
 
   // Leaving the call puts it away.
@@ -248,10 +252,8 @@ export function CallSheet() {
   const frameStyle = useAnimatedStyle(() => {
     const at = callProgress.get();
     const from = start();
-    const here = presence.get();
     return {
-      opacity: Math.max(shown.get(), at > 0.001 ? 1 : 0) * Math.min(here * 1.5, 1),
-      transform: [{ translateY: (1 - here) * PRESENCE_RISE }, { scale: 0.9 + 0.1 * here }],
+      opacity: Math.max(shown.get(), at > 0.001 ? 1 : 0) * presence.get(),
       top: from.y + (top - from.y) * at,
       left: from.x + (CALL_MARGIN - from.x) * at,
       width: from.width + (openWidth - from.width) * at,

@@ -17,7 +17,12 @@ export interface ChatDock {
   fieldGrowth?: SharedValue<number>;
   /** The same, for what floats above it (Jump to latest, the typing line). */
   height: number;
+  /** How far the dock has stepped aside for the sidebar: 0 in place, 1 away (AWAY_DROP lower). */
+  away?: SharedValue<number>;
 }
+
+/** Stepping aside for the sidebar, the dock drops this far as it fades. */
+export const AWAY_DROP = 24;
 
 export const ChatDockContext = createContext<ChatDock>({ height: 0 });
 
