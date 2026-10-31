@@ -6,7 +6,7 @@
 // sidebar comes out over the chat: the pill moves with the sidebar, frame
 // by frame, between here and the tab bar. Only the keyboard takes it.
 import { type ComponentRef, useCallback, useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, View } from 'react-native';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 import { useAnimatedReaction } from 'react-native-reanimated';
 
@@ -43,8 +43,13 @@ export function ChatVoicePill(_props: ChatVoicePillProps) {
   // sidebar, the dock is lower by what there is of that step.
   const measure = useCallback(() => {
     slotRef.current?.measureInWindow((_x, y, _width, height) => {
-      if (height <= 0) return;
-      known = { y: Math.round(y - (away?.get() ?? 0) * AWAY_DROP), height };
+      const at = Math.round(y - (away?.get() ?? 0) * AWAY_DROP);
+      // The room is always in the screen's lower half, above the composer:
+      // a reading elsewhere was taken mid-transition (a pane laying out, a
+      // screen sliding in), and would send the pill, and every later chat, there.
+      const screen = Dimensions.get('window').height;
+      if (height <= 0 || at < screen / 2 || at + height > screen) return;
+      known = { y: at, height };
       setVoiceSlot(known);
     });
   }, [away]);

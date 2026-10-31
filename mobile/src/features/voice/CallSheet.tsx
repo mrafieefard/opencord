@@ -21,6 +21,7 @@ import Animated, {
   interpolate,
   useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withSpring,
   withTiming,
@@ -197,13 +198,6 @@ export function CallSheet() {
   }, [moveFrom, moveTo, tabsTo, blends, move]);
   const shown = useSharedValue(rest ? 1 : 0);
   const wasShown = useRef(rest !== null);
-  // Reanimated can lose the last frames of a layout animation that no
-  // React render follows, leaving the pill short of its place: once the
-  // move settles, a render commits where it is.
-  const [, setSettled] = useState(0);
-  const settle = useCallback(() => setSettled((count) => count + 1), []);
-  // A frame after the end, so the render follows the last frame written.
-  const settleSoon = useCallback(() => setTimeout(settle, 50), [settle]);
   // Gone only once it has faded: without a place for a moment (between the
   // sidebar and a chat), it keeps where it was and moves from there.
   const forget = useCallback(() => {
@@ -227,11 +221,7 @@ export function CallSheet() {
       tabsTo.set(rest.tabs ?? rest.frame);
       blends.set(rest.tabs ? 1 : 0);
       move.set(0);
-      move.set(
-        withSpring(1, MOVE_SPRING, (done) => {
-          if (done) scheduleOnRN(settle);
-        }),
-      );
+      move.set(withSpring(1, MOVE_SPRING));
     } else {
       moveFrom.set(rest.frame);
       moveTo.set(rest.frame);
@@ -241,18 +231,8 @@ export function CallSheet() {
     }
     wasShown.current = true;
     shown.set(withTiming(1, { duration: FADE_MS }));
-  }, [rest, moveFrom, moveTo, tabsTo, blends, move, shown, settle, forget, placed]);
+  }, [rest, moveFrom, moveTo, tabsTo, blends, move, shown, forget, placed]);
   const resting = rest !== null;
-  // Likewise once the sidebar it follows in a chat has come to rest.
-  useAnimatedReaction(
-    () => {
-      const out = sidebarOut.get();
-      return out < 0.001 || out > 0.999;
-    },
-    (still, before) => {
-      if (still && before === false) scheduleOnRN(settleSoon);
-    },
-  );
 
   // Leaving the call puts it away.
   useEffect(() => {
@@ -278,21 +258,27 @@ export function CallSheet() {
 
   // Where the glass grows from: the floating pill's place (risen with a
   // chat's field), or the bar last touched.
-  const start = (): CallFrame => {
-    'worklet';
+  // Every shared value it follows is read here, directly: Reanimated
+  // re-runs a worklet for the shared values it names itself, not for those a
+  // function it calls reads, so through a helper the pill moved only when a
+  // React render happened to come by, and jumped there.
+  const origin = useDerivedValue((): CallFrame => {
     if (chrome.floatingVoice) {
-      const at = placed();
+      const out = sidebarOut.get();
+      const chat = blends.get();
+      const to = chat ? between(moveTo.get(), tabsTo.get(), out) : moveTo.get();
+      const at = between(moveFrom.get(), to, move.get());
       // Risen with the chat's field, less as the sidebar takes it away.
-      return { ...at, y: at.y - slotRise.get() * (1 - blends.get() * sidebarOut.get()) };
+      return { ...at, y: at.y - slotRise.get() * (1 - chat * out) };
     }
     const touched = callOrigin.get();
     return touched.width > 0 ? touched : fallback;
-  };
+  });
 
   // The glass's frame: from the bar's to the open call's.
   const frameStyle = useAnimatedStyle(() => {
     const at = callProgress.get();
-    const from = start();
+    const from = origin.get();
     return {
       opacity: Math.max(shown.get(), at > 0.001 ? 1 : 0) * presence.get(),
       top: from.y + (top - from.y) * at,
@@ -304,7 +290,7 @@ export function CallSheet() {
   // Its corners: from the bar's capsule to the screen's own, on the glass
   // and on what it holds alike.
   const cornerStyle = useAnimatedStyle(() => {
-    const from = start();
+    const from = origin.get();
     return { borderRadius: from.height / 2 + (corner - from.height / 2) * callProgress.get() };
   });
   const fillStyle = useAnimatedStyle(() => ({
@@ -313,7 +299,7 @@ export function CallSheet() {
   const scrimStyle = useAnimatedStyle(() => ({ opacity: callProgress.get() * SCRIM }));
   // The bar's row, as it was, fading as the glass leaves it behind.
   const rowStyle = useAnimatedStyle(() => {
-    const from = start();
+    const from = origin.get();
     return {
       width: from.width,
       height: from.height,

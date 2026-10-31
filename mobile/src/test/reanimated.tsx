@@ -98,8 +98,9 @@ export function useAnimatedStyle<T extends object>(make: () => T): T {
   return style;
 }
 
-export function useDerivedValue<T>(make: () => T): { value: T } {
-  return { value: make() };
+export function useDerivedValue<T>(make: () => T): { value: T; get: () => T } {
+  const value = make();
+  return { value, get: () => value };
 }
 
 export const withTiming = <T,>(value: T) => value;
