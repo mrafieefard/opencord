@@ -2,7 +2,7 @@
 // Connected: tiles, link banner, control bar.
 // Not connected: tiles, Join voice button (or disabled reason).
 import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -17,7 +17,7 @@ import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/u
 
 import { chrome } from '@/features/servers/chrome';
 
-import { CALL_MARGIN } from './callInset';
+import { CALL_MARGIN, SHEETS_ABOVE_CALL } from './callInset';
 import { callDrag, closeCall, useCallTop } from './callPosition';
 import { ConnectedBar } from './ConnectedBar';
 import { ControlBar } from './ControlBar';
@@ -65,9 +65,21 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
 
   const join = useCallback(() => report(joinVoice(serverKey, channelId), 'join voice'), [serverKey, channelId]);
   const leave = useCallback(() => report(leaveVoice(), 'leave voice'), []);
-  const openMusic = useCallback(() => router.push(`/server/${serverKey}/music/${channelId}`), [serverKey, channelId]);
-  const openSoundboard = useCallback(() => router.push(`/server/${serverKey}/soundboard/${channelId}`), [serverKey, channelId]);
-  const openMember = useCallback((userId: string) => router.push(`/server/${serverKey}/member/${userId}`), [serverKey]);
+  // From the call, where its sheets would open under it (Android), the
+  // call is put away first.
+  const openSheet = useCallback(
+    (href: Href) => {
+      if (asCall && !SHEETS_ABOVE_CALL) closeCall();
+      router.push(href);
+    },
+    [asCall],
+  );
+  const openMusic = useCallback(() => openSheet(`/server/${serverKey}/music/${channelId}`), [openSheet, serverKey, channelId]);
+  const openSoundboard = useCallback(
+    () => openSheet(`/server/${serverKey}/soundboard/${channelId}`),
+    [openSheet, serverKey, channelId],
+  );
+  const openMember = useCallback((userId: string) => openSheet(`/server/${serverKey}/member/${userId}`), [openSheet, serverKey]);
   // In the call, the grid scrolls only when not everyone fits; a pull down
   // at its top (or anywhere, when it doesn't scroll) takes the call down.
   const callTop = useCallTop();
