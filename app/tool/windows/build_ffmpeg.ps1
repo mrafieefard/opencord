@@ -116,6 +116,9 @@ try {
     $script = (Join-Path $PSScriptRoot 'build_ffmpeg.sh') -replace '\\', '/'
     & (Join-Path $msys 'usr\bin\bash.exe') -leo pipefail $script $prefixPath `
         ($sources.ffmpeg.Path -replace '\\', '/') ($sources.nvcodec.Path -replace '\\', '/')
+    # FFmpeg's MSVC install puts the import libraries beside the DLLs, in
+    # bin; ffmpeg-sys-next, like everyone else, looks for them in lib.
+    Move-Item (Join-Path $Prefix 'bin\*.lib') (Join-Path $Prefix 'lib') -Force
 
     # LGPL §4: FFmpeg's licence goes with its DLLs, and with them the
     # licences of what is linked into them.
