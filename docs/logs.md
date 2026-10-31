@@ -86,6 +86,7 @@ Lines after a message's first (stack traces, backtraces) are indented.
 - **Crashes:**
   - `ERROR panic  <message> thread=… location=…`, then a backtrace;
   - `FATAL native crash  code=0xC0000005 module=… offset=…` on Windows, or `signal=11 (SIGSEGV)` elsewhere.
+  - The crash line is written straight to the file; INFO lines from the second before it may be missing, since a crash handler can't flush the writer (warnings and errors are on disk at once). The same holds for `session ended (signal 15)`.
   - Windows' fail-fast crashes (heap corruption, `0xC0000374`) skip every handler in the process. A session that ends without `session ended` and without a crash line is most likely one of those.
 - **The end:** `session ended`, near the end of every clean exit. `session ended (signal 15)` means the system or the user ended the app (logging out, `kill`), which isn't a crash. A session without either crashed or was killed outright (`kill -9`, a power cut).
 

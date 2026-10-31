@@ -33,6 +33,9 @@ use writer::{ENDED, Writer};
 const CAP: u64 = 20_000_000;
 /// Lines waiting for the writer before new ones are dropped.
 const QUEUE: usize = 8192;
+/// The longest a line waits in the writer's buffer: a crash or a signal
+/// loses what's still there.
+const FLUSH_EVERY: Duration = Duration::from_secs(1);
 /// What gets in: Opencord's own crates at INFO, its media and connection
 /// code at DEBUG, and other crates' warnings and errors.
 const LEVELS: &str = "warn,opencord_core=info,opencord_media=info,opencord_voice=info,\
@@ -205,8 +208,13 @@ fn now_prefix() -> String {
 }
 
 fn run<W: io::Write>(mut writer: Writer<W>, receiver: Receiver<Message>) {
+    let mut flushed = Instant::now();
     loop {
-        let message = receiver.recv_timeout(Duration::from_secs(1));
+        if flushed.elapsed() >= FLUSH_EVERY {
+            let _ = writer.flush();
+            flushed = Instant::now();
+        }
+        let message = receiver.recv_timeout(FLUSH_EVERY);
         let dropped = DROPPED.swap(0, Ordering::Relaxed);
         if dropped > 0 {
             writer.write_raw(&format!(
@@ -314,6 +322,46 @@ pub(crate) mod tests {
         assert!(!text.contains("example.org"), "{text}");
         assert!(!text.contains("203.0.113.9"), "{text}");
         assert!(text.contains("added public-ip-"), "{text}");
+    }
+
+    /// A crash or a signal loses what the writer still holds, so a steady
+    /// trickle of INFO lines, never a second apart, still reaches the disk
+    /// within about a second.
+    #[test]
+    fn a_steady_trickle_still_reaches_the_disk() {
+        #[derive(Clone, Default)]
+        struct Disk(std::sync::Arc<Mutex<Vec<u8>>>);
+        impl io::Write for Disk {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let disk = Disk::default();
+        let (sender, receiver) = mpsc::sync_channel(QUEUE);
+        let writer = Writer::new(BufWriter::new(disk.clone()), CAP);
+        let thread = std::thread::spawn(move || run(writer, receiver));
+        let began = Instant::now();
+        for n in 0.. {
+            sender
+                .send(Message::Line {
+                    level: Level::INFO,
+                    prefix: String::new(),
+                    body: format!("INFO  test  line {n}"),
+                })
+                .unwrap();
+            std::thread::sleep(Duration::from_millis(100));
+            if began.elapsed() >= Duration::from_millis(1500) {
+                break;
+            }
+        }
+        let written = String::from_utf8(disk.0.lock().unwrap().clone()).unwrap();
+        drop(sender);
+        thread.join().unwrap();
+        assert!(written.contains("line 0"), "nothing on disk: {written:?}");
     }
 
     /// Runs itself again as a child that starts a session and exits
