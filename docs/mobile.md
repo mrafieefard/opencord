@@ -14,6 +14,66 @@ Opencord for Android and iOS lives in `mobile/`. It is a React Native app (Expo 
   - `app/`: the routes;
   - the screens' folders.
 
+## Using the app
+
+### Installing it
+
+- **Android 8.0 and up:** download `opencord-android.apk` from a release on GitHub and open it on the phone. Android asks to let your browser or files app install apps; allow it once. A newer APK installs over the old one and keeps your identity and servers. (A release carries the APK once it is signed with Opencord's key: docs/releasing.md, "Phone apps".)
+- **iPhone:** not released yet. CI builds it for the simulator only; TestFlight comes later.
+
+### Your identity
+
+The first screen offers **Create an identity**, which asks only what people should call you, or **Import a backup**, a backup file made by the desktop app or by the phone. The identity is a key kept in the phone's keystore (Android) or keychain (iOS), not an account: back it up from **You → Back up your identity**, or losing the phone loses it.
+
+### Servers
+
+- **Add one** with **+** on the Servers tab. Paste an invite link (`opencord://…`) or type `host:port`. Opening an invite link on the phone opens this sheet too. A server with a self-signed certificate shows its fingerprint first; trust it only if it matches the one the server's owner gave you. A new server's first member pastes its **claim token** (under the field) to become its owner.
+- **The list** shows each server's last message, unread and mention counts, and whether it is connected. A server you're in voice on shows the speaker beside it. Long-press a server to mark it as read, retry its connection, copy its address or leave it.
+
+### Inside a server
+
+- **The channel list** fills the screen: text channels, voice channels with who is in them, and what music plays.
+- **Opening a text channel** slides the list away. Swipe right from the left half of the chat, or tap ☰, to bring it back as a sidebar; tap the chat, or swipe left, to close it. Back from the sidebar goes to the full list.
+- **Chat:**
+  - Type in the field at the bottom. It grows up to six lines, and the messages don't move while you type.
+  - The clip button attaches photos and files.
+  - Long-press a message to **Copy text**. On your own messages you can also **Edit** it, and **Delete** it, which people with the Manage messages permission can do to anyone's.
+  - Scrolling down closes the keyboard. **Jump to latest** brings you back to the newest messages.
+- **Voice messages:** hold the mic beside the field to record, and let go to send. Slide left to cancel, or slide up to lock the recording and keep both hands free; a locked recording can be stopped and heard before it is sent. Voice messages play in the chat at 1×, 1.5× or 2×.
+
+### Voice
+
+- **Join** from a voice channel's page. Mute, deafen, the soundboard and leave are at its foot.
+- **While in voice**, a bar shows the channel (and what music plays) above the tab bar, and floats above the field in a chat. Tap it, or pull it up, to open the call; pull the call down to put it away.
+- **Tap a person** to set how loud they are for you, or to mute them for you alone.
+- **Voice keeps going** with the screen off or another app in front. Android shows a notification while it does.
+- **The soundboard** plays a sound for everyone in the channel. Long-press one to **Preview** it for yourself, or to make it a favourite.
+
+### Music
+
+In a voice channel with music, **Music** opens the player at half height; pull it up for the whole queue. It shows what plays, with play and pause, skip, seek, shuffle and repeat, and your own music volume. Below that:
+- **Up next:** swipe a song away, or long-press it to move it;
+- **Search:** finds songs to add;
+- **Recently played.**
+
+The upload button sends audio files from the phone for the server to play, with progress, cancel and retry.
+
+### The You tab
+
+Your display name, **Back up your identity**, the theme (System, Light or Dark), and under Music your own music volume, **Mute music** and **Lower music while people talk**, then the app's version.
+
+### Not there yet
+
+| What | When |
+|---|---|
+| Camera, screen sharing, watching streams | The next phone plan: it needs the phones' video codecs. |
+| Private messages and friends | A later plan. The core has them; the phone needs their screens. |
+| Notifications when the app is closed | A later plan, with a push relay on the server. |
+| Server administration: channels, roles, invites, settings | The desktop app does it. |
+| Chat commands such as `/play` | Later. |
+| A list of your own uploaded songs | Later: the server can't list a member's uploads yet. |
+| Trusting a server again after its certificate changed | Later. Until then, leave the server (long-press it) and add it again. |
+
 ## Developing
 
 ### Once per machine

@@ -10,6 +10,9 @@ import * as voiceActions from '@/state/actions/voice';
 import { useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
+import { router } from 'expo-router';
+
+import { callProgress } from '../callPosition';
 import { tileGrid } from '../tileGrid';
 import { VoicePane } from '../VoicePane';
 import { LinkBanner } from '../LinkBanner';
@@ -18,6 +21,15 @@ import { ParticipantSheet } from '../ParticipantSheet';
 jest.mock('expo-router', () => ({
   router: { back: jest.fn(), push: jest.fn() },
 }));
+
+// Whether sheets open above the call: iOS's native ones do, Android's don't.
+let mockSheetsAboveCall = true;
+// A getter, read at each press: an object spread would copy its value once.
+jest.mock('../callInset', () =>
+  Object.defineProperty({ ...jest.requireActual('../callInset') }, 'SHEETS_ABOVE_CALL', {
+    get: () => mockSheetsAboveCall,
+  }),
+);
 
 jest.mock('expo-audio', () => ({
   getRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
@@ -309,5 +321,33 @@ describe('VoicePane', () => {
 
     expect(useAppStore.getState().servers[NIGHT_OWLS]?.musicSettings?.enabled).toBe(true);
     expect(view.getByLabelText('Music')).toBeTruthy();
+  });
+
+  describe('a sheet opened from the call', () => {
+    afterEach(() => {
+      mockSheetsAboveCall = true;
+      callProgress.set(0);
+    });
+
+    it('opens over the call where sheets show above it (iOS)', async () => {
+      initServer();
+      callProgress.set(1);
+      const view = await renderWithGesture(<VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} asCall />);
+      await settle();
+      fireEvent.press(view.getByLabelText('Music'));
+      expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/music/${CHANNELS.lounge}`);
+      expect(callProgress.get()).toBe(1);
+    });
+
+    it('puts the call away first where sheets would open under it (Android)', async () => {
+      mockSheetsAboveCall = false;
+      initServer();
+      callProgress.set(1);
+      const view = await renderWithGesture(<VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} asCall />);
+      await settle();
+      fireEvent.press(view.getByLabelText('Music'));
+      expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/music/${CHANNELS.lounge}`);
+      expect(callProgress.get()).toBe(0);
+    });
   });
 });

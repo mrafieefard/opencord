@@ -1496,3 +1496,47 @@ Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7
   - A cancelled upload row had no way to go away; "Added to the queue" toasts were replaced by the row's tick.
 - **Not done:** the player hasn't been seen on iOS, and real artwork only on the code path (the fake world has none); the scrubber's feel is checked on the emulator, not a phone.
 
+
+## D81: The phone apps' first release (2026-10-31)
+
+Milestone R5 of `docs/superpowers/plans/2026-10-26-mobile-client.md`: Task 22 (iOS, by Claude on the Mac), the Android checks after it, and Task 21 (release builds). Merged into beta through #15 (`1cd012b`) and #19.
+
+- **Two platforms, one app.** Shared code holds the behaviour. A platform-only file (`*.ios.tsx`, `*.android.tsx`) holds a look the other platform draws differently, and `features/servers/chrome.{ios,android}.ts` holds where the voice bar and the search live. A fix that belongs to one platform goes in that platform's file; a shared file changes only for a reason both platforms share.
+- **iOS 26, as Apple's own apps** (Task 22, `35a5fbf..22a25b0`):
+  - Liquid Glass: `ui/GlassSurface.ios.tsx`, and `GlassIconButton.ios.tsx` for the round buttons;
+  - native SwiftUI menus and swipe actions on the server list (`ServerList.ios.tsx`), large titles that follow the list as Settings' do, and the native headers in the app's theme;
+  - search as the tab bar's own search tab;
+  - sheets built as Apple's (`sheetLook.ios.ts`), with the screen's own corner radius;
+  - **the voice pill:** the call's own glass floats above the tab bar, or above the composer in a chat. It rises in on joining, sinks away on leaving and follows the sidebar frame by frame. Pulled up or tapped, it grows into the call, as Apple Maps' card does (`voice/CallSheet.tsx`, `callPosition.ts`), and a pull down on the call takes it back. The open call floats inset with the screen's corners (`callInset.ios.ts`);
+  - the call's sound output beside Music, with AirPods and the speaker (`modules/voice-service/ios/AudioRouteButtonView.swift`), and Deafen drawn as headphones;
+  - voice keeps going when another app plays (`voiceMixing.ios.ts`).
+- **On both platforms,** added in the same pass:
+  - the composer floats over the messages, as Telegram's. The field grows up out of a one-line slot, so the messages never move while typing; sent messages rise into the chat; scrolling down closes the keyboard (`chat/Composer.tsx`, `dock.ts`, `SendRise.tsx`);
+  - **voice messages:** hold the mic to record, slide up to lock and left to cancel; play back at 1×, 1.5× and 2× with seeking (`features/voiceMessages`, `state/actions/voiceMessages.ts`). Outside a call they take the audio session, ducking other apps, and give it back once nothing plays;
+  - **the soundboard** in voice, with search and a preview (`features/soundboard`);
+  - voice channels as a sheet, the tab bar inside a server, and voice tiles that fill the call as WhatsApp's and Discord's do (`voice/tileGrid.ts`);
+  - the Rust facade's soundboard and voice-message calls (`crates/opencord-mobile/src/api/soundboard.rs`, `voice_messages.rs`), with round-trip tests.
+- **Android, from the owner's checks** (`df19e5c`, `c327a4c`). Android's screens end above the system's navigation bar, though the window's inset still counts it:
+  - the voice bar stands right on the tab bar, with no inset under it;
+  - the composer sits 8 dp above the navigation bar and above the keyboard, whose height counts that bar (`dock.ts`: `useDockBottom`, `useDockLift`);
+  - with the sidebar out over a chat, the voice bar spans the screen's width, sliding in and out with the list;
+  - the chat keeps its height while the tab bar shows with the sidebar, its foot under the tab bar, so the messages don't move as the sidebar comes and goes (`server/PhonePanes.tsx`);
+  - the voice bar is square and edge to edge, so the call grows from its square corners (`callOriginRound`). From the chat's round pill it grows from the pill's round ends. Open, the call stands on the screen's bottom edge with only its top corners round (`callInset.ts`: `OPEN_BOTTOM_ROUND`).
+- **Release builds** (Task 21, #19):
+  - the apps take the release version; Android's version code is `major*10000000 + minor*100000 + patch*1000 + rank*100 + pre`, rank 0/1/9 for beta/canary/stable (`mobile/plugins/versionCode.ts`);
+  - the APK is signed with Opencord's key from four secrets (`plugins/withReleaseSigning.ts`, docs/releasing.md "Phone apps"); without them it's signed with the debug key and left out of the release;
+  - the release waits for both phone jobs and leaves out the simulator app. Before this, the manifest stopped on the phone jobs' files, so the first beta release after #15 couldn't publish.
+- **Hand checks** (Task 23, by Claude at the owner's word, on the emulator against a fresh local server and a voicebot):
+  - passed: adding a server through the trust step with a claim token; sending, editing and deleting; a picture from the photo picker; voice both ways (the bot decoded every packet from the phone) and with the screen off; an upload from the phone playing on the server, with seek and pause; leaving a server drops its pin.
+  - **found and fixed:**
+    - On Android, a long-press menu (a Modal) moved the newest message under the composer. keyboard-controller's chat scroll view does this when its `offset` is exactly the navigation bar's height, so the messages take a point less (`useMessagesLift`).
+    - The editing card and the picked files' card covered the newest message. The list now follows the dock up when it is at its end, and again once a keyboard opening at the same time has settled.
+    - On Android, Music, the soundboard and a person's sheet opened from the call opened under it, unseen. The call is put away first (`SHEETS_ABOVE_CALL`).
+- **Review** (Claude, of the Mac's work as Android runs it): the facade's ids and tests, the recorder's use of the call's microphone permission and audio session, and the platform split hold up. Two small leftovers:
+  - `cancelRecording` and `discardDraft` let a core error through uncaught;
+  - the live waveform copies its 600-level array on every level event (about 30 a second).
+- **Not done:**
+  - the iPhone app isn't released: CI builds it for the simulator, unsigned, and TestFlight needs an Apple Developer account;
+  - the APK isn't released until the owner sets the signing secrets;
+  - a certificate that changed can't be trusted again from the phone. A pin left by a server added before leaving existed also blocks a new server at that address;
+  - checks owed with a desktop client and real phones: unread counts against the desktop's, pictures from the desktop, voice locked for 2 minutes on a phone, skip and the queue with several songs, the music volume with the desktop's music, and anything on an iPhone.

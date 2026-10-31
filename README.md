@@ -21,6 +21,17 @@ Open-source, self-hostable voice, video and text chat. It pairs Discord-style UX
 
 The screenshots are the app on its built-in demo data (`app/test/showcase`).
 
+## Phones
+
+Opencord for Android and iOS (`mobile/`) is a React Native app on the same Rust core as the desktop app: servers and channels, chat with pictures, files and voice messages, voice that keeps going with the screen off, the soundboard, and the music player with uploads. Android releases carry `opencord-android.apk`; the iPhone app isn't released yet. [docs/mobile.md](docs/mobile.md) is the guide, and says how to build and run it.
+
+| | |
+|---|---|
+| <img src="docs/images/phone-servers.png" alt="The Servers tab on Android" width="300"> | <img src="docs/images/phone-chat-sidebar.png" alt="A server's channel list as a sidebar over a chat" width="300"> |
+| The Servers tab | The channel list as a sidebar over a chat |
+
+The phone screenshots are the app on its demo world (`EXPO_PUBLIC_FAKE_CORE=1`, `mobile/scripts/screens.sh`).
+
 ## Repository layout
 
 | Path | Contents |
