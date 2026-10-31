@@ -103,7 +103,7 @@ impl Uploads {
         lost
     }
 
-    fn begin(&self, key: &str, nonce: &str) -> Result<SendGuard<'_>, CoreError> {
+    pub(super) fn begin(&self, key: &str, nonce: &str) -> Result<SendGuard<'_>, CoreError> {
         let id = (key.to_owned(), nonce.to_owned());
         let token = CancellationToken::new();
         let mut sends = self.lock_sends();
@@ -139,10 +139,10 @@ impl Uploads {
 }
 
 /// A send that can be cancelled until this is dropped.
-struct SendGuard<'a> {
+pub(super) struct SendGuard<'a> {
     uploads: &'a Uploads,
     id: (String, String),
-    token: CancellationToken,
+    pub(super) token: CancellationToken,
 }
 
 impl Drop for SendGuard<'_> {

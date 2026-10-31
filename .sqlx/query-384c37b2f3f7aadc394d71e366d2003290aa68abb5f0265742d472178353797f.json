@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE private_devices SET fallback_key = $1, fallback_signature = $2\n         WHERE user_id = $3 AND device_id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "384c37b2f3f7aadc394d71e366d2003290aa68abb5f0265742d472178353797f"
+}

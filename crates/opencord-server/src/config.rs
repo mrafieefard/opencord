@@ -99,12 +99,33 @@ max_file_mb = 4096
 # in the data directory. OPENCORD_UPLOADS_LOCAL_DIR
 # local_dir = "/mnt/storage/opencord-attachments"
 
+[private_messages]
+# Relay end-to-end encrypted private messages and friend requests between
+# members. The server can't read the messages; it keeps one only until the
+# device it's for fetches it. OPENCORD_PRIVATE_ENABLED
+enabled = true
+# Days an undelivered message or friend event waits for an offline device.
+# 1 to 365. OPENCORD_PRIVATE_UNDELIVERED_DAYS
+undelivered_days = 30
+# Most events waiting for one device; past it, the oldest are dropped.
+# 100 to 100000. OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE
+max_pending_per_device = 5000
+# Days a device may stay away before the server forgets it and its waiting
+# events. 7 to 365. OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS
+device_expiry_days = 60
+
 [network]
 # Services that answer with the address a request came from, used to find
 # the server's public address. Empty turns detection off; the owner can
 # also turn it off in the app. OPENCORD_IP_LOOKUP_V4, OPENCORD_IP_LOOKUP_V6
 ip_lookup_v4 = "https://api.ipify.org"
 ip_lookup_v6 = "https://api6.ipify.org"
+# Tunnels and reverse proxies send plain HTTP to the main port, which takes
+# it from this machine and from trusted proxies (set in the app). These
+# addresses or ranges may send it too: in a container, the network a proxy
+# in another container comes from. Keep them private. Comma-separated in
+# OPENCORD_PLAIN_HTTP_FROM.
+plain_http_from = []
 "#;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -120,6 +141,28 @@ pub struct Config {
     pub uploads: UploadsSection,
     pub acme: AcmeSection,
     pub tunnel: TunnelSection,
+    pub private_messages: PrivateMessagesSection,
+}
+
+/// Private messages, friends and offline delivery (design 2026-10-22).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PrivateMessagesSection {
+    pub enabled: bool,
+    pub undelivered_days: u32,
+    pub max_pending_per_device: u32,
+    pub device_expiry_days: u32,
+}
+
+impl Default for PrivateMessagesSection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            undelivered_days: 30,
+            max_pending_per_device: 5000,
+            device_expiry_days: 60,
+        }
+    }
 }
 
 /// Media uploads (design 2026-10-18).
@@ -331,6 +374,12 @@ impl Default for AcmeSection {
 pub struct NetworkSection {
     pub ip_lookup_v4: String,
     pub ip_lookup_v6: String,
+    /// Addresses or ranges besides this machine and the trusted proxies
+    /// that may send the main port plain HTTP (D69).
+    pub plain_http_from: Vec<String>,
+    /// From before the main port took plain HTTP (D69): read so older
+    /// files still load, and otherwise ignored.
+    pub local_listener_bind: Option<String>,
     /// The port domain checks ask name servers on. Not in the default
     /// file: only tests change it.
     pub dns_name_server_port: u16,
@@ -341,6 +390,8 @@ impl Default for NetworkSection {
         Self {
             ip_lookup_v4: "https://api.ipify.org".to_owned(),
             ip_lookup_v6: "https://api6.ipify.org".to_owned(),
+            plain_http_from: Vec::new(),
+            local_listener_bind: None,
             dns_name_server_port: 53,
         }
     }
@@ -423,6 +474,35 @@ impl Config {
                     opencord_common::upload::MAX_FILE_MB_RANGE.start(),
                     opencord_common::upload::MAX_FILE_MB_RANGE.end(),
                 ),
+            });
+        }
+        if !(1..=365).contains(&config.private_messages.undelivered_days) {
+            return Err(ConfigError::Invalid {
+                key: "private_messages.undelivered_days",
+                message: "must be between 1 and 365".to_string(),
+            });
+        }
+        if !(100..=100_000).contains(&config.private_messages.max_pending_per_device) {
+            return Err(ConfigError::Invalid {
+                key: "private_messages.max_pending_per_device",
+                message: "must be between 100 and 100000".to_string(),
+            });
+        }
+        if let Some(bad) = config
+            .network
+            .plain_http_from
+            .iter()
+            .find(|item| crate::network::settings::IpRange::parse(item).is_none())
+        {
+            return Err(ConfigError::Invalid {
+                key: "network.plain_http_from",
+                message: format!("{bad} is not an address or a range like 10.0.0.0/8"),
+            });
+        }
+        if !(7..=365).contains(&config.private_messages.device_expiry_days) {
+            return Err(ConfigError::Invalid {
+                key: "private_messages.device_expiry_days",
+                message: "must be between 7 and 365".to_string(),
             });
         }
         Ok(Loaded {
@@ -512,6 +592,17 @@ impl Config {
         if let Some(value) = env("OPENCORD_IP_LOOKUP_V6") {
             config.network.ip_lookup_v6 = value;
         }
+        if let Some(value) = env("OPENCORD_PLAIN_HTTP_FROM") {
+            config.network.plain_http_from = value
+                .split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(str::to_owned)
+                .collect();
+        }
+        if let Some(value) = env("OPENCORD_LOCAL_LISTENER_BIND") {
+            config.network.local_listener_bind = Some(value);
+        }
         if let Some(value) = env("OPENCORD_VOICE_PUBLIC_ADDRESS") {
             config.voice.public_address = value;
         }
@@ -520,6 +611,21 @@ impl Config {
         }
         if let Some(value) = env("OPENCORD_UPLOADS_LOCAL_DIR") {
             config.uploads.local_dir = Some(PathBuf::from(value));
+        }
+        if let Some(value) = env("OPENCORD_PRIVATE_ENABLED") {
+            config.private_messages.enabled = parse_env("OPENCORD_PRIVATE_ENABLED", value)?;
+        }
+        if let Some(value) = env("OPENCORD_PRIVATE_UNDELIVERED_DAYS") {
+            config.private_messages.undelivered_days =
+                parse_env("OPENCORD_PRIVATE_UNDELIVERED_DAYS", value)?;
+        }
+        if let Some(value) = env("OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE") {
+            config.private_messages.max_pending_per_device =
+                parse_env("OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE", value)?;
+        }
+        if let Some(value) = env("OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS") {
+            config.private_messages.device_expiry_days =
+                parse_env("OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS", value)?;
         }
         Ok(config)
     }
@@ -649,6 +755,11 @@ mod tests {
             ("OPENCORD_VOICE_ENABLED", "false"),
             ("OPENCORD_VOICE_UDP_PORT", "17711"),
             ("OPENCORD_VOICE_PUBLIC_ADDRESS", "203.0.113.7"),
+            ("OPENCORD_PLAIN_HTTP_FROM", "10.0.0.0/8, fd00::/8"),
+            ("OPENCORD_PRIVATE_ENABLED", "false"),
+            ("OPENCORD_PRIVATE_UNDELIVERED_DAYS", "45"),
+            ("OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE", "2500"),
+            ("OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS", "90"),
         ]);
 
         let config = Config::load_or_create(&path, |name| env.get(name).map(|v| (*v).to_owned()))
@@ -668,6 +779,11 @@ mod tests {
         assert!(!config.voice.enabled);
         assert_eq!(config.voice.udp_port, 17711);
         assert_eq!(config.voice.public_address, "203.0.113.7");
+        assert_eq!(config.network.plain_http_from, ["10.0.0.0/8", "fd00::/8"]);
+        assert!(!config.private_messages.enabled);
+        assert_eq!(config.private_messages.undelivered_days, 45);
+        assert_eq!(config.private_messages.max_pending_per_device, 2500);
+        assert_eq!(config.private_messages.device_expiry_days, 90);
     }
 
     #[test]
@@ -773,6 +889,43 @@ mod tests {
     }
 
     #[test]
+    fn plain_http_from_takes_addresses_and_ranges_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencord.toml");
+        let env = |value: &'static str| {
+            move |name: &str| (name == "OPENCORD_PLAIN_HTTP_FROM").then(|| value.to_owned())
+        };
+
+        let loaded = Config::load_or_create(&path, env("172.16.0.0/12,::1")).unwrap();
+        assert_eq!(
+            loaded.config.network.plain_http_from,
+            ["172.16.0.0/12", "::1"]
+        );
+        assert!(matches!(
+            Config::load_or_create(&path, env("everyone")),
+            Err(ConfigError::Invalid {
+                key: "network.plain_http_from",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn a_file_from_before_the_main_port_took_plain_http_still_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencord.toml");
+        std::fs::write(&path, "[network]\nlocal_listener_bind = \"0.0.0.0\"\n").unwrap();
+
+        let config = Config::load_or_create(&path, no_env).unwrap().config;
+
+        assert_eq!(
+            config.network.local_listener_bind.as_deref(),
+            Some("0.0.0.0")
+        );
+        assert!(config.network.plain_http_from.is_empty());
+    }
+
+    #[test]
     fn max_file_mb_out_of_range_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("opencord.toml");
@@ -790,6 +943,64 @@ mod tests {
                     assert_eq!(key, "uploads.max_file_mb");
                 }
                 other => panic!("expected ConfigError::Invalid, got {:?}", other),
+            }
+        }
+    }
+
+    #[test]
+    fn private_message_limits_out_of_range_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencord.toml");
+
+        let cases = [
+            (
+                "OPENCORD_PRIVATE_UNDELIVERED_DAYS",
+                "0",
+                "private_messages.undelivered_days",
+            ),
+            (
+                "OPENCORD_PRIVATE_UNDELIVERED_DAYS",
+                "366",
+                "private_messages.undelivered_days",
+            ),
+            (
+                "OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE",
+                "99",
+                "private_messages.max_pending_per_device",
+            ),
+            (
+                "OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE",
+                "100001",
+                "private_messages.max_pending_per_device",
+            ),
+            (
+                "OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS",
+                "6",
+                "private_messages.device_expiry_days",
+            ),
+            (
+                "OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS",
+                "366",
+                "private_messages.device_expiry_days",
+            ),
+        ];
+
+        for (var, bad, expected_key) in cases {
+            let get_env = |k: &str| {
+                if k == var {
+                    Some(bad.to_string())
+                } else {
+                    None
+                }
+            };
+            match Config::load_or_create(&path, get_env) {
+                Err(ConfigError::Invalid { key, .. }) => {
+                    assert_eq!(key, expected_key);
+                }
+                other => panic!(
+                    "for {var}={bad}, expected ConfigError::Invalid with key {expected_key}, got {:?}",
+                    other
+                ),
             }
         }
     }

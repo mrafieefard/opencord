@@ -28,7 +28,6 @@ pub async fn add(ctx: &Ctx<'_>, request: proto::AddDomain) -> Result<Response, A
         .domains
         .add(ctx.state, &request.hostname, kind, port)
         .await?;
-    crate::domains::sync_local_listener(ctx.state).await;
     ctx.state.network.changed(ctx.state);
     Ok(info(ctx))
 }
@@ -46,7 +45,6 @@ pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteDomain) -> Result<Respo
         .domains
         .delete(ctx.state, request.domain_id)
         .await?;
-    crate::domains::sync_local_listener(ctx.state).await;
     ctx.state.network.changed(ctx.state);
     Ok(info(ctx))
 }

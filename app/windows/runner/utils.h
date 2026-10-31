@@ -16,4 +16,12 @@ std::string Utf8FromUtf16(const wchar_t* utf16_string);
 // encoded in UTF-8. Returns an empty std::vector<std::string> on failure.
 std::vector<std::string> GetCommandLineArguments();
 
+// What links, shortcuts and launch at login should start: the launcher
+// that started the app (OPENCORD_LAUNCHER, docs/updater.md), so they keep
+// updating it, or else this executable. Empty on failure.
+std::wstring LaunchTarget();
+
+// Whether the launcher started the app.
+bool StartedByLauncher();
+
 #endif  // RUNNER_UTILS_H_

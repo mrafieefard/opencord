@@ -937,3 +937,135 @@ async fn a_profile_picture_and_the_server_icon_reach_the_server() {
     let info = owner.client.set_server_icon(&key, None).await.unwrap();
     assert_eq!(info.icon_hash, None);
 }
+
+/// A 16-bit PCM WAV file of a second of a tone.
+fn wav_song() -> Vec<u8> {
+    let rate = 48_000u32;
+    let mut data = Vec::new();
+    for n in 0..rate {
+        let t = n as f32 / rate as f32;
+        let value = (0.4 * (std::f32::consts::TAU * 440.0 * t).sin() * 32_767.0) as i16;
+        data.extend_from_slice(&value.to_le_bytes());
+    }
+    let mut file = b"RIFF".to_vec();
+    file.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
+    file.extend_from_slice(b"WAVEfmt ");
+    file.extend_from_slice(&16u32.to_le_bytes());
+    file.extend_from_slice(&1u16.to_le_bytes());
+    file.extend_from_slice(&1u16.to_le_bytes());
+    file.extend_from_slice(&rate.to_le_bytes());
+    file.extend_from_slice(&(rate * 2).to_le_bytes());
+    file.extend_from_slice(&2u16.to_le_bytes());
+    file.extend_from_slice(&16u16.to_le_bytes());
+    file.extend_from_slice(b"data");
+    file.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    file.extend_from_slice(&data);
+    file
+}
+
+/// The phases of a song's upload, until it is done or failed.
+async fn song_phases(owner: &mut TestClient, upload: &str) -> Vec<UploadPhase> {
+    let mut phases = Vec::new();
+    loop {
+        let phase = owner
+            .wait_for(|payload| match payload {
+                CoreEventPayload::MusicUploadProgress {
+                    upload_id, phase, ..
+                } if upload_id == upload => Some(phase.clone()),
+                _ => None,
+            })
+            .await;
+        let last = matches!(phase, UploadPhase::Done | UploadPhase::Failed { .. });
+        if phases.last() != Some(&phase) {
+            phases.push(phase);
+        }
+        if last {
+            return phases;
+        }
+    }
+}
+
+/// Design 2026-10-24: a dropped song is uploaded and queued; dropped again,
+/// the server knows it by its hash and it is queued without an upload.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_song_dropped_twice_is_uploaded_once() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let voice = ready
+        .channels
+        .iter()
+        .find(|channel| channel.kind == opencord_core::api::types::ChannelKind::Voice)
+        .unwrap()
+        .id;
+    owner.client.voice_join(&key, voice).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("Tone.wav");
+    std::fs::write(&path, wav_song()).unwrap();
+    let path = path.to_string_lossy().into_owned();
+
+    owner
+        .client
+        .music_upload_song(&key, voice, "u1".to_owned(), path.clone(), false)
+        .await
+        .unwrap();
+    let first = song_phases(&mut owner, "u1").await;
+    assert_eq!(
+        first,
+        [
+            UploadPhase::Preparing,
+            UploadPhase::Uploading,
+            UploadPhase::Processing,
+            UploadPhase::Done
+        ]
+    );
+
+    owner
+        .client
+        .music_upload_song(&key, voice, "u2".to_owned(), path, true)
+        .await
+        .unwrap();
+    let again = song_phases(&mut owner, "u2").await;
+    assert_eq!(again, [UploadPhase::Preparing, UploadPhase::Done]);
+
+    let songs = owner
+        .client
+        .fetch_local_songs(&key, String::new(), None)
+        .await
+        .unwrap();
+    assert_eq!(songs.len(), 1);
+    assert_eq!(songs[0].title, "Tone");
+}
+
+/// A song that is not one fails with the server's reason.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_that_is_not_a_song_fails_with_the_servers_reason() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = TestClient::owner(&server).await;
+    let key = server.address();
+    let voice = ready
+        .channels
+        .iter()
+        .find(|channel| channel.kind == opencord_core::api::types::ChannelKind::Voice)
+        .unwrap()
+        .id;
+    owner.client.voice_join(&key, voice).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("fake.mp3");
+    std::fs::write(&path, b"only text pretending to be a song").unwrap();
+
+    let error = owner
+        .client
+        .music_upload_song(
+            &key,
+            voice,
+            "u1".to_owned(),
+            path.to_string_lossy().into_owned(),
+            false,
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(error, CoreError::Server { .. }), "{error:?}");
+    let phases = song_phases(&mut owner, "u1").await;
+    assert!(matches!(phases.last(), Some(UploadPhase::Failed { .. })));
+}

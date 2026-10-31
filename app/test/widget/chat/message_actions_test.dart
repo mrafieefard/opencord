@@ -6,6 +6,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/composer_state.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/hover_bar.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_item.dart';
@@ -168,9 +169,8 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('the hover bar lingers so the pointer can reach it', (
-    tester,
-  ) async {
+  testWidgets('the hover bar stays while on it and goes the moment the '
+      'pointer leaves', (tester) async {
     final app = await MockApp.pump(tester);
     await _openGeneral(tester, app);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -187,12 +187,82 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(HoverActionBar), findsOneWidget);
 
-    // Away from both: it goes after the short delay.
+    // Away from both: gone on the next frame, as on Discord.
     await mouse.moveTo(const Offset(5, 795));
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(HoverActionBar), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    await tester.pump();
     expect(find.byType(HoverActionBar), findsNothing);
+    await app.dispose(tester);
+  });
+
+  List<String> barButtons(WidgetTester tester) => [
+    for (final button in tester.widgetList<OcIconButton>(
+      find.descendant(
+        of: find.byType(HoverActionBar),
+        matching: find.byType(OcIconButton),
+      ),
+    ))
+      button.tooltip,
+  ];
+
+  testWidgets('bubbles leave More off the hover bar, as right-click opens '
+      'the menu', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openGeneral(tester, app);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(200, 400));
+    addTearDown(mouse.removePointer);
+
+    await mouse.moveTo(_textOf(tester, _ping));
+    await tester.pump();
+    expect(barButtons(tester), ['Add reaction', 'Reply']);
+    await mouse.moveTo(_textOf(tester, _mine));
+    await tester.pump();
+    await tester.pump();
+    expect(barButtons(tester), ['Add reaction', 'Reply']);
+    await app.dispose(tester);
+  });
+
+  testWidgets('compact lines get Discord\'s bar: Edit on your own, and More', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(
+      tester,
+      settings: (settings) =>
+          settings.copyWith(density: MessageDensity.compact),
+    );
+    await _openGeneral(tester, app);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(200, 400));
+    addTearDown(mouse.removePointer);
+    Offset line(String containing) => tester.getCenter(
+      find
+          .descendant(
+            of: find.byWidgetPredicate(
+              (widget) =>
+                  widget is CompactMessage &&
+                  widget.message.content.contains(containing),
+            ),
+            matching: find.byType(MarkdownView),
+          )
+          .first,
+    );
+
+    await mouse.moveTo(line(_ping));
+    await tester.pump();
+    expect(barButtons(tester), ['Add reaction', 'Reply', 'More']);
+    await mouse.moveTo(line(_mine));
+    await tester.pump();
+    await tester.pump();
+    expect(barButtons(tester), ['Add reaction', 'Edit', 'Reply', 'More']);
+
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is OcIconButton && widget.tooltip == 'Edit',
+      ),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    expect(find.text('Edit message'), findsOneWidget);
     await app.dispose(tester);
   });
 

@@ -13,11 +13,13 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
 bytes.workspace = true
+chacha20poly1305.workspace = true
 data-encoding.workspace = true
 flutter_rust_bridge.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 hex.workspace = true
+hmac.workspace = true
 image.workspace = true
 opencord-common.workspace = true
 opencord-media.workspace = true
@@ -31,12 +33,16 @@ rustls-platform-verifier.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+sqlx.workspace = true
 thiserror.workspace = true
 tokio-rustls.workspace = true
 tokio-tungstenite.workspace = true
 tokio-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+# Olm for private messages (design 2026-10-22 §10). Never write ratchet or
+# key agreement code here.
+vodozemac = "0.11.1"
 webpki-roots.workspace = true
 wsola.workspace = true
 

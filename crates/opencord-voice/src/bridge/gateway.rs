@@ -83,7 +83,9 @@ struct Session {
     socket: u64,
 }
 
-pub(super) async fn serve(bridge: MusicBridge, socket: WebSocket, peer: SocketAddr) {
+/// `proxied`: it came through a tunnel or a reverse proxy, and `peer` may
+/// be only the proxy.
+pub(super) async fn serve(bridge: MusicBridge, socket: WebSocket, peer: SocketAddr, proxied: bool) {
     let peer = peer.ip().to_canonical();
     let (sink, mut stream) = socket.split();
     let (outbound, frames) = mpsc::channel(OUTBOUND_CAPACITY);
@@ -107,7 +109,7 @@ pub(super) async fn serve(bridge: MusicBridge, socket: WebSocket, peer: SocketAd
             .outbound
             .send(Outbound::Text(hello.to_string()))
             .await;
-        match handshake(&bridge, &mut stream, &attached, peer).await {
+        match handshake(&bridge, &mut stream, &attached, peer, proxied).await {
             Ok(session) => {
                 let code = run(&bridge, &mut stream, &attached, session, heartbeat).await;
                 bridge.detach(session, code);
@@ -190,6 +192,7 @@ async fn handshake(
     stream: &mut SplitStream<WebSocket>,
     attached: &Attached,
     peer: IpAddr,
+    proxied: bool,
 ) -> Result<Session, Option<u16>> {
     let deadline = Instant::now() + HANDSHAKE_TIMEOUT;
     loop {
@@ -207,7 +210,7 @@ async fn handshake(
             op::IDENTIFY => {
                 let identify: Identify =
                     serde_json::from_value(data).map_err(|_| Some(close::BAD_REQUEST))?;
-                return bridge.identify(identify, attached, peer);
+                return bridge.identify(identify, attached, peer, proxied);
             }
             op::RESUME => {
                 let resume: Resume =
@@ -288,6 +291,7 @@ impl MusicBridge {
         identify: Identify,
         attached: &Attached,
         peer: IpAddr,
+        proxied: bool,
     ) -> Result<Session, Option<u16>> {
         let refused = Err(Some(close::AUTHENTICATION_FAILED));
         let Ok(channel_id) = identify.server_id.parse::<i64>() else {
@@ -353,7 +357,7 @@ impl MusicBridge {
             "op": op::READY,
             "d": {
                 "ssrc": ssrc,
-                "ip": self.audio_ip(peer).to_string(),
+                "ip": self.audio_ip(peer, proxied).to_string(),
                 "port": self.config.udp_port,
                 "modes": MODES.iter().map(|mode| mode.name()).collect::<Vec<_>>(),
                 "heartbeat_interval": self.config.heartbeat.as_millis() as u64,
@@ -485,8 +489,12 @@ impl MusicBridge {
 
     /// Where Lavalink should send audio: the address it can reach. A node on
     /// this machine or network uses this machine's local address, others
-    /// the public one.
-    fn audio_ip(&self, peer: IpAddr) -> IpAddr {
+    /// the public one. Through a tunnel or a reverse proxy the peer may be
+    /// only the proxy, so the public one, as for apps' voice.
+    fn audio_ip(&self, peer: IpAddr, proxied: bool) -> IpAddr {
+        if proxied && let Some(public) = self.public_ip() {
+            return public;
+        }
         if peer.is_loopback() {
             return peer;
         }

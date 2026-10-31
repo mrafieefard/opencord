@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 
+use super::local::player::{self as local_player, LocalPlayer};
 use super::player::Player;
 use super::queue::{Ended, Item, Placement, Previous, Queue, Repeat};
 use super::tracks::Track;
@@ -146,6 +147,11 @@ pub enum Command {
     },
     /// What the channel's bridge saw.
     Bridge(opencord_voice::bridge::BridgeEvent),
+    /// From the player of uploaded songs started as `generation`.
+    Local {
+        generation: u64,
+        event: local_player::Event,
+    },
 }
 
 /// What survives a restart.
@@ -190,6 +196,10 @@ struct Session {
     settled_at: Instant,
     version: u64,
     player: Option<Player>,
+    /// Plays the current item when it is an uploaded song.
+    local: Option<LocalPlayer>,
+    /// Counts local players started; events from older ones are stale.
+    local_generation: u64,
     waiting_for_node: bool,
     retry_at: Option<Instant>,
     /// After a restart: the node the music was on, until then.
@@ -243,6 +253,8 @@ impl Session {
             settled_at: now,
             version: saved.version,
             player: None,
+            local: None,
+            local_generation: 0,
             waiting_for_node: wants_to_play,
             retry_at: wants_to_play.then_some(now),
             prefer: saved.node_id.map(|node_id| (node_id, now + PREFER_FOR)),
@@ -386,6 +398,11 @@ impl Session {
                 let _ = done.send(());
             }
             Command::Bridge(event) => self.bridge(&event),
+            Command::Local { generation, event } => {
+                if generation == self.local_generation && self.local.is_some() {
+                    self.local_event(event).await;
+                }
+            }
         }
     }
 
@@ -640,8 +657,14 @@ impl Session {
         self.set_position(position_ms);
         self.settled_at = Instant::now() + SETTLE;
         let Some(item) = self.queue.now.clone() else {
+            self.local = None;
             return;
         };
+        if let Some(song_id) = super::local::song_id(&item.track) {
+            self.start_local(song_id, position_ms).await;
+            return;
+        }
+        self.local = None;
         let mut except = except.to_vec();
         for _ in 0..2 {
             if !self.ensure_player(&item.track.info.source_name, &except) {
@@ -677,6 +700,72 @@ impl Session {
             }
         }
         self.wait_for_node();
+    }
+
+    /// Plays an uploaded song on this server; Lavalink stops what it
+    /// played.
+    async fn start_local(&mut self, song_id: i64, position_ms: u64) {
+        self.restored = false;
+        self.waiting_for_node = false;
+        self.retry_at = None;
+        self.watch.not_due();
+        let channel_id = self.channel_id;
+        if let Some(player) = self.player.as_mut()
+            && player.stop(&self.state, channel_id).await.is_err()
+        {
+            self.drop_player();
+        }
+        self.local_generation += 1;
+        let paused = self.paused || self.paused_empty;
+        self.local = Some(LocalPlayer::start(
+            &self.state,
+            channel_id,
+            song_id,
+            position_ms,
+            paused,
+            self.local_generation,
+        ));
+    }
+
+    async fn local_event(&mut self, event: local_player::Event) {
+        match event {
+            local_player::Event::Started => {
+                self.started = true;
+                self.failures = 0;
+                self.set_position(self.position_ms);
+                self.announce();
+                self.changed();
+            }
+            local_player::Event::Ended { failed: None } => {
+                self.local = None;
+                self.advance(Ended::Finished).await;
+                self.changed();
+            }
+            local_player::Event::Ended {
+                failed: Some(reason),
+            } => {
+                self.local = None;
+                if reason == local_player::REMOVED {
+                    self.notice(reason);
+                    self.advance(Ended::Skipped).await;
+                    self.changed();
+                } else {
+                    self.failed(Some(reason)).await;
+                }
+            }
+        }
+    }
+
+    /// "Now playing", once per item.
+    fn announce(&mut self) {
+        let current = self.queue.now.as_ref().map(|item| item.id.clone());
+        if self.announced != current {
+            self.announced.clone_from(&current);
+            if let Some(item) = &self.queue.now {
+                let text = format!("Now playing: {}", item.track.info.title);
+                self.notice(text);
+            }
+        }
     }
 
     /// After a restart: Lavalink kept the player and still plays the
@@ -754,6 +843,13 @@ impl Session {
         self.state.lavalink.best_node(Some(source), except)
     }
 
+    /// The server's own player stops, and the channel's music stream ends.
+    fn stop_local(&mut self) {
+        if self.local.take().is_some() {
+            super::player::stop_stream(&self.state, self.channel_id);
+        }
+    }
+
     /// Lets go of the player: its node is gone, or the channel moves.
     fn drop_player(&mut self) {
         if let Some(player) = self.player.take() {
@@ -797,6 +893,10 @@ impl Session {
     /// Tells the player whether it is paused.
     async fn tell_paused(&mut self) {
         let paused = self.paused || self.paused_empty;
+        if let Some(local) = &self.local {
+            local.set_paused(paused);
+            return;
+        }
         let channel_id = self.channel_id;
         if let Some(player) = self.player.as_mut()
             && player
@@ -815,6 +915,10 @@ impl Session {
     async fn resume(&mut self) {
         let position = self.position_ms;
         self.set_position(position);
+        if self.local.is_some() {
+            self.tell_paused().await;
+            return;
+        }
         let usable = self
             .player
             .as_ref()
@@ -830,6 +934,11 @@ impl Session {
     async fn seek(&mut self, position_ms: u64) {
         self.set_position(position_ms);
         self.settled_at = Instant::now() + SETTLE;
+        if self.local.is_some() {
+            // The song starts again from there.
+            self.start_current(position_ms, &[]).await;
+            return;
+        }
         let channel_id = self.channel_id;
         let sought = match self.player.as_mut() {
             Some(player) if self.started => player
@@ -861,6 +970,7 @@ impl Session {
             self.started = false;
             self.set_position(0);
             self.notice("Music stopped: 3 tracks in a row couldn't be played".to_owned());
+            self.stop_local();
             let channel_id = self.channel_id;
             if let Some(player) = self.player.as_mut() {
                 let _ = player.stop(&self.state, channel_id).await;
@@ -898,6 +1008,7 @@ impl Session {
     }
 
     async fn queue_ended(&mut self) {
+        self.stop_local();
         self.started = false;
         self.skip_votes.clear();
         self.set_position(0);
@@ -914,6 +1025,7 @@ impl Session {
 
     /// Nothing plays and nothing is queued; the player goes.
     fn end(&mut self) {
+        self.stop_local();
         self.queue.clear();
         self.skip_votes.clear();
         self.queue.advance(Ended::Failed);
@@ -933,6 +1045,10 @@ impl Session {
         }
         let position = self.position();
         self.drop_player();
+        // An uploaded song plays on: no player is needed anywhere.
+        if self.local.is_some() {
+            return None;
+        }
         // Nothing plays: no player is needed anywhere.
         self.queue.now.as_ref()?;
         if let Some(node) = to
@@ -972,13 +1088,7 @@ impl Session {
                 self.failures = 0;
                 self.set_position(self.position_ms);
                 self.expect_audio();
-                if self.announced != current {
-                    self.announced.clone_from(&current);
-                    if let Some(item) = &self.queue.now {
-                        let text = format!("Now playing: {}", item.track.info.title);
-                        self.notice(text);
-                    }
-                }
+                self.announce();
                 self.changed();
             }
             (_, Some("TrackEndEvent")) if ours => match value["reason"].as_str() {
@@ -1033,6 +1143,7 @@ impl Session {
         if let Some(node) = self
             .player
             .as_ref()
+            .filter(|_| super::local::song_id(&item.track).is_none())
             .and_then(|player| self.state.lavalink.node(player.node_id))
         {
             node.load_failed();
@@ -1050,7 +1161,7 @@ impl Session {
     /// Lavalink lost its voice connection to the bridge.
     async fn voice_closed(&mut self, value: &Value) {
         let code = value["code"].as_i64().unwrap_or(0);
-        if OWN_CLOSES.contains(&code) || self.queue.now.is_none() {
+        if OWN_CLOSES.contains(&code) || self.queue.now.is_none() || self.local.is_some() {
             return;
         }
         let now = Instant::now();
@@ -1218,6 +1329,7 @@ impl Session {
     fn finished(&self) -> bool {
         self.queue.is_empty()
             && self.player.is_none()
+            && self.local.is_none()
             && self.save_at.is_none()
             && self
                 .state

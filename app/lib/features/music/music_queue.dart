@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/model/music_session.dart';
+import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/links.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_artwork.dart';
+import 'package:opencord/features/music/music_drop.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -249,6 +251,19 @@ class MusicQueueRow extends ConsumerWidget {
                 )
               : null,
         ),
+        // Design 2026-10-24: administrators remove anyone's uploaded song.
+        if (item.track.isLocal &&
+            (ref
+                    .read(serverProvider(channel.server))
+                    .data
+                    ?.can(Permissions.administrator) ??
+                false))
+          OcMenuItem(
+            label: 'Remove from server',
+            icon: OcIcons.delete,
+            onSelected: () =>
+                removeLocalSong(context, ref, channel.server, item.track),
+          ),
         if (uri.isNotEmpty) ...[
           const OcMenuDivider(),
           OcMenuItem(

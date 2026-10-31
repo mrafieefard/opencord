@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO private_privacy (user_id, allow_friend_requests, allow_message_requests,\n                                      updated_at)\n         VALUES ($1, $2, $3, $4)\n         ON CONFLICT (user_id) DO UPDATE SET\n             allow_friend_requests = excluded.allow_friend_requests,\n             allow_message_requests = excluded.allow_message_requests,\n             updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "1807fcaa49467e227c27a9ce51ea1330db7d6febc80de2847143dd1016392be3"
+}

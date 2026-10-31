@@ -1,6 +1,6 @@
 # Packaging
 
-What each desktop build carries, what it needs on the machine, and what is still to decide before a public release. CI builds all three (`.github/workflows/cicd.yml`) on every push to `beta`, `canary` and `main`, and attaches them to that push's GitHub release (docs/releasing.md). The server's packaging is `deploy/` (docs/voice.md, "Docker").
+What each desktop build carries, what it needs on the machine, and what is still to decide before a public release. Each system also has an installer, the launcher, which keeps the app updated (docs/updater.md). CI builds all three (`.github/workflows/cicd.yml`) on every push to `beta`, `canary` and `main`, and attaches them to that push's GitHub release (docs/releasing.md). The server's packaging is `deploy/` (docs/voice.md, "Docker").
 
 ## Linux
 
@@ -47,9 +47,8 @@ The release is a universal (x86_64 and arm64) `Opencord.app`, zipped, needing ma
 The release is a zip of the `Release` folder (W8, D35).
 
 - **Carried:** the five FFmpeg 9.0.2 LGPL DLLs (avcodec, avformat, avutil, swresample, swscale; 120 MB) with FFmpeg's license, and Microsoft's C++ runtime (`msvcp140.dll`, `vcruntime140.dll`, `vcruntime140_1.dll`), so no redistributable is needed.
-- **Needs:** Windows 10 21H2 or newer; build 20348 (Windows 11, or Server 2022) for sharing a screen's sound.
+- **Needs:** Windows 10 21H2 or newer, for everything, sharing a screen's sound included (process loopback works from build 19041).
 - **Not done:**
   - **Code signing:** unsigned, so SmartScreen warns on every download (an OV or EV certificate, or Azure Trusted Signing, plus a signing step in CI).
-  - **An installer:** MSIX, or WiX or Inno Setup, which would also bring updates.
   - **A smaller FFmpeg:** a build with only what the app uses, as Linux has, should take the download under 100 MB.
   - **A software H.264 encoder:** a PC with no GPU encoder cannot send video (D35).

@@ -121,7 +121,8 @@ static gboolean my_application_local_command_line(GApplication* application,
   if (g_application_get_is_remote(application)) {
     g_autoptr(GPtrArray) links = g_ptr_array_new_with_free_func(g_object_unref);
     for (gchar** arg = *arguments + 1; *arg != nullptr; arg++) {
-      if (g_str_has_prefix(*arg, "opencord:")) {
+      if (g_str_has_prefix(*arg, "opencord:") ||
+          g_str_has_prefix(*arg, "opencords:")) {
         g_ptr_array_add(links, g_file_new_for_uri(*arg));
       }
     }

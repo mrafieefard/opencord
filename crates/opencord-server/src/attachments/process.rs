@@ -16,7 +16,9 @@ use crate::attachments::storage::{Backend, ObjectKind, StorageError, object_key}
 use crate::attachments::{images, open_key, temp, voice};
 use crate::db;
 use crate::db::attachments::{AttachmentRow, ReadyFields};
+use crate::db::local_songs::SongRow;
 use crate::error::ApiError;
+use crate::music::local;
 use crate::state::{AppState, Audience};
 
 pub fn spawn_job(state: Arc<AppState>, id: i64) {
@@ -83,6 +85,9 @@ async fn run_inner(
 ) -> Result<(), ApiError> {
     let id = row.id;
     let key = open_key(state.certificates.secrets(), row)?;
+    if row.kind == "music" {
+        return music_upload(state, row, &key, temp_path).await;
+    }
     let size = row.size_bytes as u64;
     let first = temp::read_range(temp_path, &key, id, size, 0, size.min(SEGMENT_PLAIN))
         .await
@@ -150,6 +155,145 @@ async fn run_inner(
         Audience::User(row.uploader_id),
     );
     Ok(())
+}
+
+/// How long a song may take to check.
+const SONG_CHECK_TIME: std::time::Duration = std::time::Duration::from_secs(120);
+/// Shorter songs are refused.
+const SONG_MIN_MS: u64 = 1_000;
+
+/// A song for the music player (design 2026-10-24): checked by decoding all
+/// of it, then kept once per server by its SHA-256. A song the server
+/// already has is not stored again; its uploader becomes an owner.
+async fn music_upload(
+    state: &Arc<AppState>,
+    row: &AttachmentRow,
+    key: &BlobKey,
+    temp_path: &Path,
+) -> Result<(), ApiError> {
+    let id = row.id;
+    let size = row.size_bytes as u64;
+    let (plain, sha256) = local::open_upload(state, key, id, size, temp_path)
+        .await
+        .map_err(|error| {
+            tracing::error!(upload_id = id, ?error, "an uploaded song failed to open");
+            ApiError::internal()
+        })?;
+    let path = plain.path().to_owned();
+    let probed = tokio::time::timeout(
+        SONG_CHECK_TIME,
+        tokio::task::spawn_blocking(move || local::decode::probe(&path)),
+    )
+    .await
+    .map_err(|_| ApiError::invalid_argument("The song took too long to read"))?
+    .map_err(|_| ApiError::internal())?
+    .map_err(|error| ApiError::invalid_argument(capitalized(&error.to_string())))?;
+    drop(plain);
+    if probed.duration_ms < SONG_MIN_MS {
+        return Err(ApiError::invalid_argument(
+            "A song must last at least a second",
+        ));
+    }
+
+    let mut conn = state.db.acquire().await?;
+    let known = db::local_songs::find_by_hash(&mut conn, &sha256).await?;
+    drop(conn);
+    if let Some(song) = known {
+        return keep_known(state, row, song.id).await;
+    }
+    let Some((storage_id, backend)) = choose_storage(state, row).await? else {
+        return Ok(());
+    };
+    if let Err(error) = store(&backend, key, id, temp_path, None).await {
+        discard_stored(state, storage_id, id, false).await;
+        return Err(error.into());
+    }
+    let now = crate::state::now_ms();
+    let fields = ReadyFields {
+        storage_id,
+        duration_ms: i64::try_from(probed.duration_ms).ok(),
+        ..base_fields("music", Sniffed::Unknown, &row.filename)
+    };
+    let song = SongRow {
+        id,
+        sha256: sha256.to_vec(),
+        size_bytes: row.size_bytes,
+        filename: row.filename.clone(),
+        title: probed.title.unwrap_or_else(|| {
+            row.filename
+                .rsplit_once('.')
+                .map_or(row.filename.as_str(), |(stem, _)| stem)
+                .to_owned()
+        }),
+        artist: probed
+            .artist
+            .unwrap_or_else(|| crate::music::display_name(state, row.uploader_id)),
+        duration_ms: i64::try_from(probed.duration_ms).unwrap_or(i64::MAX),
+        uploader_id: row.uploader_id,
+        created_at: now,
+    };
+    let mut tx = state.db.begin().await?;
+    if !db::attachments::set_ready(&mut tx, id, &fields, now).await? {
+        // Cancelled while it was checked.
+        drop(tx);
+        discard_stored(state, storage_id, id, false).await;
+        return Ok(());
+    }
+    db::attachments::set_state(&mut tx, id, "music", now).await?;
+    match db::local_songs::insert(&mut tx, &song).await {
+        Ok(()) => {}
+        // The same song finished meanwhile from another upload.
+        Err(sqlx::Error::Database(error)) if error.is_unique_violation() => {
+            drop(tx);
+            discard_stored(state, storage_id, id, false).await;
+            let mut conn = state.db.acquire().await?;
+            let known = db::local_songs::find_by_hash(&mut conn, &sha256).await?;
+            drop(conn);
+            return match known {
+                Some(known) => keep_known(state, row, known.id).await,
+                None => Err(ApiError::internal()),
+            };
+        }
+        Err(error) => return Err(error.into()),
+    }
+    db::local_songs::add_owner(&mut tx, id, row.uploader_id, now).await?;
+    tx.commit().await?;
+
+    let mut conn = state.db.acquire().await?;
+    let stored = db::attachments::find(&mut conn, id).await?;
+    drop(conn);
+    if let Some(stored) = stored {
+        state.broadcast(
+            proto::event::Kind::UploadReady(proto::UploadReady {
+                attachment: Some(attachment_to_proto(&stored)),
+            }),
+            Audience::User(row.uploader_id),
+        );
+    }
+    Ok(())
+}
+
+/// The server has the song already: its uploader owns it too, and this
+/// upload goes.
+async fn keep_known(state: &AppState, row: &AttachmentRow, song_id: i64) -> Result<(), ApiError> {
+    let mut conn = state.db.acquire().await?;
+    db::local_songs::add_owner(&mut conn, song_id, row.uploader_id, crate::state::now_ms()).await?;
+    db::attachments::delete(&mut conn, row.id).await?;
+    state.broadcast(
+        proto::event::Kind::UploadReady(proto::UploadReady {
+            attachment: Some(attachment_to_proto(row)),
+        }),
+        Audience::User(row.uploader_id),
+    );
+    Ok(())
+}
+
+fn capitalized(text: &str) -> String {
+    let mut chars = text.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 /// The active storage, written on the row before anything is stored there,

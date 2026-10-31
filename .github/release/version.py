@@ -308,6 +308,9 @@ ASSETS = {
     "opencord-linux-x64.tar.gz": "client-linux-x64",
     "opencord-windows-x64.zip": "client-windows-x64",
     "opencord-macos.zip": "client-macos-universal",
+    "opencord-setup-linux-x64": "setup-linux-x64",
+    "opencord-setup-windows-x64.exe": "setup-windows-x64",
+    "opencord-setup-macos.dmg": "setup-macos-universal",
     "opencord-server-linux-x64.tar.gz": "server-linux-x64",
     "opencord-server-windows-x64.zip": "server-windows-x64",
     "opencord-server-macos.tar.gz": "server-macos-universal",
@@ -324,7 +327,7 @@ def manifest(version_text: str, dist: Path, image: str | None) -> None:
     platforms = {}
     sums = []
     for path in sorted(dist.iterdir()):
-        if not path.is_file() or path.name in ("release.json", "SHA256SUMS"):
+        if not path.is_file() or path.name in ("release.json", "release.json.sig", "SHA256SUMS"):
             continue
         key = ASSETS.get(path.name)
         if key is None:

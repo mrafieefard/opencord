@@ -1,0 +1,19 @@
+{
+  "name": "@opencord/voice-service",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Keeps an Opencord voice call going in the background: an Android foreground service with an ongoing notification. Nothing on iOS, where the audio background mode does it.",
+  "license": "MPL-2.0",
+  "author": "Opencord",
+  "homepage": "https://github.com/mrafieefard/opencord",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrafieefard/opencord.git",
+    "directory": "mobile/modules/voice-service"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "expo": "*"
+  }
+}

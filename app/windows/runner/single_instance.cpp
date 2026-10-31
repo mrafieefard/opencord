@@ -6,14 +6,15 @@
 #include <initializer_list>
 #include <utility>
 
+#include "utils.h"
+
 namespace single_instance {
 
 namespace {
 
 constexpr wchar_t kMutexName[] = L"Local\\dev.opencord.opencord";
-constexpr wchar_t kSchemeKey[] = L"Software\\Classes\\opencord";
-constexpr wchar_t kCommandKey[] =
-    L"Software\\Classes\\opencord\\shell\\open\\command";
+// opencord:// links default to port 7710, opencords:// to 443.
+constexpr const wchar_t* kSchemes[] = {L"opencord", L"opencords"};
 
 void SetString(HKEY key, const wchar_t* name, const std::wstring& value) {
   ::RegSetValueExW(key, name, 0, REG_SZ,
@@ -54,7 +55,8 @@ std::wstring LinkArgument() {
   if (arguments == nullptr) return L"";
   std::wstring link;
   for (int i = 1; i < count; i++) {
-    if (::_wcsnicmp(arguments[i], L"opencord:", 9) == 0) {
+    if (::_wcsnicmp(arguments[i], L"opencord:", 9) == 0 ||
+        ::_wcsnicmp(arguments[i], L"opencords:", 10) == 0) {
       link = arguments[i];
       break;
     }
@@ -64,15 +66,17 @@ std::wstring LinkArgument() {
 }
 
 void RegisterLinkScheme() {
-  wchar_t path[MAX_PATH];
-  const DWORD length = ::GetModuleFileNameW(nullptr, path, MAX_PATH);
-  if (length == 0 || length == MAX_PATH) return;
-  const std::wstring executable(path, length);
-  if (!SetKeyStrings(kSchemeKey,
-                     {{nullptr, L"URL:Opencord"}, {L"URL Protocol", L""}})) {
-    return;
+  const std::wstring executable = LaunchTarget();
+  if (executable.empty()) return;
+  for (const wchar_t* scheme : kSchemes) {
+    const std::wstring key = std::wstring(L"Software\\Classes\\") + scheme;
+    if (!SetKeyStrings(key.c_str(), {{nullptr, L"URL:Opencord"},
+                                     {L"URL Protocol", L""}})) {
+      continue;
+    }
+    SetKeyStrings((key + L"\\shell\\open\\command").c_str(),
+                  {{nullptr, L"\"" + executable + L"\" \"%1\""}});
   }
-  SetKeyStrings(kCommandKey, {{nullptr, L"\"" + executable + L"\" \"%1\""}});
 }
 
 bool HandOverToRunning(const std::wstring& link) {

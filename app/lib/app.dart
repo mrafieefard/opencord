@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/app_router.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/core/smooth_scroll.dart';
 import 'package:opencord/features/window/window_frame.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
@@ -47,10 +48,12 @@ class _AppMedia extends ConsumerWidget {
     );
     final media = MediaQuery.of(context);
     final platformScale = media.textScaler.scale(1);
+    final still = media.disableAnimations || reduceMotion;
+    OcBinding.smoothWheel = !still;
     return MediaQuery(
       data: media.copyWith(
         textScaler: TextScaler.linear(platformScale * textScale),
-        disableAnimations: media.disableAnimations || reduceMotion,
+        disableAnimations: still,
       ),
       child: child,
     );

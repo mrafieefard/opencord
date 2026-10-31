@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO private_friend_requests (id, from_id, to_id, created_at)\n         VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "5d017285c6d9a5299782794dd1b2ffd2fd0fb0b4757e7b2bb7a4a9d5e3ce5c42"
+}

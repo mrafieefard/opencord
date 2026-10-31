@@ -1,0 +1,42 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n               (SELECT COUNT(*) FROM private_devices WHERE user_id = $1) AS \"devices!: i64\",\n               (SELECT COUNT(*) FROM private_one_time_keys WHERE user_id = $1)\n                   AS \"one_time_keys!: i64\",\n               (SELECT COUNT(*) FROM private_pending WHERE user_id = $1) AS \"pending!: i64\",\n               (SELECT COUNT(*) FROM private_friend_requests\n                WHERE from_id = $1 OR to_id = $1) AS \"friend_requests!: i64\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "devices!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "one_time_keys!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "pending!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "friend_requests!: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c059785ac496018543cd99bb40d730706029ec53ad7ebfb34d286e2cdd148849"
+}

@@ -4,7 +4,6 @@
 mod common;
 
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use axum::Router;
 use axum::extract::State;
@@ -91,8 +90,12 @@ async fn only_the_owner_sees_the_network() {
     assert_ne!(voice.port, 0);
     let music = port(&info, proto::PortPurpose::Music);
     assert_eq!(music.state, proto::PortState::Listening as i32);
-    let local = port(&info, proto::PortPurpose::LocalProxy);
-    assert_eq!(local.state, proto::PortState::Off as i32);
+    assert!(
+        info.ports
+            .iter()
+            .all(|port| port.purpose != proto::PortPurpose::LocalProxy as i32),
+        "tunnels and proxies use the main port"
+    );
 }
 
 #[tokio::test]
@@ -304,67 +307,70 @@ async fn a_new_main_port_is_used_from_the_next_start() {
     fallback.shutdown().await;
 }
 
-#[tokio::test]
-async fn the_local_listener_serves_plain_http_on_this_machine_only() {
-    let server = TestServer::start().await;
-    let (mut owner, _) = owner(&server).await;
-    owner
-        .ok(Kind::UpdateNetworkSettings(proto::UpdateNetworkSettings {
-            local_listener_port: Some(u32::from(free_port())),
-            ..Default::default()
-        }))
-        .await;
-
-    let port = server
-        .handle
-        .set_local_listener(true)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
-        .await
-        .unwrap();
+/// A plain HTTP GET of `/health` sent to `address`: the reply, or what
+/// came before the connection closed.
+async fn plain_health(address: (std::net::IpAddr, u16)) -> String {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
     stream
         .write_all(b"GET /health HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
         .await
         .unwrap();
-    let mut reply = String::new();
-    stream.read_to_string(&mut reply).await.unwrap();
+    let mut reply = Vec::new();
+    let _ = stream.read_to_end(&mut reply).await;
+    String::from_utf8_lossy(&reply).into_owned()
+}
+
+#[tokio::test]
+async fn the_main_port_takes_plain_http_from_this_machine_only() {
+    let server = TestServer::start_with(|config| {
+        config.server.bind = "0.0.0.0:0".parse().unwrap();
+    })
+    .await;
+    let port = server.handle.local_addr.port();
+    let (mut owner, _) = owner(&server).await;
+
+    // A tunnel or reverse proxy on this machine, which took TLS off.
+    let reply = plain_health(("127.0.0.1".parse().unwrap(), port)).await;
     assert!(reply.starts_with("HTTP/1.1 200"), "{reply}");
-    // This machine's address on its network does not reach it.
+    // Apps on the same port, over TLS.
+    assert_eq!(server.get("/health").await.0, 200);
+    // From this machine's address on its network: refused, and told why.
     if let Some(lan) = lan_address() {
-        assert!(
-            tokio::net::TcpStream::connect((lan, port)).await.is_err(),
-            "{lan}:{port} reaches the local listener"
-        );
+        let reply = plain_health((lan, port)).await;
+        assert!(reply.starts_with("HTTP/1.1 400"), "{reply}");
+        assert!(reply.contains("HTTPS"), "{reply}");
     }
+    // No second port to show.
     let info = info(
         owner
             .ok(Kind::WatchNetwork(proto::WatchNetwork { watch: true }))
             .await,
     );
-    let local = port_of(&info, proto::PortPurpose::LocalProxy);
-    assert_eq!(local.state, proto::PortState::Listening as i32);
-
-    assert_eq!(server.handle.set_local_listener(false).await.unwrap(), None);
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-    while tokio::net::TcpStream::connect(("127.0.0.1", port))
-        .await
-        .is_ok()
-    {
-        assert!(tokio::time::Instant::now() < deadline, "still listening");
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
+    assert!(
+        info.ports
+            .iter()
+            .all(|port| port.purpose != proto::PortPurpose::LocalProxy as i32),
+        "{info:?}"
+    );
 }
 
-fn port_of(info: &proto::NetworkInfo, purpose: proto::PortPurpose) -> proto::PortStatus {
-    port(info, purpose).clone()
+#[tokio::test]
+async fn plain_http_comes_from_the_ranges_the_config_names() {
+    let Some(lan) = lan_address() else {
+        return;
+    };
+    let server = TestServer::start_with(|config| {
+        config.server.bind = "0.0.0.0:0".parse().unwrap();
+        config.network.plain_http_from = vec![lan.to_string()];
+    })
+    .await;
+
+    let reply = plain_health((lan, server.handle.local_addr.port())).await;
+
+    assert!(reply.starts_with("HTTP/1.1 200"), "{reply}");
 }
 
-/// This machine's address on the route out, when it has one besides
-/// loopback (nothing is sent).
 fn lan_address() -> Option<std::net::IpAddr> {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:53").ok()?;

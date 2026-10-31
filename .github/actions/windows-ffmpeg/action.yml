@@ -2,7 +2,9 @@ name: Use FFmpeg on Windows
 description: >
   FFmpeg for the Windows codec layer (docs/decisions.md D35). A pinned asset
   with its checksum, as build_ffmpeg.sh pins its source: BtbN's `latest` tag
-  moves under you. It has to be an LGPL **shared** build, never a gpl one.
+  moves under you. BtbN deletes dated builds after about two weeks, so when
+  this download answers 404, pin the newest build of the same FFmpeg version
+  and take its hash from that release's checksums.sha256. It has to be an LGPL **shared** build, never a gpl one.
   LLVM, which FFmpeg's bindings need, is already on windows-latest.
 runs:
   using: composite
@@ -10,8 +12,8 @@ runs:
     - name: Use FFmpeg
       shell: pwsh
       run: |
-        $url = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-13-13-05/ffmpeg-n9.0.2-27-g7e93014c5b-win64-lgpl-shared-9.0.zip'
-        $sha256 = '9df4db960f3f0cd3ed76be0a2be96265d00db4c3be2526a6d39b03c2b547100d'
+        $url = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-30-13-01/ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip'
+        $sha256 = '8aeb11be252902a772ff04ac89b705f7a7b24815f0a21da2ab100b192a5c16e4'
         $zip = Join-Path $env:RUNNER_TEMP 'ffmpeg.zip'
         Invoke-WebRequest -Uri $url -OutFile $zip
         $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()

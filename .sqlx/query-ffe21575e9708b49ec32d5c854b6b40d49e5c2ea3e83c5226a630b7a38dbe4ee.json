@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, event FROM private_pending\n         WHERE user_id = $1 AND device_id = $2 AND id > $3\n         ORDER BY id\n         LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "private_pending",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "event",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_pending",
+            "name": "event"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ffe21575e9708b49ec32d5c854b6b40d49e5c2ea3e83c5226a630b7a38dbe4ee"
+}

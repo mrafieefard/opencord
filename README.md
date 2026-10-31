@@ -1,8 +1,25 @@
 # Opencord
 
+![Opencord: Discord-style servers you run yourself](docs/images/banner.png)
+
 Open-source, self-hostable voice, video and text chat. It pairs Discord-style UX (servers, channels, roles) with the TeamSpeak hosting model: anyone can run a server, the client connects to many servers at once, and your identity is a keypair on your device instead of a central account.
 
-> **Status:** early development. Text chat works ([Phase 1](docs/plans/phase-1.md)); voice and video are in progress ([Phase 2](docs/plans/phase-2.md)).
+> **Status:** early development. Text chat, voice, video, screen sharing, music and end-to-end encrypted private messages work. Releases are pre-releases on the beta and canary tracks ([docs/releasing.md](docs/releasing.md)).
+
+## Screenshots
+
+| | |
+|---|---|
+| ![A text channel with replies, mentions and reactions](docs/images/chat.png) | ![A voice channel with five people and a live screen share](docs/images/voice.png) |
+| Text channels: replies, mentions, reactions, pins | Voice and video, with screen sharing |
+| ![Watching a screen share](docs/images/voice-watch.png) | ![Files, pictures and voice messages in a channel](docs/images/chat-media.png) |
+| Watching a screen share | Files, pictures and voice messages |
+| ![An end-to-end encrypted private conversation](docs/images/private.png) | ![Appearance settings with the theme cards](docs/images/settings.png) |
+| End-to-end encrypted private messages | Dark, light or the system's theme |
+
+![The same channel in the light theme](docs/images/chat-light.png)
+
+The screenshots are the app on its built-in demo data (`app/test/showcase`).
 
 ## Repository layout
 
@@ -136,6 +153,10 @@ Ports, hosting behind a home router and what to check when a call does not work 
 ### Files and storage
 
 Members attach files and voice messages; the server keeps each one encrypted with its own key, sealed by `secrets.key` in the data directory, and serves it only to members who can read the channel. Files stay on the server's disk (`[uploads] local_dir`) or go to an S3-compatible bucket the owner connects in the app. **Back up `secrets.key`:** without it no file can be read again. Limits, buckets, moving files and the key are in [docs/attachments.md](docs/attachments.md).
+
+### Private messages
+
+Friends and end-to-end encrypted private messages between server members, routed through a chosen shared server with offline delivery. How it works, the settings and how to test it by hand are in [docs/private-messages.md](docs/private-messages.md).
 
 ### Docker
 

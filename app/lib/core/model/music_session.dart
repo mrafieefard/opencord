@@ -18,6 +18,8 @@ class MusicTrack {
     this.sourceName = '',
     this.uri = '',
     this.artworkId = '',
+    this.localSongId = 0,
+    this.removable = false,
   });
 
   final String title;
@@ -38,6 +40,16 @@ class MusicTrack {
   /// Empty without artwork.
   final String artworkId;
 
+  /// An uploaded song's id; 0 for Lavalink's tracks (design 2026-10-24).
+  final int localSongId;
+
+  /// In search results only: the searcher may remove this uploaded song
+  /// from the server.
+  final bool removable;
+
+  /// An uploaded song, played by the server itself.
+  bool get isLocal => localSongId != 0;
+
   @override
   bool operator ==(Object other) =>
       other is MusicTrack &&
@@ -49,7 +61,9 @@ class MusicTrack {
       other.source == source &&
       other.sourceName == sourceName &&
       other.uri == uri &&
-      other.artworkId == artworkId;
+      other.artworkId == artworkId &&
+      other.localSongId == localSongId &&
+      other.removable == removable;
 
   @override
   int get hashCode => Object.hash(
@@ -62,6 +76,8 @@ class MusicTrack {
     sourceName,
     uri,
     artworkId,
+    localSongId,
+    removable,
   );
 }
 

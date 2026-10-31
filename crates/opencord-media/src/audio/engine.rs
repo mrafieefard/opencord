@@ -22,9 +22,11 @@ const WAKE_EVERY: Duration = Duration::from_millis(5);
 /// Audio kept queued for the speaker: enough to ride out a late wake.
 const SPEAKER_QUEUE: Duration = Duration::from_millis(30);
 /// The real-time budget asked for, in frames: how long the thread may run
-/// without sleeping before the kernel sends SIGXCPU, which ends the
-/// process. 100 ms leaves room for a slow tick (or a debug build) while a
-/// runaway thread is still stopped; RTKit's own limit is 200 ms.
+/// without sleeping before the kernel ends the process. 100 ms leaves room
+/// for a slow tick while a runaway thread is still stopped. PipeWire's
+/// client library raises the soft limit to RTKit's 200 ms once a device
+/// opens, so going over is a SIGKILL, with no SIGXCPU first.
+#[cfg(not(debug_assertions))]
 const REAL_TIME_BUDGET_FRAMES: u32 = SAMPLE_RATE / 10;
 /// At most this much microphone audio is processed per wake; more waits for
 /// the next one, so a backlog is worked off in short steps.
@@ -485,16 +487,7 @@ impl Retry {
 
 impl Engine {
     fn run(&mut self, commands: Receiver<Command>) {
-        let _priority = match audio_thread_priority::promote_current_thread_to_real_time(
-            REAL_TIME_BUDGET_FRAMES,
-            SAMPLE_RATE,
-        ) {
-            Ok(handle) => Some(handle),
-            Err(error) => {
-                tracing::warn!(%error, "the audio thread runs at normal priority");
-                None
-            }
-        };
+        let _priority = real_time_priority();
         let mut wake = Instant::now();
         loop {
             loop {
@@ -771,6 +764,24 @@ impl Engine {
             }
         }
     }
+}
+
+/// Real-time priority for the audio thread while the handle lives, when
+/// the system grants it.
+#[cfg(not(debug_assertions))]
+fn real_time_priority() -> Option<audio_thread_priority::RtPriorityHandle> {
+    audio_thread_priority::promote_current_thread_to_real_time(REAL_TIME_BUDGET_FRAMES, SAMPLE_RATE)
+        .inspect_err(|error| tracing::warn!(%error, "the audio thread runs at normal priority"))
+        .ok()
+}
+
+/// None in a debug build: a pass of the engine takes about 14 ms there,
+/// against the 5 ms it has, so one slow pass reached the 200 ms limit and
+/// the kernel killed the app (D68). At normal priority it falls behind
+/// instead.
+#[cfg(debug_assertions)]
+fn real_time_priority() -> Option<()> {
+    None
 }
 
 /// Opens the chosen device, or the default one when that fails, and says

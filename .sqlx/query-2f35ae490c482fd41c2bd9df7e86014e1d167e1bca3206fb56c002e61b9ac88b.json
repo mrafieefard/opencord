@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM private_one_time_keys\n         WHERE user_id = $1 AND device_id = $2\n           AND EXISTS (SELECT 1 FROM private_devices\n                       WHERE user_id = $1 AND device_id = $2\n                         AND (curve25519 <> $3 OR ed25519 <> $4))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "2f35ae490c482fd41c2bd9df7e86014e1d167e1bca3206fb56c002e61b9ac88b"
+}

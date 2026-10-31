@@ -1,0 +1,19 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.opencord'
+version = '0.0.1'
+
+android {
+  namespace "dev.opencord.voiceservice"
+  defaultConfig {
+    versionCode 1
+    versionName '0.0.1'
+  }
+}
+
+dependencies {
+  implementation "androidx.core:core-ktx:1.17.0"
+}

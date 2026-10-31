@@ -20,6 +20,7 @@ use crate::domains::{self, Domains};
 use crate::gateway::session::CloseCode;
 use crate::guild::Guild;
 use crate::handshakes::WatchedAcceptor;
+use crate::network::main_port::MainAcceptor;
 use crate::network::settings::NetworkSettings;
 use crate::network::{Listening, Network};
 use crate::secrets::Secrets;
@@ -31,6 +32,7 @@ use opencord_voice::node::{NodeConfig, NodeEvent, VoiceNode};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 const REAP_INTERVAL: Duration = Duration::from_secs(5);
+const PRIVATE_SWEEP_INTERVAL: Duration = Duration::from_secs(3_600);
 /// How often voice clients send a heartbeat.
 pub(crate) const VOICE_HEARTBEAT: Duration = Duration::from_secs(5);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
@@ -104,6 +106,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
             state.certificates.secrets(),
         )
         .await?;
+    state.private.load(&mut *state.db.acquire().await?).await?;
     state
         .certificates
         .serve(&state.domains.all(), crate::state::now_ms());
@@ -139,7 +142,16 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let handle = Handle::new();
     let app = http::router(Arc::clone(&state)).into_make_service_with_connect_info::<SocketAddr>();
     let bound = listener.local_addr()?;
-    let acceptor = WatchedAcceptor::new(RustlsAcceptor::new(rustls), state.lavalink.refusals());
+    let acceptor = MainAcceptor::new(
+        WatchedAcceptor::new(RustlsAcceptor::new(rustls), state.lavalink.refusals()),
+        Arc::clone(&state),
+    );
+    if config.network.local_listener_bind.is_some() {
+        tracing::warn!(
+            "local_listener_bind is no longer used: tunnels and reverse proxies send plain \
+             HTTP to the main port; plain_http_from names who else may (docs/domains.md)"
+        );
+    }
     let serve = tokio::spawn(
         axum_server::from_tcp(listener)?
             .acceptor(acceptor)
@@ -154,6 +166,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
         }
     };
     let reaper = tokio::spawn(reap_sessions(Arc::clone(&state)));
+    tokio::spawn(sweep_private_messages(Arc::clone(&state)));
     state.network.set_listening(
         local_addr.port(),
         Listening {
@@ -163,7 +176,6 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     );
     Network::start(&state);
     domains::start(&state);
-    domains::sync_local_listener(&state).await;
     certs::start(&state);
     crate::tunnel::restore(&state).await;
 
@@ -205,7 +217,6 @@ impl ServerHandle {
             bridge.shutdown();
         }
         self.state.shutdown.cancel();
-        self.state.network.close_local_listener().await;
         self.handle.graceful_shutdown(Some(SHUTDOWN_GRACE));
         let _ = self.serve.await;
         self.reaper.abort();
@@ -253,30 +264,6 @@ impl ServerHandle {
         crate::certs::renew_all_now(&self.state).await;
     }
 
-    /// Starts or stops the local listener for tunnels and proxies; returns
-    /// its port, which the system picks, so tests may run at once.
-    pub async fn set_local_listener_on_any_port(&self, on: bool) -> std::io::Result<Option<u16>> {
-        let mut settings = self.state.network.settings();
-        settings.local_listener_port = 0;
-        self.state.network.restore(settings);
-        self.set_local_listener(on).await
-    }
-
-    /// The local listener's port, while it runs.
-    pub fn local_listener_port(&self) -> Option<u16> {
-        self.state.network.local_listener_port()
-    }
-
-    /// Starts or stops the local listener for tunnels and proxies; returns
-    /// its port. Intended for tests until tunnel domains turn it on.
-    pub async fn set_local_listener(&self, on: bool) -> std::io::Result<Option<u16>> {
-        self.state
-            .network
-            .set_local_listener(&self.state, on)
-            .await?;
-        Ok(self.state.network.local_listener_port())
-    }
-
     /// Like [`Self::drop_connections`], for one user only.
     pub fn drop_user_connections(&self, user_id: i64) {
         for session in self.state.sessions.for_user(user_id) {
@@ -297,6 +284,142 @@ impl ServerHandle {
     /// Intended for tests.
     pub async fn drain_blob_deletions(&self, now_ms: i64) {
         crate::attachments::gc::drain_blobs(&self.state, now_ms).await;
+    }
+
+    /// The member's own privacy settings, as (allow friend requests, allow
+    /// message requests, blocked ids sorted), if they sent any. Intended
+    /// for tests.
+    pub fn private_privacy(&self, user_id: i64) -> Option<(bool, bool, Vec<i64>)> {
+        self.state.private.saved(user_id).map(|privacy| {
+            let mut blocked: Vec<i64> = privacy.blocked.into_iter().collect();
+            blocked.sort_unstable();
+            (
+                privacy.allow_friend_requests,
+                privacy.allow_message_requests,
+                blocked,
+            )
+        })
+    }
+
+    /// What the database holds for the member's private messages. Intended
+    /// for tests.
+    pub async fn private_counts(&self, user_id: i64) -> crate::private::PrivateCounts {
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::counts(&mut conn, user_id)
+            .await
+            .expect("the private message counts")
+    }
+
+    /// Runs the private messages sweep as if it were `now_ms`. Intended for
+    /// tests.
+    pub async fn sweep_private(&self, now_ms: i64) {
+        crate::private::sweep(&self.state, now_ms)
+            .await
+            .expect("the private messages sweep");
+    }
+
+    /// Delivers these events to the device as a sender would. Intended for
+    /// tests.
+    pub async fn queue_private_events(
+        &self,
+        user_id: i64,
+        device_id: [u8; 16],
+        kinds: Vec<opencord_proto::v1::pending_event::Kind>,
+    ) {
+        let items = kinds
+            .into_iter()
+            .map(|kind| crate::private::Pending {
+                user_id,
+                device_id,
+                kind,
+                friend_request_id: None,
+            })
+            .collect();
+        crate::private::deliver(&self.state, items)
+            .await
+            .expect("the events are stored");
+    }
+
+    /// Stores `event` again under its own id and pushes it, as a delivery
+    /// whose acknowledgement was lost comes again. Intended for tests.
+    pub async fn requeue_private_event(
+        &self,
+        user_id: i64,
+        device_id: [u8; 16],
+        event: opencord_proto::v1::PendingEvent,
+    ) {
+        use prost::Message as _;
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::insert_pending(
+            &mut conn,
+            event.id,
+            user_id,
+            &device_id,
+            &event.encode_to_vec(),
+            None,
+            now_ms(),
+        )
+        .await
+        .expect("the event is stored");
+        drop(conn);
+        crate::private::push_pending(&self.state, &[(user_id, device_id, event)]);
+    }
+
+    /// Stores a device for the member without checking any signature, as a
+    /// dishonest server could. Intended for tests.
+    pub async fn insert_private_device_unchecked(
+        &self,
+        user_id: i64,
+        keys: opencord_proto::v1::DeviceKeys,
+        fallback: opencord_proto::v1::Prekey,
+    ) {
+        let device = crate::db::private::DeviceRow {
+            device_id: keys.device_id,
+            curve25519: keys.curve25519,
+            ed25519: keys.ed25519,
+            signature: keys.signature,
+            fallback_key: fallback.key,
+            fallback_signature: fallback.signature,
+        };
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::upsert_device(&mut conn, user_id, &device, now_ms())
+            .await
+            .expect("the device is stored");
+    }
+
+    /// The events waiting for the device, oldest first. Intended for tests.
+    pub async fn private_pending_for(
+        &self,
+        user_id: i64,
+        device_id: [u8; 16],
+    ) -> Vec<opencord_proto::v1::PendingEvent> {
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::pending_after(&mut conn, user_id, &device_id, 0, i64::MAX)
+            .await
+            .expect("the pending events")
+            .iter()
+            .map(|row| crate::private::decode_pending(&row.event).expect("a stored event"))
+            .collect()
     }
 
     /// Intended for tests: how many uploads are in `state` ("uploading",
@@ -430,5 +553,21 @@ async fn reap_sessions(state: Arc<AppState>) {
         state.rate_limits.prune();
         let longest_cooldown = Duration::from_secs(u64::from(SOUND_COOLDOWN_MAX_S));
         state.voice().sounds.prune(Instant::now(), longest_cooldown);
+    }
+}
+
+/// Drops undelivered private events, unseen devices and old send ids,
+/// at start and then hourly, until shutdown.
+async fn sweep_private_messages(state: Arc<AppState>) {
+    let mut interval = tokio::time::interval(PRIVATE_SWEEP_INTERVAL);
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                if let Err(error) = crate::private::sweep(&state, now_ms()).await {
+                    tracing::warn!(%error, "could not sweep private messages");
+                }
+            }
+            () = state.shutdown.cancelled() => return,
+        }
     }
 }

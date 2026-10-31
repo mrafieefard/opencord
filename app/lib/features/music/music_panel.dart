@@ -9,8 +9,10 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_artwork.dart';
 import 'package:opencord/features/music/music_controls.dart';
+import 'package:opencord/features/music/music_drop.dart';
 import 'package:opencord/features/music/music_queue.dart';
 import 'package:opencord/features/music/music_search.dart';
+import 'package:opencord/features/music/music_uploads.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/window/header_bar.dart';
@@ -305,106 +307,130 @@ class _MusicBodyState extends ConsumerState<_MusicBody> {
       }),
     );
     final access = ref.watch(musicAccessProvider(channel));
+    final uploading = ref.watch(
+      musicUploadsProvider(channel).select((uploads) => uploads.isNotEmpty),
+    );
     final searching = ref.watch(
       musicSearchProvider(channel).select((state) => state.searching),
     );
     final pad = const EdgeInsets.symmetric(horizontal: OcSpace.s12);
-    return CustomScrollView(
-      slivers: [
-        if (waiting)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                OcSpace.s12,
-                OcSpace.s12,
-                OcSpace.s12,
-                0,
-              ),
-              child: InlineError('Music server unavailable, retrying…'),
-            ),
-          ),
-        if (!access.present)
-          SliverToBoxAdapter(child: _JoinToControl(channel: channel)),
-        SliverToBoxAdapter(child: NowPlayingView(channel: channel)),
-        SliverPadding(
-          padding: pad.copyWith(top: OcSpace.s16, bottom: OcSpace.s8),
-          sliver: SliverToBoxAdapter(
-            child: MusicSearchField(channel: channel, autofocus: !playing),
-          ),
-        ),
-        if (searching) ...[
-          SliverPadding(
-            padding: pad,
-            sliver: SliverToBoxAdapter(
-              child: _SectionTitle(
-                'Results',
-                action: (
-                  'Back to queue',
-                  () => ref.read(musicSearchProvider(channel).notifier).close(),
+    return MusicDropZone(
+      channel: channel,
+      child: CustomScrollView(
+        slivers: [
+          if (waiting)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  OcSpace.s12,
+                  OcSpace.s12,
+                  OcSpace.s12,
+                  0,
                 ),
+                child: InlineError('Music server unavailable, retrying…'),
               ),
+            ),
+          if (!access.present)
+            SliverToBoxAdapter(child: _JoinToControl(channel: channel)),
+          SliverToBoxAdapter(child: NowPlayingView(channel: channel)),
+          SliverPadding(
+            padding: pad.copyWith(top: OcSpace.s16, bottom: OcSpace.s8),
+            sliver: SliverToBoxAdapter(
+              child: MusicSearchField(channel: channel, autofocus: !playing),
             ),
           ),
           SliverPadding(
             padding: pad,
-            sliver: MusicSearchResultsList(channel: channel),
+            sliver: MusicUploadsList(channel: channel),
           ),
-        ] else ...[
-          if (queued)
+          if (searching) ...[
             SliverPadding(
               padding: pad,
-              sliver: SliverToBoxAdapter(child: _UpNextTitle(channel: channel)),
-            ),
-          SliverPadding(
-            padding: pad,
-            sliver: MusicQueueList(channel: channel),
-          ),
-          if (played > 0)
-            SliverPadding(
-              padding: pad.copyWith(top: OcSpace.s8),
               sliver: SliverToBoxAdapter(
-                child: Hoverable(
-                  onTap: () => setState(() => _history = !_history),
-                  semanticLabel: _history
-                      ? 'Hide recently played'
-                      : 'Show recently played',
-                  builder: (context, state) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: OcSpace.s8),
-                    child: Row(
-                      children: [
-                        Icon(
-                          OcIcons.history,
-                          size: OcSize.iconInline,
-                          color: colors.textSecondary,
-                        ),
-                        const SizedBox(width: OcSpace.s6),
-                        Text(
-                          'Recently played',
-                          style: OcText.small.copyWith(
-                            color: state.active
-                                ? colors.text
-                                : colors.textSecondary,
-                          ),
-                        ),
-                        Icon(
-                          _history ? OcIcons.expandLess : OcIcons.expandMore,
-                          size: OcSize.iconInline,
-                          color: colors.textMuted,
-                        ),
-                      ],
-                    ),
+                child: _SectionTitle(
+                  'Results',
+                  action: (
+                    'Back to queue',
+                    () =>
+                        ref.read(musicSearchProvider(channel).notifier).close(),
                   ),
                 ),
               ),
             ),
-          if (_history && played > 0)
             SliverPadding(
               padding: pad,
-              sliver: _HistoryList(channel: channel),
+              sliver: MusicSearchResultsList(channel: channel),
             ),
+          ] else ...[
+            if (!playing && !queued && !uploading && access.canAdd)
+              SliverPadding(
+                padding: pad.copyWith(top: OcSpace.s8),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    'Search, or drop song files here to play them.',
+                    textAlign: TextAlign.center,
+                    style: OcText.small.copyWith(color: colors.textMuted),
+                  ),
+                ),
+              ),
+            if (queued)
+              SliverPadding(
+                padding: pad,
+                sliver: SliverToBoxAdapter(
+                  child: _UpNextTitle(channel: channel),
+                ),
+              ),
+            SliverPadding(
+              padding: pad,
+              sliver: MusicQueueList(channel: channel),
+            ),
+            if (played > 0)
+              SliverPadding(
+                padding: pad.copyWith(top: OcSpace.s8),
+                sliver: SliverToBoxAdapter(
+                  child: Hoverable(
+                    onTap: () => setState(() => _history = !_history),
+                    semanticLabel: _history
+                        ? 'Hide recently played'
+                        : 'Show recently played',
+                    builder: (context, state) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: OcSpace.s8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            OcIcons.history,
+                            size: OcSize.iconInline,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: OcSpace.s6),
+                          Text(
+                            'Recently played',
+                            style: OcText.small.copyWith(
+                              color: state.active
+                                  ? colors.text
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                          Icon(
+                            _history ? OcIcons.expandLess : OcIcons.expandMore,
+                            size: OcSize.iconInline,
+                            color: colors.textMuted,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (_history && played > 0)
+              SliverPadding(
+                padding: pad,
+                sliver: _HistoryList(channel: channel),
+              ),
+          ],
+          const SliverToBoxAdapter(child: SizedBox(height: OcSpace.s16)),
         ],
-        const SliverToBoxAdapter(child: SizedBox(height: OcSpace.s16)),
-      ],
+      ),
     );
   }
 }
@@ -481,7 +507,10 @@ class NowPlayingView extends ConsumerWidget {
           );
     final access = ref.watch(musicAccessProvider(channel));
     final track = item?.track;
+    // Songs dropped here play at once (design 2026-10-24).
+    final coverKey = MusicDropZone.coverKeyOf(context);
     final cover = LayoutBuilder(
+      key: coverKey,
       builder: (context, constraints) => MusicArtwork(
         serverKey: channel.server,
         artworkId: track?.artworkId ?? '',

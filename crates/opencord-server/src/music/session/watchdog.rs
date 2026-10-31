@@ -27,6 +27,13 @@ pub(super) struct Watch {
     restarted_at: Option<Instant>,
 }
 
+impl Watch {
+    /// No audio is awaited: an uploaded song plays.
+    pub(super) fn not_due(&mut self) {
+        self.due = None;
+    }
+}
+
 impl Session {
     pub(super) fn bridge(&mut self, event: &BridgeEvent) {
         let playing = self.playing();
@@ -68,6 +75,11 @@ impl Session {
     /// Checks the node when audio is overdue.
     pub(super) async fn watchdog(&mut self, now: Instant) {
         if self.watch.due.is_none_or(|due| due > now) {
+            return;
+        }
+        // An uploaded song plays on this server, not through the bridge.
+        if self.local.is_some() {
+            self.watch.due = None;
             return;
         }
         // Not signed in at the bridge yet: checked once Lavalink is.

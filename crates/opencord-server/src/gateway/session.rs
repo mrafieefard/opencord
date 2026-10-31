@@ -114,6 +114,8 @@ pub struct Session {
     pub user_id: i64,
     resume_token_hash: [u8; 32],
     inner: Mutex<Inner>,
+    /// The private messages device this session registered, if any.
+    private_device: Mutex<Option<[u8; 16]>>,
 }
 
 #[derive(Debug)]
@@ -157,7 +159,23 @@ impl Session {
                 detached_at: None,
                 ended: false,
             }),
+            private_device: Mutex::new(None),
         }
+    }
+
+    /// The private messages device this session registered, if any.
+    pub fn private_device(&self) -> Option<[u8; 16]> {
+        *self
+            .private_device
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn set_private_device(&self, device: Option<[u8; 16]>) {
+        *self
+            .private_device
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = device;
     }
 
     /// Numbers, buffers and sends an event. A connection too slow to keep

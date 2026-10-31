@@ -99,6 +99,26 @@ pub const COMMAND_AUTOCOMPLETE_RATE: RateLimit = RateLimit {
     period: Duration::from_secs(1),
 };
 
+// Private messages and friends (design 2026-10-22).
+
+/// Friend requests per sender.
+pub const FRIEND_REQUEST_RATE: RateLimit = RateLimit {
+    burst: 10,
+    period: Duration::from_secs(600),
+};
+
+/// Private messages per (sender, recipient) pair.
+pub const PRIVATE_MESSAGE_RATE: RateLimit = RateLimit {
+    burst: 5,
+    period: Duration::from_secs(5),
+};
+
+/// Key claims per user.
+pub const KEY_CLAIM_RATE: RateLimit = RateLimit {
+    burst: 30,
+    period: Duration::from_secs(60),
+};
+
 /// How long a voice state outlives a dropped gateway connection.
 pub const VOICE_GRACE_PERIOD: Duration = Duration::from_secs(30);
 pub const VOICE_TOKEN_LIFETIME: Duration = Duration::from_secs(60);

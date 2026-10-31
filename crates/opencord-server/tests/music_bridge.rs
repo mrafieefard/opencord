@@ -201,3 +201,101 @@ async fn a_silent_node_that_does_not_answer_loses_the_channel() {
         "REST is failing: Lavalink stopped sending audio and doesn't answer"
     );
 }
+
+/// The bridge's next message, past heartbeat acks.
+async fn bridge_message<S>(socket: &mut tokio_tungstenite::WebSocketStream<S>) -> serde_json::Value
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    use futures_util::StreamExt;
+    use tokio_tungstenite::tungstenite::Message;
+    loop {
+        let Some(Ok(Message::Text(text))) = socket.next().await else {
+            panic!("the bridge closed");
+        };
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        if value["op"] != 6 {
+            return value;
+        }
+    }
+}
+
+/// Signs in at the bridge as Lavalink would with `token`, for channel 1:
+/// the audio address the bridge's Ready names.
+async fn ready_ip<S>(socket: &mut tokio_tungstenite::WebSocketStream<S>, token: &str) -> String
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    use futures_util::SinkExt;
+    use tokio_tungstenite::tungstenite::Message;
+    assert_eq!(bridge_message(socket).await["op"], 8, "Hello");
+    let identify = serde_json::json!({
+        "op": 0,
+        "d": {
+            "server_id": "1",
+            "user_id": "99",
+            "session_id": "lavalink-session",
+            "token": token,
+        },
+    });
+    socket
+        .send(Message::Text(identify.to_string().into()))
+        .await
+        .unwrap();
+    let ready = bridge_message(socket).await;
+    assert_eq!(ready["op"], 2, "{ready}");
+    ready["d"]["ip"].as_str().unwrap().to_owned()
+}
+
+fn expected(token: &str) -> opencord_voice::bridge::ExpectedPlayer {
+    opencord_voice::bridge::ExpectedPlayer {
+        channel_id: 1,
+        user_id: 99,
+        token: token.to_owned(),
+        session_id: "lavalink-session".to_owned(),
+        allowed: None,
+    }
+}
+
+/// Through a reverse proxy such as Traefik the bridge sees only the proxy:
+/// Lavalink is told the server's public address for audio, as through a
+/// Cloudflare tunnel (D70).
+#[tokio::test]
+async fn lavalink_through_a_proxy_is_told_the_public_address() {
+    let server = TestServer::start().await;
+    let (mut owner, _) = owner(&server).await;
+    owner
+        .ok(Kind::SetPublicAddress(proto::SetPublicAddress {
+            auto_detect: false,
+            override_ipv4: "203.0.113.10".to_owned(),
+            override_ipv6: String::new(),
+        }))
+        .await;
+    let bridge = server.handle.music_bridge().expect("a bridge").clone();
+    let public: std::net::IpAddr = "203.0.113.10".parse().unwrap();
+    eventually(
+        "the bridge knows the public address",
+        Duration::from_secs(5),
+        || bridge.public_ip() == Some(public),
+    )
+    .await;
+
+    // Plain HTTP on the main port: a proxy that took TLS off.
+    bridge.expect(expected("through-a-proxy"));
+    let tcp = tokio::net::TcpStream::connect(("127.0.0.1", server.handle.local_addr.port()))
+        .await
+        .unwrap();
+    let (mut proxied, _) = tokio_tungstenite::client_async("ws://music.example/?v=8", tcp)
+        .await
+        .unwrap();
+    assert_eq!(
+        ready_ip(&mut proxied, "through-a-proxy").await,
+        "203.0.113.10"
+    );
+
+    // Over TLS from this machine: a Lavalink beside the server, on loopback.
+    bridge.expect(expected("direct"));
+    let mut direct = websocket(&server, "/?v=8").await.unwrap();
+    let ip: std::net::IpAddr = ready_ip(&mut direct, "direct").await.parse().unwrap();
+    assert!(ip.is_loopback(), "{ip}");
+}

@@ -941,3 +941,558 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - `deploy/`: the compose file and the systemd unit show, commented, how to give the server `secrets.key` from outside the data directory (a compose secret at `/run/secrets/opencord-secrets.key`; `LoadCredential` with `OPENCORD_SECRETS_FILE=%d/opencord-secrets.key`). The compose form was checked with `docker compose config`.
 - **Also.** `app/tool/e2e_server.sh` starts its servers with `OPENCORD_MUSIC_UDP_PORT=0`, so a check runs while another server holds UDP 7712.
 - **Not done here:** the checks by hand from A5, A6 and A7 (listed in `docs/attachments.md`) and scrolling 200 image messages at 60 fps need a display; the transfer speed on an idle machine; the Windows and macOS work (P1, P2).
+
+
+## D61: Private messages: protocol, shared rules, config and schema (Phase 5 E0, 2026-10-22)
+
+- **Why.** Milestone E0 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 1–3, commits `f424002..5911218`) adds the protocol messages, shared cryptographic signing rules and constants, server config section, schema migration, and Ready capability flag that the private messages and friend delivery architecture builds on.
+- **Protocol messages.**
+  - `proto/opencord/v1/private.proto` defines `DeviceKeys`, `Prekey`, `UserDevices`, `DeviceRef`, `DeviceBundle`, `DeviceCiphertext`, device registration and key claim requests/responses (`RegisterDevice`, `UploadKeys`, `UnregisterDevice`, `DeviceRegistration`, `FetchDevices`, `DeviceLists`, `ClaimKeys`, `ClaimedKeys`), pending offline delivery messages (`FetchPendingEvents`, `PendingEvents`, `AckPendingEvents`), messaging and privacy requests (`SendPrivateMessage`, `PrivateMessageSent`, `StartPrivateTyping`, `UpdatePrivacy`), friend requests and answers (`SendFriendRequest`, `FriendRequestCreated`, `AnswerFriendRequest`, `CancelFriendRequest`, `RemoveFriend`), pending event envelopes (`PendingEvent`, `FriendRequestReceived`, `FriendRequestSent`, `FriendRequestAnswered`, `FriendRequestCancelled`, `FriendRemoved`, `PrivateMessage`, `PrivateTypingStart`), and end-to-end payload bodies (`PrivatePayload`, `PrivateText`, `PrivateEdit`, `PrivateDelete`, `RelayMoved`, `RequestAccepted`, `SessionReset`).
+  - Wire formats are integrated into `requests.proto` (Request kinds 180–193, Response results 34–39), `events.proto` (Event kinds 120–121), `gateway.proto` (`Ready.private_messages` = 21), and `models.proto` (ErrorCodes 48–52: `ERROR_CODE_FRIEND_REQUESTS_CLOSED`, `ERROR_CODE_MESSAGE_REQUESTS_CLOSED`, `ERROR_CODE_UNDELIVERABLE`, `ERROR_CODE_DEVICE_LIST_CHANGED`, `ERROR_CODE_PRIVATE_MESSAGES_UNAVAILABLE`).
+  - Bridge error codes are mapped across Rust `opencord_core::api::types::ErrorCode` and Dart `RepoErrorKind` (`friendRequestsClosed`, `messageRequestsClosed`, `undeliverable`, `privateMessagesUnavailable`).
+- **Signing payloads and shared limits.**
+  - `opencord_common::private` defines fixed binary signing layouts using strict Ed25519 verification (`verify_strict`):
+    - `device_payload` (`b"opencord-device-v1"` || 16-byte device ID || 32-byte Curve25519 key || 32-byte Ed25519 key = 98 bytes), signed by the owner's identity key via `sign_device` and verified via `verify_device`;
+    - `prekey_payload` (`b"opencord-prekey-v1"` || 16-byte device ID || 32-byte key || 1-byte fallback flag = 67 bytes), signed by the device's Ed25519 key via `sign_prekey` and verified via `verify_prekey`;
+    - `slip_payload` (`b"opencord-dm-allow-v1"` || 32-byte granter || 32-byte grantee = 84 bytes), signed by the granter via `sign_slip` and verified via `verify_slip`.
+  - Slice length checks ensure non-matching lengths return `false` without panicking.
+  - Rate limits in `opencord_common::limits`: `FRIEND_REQUEST_RATE` (burst 10, period 600 s), `PRIVATE_MESSAGE_RATE` (burst 5, period 5 s), and `KEY_CLAIM_RATE` (burst 30, period 60 s).
+- **Server configuration, migration, and Ready flag.**
+  - `[private_messages]` section in `Config` and `DEFAULT_CONFIG_TOML`: `enabled` (default `true`), `undelivered_days` (default `30`, range 1–365), `max_pending_per_device` (default `5000`, range 100–100,000), `device_expiry_days` (default `60`, range 7–365). Overrides via `OPENCORD_PRIVATE_ENABLED`, `OPENCORD_PRIVATE_UNDELIVERED_DAYS`, `OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE`, and `OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS`.
+  - Migration `0010_private_messages.sql` creates tables `private_privacy`, `private_blocks`, `private_devices`, `private_one_time_keys`, `private_friend_requests`, `private_pending`, and `private_recent_sends`, with indexes for pair uniqueness, pending device queues, and request-based removal.
+  - `Ready.private_messages` is populated from `state.config.private_messages.enabled`.
+- **Tests.**
+  - `crates/opencord-proto/tests/private.rs`: `field_numbers_are_the_planned_ones` pins encoded tags for Request 180, Event 120, Response 34, Ready 21, and error codes 48–52; `pending_events_and_payloads_round_trip` tests encoding/decoding of each `PendingEvent` kind and `PrivatePayload` body variant.
+  - `crates/opencord-common/src/private.rs`: `payload_layouts_are_fixed`, `device_signatures_bind_every_field`, `prekey_signatures_bind_the_fallback_flag`, `slips_name_both_people_in_order`, `wrong_lengths_never_verify`.
+  - `crates/opencord-server/src/config.rs`: `environment_overrides_the_file`, `private_message_limits_out_of_range_are_refused`, `default_file_matches_default_config`.
+  - `crates/opencord-server/tests/private.rs`: `ready_says_whether_private_messages_are_on`.
+
+
+## D62: Private messages: the server's devices, keys, waiting events, relay and friends (Phase 5 E1, 2026-10-22)
+
+- **Why.** Milestone E1 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 4–7, commits `65af9b1..de85f04`). The server registers each person's devices and their keys, keeps events for devices that are offline, relays encrypted messages it can't read, and carries friend requests. Tasks 4–6 were done by Claude through claude-bridge, Task 7 by Gemini.
+- **Devices, keys and privacy (Task 4, `65af9b1`).** In `handlers/private.rs`, `private/mod.rs` and `db/private.rs`.
+  - `RegisterDevice` takes a `DeviceKeys` (16-byte id, Curve25519 and Ed25519 keys, the identity's signature over them, checked with `verify_device` against the member's own key), one-time keys and a fallback key, each signed by the device (`verify_prekey`). The session then holds that device. Re-registering with new keys drops the old one-time keys in one conditional `DELETE`. An 11th device pushes out the one seen longest ago (ties by `rowid`), and any session holding it lets it go.
+  - `UploadKeys` adds one-time keys and may replace the fallback key; the 100-key limit is checked inside the transaction after inserting, and the transaction rolls back if it's over. `UnregisterDevice` deletes the device; its keys and waiting events go with it (`ON DELETE CASCADE`).
+  - `FetchDevices` (2 users at most) lists devices. `ClaimKeys` (20 devices at most, `KEY_CLAIM_RATE`) hands out one one-time key per device, oldest first, removed with `DELETE … RETURNING`. When none is left, it hands out the fallback key, marked `fallback`.
+  - `UpdatePrivacy` replaces both switches and the block list (10,000 ids at most, repeats dropped) under `state.write_lock()`. `PrivateMessages` keeps them in memory, loaded at startup. Kick and ban call `forget_member` in their transaction, then `PrivateMessages::forget`.
+  - `Ctx` gained `session: &Arc<Session>`, so handlers reach the session's device slot.
+- **Waiting events (Task 5, `4c0ba47`).** In `private/mod.rs`.
+  - `insert_pending` stores each event under a Snowflake id for one device, inside the caller's transaction, and drops a device's oldest events past `max_pending_per_device`. `push_pending`, after the commit, sends each one live to the session holding that device. `deliver` does both in its own transaction.
+  - `FetchPendingEvents` pages by `after_id`, 100 events or 786,432 bytes at most, with `more` set when there are more. `AckPendingEvents` (500 ids at most) deletes only the caller's own device's events.
+  - An hourly sweep (`sweep_private_messages` in `server.rs`) deletes events older than `undelivered_days`, devices unseen for `device_expiry_days` (sessions holding them let them go), and send ids older than 24 hours.
+  - `forget_member` deletes the member's friend requests and the events for them, devices, privacy and blocks.
+- **Messages and typing (Task 6, `9d6b4f1`).**
+  - `SendPrivateMessage` checks, in order:
+    - a device is required, and the rate is limited per sender and recipient (`PRIVATE_MESSAGE_RATE`);
+    - the recipient is a member and not the sender;
+    - the recipient hasn't blocked the sender (`UNDELIVERABLE`);
+    - if the recipient turned message requests off, the sender has the recipient's slip (`MESSAGE_REQUESTS_CLOSED`), since the server keeps no friend list;
+    - the copies have their shape: 1 to 20 copies, 32,768 bytes each, no device twice.
+
+    Then, in one transaction:
+    - the same `send_id` from the same device within 24 hours stores nothing and answers with the first send's time;
+    - the recipient must have devices;
+    - the copies must name exactly the recipient's devices and the sender's other devices (`DEVICE_LIST_CHANGED`).
+
+    Each copy goes to its device as a `PrivateMessage` waiting event, and the answer gives the server's time.
+  - `StartPrivateTyping` passes the same checks but answers success either way, so typing never reveals a block. It sends a live `PrivateTypingStart` event to the recipient's sessions, never stored.
+- **Friend requests (Task 7, `de85f04`).** In `handlers/friends.rs`.
+  - `SendFriendRequest` checks, in order:
+    - a device is required, and the rate is limited (`FRIEND_REQUEST_RATE`);
+    - the target is a member and not the caller;
+    - the target hasn't blocked the caller (`UNDELIVERABLE`) and takes friend requests (`FRIEND_REQUESTS_CLOSED`);
+    - the target has devices;
+    - the slip (the caller's permission for the target) verifies;
+    - the caller has fewer than 100 requests waiting, and no request exists between the two in either direction (`CONFLICT`, worded for who sent it).
+
+    In one transaction, it then stores the request, sends `FriendRequestReceived` to the target's devices (tagged with the request id) and `FriendRequestSent` to the caller's other devices.
+  - `AnswerFriendRequest`: only the target can answer, else `NOT_FOUND`. An accept needs the answerer's slip for the requester. The request is deleted with `WHERE id = ? AND to_id = ?`; if no row was deleted, the answer is `NOT_FOUND` and nothing is sent. `FriendRequestAnswered` (the slip is empty on a decline) goes to the requester's devices and the answerer's other devices.
+  - `CancelFriendRequest`: deleted with `WHERE id = ? AND from_id = ?`, together with its undelivered `FriendRequestReceived` events. `FriendRequestCancelled` goes to the target's devices and the caller's other devices.
+  - `RemoveFriend` stores nothing, since the server keeps no friend list. It sends `FriendRemoved` to the target's devices and the caller's other devices.
+- **Tests.** `crates/opencord-server/tests/private.rs`, 44 tests, all passing:
+  - 13 on devices, keys and privacy;
+  - 9 on waiting events;
+  - 9 on messages and typing;
+  - 13 on friend requests.
+
+  Workspace clippy, `check_platforms.sh`, `flutter analyze` and `flutter test` (957 passed, 1 skipped) also pass.
+- **Review.** E1 was checked against the plan on 2026-10-22. The code matched; this entry was rewritten because the first version described a different design for Task 7 (an `accepted_at_ms` column, `FORBIDDEN` errors, a stored friend list) and wrong details for Tasks 4 and 6.
+
+
+## D63: Private messages: client storage, keys and contacts (Phase 5 E2, 2026-10-23)
+
+- **Why.** Milestone E2 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 8–10, commits `aa7eb69..7fde6c6`). The client core stores encrypted data at rest in a SQLite database sealed with keys derived from a master key (kept in the system keychain from Task 16 on, not the identity key), manages device keys and Olm sessions via vodozemac, and tracks contacts, privacy settings and friend states. Tasks 8 and 9 were done by Claude through claude-bridge, Task 10 by Gemini.
+- **The private database and sealing (Task 8, `aa7eb69`).** In `crates/opencord-core/src/private/mod.rs`, `seal.rs` and `store.rs`.
+  - Migration `0001_private.sql` creates tables `device`, `peer_devices`, `sessions`, `contacts`, `messages`, `received_events`, and `settings`, with indexes `messages_by_conversation`, `messages_sending`, and `received_events_by_age`.
+  - `derive_keys` derives `DerivedKeys` (`pickle` and `seal` 32-byte keys) from a 32-byte master key using HMAC-SHA256 with labels `b"opencord-private-pickle-v1"` and `b"opencord-private-seal-v1"`.
+  - `Sealer` wraps XChaCha20-Poly1305. `seal` encrypts plaintext with a random 24-byte nonce and authenticates `"opencord-private:" || label || ":" || row`, so a sealed value can't be moved to another column or row. The nonce goes in front. `open` decrypts and authenticates, returning `PrivateError::Crypto` on mismatch or damage.
+  - `PrivateStore` opens or creates a SQLite database under `PRIVATE_DIR` (`"private"`) named `<hex public key>.db`. It verifies a sealed setting `key_check` with label `"settings.key_check"` and row `b""`. An unreadable, corrupt, or wrong-key database is moved aside to `<name>.unreadable-<now_ms>`, logged without the file path, and started fresh (`started_fresh` in `Opened`).
+  - `PrivateError` (`Storage`, `Invalid`, `Crypto`) implements `From` for `sqlx::Error` and `std::io::Error`, and converts into `CoreError` (`Invalid` to `CoreError::InvalidInput`, `Storage` and `Crypto` to `CoreError::Storage`).
+- **Keys, the account and sessions (Task 9, `dccd83b`).** In `crates/opencord-core/src/private/device.rs`, `sessions.rs`, `identity.rs`, using `vodozemac` 0.11.1.
+  - `Device::load_or_create` loads the single row from `device` or generates a 16-byte random `device_id` and a `vodozemac::olm::Account` encrypted with the `pickle` key. `keys` returns `proto::DeviceKeys` signed by the owner via `Identity::sign_device`. `fallback_prekey` returns the signed fallback prekey. `new_one_time_keys` generates signed one-time keys without marking them published, preserving the fallback key in vodozemac 0.11.1. `rotate_fallback_if_due` rotates the fallback prekey after 30 days (`FALLBACK_ROTATION_MS`). `save` persists the account pickle conditionally (`rows_affected() == 1`). `Identity::slip_for` creates 64-byte permission slips.
+  - `PeerSessions` loads up to 5 sessions per peer Curve25519 key. `encrypt` picks the most recently active session (latest `last_received_at`, else `created_at`) and encrypts via `vodozemac::olm::Session::encrypt`. `decrypt` decrypts incoming messages, handling duplicates (`Decrypted::Duplicate`), failures (`Decrypted::Failed`), or plaintext (`Decrypted::Plaintext`); for prekey messages (`olm_type` 0), it tries existing sessions first and falls back to creating an inbound session with `Account::create_inbound_session`. `add_outbound` creates outbound sessions with `Account::create_outbound_session`. `save` prunes sessions to the 5 with the latest `MAX(created_at, COALESCE(last_received_at, created_at))`.
+- **Contacts and their rules (Task 10, `7fde6c6`).** In `crates/opencord-core/src/private/contacts.rs`.
+  - `Contact` stores peer state (`public_key`, sealed `name` with label `CONTACT_NAME_LABEL`, `friend_state` as `FriendState`, `request` as `RequestRef`, `friend_server_id`, `blocked`, `declines`, `conversation` as `Conversation`, `relay_server_id`, `their_slip`, `last_activity_at`, `last_read_at`, `muted`, `hidden`).
+  - Pure rules evaluate transitions: `is_accepted` checks for `FriendState::Friends` or `Conversation::Accepted`; `incoming_message` returns `IncomingMessage` (`Drop`, `Request`, `Conversation`); `incoming_request` returns `IncomingRequest` (`Drop`, `AutoAccept`, `CrossedAccept`, `Spam`, `Pending`), treating requests after `SPAM_AFTER_DECLINES` declines as spam; `after_my_request` sets `FriendState::Outgoing` and accepts conversation; `after_my_answer` sets `FriendState::Friends` on accept or increments `declines` on decline; `after_my_cancel` and `after_block` reset friend state.
+  - Storage functions: `load` and `load_all` read contacts and unseal names; `save` upserts contact rows sealing `name`; `delete` removes a contact; `privacy` and `set_privacy` read and write `PrivacySettings` (`allow_friend_requests`, `allow_message_requests`) via settings keys `PRIVACY_FRIEND_REQUESTS` and `PRIVACY_MESSAGE_REQUESTS`.
+  - `apply_friend_event` applies incoming `FriendEvent` variants (`Received`, `Sent`, `Answered`, `Cancelled`, `Removed`), verifies slips, updates contact records and names, and returns `FriendOutcome` with optional `FollowUp::Answer` and `FollowUp::Cancel` commands.
+- **Tests.** 32 tests across `crates/opencord-core`:
+  - 8 on database storage, sealing, key derivation and corrupted file recovery in `private::store` and `private::seal`;
+  - 13 on device keys, one-time key generation, Olm sessions, duplication, rotation, and signatures in `private::device`, `private::sessions`, and `identity`;
+  - 11 on contact states, incoming message/request rules, decline thresholds, slip retention, crossed requests, sealed names, and privacy defaults in `private::contacts`.
+
+  Workspace clippy, `app/tool/check_platforms.sh`, `dart format`, `flutter analyze` and `flutter test` (957 passed, 1 skipped) also pass.
+- **Review.** E2 was checked against the plan on 2026-10-23. Task 10 matches the plan's rules and its table of friend events, with all 11 tests. This entry was corrected in two places: the keys come from a master key, not the identity key, and what sealing authenticates.
+
+
+## D64: Private messages: core private message service (Phase 5 E3, 2026-10-24)
+
+- **Why.** Milestone E3 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 11–15, commits `b0b0f7a..52b75b2`). The client core connects client storage to servers: member tracking, device registration and catch-up, end-to-end encryption with Olm outbound/inbound sessions, outbox delivery, inbox decryption, friend requests, message requests, blocking, conversation management, relay moves, dividers, unread tracking, and typing indicators. Tasks 11–13 were done by Claude through claude-bridge, Tasks 14–15 by Gemini, with review fix `52b75b2` by Claude.
+- **The service: members, registration, catch-up, acknowledgements (Task 11, `b0b0f7a`).** In `crates/opencord-core/src/private/service.rs`, `members.rs`, `client.rs`, `connection.rs`.
+  - `PrivateService` manages background registration, worker queues, acknowledgements, and client events. `PrivateService::opened` returns an `Arc<Open>` holding the database store and device lock.
+  - `MemberIndex` (`members.rs`) tracks members per server: `user_id`, public key, and display names, updated on `Ready`, `MemberJoin`, `MemberUpdate`, `MemberLeave`, and pruned on `before_remove`. `shared_servers` finds mutual servers for a peer.
+  - On `Ready` for servers with `private_messages`, background registration rotates fallback prekeys if older than 30 days, sends `RegisterDevice` (device keys and fallback prekey), uploads one-time keys if fewer than 20 remain, syncs `UpdatePrivacy` (settings and blocked IDs on that server), and runs catch-up via `FetchPendingEvents` from `after_id` 0.
+  - Worker task processes events sequentially: duplicate events are skipped via `received_events`; friend events are processed in `BEGIN IMMEDIATE` transactions; `PrivateEvent::ContactChanged` and `FriendRequestReceived` are emitted; acknowledgements are batched per server (sent on 100 pending or 200 ms interval via `AckPendingEvents`).
+  - Follow-up actions: `Answer` sends `AnswerFriendRequest` with permission slip; `Cancel` sends `CancelFriendRequest` (checked against current request to avoid cancelling accepted friendships).
+  - Client methods: `private_open` opens encrypted store and starts worker; `private_events` provides event channel; `private_contacts` lists contacts; `private_messages` queries messages newest-first with `before` and `limit`.
+- **Sending (Task 12, `e63a3b0`).** In `crates/opencord-core/src/private/outbox.rs`, `payload.rs`, `client.rs`, and test hook in `opencord-server`.
+  - `payload::build` packs message ID (16 bytes), recipient (32 bytes), optional slip (64 bytes), timestamp, and body into Protobuf `PrivatePayload`. `payload::parse` validates lengths and contents.
+  - `outbox::send` routes payloads: selects connected relay with private messages where peer is member (or `options.relay`); checks content for text; inserts `sending` text message with sealed body; fetches and caches verified recipient and self devices; claims one-time prekeys; encrypts payload under device lock for each device; saves outbound sessions and outbox payload; sends `SendPrivateMessage` request with recipient's slip.
+  - On success (`Outcome::Sent`), text message marks `sent` with server timestamp, conversation becomes `Accepted`, outbox is cleared, and `MessageChanged` and `ContactChanged` are emitted. On `DeviceListChanged`, drops device cache and retries once.
+  - `outbox::retry` and `resend_unsent` resend pending outbox payloads on reconnection or catch-up; payloads over 24 hours old are marked failed.
+  - `outbox::edit` and `outbox::delete` send `Edit` and `Delete` payloads, updating or deleting local rows on server confirmation. Client methods: `private_send`, `private_edit`, `private_delete`, `private_retry`.
+- **Receiving (Task 13, `2336ba6`).** In `crates/opencord-core/src/private/inbox.rs`, `service.rs`.
+  - Worker processes `PrivateMessage` pending events: verifies sender public key and device signature; decrypts ciphertext under device lock via `PeerSessions::decrypt`.
+  - Duplicates are acknowledged without showing; failed decryptions record an undecryptable line (`Undecryptable`) and schedule rate-limited `SessionReset` payloads (at most once per peer device per hour); successful decryptions parse payload and store sender's slip.
+  - In one transaction (`BEGIN IMMEDIATE`), saves updated sessions, device account, contact state, and event record in `received_events`.
+  - Incoming text creates or updates contact as `Request` if none existed (unless blocked or dropped by privacy), sets `last_activity_at`, unhides conversation, stores message as `Received`, and emits `MessageAdded`. Copies from own devices store message as `Sent` and accept conversation.
+  - Peer edits and deletes apply only if authored by same peer.
+- **Friends, message requests, blocks and privacy (Task 14, `4fdc447`).** In `crates/opencord-core/src/private/actions.rs`, `client.rs`.
+  - `friend_request_send` looks up peer from `MemberIndex`, generates 64-byte permission slip with `Identity::slip_for`, sends `SendFriendRequest`, updates contact via `contacts::after_my_request` on success, and emits `ContactChanged`.
+  - `friend_request_answer` requires incoming request on connected server, sends `AnswerFriendRequest` (with slip if accepted), updates contact via `contacts::after_my_answer`, and emits `ContactChanged`.
+  - `friend_request_cancel` requires outgoing request on connected server, sends `CancelFriendRequest`, updates contact via `contacts::after_my_cancel`, and emits `ContactChanged`.
+  - `friend_remove` sends `RemoveFriend` to all connected shared servers with private messages; if any succeed, resets friendship to `FriendState::None` and emits `ContactChanged`.
+  - `message_request_accept` sends `RequestAccepted` payload via `outbox::send`, sets conversation to `Accepted`, and emits `ContactChanged`.
+  - `message_request_ignore` deletes conversation messages; if contact has no other friend/request/block state, deletes contact and emits `ContactRemoved`; otherwise sets conversation to `None` and emits `ContactChanged`.
+  - `private_block` immediately applies `contacts::after_block` locally without waiting for server, best-effort declines/cancels pending requests, removes friends, emits `ContactChanged`, and broadcasts `UpdatePrivacy` with blocked IDs to connected servers. `private_unblock` unblocks contact and updates server privacy.
+  - `privacy_settings` and `set_privacy_settings` read/write `PrivacySettings` and broadcast `UpdatePrivacy` across connected servers.
+- **Conversations, relay moves and typing (Task 15, `b3b5de1`, review fix `52b75b2`).** In `crates/opencord-core/src/private/actions.rs`, `outbox.rs`, `inbox.rs`, `client.rs`.
+  - `private_open_conversation` looks up peer in `MemberIndex`, creates contact with member name if new, selects usable relay (existing relay, else friendship server, else server key), sets `hidden = false`, saves, and emits `ContactChanged`.
+  - `private_shared_servers` returns mutual servers from `MemberIndex::shared_servers` in client server order.
+  - `private_move` validates target server is connected with private messages and peer is member, sends `RelayMoved` payload via `outbox::send_timed` (for the server's time), updates contact relay, inserts outgoing `Divider` at server time, and emits `MessageAdded` and `ContactChanged`.
+  - `private_move_too` verifies message is `MOVED` card from peer and target server is connected on this device with peer as member (else errors "This device isn't on <server name>."), updates contact relay, inserts outgoing `Divider`, and emits.
+  - `private_typing` sends `StartPrivateTyping` through contact's relay with peer's slip.
+  - `private_mark_read` sets `last_read_at` to newest message timestamp, clearing unread count.
+  - `private_set_muted` toggles muted flag. `private_hide` sets `hidden = true`.
+  - Dividers: inserted before sending the first text message in a conversation (`outbox::send`), and upon receiving the first text message (`inbox::receive` for peer text and own copies).
+  - Review fix `52b75b2`: `fresh` helper re-reads contact after awaiting server response in `friend_request_answer`, `friend_request_cancel`, `message_request_accept`, and `private_move`, preventing overwriting concurrent receive worker writes.
+- **Tests.** 39 integration tests in `crates/opencord-core/tests/private.rs`, all passing:
+  - 6 on service registration, ready events, catch-up, acknowledgements, and server removal;
+  - 6 on message sending, device signing verification, multi-device fan-out, reconnection, and session ratchet saving;
+  - 8 on receiving, decryption, duplicates, redelivery after crash, author-verified edits/deletes, message requests, session resets, and forged device detection;
+  - 11 on friend requests, mutual requests, third decline spam, closed requests, accepted message requests, ignoring, blocking, unblocking, and friend removal;
+  - 8 on profile server conversation start with first divider, relay moves, move refusal, move too validation, typing through blocks, shared server listing, unhiding on new message, and mark read unread counts.
+
+  Core unit tests (132 passed), the workspace's tests, workspace clippy (0 warnings), `app/tool/check_platforms.sh`, `flutter analyze` (no issues), and `flutter test` (957 passed, 1 skipped) all pass.
+- **Review.** E3 was checked against the plan on 2026-10-24. Four actions in `actions.rs` that read contact before server requests and saved stale state were fixed in `52b75b2` by re-reading with `fresh`.
+
+
+## D65: Private messages: client app, views and notifications (Phase 5 E4, 2026-10-24)
+
+- **Why.** Milestone E4 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 16–22, commits `34521f8..fb552d7`). The Flutter desktop app connects to the private messaging core: generated Dart bindings, secure private key store, app models, state providers and event routing, the Friends page with tabs and error dialogs, the conversation view with dividers, relay chips and move cards, the home view, rail button and direct messages sidebar, member profiles and menus, privacy settings, desktop notifications, urgent attention, unread window title badges, and deep links. Tasks 16–22 were implemented by Gemini, with reviewer fix `7abe6e0`.
+- **Core API bindings and key store (Task 16, `34521f8`).** In `crates/opencord-core/src/api/private.rs`, `client.rs`, `frb_generated.rs`, and `app/lib/core/rust/private_key_store.dart`.
+  - Exposed 26 core API functions through `flutter_rust_bridge` in `crates/opencord-core/src/api/private.rs`: `private_open` (validating 32-byte key), `private_event_stream`, `private_contacts`, `private_messages`, `private_send`, `private_edit`, `private_delete`, `private_retry`, `friend_request_send`, `friend_request_answer`, `friend_request_cancel`, `friend_remove`, `message_request_accept`, `message_request_ignore`, `private_block`, `private_unblock`, `privacy_settings`, `set_privacy_settings`, `private_open_conversation`, `private_shared_servers`, `private_move`, `private_move_too`, `private_typing`, `private_mark_read`, `private_set_muted`, and `private_hide`.
+  - `PrivateKeyStore` (`private_key_store.dart`): retrieves or creates the 32-byte master key from `FlutterSecureStorage` under `opencord.private.key` (or `opencord.$profile.private.key`), generating 32 random bytes with `Random.secure()` if missing or invalid, saved as base64. Loaded during `startApp` in `app_start.dart` and passed to `RustRepository`.
+- **State management, repository, and providers (Task 17, `11e5a29`, reviewer fix `7abe6e0`).** In `app/lib/core/model/private.dart`, `app/lib/core/rust/private_mapping.dart`, `app/lib/core/repository/`, `app/lib/core/providers/private_state.dart`, `app/lib/core/mock/mock_private.dart`, `app/lib/features/shell/navigation.dart`.
+  - App models in `core/model/private.dart`: `PrivateContact`, `PrivateMessage`, `PrivacySettings`, and enums `FriendStatus`, `ConversationStatus`, `PrivateMessageKind`, `PrivateSendState`.
+  - Repository events in `core/repository/events.dart`: `PrivateContactChanged`, `PrivateContactRemoved`, `PrivateMessageAdded`, `PrivateMessageChanged`, `PrivateMessageDeleted`, `PrivateTypingStarted`, `FriendRequestArrived`, and `PrivateStateChanged`.
+  - `RustRepository` listens to `_core.privateEventStream`, forwards mapped repository events, calls core methods, initializes private messages with `privateOpen`, records `privateUnavailable` on missing key or open error, and tracks `privateStartedFresh`.
+  - `privateContactsProvider` manages `PrivateContactsState`: the `byPeer` map and the getters `all`, `friends`, `incomingRequests`, `outgoingRequests`, `spamRequests`, `messageRequests` and `blocked`. The Online tab filters `friends` by presence in `friends_page.dart`; the unread total is `privateUnreadProvider`.
+  - `privateConversationProvider` manages per-peer messages with pagination (`loadOlder`), message insertion, editing, and deletion.
+  - Reviewer fix `7abe6e0`: `PrivateContactsNotifier` tracks `_touched` contacts and `PrivateConversationNotifier` tracks `_deletedDuringLoad` message IDs so asynchronous loads merge with concurrent events rather than overwriting them.
+  - `contactNameProvider` implements 4-step display name resolution: relay server member name, first shared server member name in rail order, `contact.name`, and `contact.fingerprint` (falling back to peer key).
+  - `contactAvatarProvider` resolves member avatar from relay server or first shared server.
+  - `sharedServersProvider` returns `SharedServerView` list for mutual servers where private messages are supported.
+  - `privateUnreadProvider` sums `unread` over accepted, unmuted, unblocked contacts; `privateTypingProvider` tracks typing indicators with an 8-second expiry (`privateTypingTimeout`).
+  - `navigationProvider` adds `home` and `peer` to `Selection`, with `openHome`, `openFriends`, and `openConversation`; exposes `homeShownProvider` and `currentPeerProvider`.
+  - `MockPrivateWorld` in `mock_private.dart` simulates private state with 9 mock contacts covering friends, pending requests, spam, message requests, blocked contacts, dividers, and relay moves.
+- **The Friends page and error dialogs (Task 18, `98d94e9`).** In `app/lib/features/home/friends_page.dart`, `friend_rows.dart`, `private_errors.dart`.
+  - `FriendsPage`: 60 px header with title "Friends" and 5 tabs via `ChoiceChips`: **Online**, **All**, **Pending**, **Message requests**, **Blocked** (persisting selection under `ui.friendsTab`). Shows dedicated empty states and section count headers.
+  - In `friend_rows.dart`: list rows (`FriendRow`, `IncomingRequestRow`, `OutgoingRequestRow`, `MessageRequestRow`, `BlockedRow`) with `ContactAvatar`, name, subtitle, and contextual action buttons. Pending tab includes collapsible **Spam** section with chevron toggle.
+  - `showPrivateFailure`: displays dialogs for `friendRequestsClosed`, `messageRequestsClosed`, `undeliverable`, `privateMessagesUnavailable`, `notConnected`, `invalidArgument`, and `conflict`, or toast for general errors; `confirmBlock` and `confirmRemoveFriend` provide confirmation dialogs.
+- **The conversation view (Task 19, `4dd46e7`).** In `app/lib/features/home/private_chat.dart`, `private_header.dart`, `private_message_list.dart`, `private_composer.dart`, `relay_divider.dart`, `move_card.dart`, `request_bar.dart`, `private_message_adapter.dart`.
+  - `PrivateHeader`: 60 px header with contact avatar, name, mutual server or typing indicator subtitle, lock button opening dialog with formatted key fingerprint, and relay server chip button showing current relay with dropdown menu from `sharedServersProvider` to call `moveConversation`.
+  - `PrivateMessageList`: renders message history with `RelayDivider` (a wavy line each side of the server's icon and name; the name opens the server when this device has it, `777adaf`), date dividers, text messages via `CompactMessage` and `MessageLine` adapted with `asChatMessage`, move cards, and undecryptable messages. `PrivateChat` calls `markPrivateRead` when the chat opens, and again when the window regains focus (`f2ace09`).
+  - `MoveCard`: displays peer relay move notifications with a "Move too" button.
+  - `RequestBar`: displayed for message requests with **Accept**, **Ignore**, and **Block** buttons.
+  - `PrivateComposer`: text entry supporting multiline, edit mode, retry for failed messages, typing indicators, and disabled states (blocked, requests closed, peer unavailable).
+- **The rail button, home view, and sidebar (Task 20, `4bfb9c2`).** In `app/lib/features/servers/server_rail.dart`, `app/lib/features/shell/desktop_shell.dart`, `app/lib/features/home/home_sidebar.dart`, `app/lib/features/home/home_main.dart`.
+  - `ServerRail`: top item displays Home button (`id: 'private-home'`, `glyph: OcIcons.chat`, tooltip "Private messages", badge from `privateUnreadProvider`), selected when `homeShownProvider` is true; deselects servers when home is active.
+  - `DesktopShell`: displays `HomeSidebar` and `HomeMain` when `homeShownProvider` is true, hides member panel toggle, and suppresses Alt+↑/↓ channel navigation.
+  - `HomeSidebar`: 60 px `HeaderBar` ("Private messages"), nav rows for **Friends** and **Message requests** with badges, `SectionLabel('DIRECT MESSAGES')`, conversation rows sorted newest-first with avatar, name, unread badge, hover close button calling `hideConversation`, right-click menu (Mute/Unmute, Close conversation, Block), and `UserPanel` at bottom.
+  - `HomeMain`: renders error box when `privateUnavailable`, `NoServersView` when no servers and no contacts exist, `PrivateChat` when `currentPeerProvider` is set, or `FriendsPage`. Displays fresh-start dialog on `privateStartedFresh`.
+- **Profiles, member menu and Privacy settings (Task 21, `42fd39d`).** In `app/lib/features/members/member_profile.dart`, `member_actions.dart`, `app/lib/features/settings/user/privacy_page.dart`, `user_settings.dart`.
+  - `MemberProfileDialog`: includes "Message" button (opens conversation via `openConversation`), 4-state friend button ("Add friend", "Request sent", "Accept request", "Friends"), and top-right more menu button with Block/Unblock. Hidden on own profile.
+  - `member_actions.dart`: adds "Message", friend actions, and Block/Unblock to member context menu.
+  - `PrivacyPage`: added under "You" in User Settings (`id: 'privacy'`, `icon: OcIcons.lock`), mixes in `SaveBarChanges` to edit "Friend requests" and "Message requests" switch rows with Save and Discard bar.
+- **Notifications, window title badges, and links (Task 22, `9bef5a5`, test fix `fb552d7`).** In `app/lib/features/desktop/notification_policy.dart`, `notification_binding.dart`, `app/lib/features/shell/window_title.dart`, `app/lib/features/links/app_links.dart`, `app/lib/core/mock/mock_repository.dart`.
+  - `notification_policy.dart`: `notifyPrivate` and `wantsPrivateAttention` evaluate notification eligibility based on desktop notification settings, DND presence, and whether the chat is currently open in the focused window; `typedef PresenceStatus = SelfPresence`.
+  - `notification_binding.dart`: listens to `PrivateMessageAdded` for incoming text messages in accepted, unmuted, unblocked conversations to display desktop notifications and request window urgency (`window.setUrgent(true)`); listens to `FriendRequestArrived` to notify on non-spam requests.
+  - `app_links.dart`: adds `PrivateAppLink` (parsing `opencord://private/<64-hex>`) and `FriendsAppLink` (parsing `opencord://friends`), formatted by `privateLink` and `friendsLink`; `openAppLink` navigates to conversation or friends.
+  - `window_title.dart`: displays `($unread) $name — Opencord` or `($unread) Friends — Opencord` when `homeShownProvider` is true, reflecting `unreadTotalProvider`.
+  - Mock fix `fb552d7`: clears mock `contacts` and `messages` and emits `PrivateStateChanged` when resetting state.
+- **Reviewer fixes after E4 (`f2ace09`, `777adaf`).** Found by rendering the screens in both themes and at 760 px wide:
+  - the home view paints the chat surface; the rail's Home entry lines up with server icons;
+  - the Friends tab is kept in `friendsTabProvider`, so the sidebar's Message requests row opens its tab, and the tabs scroll sideways in a narrow window;
+  - the composer uses the channel composer's frame and hint; the hover bar sits beside the bubble; message avatars have no presence dot;
+  - the move card hides Move too once both sides use the same server, and only offers it for servers this device has joined;
+  - a chat opened while the window was away is marked read on focus;
+  - the profile's Mention button is an icon button.
+- **Tests.**
+  - 39 integration tests in `crates/opencord-core/tests/private.rs` and 132 core unit tests pass.
+  - 1019 Flutter tests pass (1 skipped), including 62 new tests added in E4:
+    - 21 unit tests on mock private world, mapping, and state providers in `app/test/unit/private/` (4 in `mock_private_test.dart`, 7 in `private_mapping_test.dart`, 10 in `private_state_test.dart`);
+    - 8 widget tests on friends tabs, spam section, unblocking, and error dialogs in `app/test/widget/home/friends_page_test.dart`;
+    - 11 widget tests on conversation ordering, dividers, edit/delete, retries, relay move, typing, and read tracking in `app/test/widget/home/private_chat_test.dart`;
+    - 8 widget tests on rail home button, sidebar navigation, unread badges, closing conversations, and fresh start dialog in `app/test/widget/home/home_shell_test.dart`;
+    - 6 widget tests on profile buttons, member menus, and privacy settings in `app/test/widget/members/profile_private_test.dart` (4 tests) and `app/test/widget/settings/privacy_page_test.dart` (2 tests);
+    - 8 tests on private notification policy, binding events, window title unread prefixes, and deep links in `app/test/unit/desktop/private_notifications_test.dart` (4 tests) and `app/test/unit/links/private_link_test.dart` (4 tests).
+  - E4 added no golden tests.
+  - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
+
+
+## D66: Private messages: security pass, documentation and manual verification (Phase 5 E5, 2026-10-24)
+
+- **Why.** Milestone E5 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 23–24, commits `304920f..7e62e23`). Hardens the private messaging implementation across all nine security items, documents the protocol and user/admin architecture, and specifies manual verification scenarios. Task 23 was done by Claude through claude-bridge, Task 24 by Gemini.
+- **Security pass (Task 23, `304920f`).** In `crates/opencord-core/src/client.rs`, `src/private/actions.rs`, `tests/private.rs`.
+  - Logs: `client::unexpected` (in `crates/opencord-core/src/client.rs`) put the server's whole response into the error text. Private code logs those errors in `actions.rs`. A server sending the wrong kind of response, such as pending events or claimed keys, would have had keys, ciphertext and names printed. It now names only the response's kind. `friend_request_send` in `actions.rs` had its own copy of this and now calls `unexpected`.
+    - New test: `an_unexpected_response_names_only_its_kind`. Before the fix it failed with the name "Zebulon Quartz", the key and the body all in the message.
+    - Every other log call in the server and core private code, and the app, logs only ids, counts, error kinds or messages with no keys, text or names.
+  - Server limits: Every handler checks that private messages are enabled, device registration, membership, shape and rate checks in the specified order. Typing counts against the general request rate. Sizes stay under 1 MiB: a pending page stops at 786,432 bytes plus about 4 bytes per event; 10 devices and 20 bundles are a few KB; the largest send (20 × 32,768 bytes) is about 655 KB, under the gateway's 1 MiB limit.
+  - Client checks: Every `FetchDevices` answer is verified, both when sending and before decrypting. Every claimed prekey is checked against the verified device's key. Slips are checked before they are stored.
+  - Duplicates and replays: Replayed events and duplicate Olm messages are covered by existing tests, as are redelivery after crash, repeated send IDs, and lost answers.
+  - At rest: test added and passing. `the_database_file_holds_no_plaintext` scans the database and its WAL for both people, while open and after closing. To show it reads real rows, it also requires a value the database keeps unsealed (the relay's server id) to be found. A contact created by a message alone has no name until the next Ready, which matches the plan. So the test names the contact "Zebulon Quartz" through a friend request. Claude added helper `owner_and_member_named`, which `owner_and_member_at` now calls.
+  - Maps: Device cache, reset map, member index, server privacy cache, app typing map, and batched acknowledgements all clear entries according to their retention rules.
+  - Blocks: Blocked senders and requesters receive undeliverable responses, and typing indicators never reveal a block.
+  - vodozemac: Both session creations use `SessionConfig::version_1()`. Sealing at rest uses XChaCha20-Poly1305 with HMAC-SHA256 key derivation.
+  - Licences: The check printed nothing outside the allowed list for vodozemac, chacha20poly1305 or hmac.
+  - Formatting: `cargo fmt` and `dart format` formatted files in core and app.
+- **Protocol and user documentation (Task 24, `7e62e23`).** In `docs/private-messages.md`, `docs/protocol.md`, `README.md`, `docs/plans/desktop-ui.md`.
+  - `docs/private-messages.md`: Created user, architecture and administration guide covering Double Ratchet encryption via `vodozemac`, server visibility boundaries, relay server moves (`RelayMoved`, `RelayDivider`, `MoveCard`), offline retention (`undelivered_days`, `max_pending_per_device`, `device_expiry_days`, `MAX_DEVICES_PER_USER`, `private_pending`), 4-state friendships, message requests, spam threshold (`SPAM_AFTER_DECLINES`), blocks (`MAX_BLOCKED_IDS`, `UpdatePrivacy`, `UNDELIVERABLE`), privacy settings (`allow_friend_requests`, `allow_message_requests`), local database sealing at rest (`FlutterSecureStorage`, HMAC-SHA256, XChaCha20-Poly1305), server configuration `[private_messages]`, and step-by-step instructions for 7 manual test scenarios using isolated client profiles.
+  - `docs/protocol.md`: Added 14 private messaging requests to the Requests table (`RegisterDevice`, `UploadKeys`, `UnregisterDevice`, `FetchDevices`, `ClaimKeys`, `FetchPendingEvents`, `AckPendingEvents`, `SendPrivateMessage`, `StartPrivateTyping`, `UpdatePrivacy`, `SendFriendRequest`, `AnswerFriendRequest`, `CancelFriendRequest`, `RemoveFriend`) with responses and permissions; added private rate limits (`FRIEND_REQUEST_RATE`, `PRIVATE_MESSAGE_RATE`); added `PendingEvent` and `PrivateTypingStart` to the Events table; added the 5 private error codes (`FRIEND_REQUESTS_CLOSED`, `MESSAGE_REQUESTS_CLOSED`, `UNDELIVERABLE`, `DEVICE_LIST_CHANGED`, `PRIVATE_MESSAGES_UNAVAILABLE`) to the Errors table; added the "Private messages" section detailing registration, pending queues, paging (`PENDING_PAGE_EVENTS`, `PENDING_PAGE_BYTES`), order of checks, permission slips (`slip_payload`), signing payload byte structures (`device_payload`, `prekey_payload`), and decrypted payload format (`PrivatePayload`, `PrivateText`, `PrivateEdit`, `PrivateDelete`, `RelayMoved`, `RequestAccepted`, `SessionReset`).
+  - `README.md`: Added `### Private messages` under feature sections linking to `docs/private-messages.md`.
+  - `docs/plans/desktop-ui.md`: Updated §4.1 top rail description to reflect that the Private messages button opens the home view while settings open from the user panel cog.
+- **Tests.**
+  - 2 tests added in E5:
+    - 1 unit test: `an_unexpected_response_names_only_its_kind` in `crates/opencord-core/src/client.rs`;
+    - 1 integration test: `the_database_file_holds_no_plaintext` in `crates/opencord-core/tests/private.rs`.
+  - All existing test suites pass:
+    - 40 integration tests in `crates/opencord-core/tests/private.rs`;
+    - 44 server private tests;
+    - 1025 Flutter tests in `app/test` (1 skipped).
+  - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
+
+
+
+
+## D67: Uploaded songs the server plays itself (2026-10-24)
+
+- **Why.** The owner wanted members to play songs from their own computers, on every server, including one without Lavalink: drop files on the music player, upload them once per server (known files by their hash play at once), with progress and cancel. Design: `docs/superpowers/specs/2026-10-24-music-uploads-design.md`. Built by Claude in this session, not through a Gemini plan, at the owner's request. Commits `ed03c4b` (server, protocol, voice), `db761b0` (core), `1b737f2` (app).
+- **The server plays them, not Lavalink.** The owner chose this so music works without Lavalink. A built-in player (`crates/opencord-server/src/music/local/`) decodes with symphonia on a thread of its own, resamples to 48 kHz stereo with rubato, encodes 20 ms Opus at 128 kbps and paces the frames into the voice node's music input; an external node gets them as `MusicFrame` over its control channel. The node's music stream doesn't care where frames come from.
+- **A song is a track.** Uploaded songs are `Track`s with the source `upload` and the song id as identifier, so the queue, history, saved sessions, "Add again" and search results carry them unchanged; only `start_current` picks the engine. Lavalink's own `local` source name was left alone: it means files on Lavalink's machine and stays an unsafe source.
+- **One copy, many owners.** Songs are kept by SHA-256 (`music_local_songs`), owned by everyone who uploaded or dropped the same file (`music_local_song_owners`). The client hashes before uploading and asks `MusicFindLocal`; the server hashes again at finish, so the client's hash is never trusted for storage, and a unique index settles two uploads of the same file finishing at once. Knowing a hash is enough to own a song; that only reveals a song the claimant has, or could have found with Access all uploaded songs.
+- **The file is the upload's attachment row**, kept in a new state `music` with kind `music`: it stays encrypted, counts towards storage, moves between backends, and the clean-up of unsent uploads never sees it. The migration rebuilds `attachments` for the new checks and turns the channel cascade into a trigger that spares songs, so a song outlives the voice channel it was dropped in.
+- **Music without a node.** `configured` no longer needs a Lavalink node; `has_nodes` tells clients whether Lavalink search exists. With no node, search finds uploaded songs and links answer `MUSIC_NODE_UNAVAILABLE`.
+- **Permissions.** Access all uploaded songs (bit 32, per channel like the other music bits, off by default) widens search to every song. Removing: owners their own (dropping their ownership; the file goes with the last owner), administrators anyone's. The owner asked that Access all uploaded songs never allow removing others' songs.
+- **Left out, the reviewer's calls.** Covers inside files aren't kept (artwork comes from the proxy, which fetches URLs; a picture store for songs is follow-up work). Ogg files with Opus inside are refused: symphonia has no Opus decoder. Owners remove songs from search results only; queue items offer it to administrators only, since snapshots are the same for everyone and can't say who owns what. No "choose file" button.
+- **`/play` (added after, at the owner's request).** Its suggestions come from the same search as the panel: Lavalink's first, then up to 5 uploaded songs marked "· Local". Typed words play the first result, Lavalink's when there are any, except that an uploaded song titled exactly as typed (ignoring case) wins, so `/play My Song` plays the member's own upload. Command replies (`/play`, `/queue`, `/nowplaying`) mark uploaded songs "(Local)". Tests: `play_finds_uploaded_songs_without_lavalink_and_says_they_are_local`, `play_takes_an_uploaded_song_titled_as_asked_over_lavalink`.
+- **Checks.** Server: `tests/music_uploads.rs` (6, real decoding and playback with no node), decoder unit tests, `a_song_outlives_the_channel_it_was_uploaded_in`; voice: `frames_the_main_server_sends_as_commands_are_heard_too` and the control round trip; core: `a_song_dropped_twice_is_uploaded_once`, `a_file_that_is_not_a_song_fails_with_the_servers_reason`; app: `music_uploads_test.dart` (7). One existing test changed on purpose: `music_needs_a_node_the_channel_and_the_permissions` became `music_needs_the_channel_and_the_permissions_and_links_need_a_node`. Owed by hand: an MP3 and a FLAC heard by two listeners on a server without Lavalink, and a song on an external voice node.
+
+## D68: Debug builds play audio at normal priority (2026-10-24)
+
+- **What happened.** The owner's debug app vanished seconds after joining voice: after dropping a song while the debug server decoded it, and later on a plain join. No core dump, exit status 137. `/proc` showed the process's `RLIMIT_RTTIME` at 200 ms soft and 200 ms hard. The engine asks for 100 ms soft, but PipeWire's client library raises the soft limit to RTKit's 200 ms maximum once a device opens. So a real-time thread that runs 200 ms without sleeping gets SIGKILL, with no SIGXCPU first. Sampled on the owner's laptop, the debug engine used about 80 % of a core at real-time priority, about 14 ms a pass against the 5 ms it has, so one slow pass under load reached the limit.
+- **Decision.** In a debug build, `Engine::run` doesn't ask for real-time priority (`real_time_priority` in `crates/opencord-media/src/audio/engine.rs`). A debug build can't keep real-time pace anyway; at normal priority it falls behind instead of being killed. Release builds keep real-time priority.
+- **Not changed.** A release build that stalls for 200 ms is still killed the same way. A safety net would put the soft limit back below the hard one after devices open and demote the thread on SIGXCPU. That is follow-up work, not needed while release passes stay far under budget.
+- **Checks.** By hand on the owner's machine: before the change, three of four voice joins killed the debug app within about 10 s. After it, the app stayed up past 60 s in voice with the audio thread at `SCHED_OTHER`. No automated test: the kill depends on the host's RTKit and PipeWire.
+
+## D69: Tunnels and reverse proxies use the main port (2026-10-25)
+
+- **Why.** The owner asked for one TCP port instead of two. Since Phase 3 (§9.2–9.3), tunnels and reverse proxies forwarded plain HTTP to a separate local listener, port 7719 bound to loopback, because the main port spoke only TLS.
+- **How.** The main port's acceptor (`crates/opencord-server/src/network/main_port.rs`) peeks at the first byte of each connection. `0x16`, a TLS handshake, goes to TLS as before, still noting certificate refusals. Anything else is plain HTTP, taken from loopback, the trusted proxies and the new `plain_http_from` ranges in `opencord.toml` (`OPENCORD_PLAIN_HTTP_FROM`). Those connections are marked `Via::Proxy`, which the voice gateway reads as the local listener's marker before it. Plain HTTP from anyone else gets a 400 saying the port speaks HTTPS, then the connection closes. A connection that sends nothing for 10 s is dropped.
+- **The guard moved.** The operating system used to keep plain HTTP on this machine by binding 7719 to loopback. Now the address check in the acceptor does. Taking plain HTTP from an address only spares that connection TLS on its last hop; `X-Forwarded-For` is still believed only from trusted proxies.
+- **Docker.** The image sets `OPENCORD_PLAIN_HTTP_FROM` to the private ranges in place of `OPENCORD_LOCAL_LISTENER_BIND=0.0.0.0`, so a proxy in another container works without setup, as 7719 did. Through Docker's published ports, people from the internet may arrive from the bridge's private address too; they can then send plain HTTP, which exposes only their own connection.
+- **Removed.** The local listener, its port setting (the app's Advanced row, `NetworkSettings.local_listener_port` in the core) and its row in the ports list. The protocol fields stay, marked deprecated: the server sends 0 and ignores changes. `local_listener_bind` in an older `opencord.toml` is read and ignored, with a warning, so the file still loads. Tunnels Opencord runs now point cloudflared at the main port.
+- **Breaks.** A reverse proxy or a Cloudflare tunnel the owner set up by hand against 7719 must be pointed at 7710 (docs/domains.md says so).
+- **Checks.** Server: `the_main_port_takes_plain_http_from_this_machine_only` (plain from loopback works, TLS on the same port works, plain from the machine's LAN address gets the 400, no second port listed), `plain_http_comes_from_the_ranges_the_config_names`, `a_proxy_domain_is_served_plain_on_the_main_port`, the unit tests in `main_port.rs` and two config tests; the tunnel and voice-through-a-proxy tests now go through the main port. Core: the domain tests' TLS proxy forwards to the main port.
+
+## D70: Lavalink through a proxy sends audio to the public address (2026-10-25)
+
+- **What happened.** The owner's server behind Traefik on Dokploy (`opencord2.mamad.xyz`) could not get audio from Lavalink, while the same setup through a Cloudflare tunnel worked. Lavalink's WebSocket reached the bridge fine, but the bridge's Ready named the wrong audio address. Through a tunnel, cloudflared sits on the server's machine and its `X-Forwarded-For` is believed, so the bridge saw Lavalink's real, public address and named the server's public IP. Through Traefik in another container, it saw only Traefik's private address, decided Lavalink was on the local network, and named Opencord's own Docker address, which a Lavalink outside that network cannot reach.
+- **Decision.** The bridge gets the rule apps' voice already follows: a Lavalink that came through a tunnel or a reverse proxy is told the server's public address, when known. `reached_through_proxy` (`network/proxy.rs`) now decides it for both: plain HTTP on the main port (D69), a trusted peer that forwards for someone, or a name a proxy answers for. The music route calls `MusicBridge::serve_proxied` for those.
+- **Trade-off.** As with voice, a Lavalink on the server's own network that connects through a proxy now needs UDP 7712 reachable on the public address, which a router without hairpin NAT may not allow. Connecting it directly instead (the Docker network alias in docs/music.md) keeps its audio local.
+- **Checks.** `lavalink_through_a_proxy_is_told_the_public_address` (server: plain HTTP on the main port gets the public address, TLS from the same machine still gets loopback; it failed with `127.0.0.1` before the change) and the bridge's `lavalink_through_a_proxy_sends_audio_to_the_public_address`.
+
+## D71: A launcher installs and updates the desktop app (2026-10-25)
+
+- **Why.** The owner asked for an updater like Discord's: the user picks a track in settings, and before the app starts it fetches the newest GitHub release of that track. The owner also asked for a real installer instead of running an extracted executable, which tells Opencord the track it was downloaded from. They left the design to the implementer.
+- **Decision.** A separate Rust launcher (`crates/opencord-launcher`, docs/updater.md) is what users start. It shows an "Opencord" splash, updates, then starts the app. Versions sit side by side in a per-user folder (`app-<version>/`), unpacked whole and renamed, so a failed or interrupted update never breaks the installed app; the newest two are kept. It follows Discord's Squirrel setup and the update rules docs/releasing.md already set out, reading the `release.json` CI already publishes.
+- **Why not elsewhere.**
+  - **In the Flutter app:** it would have to replace itself while running, which Windows forbids, and every update would need a restart helper anyway.
+  - **Inno Setup, MSIX, .deb or AppImage:** each is a different updater per system, and a package manager owns its files, so a self-updating app fights it.
+  - **One launcher in Rust:** the same code and the same splash on all three systems, which is what the owner asked for.
+- **Installers.**
+  - **Windows and Linux:** the launcher binary is itself the installer. Run from outside the install folder, it installs itself for the current user (shortcuts, links, an uninstall entry) and carries on as the launcher.
+  - **macOS:** gets a disk image with the launcher as `Opencord.app`.
+  - **The track:** built into each release's launcher from its branch (`OPENCORD_TRACK`). Installing sets it in `update.json`; on macOS, a disk image from another track sets its own on first start.
+- **Calls made without the owner.**
+  - **Track switches (the owner's call, added the next morning):** choosing a track asks to restart, and the launcher then installs that track's newest build even when it's older. Plain updates never go backwards. So the private-message store now opens a database a newer build migrated (`set_ignore_missing`), where it used to move it aside and lose the history (`a_database_a_newer_build_migrated_still_opens`).
+  - **Links skip the check** when a version is installed.
+  - **Offline:** after 10 s, the installed version starts.
+  - **Track setting:** lives in Settings → About.
+  - **Signing:** `release.json` is signed with Ed25519 once the owner adds the key (until then, HTTPS only).
+  - **Self-update:** the launcher updates itself on Windows and Linux, not on macOS.
+- **macOS sandbox.** The app gained two temporary-exception entitlements so it can write the track and a LaunchAgent. Restart goes through `open`, so the launcher doesn't inherit the sandbox.
+- **Checks.**
+  - **Launcher:** 42 tests: tracks, `release.json` checks, picking releases, signatures, unpacking, the update itself with bad hashes, long downloads, missing apps and offline, the layout, self-replacement, the splash drawing and arguments. It type-checks and lints for Windows and macOS from Linux.
+  - **App:** `installation_test.dart` (6) and two About page tests.
+  - **By hand on Linux,** against the real GitHub releases under Xvfb:
+    - The installer installed itself, set canary, downloaded and checked `v0.0.1-canary.2` (52 MB), and started it; the splash drew as designed.
+    - A second launch was up to date in 0.2 s.
+    - Stable with no stable release yet started the installed canary.
+    - A link started the app at once.
+    - Uninstalling removed the folder and the desktop file.
+  - **Owed by hand:** the Windows installer and uninstaller, taskbar pinning, and the macOS disk image, sandbox exceptions and LaunchAgent. None of these could run here.
+
+## D72: Sharing a screen's sound on Windows no longer crashes the app (2026-10-26)
+
+Users reported that sharing a screen with its sound on Windows closed the app at once; the reports came from people with VoiceMeeter installed.
+
+- **Cause.** Process loopback is activated with its parameters in a `PROPVARIANT` blob pointing at a struct on the stack. In the `windows` crate (0.62) `PROPVARIANT` implements `Drop` as `PropVariantClear`, which frees a blob's data with `CoTaskMemFree`. Every activation therefore freed a stack address when `Client::open` returned, corrupting the heap and ending the process. It happened on any machine that could share sound; VoiceMeeter was not the cause. It went unseen because the live path had never run (D35: the Windows PC was build 19045, below the old floor).
+- **Fix.** The blob is `ManuallyDrop`. A unit test opens a client twice, then uses the heap; it runs on CI's Windows runner, which has process loopback.
+- **Floor.** Sound sharing is offered from Windows 10 2004 (build 19041), not 20348. Microsoft documents 20348, but process loopback works from 19041, where OBS and GStreamer turn it on. Below it the switch reads "Sharing sound needs Windows 10 version 2004 or newer". Since the app needs 21H2, every supported Windows can now share sound.
+- **Owed by hand:** sharing a screen's sound on Windows 10 22H2 and on Windows 11 with VoiceMeeter (`share_audio_windows.rs`).
+
+## D73: Screen sharing falls back to GDI on Windows (2026-10-26)
+
+Some Windows 10 machines could not share their screen at all. Opencord captured only through Windows.Graphics.Capture, which needs 1903 and which some installs refuse even when it is there: N editions, stripped-down builds, and machines whose session opens but sends no frame.
+
+- **What LiveKit does.** LiveKit's Flutter SDK uses libwebrtc's capturers, which use the capture API only where it is reliable (screens from Windows 10 20H1, windows from Windows 11). Elsewhere they use GDI, or DXGI duplication for screens, which works on every Windows.
+- **Now.** The capture API is still tried first. When it isn't there, refuses to open, or a screen's session sends no frame within 3 s, the share carries on with GDI (`windows_gdi_capture.rs`).
+  - **A screen** is copied from the desktop with `BitBlt` (`SRCCOPY | CAPTUREBLT`, as WebRTC does), with the cursor drawn on.
+  - **A window** draws itself with `PrintWindow(PW_RENDERFULLCONTENT)`, falling back to `BitBlt` from its DC. Nothing is sent while it is minimised; the sender keeps the last picture going.
+  - `support()` is now true on every Windows.
+- **Not done.** DXGI duplication, which costs less than GDI for screens, is left until a measurement shows GDI is too slow where it is used.
+- **Checks.** Unit tests cover a screen copied at its own size in packed rows, a missing window having no size, and a screen shared end to end through `start` with the capture API turned off. They run on CI's Windows runner. Sharing on a Windows 10 install without the capture API is owed by hand.
+
+## D74: No yellow border around a Windows share where Windows allows it (2026-10-26)
+
+Windows.Graphics.Capture draws a yellow border around whatever is being captured, and the owner asked for it to go.
+
+- **Windows 11** (and Server 2022): the session is told `IsBorderRequired = false`. First the app asks `GraphicsCaptureAccess::RequestAccessAsync(Borderless)` once per run. The wait is capped at 2 s, so a share never hangs on it. Microsoft documents the request as prompting a packaged app; an unpackaged app like Opencord is expected to be answered without one. Either way, the share goes ahead.
+- **Windows 10** has neither the request nor the switch, so the border stays there for captures through the API. Removing it there would mean capturing screens another way (DXGI duplication), which is left open.
+- **Owed by hand:** a screen and a window shared on Windows 11 show no border, and Windows doesn't prompt.
+
+## D75: The phone apps' foundations (2026-10-26)
+
+The owner asked for Android and iOS apps in React Native, with native components, on the Rust client core with only slight changes, laid out like WhatsApp and Telegram. Design: `docs/superpowers/specs/2026-10-26-mobile-client-design.md`; plan: `docs/superpowers/plans/2026-10-26-mobile-client.md`. This is its milestone R0, Tasks 1–5, by Claude.
+
+- **A facade crate.** `crates/opencord-mobile` wraps `opencord_core::client::Client`, the client the Flutter API wraps, with UniFFI 0.31.2 for uniffi-bindgen-react-native 0.31.0-6. `opencord-core` itself is unchanged.
+  - Ids cross as decimal strings (an `i64` would be a `bigint`), times and sizes as `f64`, permissions as `ChannelAccess` flags (`ADMINISTRATOR` sets them all).
+  - Errors are `MobileError`, one variant per `CoreError` variant; a server's `ErrorCode` crosses as its snake-case name.
+  - Event and error conversions have no catch-all arm, so a new core event fails to compile until it is mapped or listed as dropped.
+- **Events are pulled.** A callback from a Rust thread would block it until JavaScript returns, so the app loops on `nextEvents(generation, 256)`. `eventsAttach` starts a new generation and wakes any call waiting under an older one with `[]`, so a JavaScript reload takes the stream over instead of waiting behind a call from a context that is gone. The wake-up is registered before the generation is read, so none is lost.
+- **Attachments as files.** `attachment_file` caches each one at `<cache>/attachments/<16 hex of the server key's SHA-256>/<id>.<o|t>`, fetched into a unique `.part` file and renamed into place. The files are plain; the phone's app sandbox and disk encryption guard them.
+- **The build.**
+  - `mobile/` is Expo SDK 58 (React Native 0.88, React 19.3, Expo Router, Gesture Handler 3.3, Reanimated 4.7) on Yarn 1 workspaces.
+  - `@opencord/core-native` is the turbo-module ubrn generates. The bindings and its glue are committed; the glue names the ABIs, so `scripts/build-core.sh` always makes it from `ubrn.config.yaml`'s targets (`arm64-v8a`, `x86_64`).
+  - **Android 8.0 (API 26) and up:** cpal's AAudio back end needs API 26, and linking at 24 fails on `-laaudio`.
+  - **A shared library on Android:** the Rust static library couldn't carry `libandroid` and AAudio to the turbo-module's CMake link, so ubrn's `useSharedLibrary` builds the facade's `cdylib`, which links them itself.
+  - **Autolinking** only sees packages the app lists, so the app depends on `@opencord/core-native`.
+  - CI gains Phone (Android), a release APK, with the bindings, types, lint, tests and licences checked, and Phone (iOS), a simulator build. Neither releases anything yet.
+- **The app's core layer.** `CoreApi` mirrors the facade; `NativeCore` is the bindings as they are; `FakeCore` is a fixed world (Night Owls connected, Rust Club reconnecting, Weekend Raid refused) that answers as the core does. Jest maps `@opencord/core-native` to the generated bindings without their native installer, so their classes and enums work in tests. Boot opens the core, then loads the identity from the keychain (`opencord.identity`) and the name from the core's settings.
+- **The store** (Zustand) applies events purely. A Ready seeds unread counts as the desktop's `_recentActivity` does: the 50 newest messages of each readable channel, 4 fetches at once, 10 s each. The server's other events wait until it ends, then apply in order; a newer Ready discards the older result. A message the seeding already had isn't counted again. Read positions (`mobile.read.<server>`) only move forward and are written at most every 2 s.
+- **Calls made on the way.** Display names are 1–32 characters, as the core checks them (the design first said 2–32). Expo's own dependency tree brings a few permissive licences outside the plan's list (BlueOak, Unlicense, Python-2.0, CC-BY data, MPL-2.0 lightningcss); `scripts/licenses.js` allows those packages by name.
+- **Tests.**
+  - The facade: ids, conversions, errors, the event pump (batches, dropped kinds, takeover, stale generations, media and server events) and the cache. Against a real server: Ready and messages with string ids, the trust step, and send, fetch, edit, delete, cached files and music through the exported calls.
+  - The app: 78 Jest tests over the event loop, boot, error sentences, FakeCore, the reducer, unread seeding, the selectors, preview text, the name catch-up and the prefs.
+  - By hand: the app starts on the `Pixel_7` emulator and shows the core's version from Rust.
+
+## D76: The phone app's shell and servers (2026-10-27)
+
+Milestone R1 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the phone app its design system, navigation, onboarding, the Servers tab, adding a server, and the You tab. Commits: `e8bc9b7` (design system) and `1347aee` (navigation, boot and onboarding), both written by Claude; `921b2c1` (server list), `7108a0a` (adding a server and invite links) and `3936d24` (the You tab), written by Gemini.
+
+- **The design system** (`mobile/src/ui/`).
+  - The tokens equal the desktop's `OcColors` in both themes; `tokens.test.ts` compares them value for value, and `noColorLiterals.test.ts` rejects a color literal anywhere else. Only `voice` and `recording` carry a hue.
+  - The primitives (`Text`, `Icon`, `Avatar`, `ServerIcon`, `Badge`, `Row`, `Button`, `IconButton`, `PaneHeader`, `EmptyState`, `Banner`, `ToastHost`, `ProgressBar`, `SearchField`, `Divider`) are React Native views drawn with the tokens. A badge zooms in over 120 ms.
+  - The controls are the platforms' own through `@expo/ui`: SwiftUI `Slider`, `Toggle` and a segmented `Picker` on iOS; Compose `Slider`, `Switch` and `SingleChoiceSegmentedButtonRow` on Android. The Android slider draws its stops only up to 10 and rounds finer steps itself. Menus are `@react-native-menu/menu`'s `MenuView`.
+- **Boot and navigation.** `BootGate` starts the core and loads the identity from SecureStore (`opencord.identity`). A failed start shows its sentence and **Try again**. `_layout.tsx` guards the routes with `Stack.Protected`: without an identity only `/welcome` is reachable (**Create an identity**, **Import a backup**), with one the native tabs (`NativeTabs`: Servers and You), the server screen and the Add server sheet. `startApp()` starts the event loop, follows `AppState`, and retries every server that isn't connected when the app comes back.
+- **The Servers tab.**
+  - A `FlashList` of rows, latest activity first, with hairlines after the icon.
+  - Each row shows the server's icon, its name, the time of its last message (`formatTime`: the time today, "Yesterday", a weekday within six days, else the date), and a second line: the last message as `#channel · Name: text`, else "No messages yet", or the connection's state (`connectionText`: "Connecting…", "Reconnecting…", or the failure's sentence in red). The unread or "@" mentions badge and the voice glyph sit at the end of that line.
+  - Swiping right marks the server read, and swiping left offers Leave, which asks "Leave <name>? You can come back with an invite." first. A long press opens Mark as read, Retry now (only while not connected), Copy address and Leave server. Pulling down retries the servers that aren't connected. With no servers, the screen offers **Add a server**. The header has the search bar and the **+** button.
+- **Add a server** (`/add-server`, a form sheet at 0.6 of the height).
+  - The field takes an invite link or `host:port`, with **Paste**. **I own this server** opens the claim token field, and the token is sent only when it is filled in. Errors show under the field.
+  - An unknown certificate replaces the form with the trust step: "Trust this server?", its SHA-256 fingerprint in groups of four, **Trust and add** and **Cancel**. Nothing is trusted until **Trust and add**.
+  - `opencord://` and `opencords://` are registered as the app's schemes too, and `+native-intent.tsx` turns such a link into `/add-server?link=…` (`inviteRoute`).
+- **The You tab.** An inset grouped list: the avatar, name and fingerprint (a tap copies it); the display name on its own screen (`/you/name`, 1–32 characters, sent to every connected server); **Back up your identity**, which writes `opencord-identity.txt` to the cache and opens the share sheet; the theme (System, Light, Dark); the music volume (0–200 % in 5 % steps), **Mute music** and **Lower music while people talk** (`MusicListeningRows`, which the music player reuses); and the app's and the core's versions.
+- **Review** (`8a84df2`). The screens showed what the tests didn't:
+  - every row's swipe actions showed through it;
+  - on Android a long press opened the server instead of the menu (`Menu` now has an `open()` handle the row's long press calls);
+  - the You tab's cards vanished in light mode;
+  - the fingerprint wasn't monospaced;
+  - the name screen's **Save** sat under the keyboard.
+
+  The code had more:
+  - invite links never reached the app: their schemes weren't registered;
+  - an error from **Trust and add** was never shown;
+  - errors were dropped in leave, retry, copy, the clipboard read, the backup and the core version;
+  - React Native's `Pressable` was used inside Gesture Handler rows;
+  - a `query` prop existed only for a test;
+  - times froze at mount, and a time slightly ahead of the phone's clock showed as a date;
+  - volume moved in 1 % steps;
+  - the name field took 64 characters.
+- **Tests.** 132 Jest tests in 20 suites: tokens and color literals, components, boot and onboarding, `formatTime`, `connectionText`, the server list, invite links, adding a server and the trust step, and the You tab.
+
+## D77: Channels and chat on the phone (2026-10-28)
+
+Milestone R2 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the phone app the inside of a server: the panes, the channel list, the chat, attachments and the image viewer, the composer and message actions. Commits: `1db7d28` (the server screen and its panes), written by Claude; `2c32bb9` (the channel list), `b2d8823` (messages and markdown), `28b9014` (attachments and the viewer) and `bf6cfe8` (the composer and message actions), written by Gemini; the review's fixes in `6a3b3e9`.
+
+- **The server screen** (`features/server/`). `ServerScreen` picks `PhonePanes` below 768 pt and `TabletPanes` from there.
+  - **On a phone:** the channel list starts at the full width. Choosing a channel slides the list out and the chat in. After that the list is a sidebar `min(86 % of the width, 360 pt)` wide, opened by a swipe from the left half or the header's sidebar button, over the content under `scrim` at 40 %. A custom pan gesture drives it rather than `ReanimatedDrawerLayout`, which can't start open at the full width and widen again.
+  - **Back** closes the sidebar, then returns from a channel to the list, then leaves the server.
+  - **On a tablet:** the list is a fixed 320 pt sidebar beside the content.
+- **The channel list.**
+  - Categories are uppercase captions. Unread channels have a 4 × 8 pt pill and a semibold name, mentions a count badge, and the open channel the `selected` background.
+  - Voice channels show their count (with "/limit"), their people (22 pt avatars with the speaking ring, mute and deafen glyphs) and what plays (`NowPlayingRow`).
+  - The header's menu has Mark all as read, Copy address and Leave server.
+- **The chat** (`features/chat/`).
+  - **Bubbles:** a `FlashList` of bubbles, grouped by author within five minutes. Others' are on the left in `bubbleIn`, with the avatar beside the group's last bubble and the name on its first; the user's own are on the right in `bubbleOut`. Corners are 18 pt, 6 pt on the author's side where a bubble joins its group.
+  - **Width:** a bubble is at most 78 % of the pane, which the list measures, and at most 480 pt on a tablet.
+  - **The time** sits at the end of the last line: the text keeps room for it in the bubble's colour, and the time is drawn over that room. It takes a line of its own only when the last line is full, after code, or under attachments. Pending sends show a clock, and failed ones a red outline with "Not sent. Tap to retry".
+  - **Day pills, the divider and the jump button:** day pills read "Today", "Yesterday" or the date, and a hairline divider reads "New messages". The jump-to-latest button appears when the list is scrolled up more than a screen, with the count of new messages.
+  - **Markdown:** `MarkdownText` renders the desktop's subset (`markdown.ts`, a port of `markdown.dart`): paragraphs, quotes, fenced code in JetBrains Mono on `mentionBg`, bold (semibold, as on desktop), italic, strike, inline code, links, `<@user>` mentions and `<#channel>` links. Bubble text isn't selectable: a long press opens the message's menu, whose Copy text copies.
+  - **Keyboard:** the list scrolls in keyboard-controller's `KeyboardChatScrollView` and the composer rides a `KeyboardStickyView`. Both move by the keyboard's height less the bottom inset, so the newest message stays above the composer. The list opens on its newest message and keeps to its end until the user drags.
+- **Attachments and the viewer.**
+  - **Pictures:** pictures fit within 260 × 320 pt and the bubble's room, sized before they load on a `surface` placeholder.
+  - **Other files:** a row with the kind's icon in a circle, the name, the size and the kind; a tap downloads the file and opens the share sheet.
+  - **The viewer** (`/viewer`) is black, with pinch and double-tap zoom, pan, swipe down to close, and share and close buttons that fade with a tap.
+- **The composer.**
+  - **The bar:** a `sidebar` bar with a hairline, the + menu (Photo library, Files) and a 40 pt `hover` field in Inter that grows to six lines. The send button appears only when there is text or a file; above 4,000 characters it is off, and from 3,900 a counter shows what's left.
+  - **Files and typing:** picked files are chips with remove buttons. Typing is sent at most every 8 s.
+  - **Message actions:** a long press opens Copy text, Edit and Delete ("Delete message?" "This cannot be undone."). Editing shows the "Editing message" bar, and its keyboard comes up on the text.
+  - **Tests and the fake core:** `FakeCore` refuses a message whose text is exactly "fail", so the failed state can be seen on a device.
+- **Review** (`6a3b3e9`). The screens, measured on the Pixel 7, showed:
+  - **Wrapping:** bubbles broke mid-word and cropped pictures, because the markdown block was 100 % wide inside a bubble sized by its content.
+  - **The time:** it took a line of its own under every message.
+  - **The keyboard:** it covered the newest messages, and the composer had no bar, touched the navigation bar and used the system font.
+  - **Long press:** pressing on text started a selection instead of opening the menu.
+  - **Small parts:** day pills and the typing line were in capitals, the divider was a red "NEW", the jump button had a shadow, code blocks were nearly invisible, and the voice member's ring was drawn twice and square.
+  - **Code:** `fontWeight` was set on Inter, React Native's `Pressable` was used in Gesture Handler panes, errors were dropped (attach, send, share), and a failed load left the chat silently empty.
+- **Tests.** 198 Jest tests in 33 suites. Among them:
+  - the panes, the channel list and the chat's items;
+  - the markdown port against the desktop's cases;
+  - the message list, attachments and `fitSize`, and the viewer;
+  - the composer, including the send button showing only with something to send;
+  - sending, retrying and editing;
+  - the bubble corners and the time's room at the end of the text.
+
+## D78: Sheets, menus and questions drawn in the app's style (2026-10-29)
+
+The owner tried the phone app on its first real server and found the overlays the worst of it: the Add server sheet opened with half of it blank, and in dark mode the menus and questions came up in Android's own colours. Each was measured on the Pixel 7 in both themes, against the real server, and redrawn.
+
+- **The Add server sheet** (`features/servers/AddServerForm.tsx`).
+  - **Size:** it was fixed at 60 % of the screen, with the form at its top. It now fits its content (`sheetAllowedDetents: 'fitToContents'`), so each step is as tall as what it shows and the sheet rides above the keyboard.
+  - **Colour:** it was `chat`, the colour of the screen behind it, so nothing marked where it started. It is now `elevated` (design §9.1: sheets and toasts), with 20 pt corners.
+  - **`SheetHeader`:** the title, a line under it and a close button, plus a grabber on Android, which has none of its own (iOS shows its native one).
+  - **Fields:** 52 pt wells in `chat`, outlined in `border`, `textMuted` while they have focus and `recording` with an error. Paste is a pill in the field while it's empty, and a clear button replaces it once there's text. The error shows under the field with a warning glyph, and editing the address clears it.
+  - **"I own this server":** a disclosure row in a lightly tinted panel. The claim token field opens inside it.
+- **The trust step** (`TrustStep.tsx`): a lock badge, "Trust this server?" with the address under it, and the SHA-256 fingerprint as four lines of four groups in JetBrains Mono, to read out and compare. Cancel is a plain text button under Trust and add.
+- **Menus on Android** (`ui/Menu.android.tsx`). `@react-native-menu/menu`'s PopupMenu can't take the app's colours, font or icons: it was a square grey box in the system font, without icons, with a pure red Delete. Android now draws the app's own menu, a deliberate change to the spec's "native menu" there. iOS keeps `UIMenu`, which already looks as iOS should (`Menu.ios.tsx`).
+  - **The card:** 232 pt wide, `elevated`, 14 pt corners, 48 pt rows with a 20 pt icon and Inter text, destructive rows in `recording`, over `scrim` at half strength. It grows in from the corner nearest what was pressed in 160 ms.
+  - **Placement** (`menuPlacement.ts`): below what was pressed, or above it when there's no room, on its side. The user's own bubble's menu lines up with its right edge and others' with their left; a full-width row's starts at the rows' 16 pt inset. It stays 8 pt inside the screen and the system bars.
+  - **Opening:** a long press (with the long-press haptic) or a tap opens it. A picture or file card in a bubble passes its long press on through `useMenuOpener`, and Gesture Handler rows and buttons call the ref's `open()`, since they take the touch first.
+- **Questions** (`ui/confirm*.ts`, `ui/DialogHost.android.tsx`). `Alert.alert` on Android is the old dialog: a square grey box with teal capital buttons. `confirm()` asks instead: on iOS it is still `Alert.alert`, and on Android `DialogHost` draws a card in `elevated` with 20 pt corners in the middle of the scrim: the title, the message, and Cancel beside the confirming button (`danger` when destructive). Back and a tap outside cancel. Leaving a server and deleting a message ask through it.
+- **Smaller fixes.**
+  - **Disabled buttons:** a disabled `Button` is `selected` with `textMuted` text, instead of its own colour at 45 %, which made a disabled primary a muddy grey.
+  - **`plain` buttons:** the new `plain` variant is text alone.
+  - **The tab bar:** its selected pill was Material's blue-grey (#374955). It is now `selected`, and the ripple `hover`.
+  - **Leave server's icon:** it was the voice hang-up handset; it is now `leaveServer` (`logout`, `rectangle.portrait.and.arrow.right`).
+- **Not changed.**
+  - **The navigation bar:** Android draws a contrast scrim behind the three-button navigation bar (#1A1D21 under a `#1F1F23` sheet). Expo 58's config doesn't expose `enforceNavigationBarContrast`; turning it off needs a config plugin and a rebuild.
+  - **A trusted certificate that changed:** after a server's certificate changes, the app says so and refuses, with no way to trust the new one from the sheet. Trust is kept per address.
+- **Tests.** 205 Jest tests in 35 suites, among them:
+  - the menu's placement (a header button, own and others' bubbles, a full-width row, a bubble taller than the screen's room);
+  - the Android dialog (Cancel doesn't act, confirming acts once and closes);
+  - the fingerprint's four lines;
+  - editing the address clearing its error.
+
+## D79: Voice on the phone (2026-10-29)
+
+Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.6, §11). Commits:
+- `d7dca91` and `bdf5ea3`: the foreground service, permissions, the audio session and two Android core fixes, by Claude;
+- `530bec7`: the voice pane, a person's sheet and the connected bar, by Gemini;
+- the review below.
+
+- **Voice that keeps going** (`modules/voice-service`, `state/actions/voice.ts`).
+  - **The service:** an Android foreground service of type `microphone|mediaPlayback`, declared in the module's own `AndroidManifest.xml`. Its notification reads "In voice: Lounge · Night Owls" and opens the app. It starts before the core joins, while the app is in the foreground, as Android 14 requires. It stops whenever this device's voice ends, however it ended. iOS's module does nothing: background audio there is the audio session's.
+  - **Permissions:** the first Join asks for the microphone through `expo-audio`, and asks again whenever it isn't granted, since Expo's `canAskAgain` stays stale after a revoke. Refused, it says "Opencord needs the microphone for voice. You can allow it in Settings." with Open Settings. `expo-image-picker`'s `microphonePermission: false` had removed `RECORD_AUDIO` from the whole app; it now names the microphone.
+  - **The audio session and focus:** media mode, not `MODE_IN_COMMUNICATION`, since cpal's streams are media streams. The service holds audio focus, after LiveKit's Android client.
+  - **Android core fixes** (`crates/opencord-mobile`): aws-lc's weak `sdallocx` bound to React Native's data symbol of that name and crashed on join (`android_alloc.rs` and `-Bsymbolic-functions`). cpal needs `ndk_context`, handed over by the module (`android_context.rs`).
+- **The voice pane** (`features/voice/VoicePane.tsx`).
+  - **Tiles:** `surface` squares at most 200 pt wide, so two columns on a phone and more on a tablet. Each has a 64 pt avatar whose `voice` ring fades in while speaking, the name, and a mute or deafen glyph. The user's own tile is first.
+  - **Not connected:** Join voice, a `voice` button with white words in both themes. It is off with "You can't join this channel" without `connect`, or "This channel is full".
+  - **Connected:** the link banner ("Connecting…", "Reconnecting…", "Can't reach the voice server. Your network may block it.", "Disconnected from voice." with Rejoin). The control bar's four 56 pt buttons are Mute, Deafen, Music and Leave; a toggle's glyph shows its state, and Leave is `recording` with a white glyph. Joining and leaving give a medium haptic.
+- **A person's sheet** (`/server/[serverKey]/member/[userId]`, `ParticipantSheet.tsx`): a `formSheet` that fits its content. The header is the avatar and the name, then Volume (0–200 %, marked at 0, 100 and 200 %) and Mute for me. The values are kept in the store (`userAudio`, by `serverKey/userId`) as they are handed to the core, so the sheet opens on what was set; like the core, they last until the app closes. The user's own sheet says "This is you."
+- **The connected bar** (`ConnectedBar.tsx`): 56 pt, the `voice` speaker, the channel and the server, or "♪ Song — Artist" while music plays, with mute and leave.
+  - **Where:** above the tab bar on Servers. On a phone's server screen, under the channel list and at the bottom of the open pane (above the composer in a chat). On a tablet, under the sidebar only. It hides beside the voice channel itself, and at the screen's bottom edge it stands on the inset.
+  - **A tap** opens the channel in place on its own server's screen, and otherwise pushes that server's screen.
+- **Review** (Claude, on the commit after `158d7c9`). The screenshots and the code showed:
+  - **Colors:** Join voice and the Leave glyph used `onAccent`, which is near-black in the dark theme. `onHue` (the light set's `onAccent`, white) is now the foreground on `voice` and `recording`, in `Button` too.
+  - **Deafen** always showed the headset-off glyph, so it looked deafened while it wasn't. The new `listen` icon is for off.
+  - **The sheet** started at 100 % and unmuted every time it opened while the core kept the earlier choice, and the name appeared twice.
+  - **The bar:** on a tablet chat there were two, one in the sidebar and one in the pane. A tap on the server's own screen pushed a second copy of that screen. Under the channel list it sat behind Android's navigation buttons.
+  - **Tablet tiles** were three columns of about 300 pt squares.
+  - **Code:** Leave's promise was dropped unreported, there were no haptics, and Join was hand-built instead of the shared `Button`.
+- **Not done:** a person's volume isn't kept across launches (the desktop keeps it in its settings). In dev builds, expo-router warns about `REMOVE_ROUTES` for `welcome` when the boot guard flips; that is older than R3.
+- **Tests.** 233 Jest tests in 39 suites. Among them:
+  - the service's lifecycle, the permission flows and the haptics;
+  - the pane's access checks and speaking rings, and the link banner's states;
+  - the tile layout, and the sheet opening on what was set;
+  - where the bar shows and what a tap opens;
+  - `Button`'s white words on the hues.
+
+## D80: Music on the phone (2026-10-29)
+
+Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7). Tasks 18, 19 and 20 by Gemini: `eff95ab` (the player), `65a763f` (the queue, search and history), `0ba1f9b` (uploading songs). Redesigned by Claude after the owner asked for a premium player rather than a copy of the desktop's ("remove unnecessary components … inspire by Apple design and Material").
+
+- **The sheet** (`app/server/[serverKey]/music/[channelId].tsx`, `features/music/MusicPlayer.tsx`):
+  - a `formSheet` with detents 0.55 and 1 (`features/music/sheet.ts`), opening at half height on a phone and full when it has two columns (the owner: "open in half, then pull it up to change the queue or search … not close when he wants to scroll down"). The lists scroll with the sheet (`nestedScrollEnabled`), so scrolling back up lowers it to half and only a drag from half closes it; checked on the emulator with two hard flings back up. Search raises it with the keyboard;
+  - its own top bar (`PlayerTopBar`): a chevron that closes it, "Playing in" over the channel, and **Join** as a `voice` pill while the user isn't in that channel's voice;
+  - **one page on a phone:** what plays, the transport, the volume, then adding music (`AddBar`), the uploads, Up next and Recently played. Search takes the page over with what plays shrunk to a row (`MiniPlayer`) above it;
+  - **two columns wider than 720 pt** (measured on the sheet, not the window: an iPad's form sheet is narrower than its screen). The player column is as wide as its artwork, which shrinks to fit the height.
+- **What plays** (`NowPlaying.tsx`):
+  - on a phone the artwork (76 pt) sits beside the title so the half-height sheet holds the whole player; in two columns it is above it, up to 360 pt with 16 pt corners;
+  - the artwork settling to 86 % while paused (a CSS transition; none with reduced motion), lifted by a shadow in the light theme;
+  - title, artist, and "Added by Kai · YouTube", left-aligned, with ⋯ beside them: Copy link, Lower while people talk (ticked when on);
+  - **the position** is the app's own `Scrubber` (`ui/Scrubber.tsx`), not the platform slider: a 4 pt bar that thickens to 8 pt under the finger, drag or tap anywhere, glides between the 500 ms ticks, and steps 10 s for a screen reader. After a seek the bar holds where the finger left it until the session catches up (2 s at most).
+- **Transport** (`PlayerControls.tsx`): a 72 pt play circle; previous and next at 30 pt; shuffle and repeat at 22 pt with a dot under them when on. Repeat reads "Repeat" with its setting as the value. Without Control music, next votes to skip with the count ("1/3") on its corner. Each press gives a haptic and shrinks a little (`activeScale`).
+- **Volume** (`VolumeRow.tsx`): the speaker mutes; a `Scrubber` sets 0–200 % in 1 % steps, settling on 100 % with a tick; dragging unmutes.
+- **Lists** share `TrackRow` (64 pt; 48 pt artwork with the requester's avatar on its corner; the length, or the row's own button):
+  - **Up next** (`UpNext.tsx`): "6 songs · 26 min", text **Clear** (asks "Clear the queue?"), swipe to remove, long-press menu (Play next, Move up, Move down, Copy link, Remove). Hidden while nothing plays and nothing is queued, where the player says it already.
+  - **Search** (`MusicSearch.tsx`): the field opens with the keyboard up and Cancel; source chips (`SourceChips.tsx`); a hint before, a spinner during, "No results for “…”" or the server's reason after; a blank search asks nothing of the server. A tap adds at the end and the row's **+** becomes a tick once queued.
+  - **Recently played** (`History.tsx`): five songs, Show all for up to 50, **+** to add again; hidden while empty.
+- **Uploads** (`Uploads.tsx`, `UploadRow.tsx`): an upload button beside the search bar (`useUploadPicker`), dimmed with a toast saying what's missing when the user may not upload; rows under "Uploading" above Up next. A cancelled row can be dismissed.
+- **Artwork** (`Artwork.tsx`): one cached `useArtwork`, at 128 or 512 px, as a `file://` URI; a note on an `avatarShades` shade without one or when loading fails.
+- **Tests:** 282 Jest tests in 47 suites, among them the scrubber's tap, drag, detent, disabled tap and screen-reader steps; the player's empty state, search mode and Cancel, ⋯ ducking, nothing to add without Add to music queue; source chips re-searching; Show all; the upload button's missing-permission toast and Manage music outside the channel; the voice pane fetching the music settings.
+- **Review** (Claude, on `710dfb4`). The code and the screenshots showed:
+  - **Artwork never loaded on a real server:** the core makes only 128 and 512 px (`artwork::SIZES`), and the app asked for 40 and the drawn width, which it refuses; and the path it returns was used without `file://`. The fake world's artwork is a path to nothing, so the screenshots showed blank boxes and nobody noticed.
+  - **The music settings were never fetched:** only `MusicSettingsChanged` set them, so the voice pane's Music button would not show on a real server until an admin changed a setting. The screenshots opened the player by deep link.
+  - **The Material slider** drew stop dots and a gap for the position and volume; the four-way `Segmented` crowded the width; Upload and History were tabs holding a button and a list; a 220 pt blank square with no artwork; "Music" pressed against the sheet's edge (`SheetHeader` with no padding); rows without artwork out of line with those with it; subtitles bigger than titles; an "M" circle on every row.
+  - **Android's media glyphs were hollow:** expo-symbols draws Material Symbols' outlined face. `Icon` now uses the filled face where the SF Symbol is `.fill`, which also fills the mic and leave glyphs of the voice controls.
+  - **Toasts were invisible on sheets:** `elevated` on `elevated`. They are inverse now (`accent`, `onAccent`), with a `warning` for errors.
+  - **Android's menu** truncated titles at 232 pt; it is 280 pt, Material's widest.
+  - `eff95ab` added `LogBox.ignoreAllLogs(true)`, hiding every development warning (it hid the boot warning over its screenshots); removed.
+  - A cancelled upload row had no way to go away; "Added to the queue" toasts were replaced by the row's tick.
+- **Not done:** the player hasn't been seen on iOS, and real artwork only on the code path (the fake world has none); the scrubber's feel is checked on the emulator, not a phone.
+

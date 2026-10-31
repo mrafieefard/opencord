@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_blocking`, `on_runtime`, `return_large_buffers`
+// These functions are ignored because they are not marked as `pub`: `checked_identity`, `client`, `deliver`, `identity_info`, `invalid_input`, `lock_events`, `on_blocking`, `on_runtime`, `return_large_buffers`, `runtime`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Events`
 
 /// Opens local data in `app_data_dir`. Safe to call again (for example
@@ -693,6 +693,51 @@ Future<MusicSearchResults> musicSearch({
   channelId: channelId,
   query: query,
   source: source,
+);
+
+/// Queues the song at `path` in the voice channel, uploading it first when
+/// the server doesn't have it; `MusicUploadProgress` events follow under
+/// `upload_id` (unique per server). `play_now` plays it at once.
+Future<void> musicUploadSong({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String uploadId,
+  required String path,
+  required bool playNow,
+}) => RustLib.instance.api.crateApiClientMusicUploadSong(
+  serverKey: serverKey,
+  channelId: channelId,
+  uploadId: uploadId,
+  path: path,
+  playNow: playNow,
+);
+
+/// Stops a song's upload; `music_upload_song` returns `Cancelled`.
+void musicCancelSong({required String serverKey, required String uploadId}) =>
+    RustLib.instance.api.crateApiClientMusicCancelSong(
+      serverKey: serverKey,
+      uploadId: uploadId,
+    );
+
+/// Removes an uploaded song: the caller's ownership, or (administrators)
+/// the song for everyone.
+Future<void> removeLocalSong({
+  required String serverKey,
+  required PlatformInt64 songId,
+}) => RustLib.instance.api.crateApiClientRemoveLocalSong(
+  serverKey: serverKey,
+  songId: songId,
+);
+
+/// Every uploaded song, newest first, 50 at a time; administrators only.
+Future<List<LocalSong>> fetchLocalSongs({
+  required String serverKey,
+  required String query,
+  PlatformInt64? beforeId,
+}) => RustLib.instance.api.crateApiClientFetchLocalSongs(
+  serverKey: serverKey,
+  query: query,
+  beforeId: beforeId,
 );
 
 /// The channel's player; from now on its changes arrive as

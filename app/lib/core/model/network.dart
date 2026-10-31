@@ -139,7 +139,6 @@ class NetworkSettings {
   const NetworkSettings({
     this.mainPort = 0,
     this.upnpEnabled = false,
-    this.localListenerPort = 7719,
     this.trustedProxies = const ['127.0.0.1', '::1'],
     this.dnsResolvers = const ['1.1.1.1', '8.8.8.8', '9.9.9.9'],
     this.acmeStaging = false,
@@ -148,7 +147,6 @@ class NetworkSettings {
   /// From the next start; 0 keeps the configured port.
   final int mainPort;
   final bool upnpEnabled;
-  final int localListenerPort;
   final List<String> trustedProxies;
   final List<String> dnsResolvers;
   final bool acmeStaging;
@@ -156,14 +154,12 @@ class NetworkSettings {
   NetworkSettings copyWith({
     int? mainPort,
     bool? upnpEnabled,
-    int? localListenerPort,
     List<String>? trustedProxies,
     List<String>? dnsResolvers,
     bool? acmeStaging,
   }) => NetworkSettings(
     mainPort: mainPort ?? this.mainPort,
     upnpEnabled: upnpEnabled ?? this.upnpEnabled,
-    localListenerPort: localListenerPort ?? this.localListenerPort,
     trustedProxies: trustedProxies ?? this.trustedProxies,
     dnsResolvers: dnsResolvers ?? this.dnsResolvers,
     acmeStaging: acmeStaging ?? this.acmeStaging,
@@ -174,9 +170,6 @@ class NetworkSettings {
       NetworkSettingsChanges(
         mainPort: mainPort != saved.mainPort ? mainPort : null,
         upnpEnabled: upnpEnabled != saved.upnpEnabled ? upnpEnabled : null,
-        localListenerPort: localListenerPort != saved.localListenerPort
-            ? localListenerPort
-            : null,
         trustedProxies: listEquals(trustedProxies, saved.trustedProxies)
             ? null
             : trustedProxies,
@@ -191,7 +184,6 @@ class NetworkSettings {
       other is NetworkSettings &&
       other.mainPort == mainPort &&
       other.upnpEnabled == upnpEnabled &&
-      other.localListenerPort == localListenerPort &&
       listEquals(other.trustedProxies, trustedProxies) &&
       listEquals(other.dnsResolvers, dnsResolvers) &&
       other.acmeStaging == acmeStaging;
@@ -200,7 +192,6 @@ class NetworkSettings {
   int get hashCode => Object.hash(
     mainPort,
     upnpEnabled,
-    localListenerPort,
     Object.hashAll(trustedProxies),
     Object.hashAll(dnsResolvers),
     acmeStaging,
@@ -213,7 +204,6 @@ class NetworkSettingsChanges {
   const NetworkSettingsChanges({
     this.mainPort,
     this.upnpEnabled,
-    this.localListenerPort,
     this.trustedProxies,
     this.dnsResolvers,
     this.acmeStaging,
@@ -221,7 +211,6 @@ class NetworkSettingsChanges {
 
   final int? mainPort;
   final bool? upnpEnabled;
-  final int? localListenerPort;
   final List<String>? trustedProxies;
   final List<String>? dnsResolvers;
   final bool? acmeStaging;
