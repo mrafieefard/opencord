@@ -1329,7 +1329,7 @@ These are the inputs most likely to break for real people while no ordinary test
 - Modify: `.github/workflows/cicd.yml`, `mobile/app.config.ts` (the version and `android.versionCode` from the `version` job), `docs/releasing.md`.
 - Create: `mobile/plugins/withReleaseSigning.js` (signing from environment variables).
 
-- [ ] **Step 1: Versions.**
+- [x] **Step 1: Versions.**
   - The app version is the release version, the same as desktop's.
   - `versionCode = major * 10_000_000 + minor * 100_000 + patch * 1_000 + rank * 100 + pre`.
     - `rank` is 0 for beta, 1 for canary and 9 for stable.
@@ -1342,12 +1342,12 @@ These are the inputs most likely to break for real people while no ordinary test
     - `0.0.3-beta.1` → 3001;
     - `1.2.3-canary.45` → 10203145;
     - a pre-release number over 99 throws.
-- [ ] **Step 2: Signing.**
+- [x] **Step 2: Signing.**
   - With the secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`, the APK is signed with that key.
   - Without them, it is signed with the debug key and named `…-unsigned-debugkey.apk`.
   - The release job attaches `opencord-android.apk` only when it is signed with the release key.
-- [ ] **Step 3:** `docs/releasing.md` gains the phone files and how to make the key (`keytool -genkeypair …`), kept offline like the update key.
-- [ ] **Step 4: Run** `actionlint` and `.github/check.sh mobile`, and push. The pull request's mobile jobs pass. **Step 5: Commit:** `ci(mobile): release builds of the phone apps`.
+- [x] **Step 3:** `docs/releasing.md` gains the phone files and how to make the key (`keytool -genkeypair …`), kept offline like the update key.
+- [x] **Step 4: Run** `actionlint` and `.github/check.sh mobile`, and push. The pull request's mobile jobs pass. **Step 5: Commit:** `ci(mobile): release builds of the phone apps`.
 
 ### Task 22: iOS on the Mac
 

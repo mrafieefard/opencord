@@ -314,7 +314,12 @@ ASSETS = {
     "opencord-server-linux-x64.tar.gz": "server-linux-x64",
     "opencord-server-windows-x64.zip": "server-windows-x64",
     "opencord-server-macos.tar.gz": "server-macos-universal",
+    "opencord-android.apk": "android-apk",
 }
+
+# Release files a release may go without: the APK is there only when it was
+# signed with Opencord's key (ANDROID_KEYSTORE_BASE64).
+OPTIONAL = {"android-apk"}
 
 
 def manifest(version_text: str, dist: Path, image: str | None) -> None:
@@ -340,7 +345,7 @@ def manifest(version_text: str, dist: Path, image: str | None) -> None:
             "size": path.stat().st_size,
             "sha256": digest,
         }
-    missing = sorted(set(ASSETS.values()) - set(platforms))
+    missing = sorted(set(ASSETS.values()) - set(platforms) - OPTIONAL)
     if missing:
         raise SystemExit(f"missing release files: {', '.join(missing)}")
     data = {

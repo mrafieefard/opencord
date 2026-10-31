@@ -2,6 +2,10 @@
 // `expo prebuild` makes mobile/android and mobile/ios from this; they aren't committed.
 import type { ExpoConfig } from 'expo/config';
 
+// With their extensions: Expo loads this file the way Node does.
+import { versionCode } from './plugins/versionCode.ts';
+import { withReleaseSigning } from './plugins/withReleaseSigning.ts';
+
 const fonts = [
   './assets/fonts/Inter-Regular.ttf',
   './assets/fonts/Inter-Medium.ttf',
@@ -12,13 +16,16 @@ const fonts = [
   './assets/fonts/JetBrainsMono-Regular.ttf',
 ];
 
+// CI sets the release version (docs/releasing.md); a local build is 0.0.1.
+const version = process.env.OPENCORD_VERSION || '0.0.1';
+
 const microphone = 'Opencord uses the microphone in voice channels.';
 const photos = 'Opencord lets you send photos from your library.';
 
 const config: ExpoConfig = {
   name: 'Opencord',
   slug: 'opencord',
-  version: process.env.OPENCORD_VERSION ?? '0.0.1',
+  version,
   orientation: 'default',
   icon: './assets/icon.png',
   // The app's own links first, then the invite links +native-intent.tsx
@@ -37,6 +44,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'dev.opencord.mobile',
+    versionCode: versionCode(version),
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#0E0E10',
@@ -81,4 +89,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+export default withReleaseSigning(config);

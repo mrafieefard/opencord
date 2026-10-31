@@ -82,8 +82,10 @@ Windows' and macOS' file versions get the plain `X.Y.Z`, because they can't hold
 | Client (Linux) | Runs clippy and the tests of the app's crates, then `flutter analyze`, the app's tests and the integration tests, and builds `opencord-linux-x64.tar.gz`. |
 | Client (Windows) | Runs clippy and the tests of the app's crates, and builds `opencord-windows-x64.zip`. |
 | Client (macOS) | Runs clippy and the tests of the app's crates, and builds the universal `opencord-macos.zip`. |
+| Phone (Android) | Type-checks, lints and tests the phone app, checks its bindings and licences, and builds `opencord-android.apk`, signed with Opencord's key (see "Phone apps" below). |
+| Phone (iOS) | Builds the iPhone app for the simulator, unsigned. It is checked, not released. |
 | Docker | Tags the image (`beta`, `canary`, `latest`, the version) once every job above has passed. |
-| Release | Writes `release.json`, `SHA256SUMS` and the notes, and publishes the GitHub release. |
+| Release | Once the Docker job and both phone jobs have passed, leaves out the simulator app and a debug-signed APK, writes `release.json`, `SHA256SUMS` and the notes, and publishes the GitHub release. |
 
 Nothing is tagged or released unless every test passes on every platform. Tests that need real hardware or millisecond timing skip on the shared runners (`OPENCORD_SHARED_RUNNER`): hardware encoders, VideoToolbox's bitrate, and speaking and frame-pacing timings.
 
@@ -104,6 +106,7 @@ The app's launcher (docs/updater.md) reads GitHub releases. Every release carrie
 | `server-linux-x64` | `opencord-server-linux-x64.tar.gz` |
 | `server-windows-x64` | `opencord-server-windows-x64.zip` |
 | `server-macos-universal` | `opencord-server-macos.tar.gz` |
+| `android-apk` | `opencord-android.apk`, when it was signed with Opencord's key |
 |  | `SHA256SUMS` |
 |  | `release.json` |
 |  | `release.json.sig`, when the signing key is set |
@@ -142,6 +145,36 @@ How the updater should find an update:
    Because SemVer orders them, a beta user moves to the stable release once it's newer than their beta, and nobody is offered an older build.
 3. **Offer the update** if that version is higher than `appVersion`. Download the platform's `url`, and check its `size` and `sha256` before replacing anything.
 4. **Signing.** With the `UPDATE_SIGNING_KEY` secret set, CI signs `release.json` with Ed25519 into `release.json.sig`, and launchers built with the `UPDATE_PUBLIC_KEY` variable accept only signed releases, as Tauri's updater and Sparkle do. Without the secret, the trust comes from HTTPS to github.com. docs/updater.md says how to make the key.
+
+## Phone apps
+
+The phone apps take the release's version too: CI passes it to `mobile/app.config.ts` as `OPENCORD_VERSION`. Android also needs a version code, a number that only goes up, or a newer APK won't install over an older one. `mobile/plugins/versionCode.ts` makes it from the version, keeping SemVer's order:
+
+```
+major * 10 000 000 + minor * 100 000 + patch * 1 000 + rank * 100 + pre
+```
+
+`rank` is 0 for beta, 1 for canary and 9 for stable, and `pre` is the pre-release number. So `0.0.2-beta.3` is 2003, `0.0.2-canary.1` is 2101 and `0.0.2` is 2900. A minor, patch or pre-release number over 99 fails the build rather than making a code out of order.
+
+**The signing key.** Android installs an update only when it is signed with the same key as the app on the phone. So every APK Opencord releases is signed with one key, made once and never lost: without it, everyone would have to uninstall the app, and lose their servers, to update. Make it on a trusted machine and keep it offline, as you do the update key (docs/updater.md):
+
+```sh
+keytool -genkeypair -v -keystore opencord-release.keystore -alias opencord \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Then give it to CI as four repository secrets (Settings → Secrets and variables → Actions):
+
+```sh
+base64 -w0 opencord-release.keystore | gh secret set ANDROID_KEYSTORE_BASE64
+gh secret set ANDROID_KEYSTORE_PASSWORD   # the keystore's password
+gh secret set ANDROID_KEY_ALIAS           # opencord
+gh secret set ANDROID_KEY_PASSWORD        # the key's password
+```
+
+The Android job decodes the keystore into the runner's temporary folder, and Gradle reads the four values when it signs (`mobile/plugins/withReleaseSigning.ts`), so they never end up in the generated project. Without the secrets, the APK is signed with the debug key and named `opencord-android-unsigned-debugkey.apk`. It is still uploaded with the run, for testing, but the release leaves it out: no update signed with the real key could install over it.
+
+The iPhone app isn't released yet. CI builds it for the simulator, unsigned. TestFlight and the App Store need an Apple Developer account and their own signing.
 
 ## Setup on GitHub
 

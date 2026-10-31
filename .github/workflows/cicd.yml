@@ -770,19 +770,36 @@ jobs:
             exit 1
           fi
 
+      # Signed with Opencord's key when the secrets are set
+      # (mobile/plugins/withReleaseSigning.ts, docs/releasing.md). Without
+      # them it is signed with the debug key and named so: the release
+      # leaves it out, since no update could follow it.
       - name: Build the APK
         working-directory: mobile
         env:
           OPENCORD_VERSION: ${{ needs.version.outputs.version || '0.0.1' }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+            export OPENCORD_ANDROID_KEYSTORE="$RUNNER_TEMP/release.keystore"
+            base64 -d <<< "$ANDROID_KEYSTORE_BASE64" > "$OPENCORD_ANDROID_KEYSTORE"
+            apk=opencord-android.apk
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set: the APK is signed with the debug key and left out of the release"
+            apk=opencord-android-unsigned-debugkey.apk
+          fi
           npx expo prebuild -p android --no-install
           (cd android && ./gradlew assembleRelease --no-daemon)
+          rm -f "$RUNNER_TEMP/release.keystore"
           mkdir -p "$RUNNER_TEMP/dist"
-          cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/dist/opencord-android.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/dist/$apk"
 
       - uses: actions/upload-artifact@v7
         with:
-          path: ${{ runner.temp }}/dist/opencord-android.apk
+          path: ${{ runner.temp }}/dist/opencord-android*.apk
           archive: false
           if-no-files-found: error
           retention-days: 30
@@ -885,7 +902,8 @@ jobs:
 
   release:
     name: Release
-    needs: [version, docker-publish]
+    # The phone jobs too: a release waits for every check, and for the APK.
+    needs: [version, docker-publish, mobile-android, mobile-ios]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -902,6 +920,11 @@ jobs:
           path: dist
           merge-multiple: true
           skip-decompress: true
+
+      # Built and checked, not released: the simulator app, and an APK
+      # signed with the debug key (ANDROID_KEYSTORE_BASE64 unset).
+      - name: Leave out what isn't released
+        run: rm -f dist/opencord-ios-simulator.zip dist/*-unsigned-debugkey.apk
 
       # release.json is what the app's updater reads (docs/releasing.md).
       - name: Manifest
@@ -953,11 +976,18 @@ jobs:
             echo "| Windows (x64) | [opencord-setup-windows-x64.exe]($base/opencord-setup-windows-x64.exe) | [opencord-windows-x64.zip]($base/opencord-windows-x64.zip) |"
             echo "| macOS (Apple silicon and Intel) | [opencord-setup-macos.dmg]($base/opencord-setup-macos.dmg) | [opencord-macos.zip]($base/opencord-macos.zip) |"
             echo "| Linux (x64) | [opencord-setup-linux-x64]($base/opencord-setup-linux-x64) | [opencord-linux-x64.tar.gz]($base/opencord-linux-x64.tar.gz) |"
+            # The APK is in the release only when it was signed with Opencord's key.
+            if [[ -f dist/opencord-android.apk ]]; then
+              echo "| Android 8.0 and up | [opencord-android.apk]($base/opencord-android.apk) | |"
+            fi
             echo
             echo "The installers install for you alone, with no administrator needed, and keep Opencord on the newest **$CHANNEL** build: it checks for updates each time it starts. Settings → About switches the track. A copy run from the zip or tarball doesn't update itself."
             echo
             echo "- **Windows:** run the installer. Windows may warn that the app is unrecognized (it isn't signed yet): choose More info → Run anyway."
             echo "- **macOS:** open the disk image and drag Opencord to Applications. The app isn't notarized yet: run \`xattr -dr com.apple.quarantine /Applications/Opencord.app\` once, or allow it under System Settings > Privacy & Security."
+            if [[ -f dist/opencord-android.apk ]]; then
+              echo "- **Android:** open the APK on the phone and allow your browser or files app to install apps when Android asks. A newer APK installs over it, keeping your servers."
+            fi
             echo "- **Linux:** run \`chmod +x opencord-setup-linux-x64 && ./opencord-setup-linux-x64\`; Opencord then appears with your other apps. Needs GTK 3, libsecret, PipeWire, ALSA and libva, which most desktops already have."
             echo
             echo "## Server"
