@@ -360,7 +360,7 @@ The Windows session's log is `docs/plans/windows.md` §7. The test PC is an i7-1
 - **Bindings.** The `windows` crate 0.62 (cpal's). COM is multithreaded, on Opencord's own threads, never on Flutter's UI thread.
 - **Floors.** Windows 10 21H2 for voice, keybinds, camera, video and screen share; build 20348 for a share's sound, read with `RtlGetVersion` (`GetVersionExW` lies without a manifest). Below it the switch reads "Sharing sound needs Windows 11".
 - **Keybinds.** One `WH_KEYBOARD_LL` hook on its own thread; `RegisterHotKey` is not used, so Opencord never takes a key away from another app. Keys the keyboard has twice match on the extended-key flag too, so keypad 4 with Num Lock off matches nothing, as on Linux. AltGr's phantom left Ctrl is dropped by its extended flag. Printable keys follow the foreground window's layout, rebuilt every 500 ms on the hook thread. Keys typed into a window run as administrator never reach the hook (UIPI).
-- **Codec.** FFmpeg through the shared codec layer, encoders NVENC → AMF → Quick Sync → OpenH264, D3D11VA decoding on the default adapter, and the five LGPL DLLs bundled beside the exe (CI pins BtbN's asset by URL and SHA-256; the build fails without `FFMPEG_DIR`). Media Foundation is openable but left out of the list: it holds 16 pictures before the first comes out (about 533 ms). `profile=high` is set per encoder (`h264_mf` has no `profile` and refused to open). The decoder sets `err_recognition = EXPLODE | BITSTREAM` on Windows only: FFmpeg there concealed damage and never asked for a keyframe. Linux already reports it, so Linux is left as it is.
+- **Codec.** FFmpeg through the shared codec layer, encoders NVENC → AMF → Quick Sync → OpenH264, D3D11VA decoding on the default adapter, and the five LGPL DLLs bundled beside the exe (the build fails without `FFMPEG_DIR`). CI first pinned BtbN's asset by URL and SHA-256, but BtbN deletes dated builds after about two weeks; since 2026-10-31 CI builds FFmpeg itself with `app/tool/windows/build_ffmpeg.ps1`, Linux's set of codecs with Windows' hardware, cached by the scripts' hash. Media Foundation is openable but left out of the list: it holds 16 pictures before the first comes out (about 533 ms). `profile=high` is set per encoder (`h264_mf` has no `profile` and refused to open). The decoder sets `err_recognition = EXPLODE | BITSTREAM` on Windows only: FFmpeg there concealed damage and never asked for a keyframe. Linux already reports it, so Linux is left as it is.
 - **Camera.** Media Foundation's source reader with converters off; the id is the device's symbolic link. Windows' Frame Server shares cameras between apps, so "another app has the camera" doesn't happen.
 - **Screen share.** Opencord's own picker (Screens and Windows tabs; GDI thumbnails, so the picker doesn't put a capture border on every window), Windows.Graphics.Capture polled on its own thread, the CPU path for conversion (1080p30 at 14.8 % of a core in a debug build). The `Closed` event never fires without a message pump, so the window's handle is checked every 250 ms. A window's sound is its process (for UWP apps, the hosted CoreWindow's).
 - **Share sound.** WASAPI process loopback, excluding Opencord's process tree, or including one process's; the app list leaves out any `opencord` and `audiodg`. Written and unit-tested, never run: process loopback needs build 20348 and the PC is 19045.
@@ -1297,6 +1297,254 @@ Windows.Graphics.Capture draws a yellow border around whatever is being captured
 - **Windows 11** (and Server 2022): the session is told `IsBorderRequired = false`. First the app asks `GraphicsCaptureAccess::RequestAccessAsync(Borderless)` once per run. The wait is capped at 2 s, so a share never hangs on it. Microsoft documents the request as prompting a packaged app; an unpackaged app like Opencord is expected to be answered without one. Either way, the share goes ahead.
 - **Windows 10** has neither the request nor the switch, so the border stays there for captures through the API. Removing it there would mean capturing screens another way (DXGI duplication), which is left open.
 - **Owed by hand:** a screen and a window shared on Windows 11 show no border, and Windows doesn't prompt.
+
+## D75: The phone apps' foundations (2026-10-26)
+
+The owner asked for Android and iOS apps in React Native, with native components, on the Rust client core with only slight changes, laid out like WhatsApp and Telegram. Design: `docs/superpowers/specs/2026-10-26-mobile-client-design.md`; plan: `docs/superpowers/plans/2026-10-26-mobile-client.md`. This is its milestone R0, Tasks 1–5, by Claude.
+
+- **A facade crate.** `crates/opencord-mobile` wraps `opencord_core::client::Client`, the client the Flutter API wraps, with UniFFI 0.31.2 for uniffi-bindgen-react-native 0.31.0-6. `opencord-core` itself is unchanged.
+  - Ids cross as decimal strings (an `i64` would be a `bigint`), times and sizes as `f64`, permissions as `ChannelAccess` flags (`ADMINISTRATOR` sets them all).
+  - Errors are `MobileError`, one variant per `CoreError` variant; a server's `ErrorCode` crosses as its snake-case name.
+  - Event and error conversions have no catch-all arm, so a new core event fails to compile until it is mapped or listed as dropped.
+- **Events are pulled.** A callback from a Rust thread would block it until JavaScript returns, so the app loops on `nextEvents(generation, 256)`. `eventsAttach` starts a new generation and wakes any call waiting under an older one with `[]`, so a JavaScript reload takes the stream over instead of waiting behind a call from a context that is gone. The wake-up is registered before the generation is read, so none is lost.
+- **Attachments as files.** `attachment_file` caches each one at `<cache>/attachments/<16 hex of the server key's SHA-256>/<id>.<o|t>`, fetched into a unique `.part` file and renamed into place. The files are plain; the phone's app sandbox and disk encryption guard them.
+- **The build.**
+  - `mobile/` is Expo SDK 58 (React Native 0.88, React 19.3, Expo Router, Gesture Handler 3.3, Reanimated 4.7) on Yarn 1 workspaces.
+  - `@opencord/core-native` is the turbo-module ubrn generates. The bindings and its glue are committed; the glue names the ABIs, so `scripts/build-core.sh` always makes it from `ubrn.config.yaml`'s targets (`arm64-v8a`, `x86_64`).
+  - **Android 8.0 (API 26) and up:** cpal's AAudio back end needs API 26, and linking at 24 fails on `-laaudio`.
+  - **A shared library on Android:** the Rust static library couldn't carry `libandroid` and AAudio to the turbo-module's CMake link, so ubrn's `useSharedLibrary` builds the facade's `cdylib`, which links them itself.
+  - **Autolinking** only sees packages the app lists, so the app depends on `@opencord/core-native`.
+  - CI gains Phone (Android), a release APK, with the bindings, types, lint, tests and licences checked, and Phone (iOS), a simulator build. Neither releases anything yet.
+- **The app's core layer.** `CoreApi` mirrors the facade; `NativeCore` is the bindings as they are; `FakeCore` is a fixed world (Night Owls connected, Rust Club reconnecting, Weekend Raid refused) that answers as the core does. Jest maps `@opencord/core-native` to the generated bindings without their native installer, so their classes and enums work in tests. Boot opens the core, then loads the identity from the keychain (`opencord.identity`) and the name from the core's settings.
+- **The store** (Zustand) applies events purely. A Ready seeds unread counts as the desktop's `_recentActivity` does: the 50 newest messages of each readable channel, 4 fetches at once, 10 s each. The server's other events wait until it ends, then apply in order; a newer Ready discards the older result. A message the seeding already had isn't counted again. Read positions (`mobile.read.<server>`) only move forward and are written at most every 2 s.
+- **Calls made on the way.** Display names are 1–32 characters, as the core checks them (the design first said 2–32). Expo's own dependency tree brings a few permissive licences outside the plan's list (BlueOak, Unlicense, Python-2.0, CC-BY data, MPL-2.0 lightningcss); `scripts/licenses.js` allows those packages by name.
+- **Tests.**
+  - The facade: ids, conversions, errors, the event pump (batches, dropped kinds, takeover, stale generations, media and server events) and the cache. Against a real server: Ready and messages with string ids, the trust step, and send, fetch, edit, delete, cached files and music through the exported calls.
+  - The app: 78 Jest tests over the event loop, boot, error sentences, FakeCore, the reducer, unread seeding, the selectors, preview text, the name catch-up and the prefs.
+  - By hand: the app starts on the `Pixel_7` emulator and shows the core's version from Rust.
+
+## D76: The phone app's shell and servers (2026-10-27)
+
+Milestone R1 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the phone app its design system, navigation, onboarding, the Servers tab, adding a server, and the You tab. Commits: `e8bc9b7` (design system) and `1347aee` (navigation, boot and onboarding), both written by Claude; `921b2c1` (server list), `7108a0a` (adding a server and invite links) and `3936d24` (the You tab), written by Gemini.
+
+- **The design system** (`mobile/src/ui/`).
+  - The tokens equal the desktop's `OcColors` in both themes; `tokens.test.ts` compares them value for value, and `noColorLiterals.test.ts` rejects a color literal anywhere else. Only `voice` and `recording` carry a hue.
+  - The primitives (`Text`, `Icon`, `Avatar`, `ServerIcon`, `Badge`, `Row`, `Button`, `IconButton`, `PaneHeader`, `EmptyState`, `Banner`, `ToastHost`, `ProgressBar`, `SearchField`, `Divider`) are React Native views drawn with the tokens. A badge zooms in over 120 ms.
+  - The controls are the platforms' own through `@expo/ui`: SwiftUI `Slider`, `Toggle` and a segmented `Picker` on iOS; Compose `Slider`, `Switch` and `SingleChoiceSegmentedButtonRow` on Android. The Android slider draws its stops only up to 10 and rounds finer steps itself. Menus are `@react-native-menu/menu`'s `MenuView`.
+- **Boot and navigation.** `BootGate` starts the core and loads the identity from SecureStore (`opencord.identity`). A failed start shows its sentence and **Try again**. `_layout.tsx` guards the routes with `Stack.Protected`: without an identity only `/welcome` is reachable (**Create an identity**, **Import a backup**), with one the native tabs (`NativeTabs`: Servers and You), the server screen and the Add server sheet. `startApp()` starts the event loop, follows `AppState`, and retries every server that isn't connected when the app comes back.
+- **The Servers tab.**
+  - A `FlashList` of rows, latest activity first, with hairlines after the icon.
+  - Each row shows the server's icon, its name, the time of its last message (`formatTime`: the time today, "Yesterday", a weekday within six days, else the date), and a second line: the last message as `#channel · Name: text`, else "No messages yet", or the connection's state (`connectionText`: "Connecting…", "Reconnecting…", or the failure's sentence in red). The unread or "@" mentions badge and the voice glyph sit at the end of that line.
+  - Swiping right marks the server read, and swiping left offers Leave, which asks "Leave <name>? You can come back with an invite." first. A long press opens Mark as read, Retry now (only while not connected), Copy address and Leave server. Pulling down retries the servers that aren't connected. With no servers, the screen offers **Add a server**. The header has the search bar and the **+** button.
+- **Add a server** (`/add-server`, a form sheet at 0.6 of the height).
+  - The field takes an invite link or `host:port`, with **Paste**. **I own this server** opens the claim token field, and the token is sent only when it is filled in. Errors show under the field.
+  - An unknown certificate replaces the form with the trust step: "Trust this server?", its SHA-256 fingerprint in groups of four, **Trust and add** and **Cancel**. Nothing is trusted until **Trust and add**.
+  - `opencord://` and `opencords://` are registered as the app's schemes too, and `+native-intent.tsx` turns such a link into `/add-server?link=…` (`inviteRoute`).
+- **The You tab.** An inset grouped list: the avatar, name and fingerprint (a tap copies it); the display name on its own screen (`/you/name`, 1–32 characters, sent to every connected server); **Back up your identity**, which writes `opencord-identity.txt` to the cache and opens the share sheet; the theme (System, Light, Dark); the music volume (0–200 % in 5 % steps), **Mute music** and **Lower music while people talk** (`MusicListeningRows`, which the music player reuses); and the app's and the core's versions.
+- **Review** (`8a84df2`). The screens showed what the tests didn't:
+  - every row's swipe actions showed through it;
+  - on Android a long press opened the server instead of the menu (`Menu` now has an `open()` handle the row's long press calls);
+  - the You tab's cards vanished in light mode;
+  - the fingerprint wasn't monospaced;
+  - the name screen's **Save** sat under the keyboard.
+
+  The code had more:
+  - invite links never reached the app: their schemes weren't registered;
+  - an error from **Trust and add** was never shown;
+  - errors were dropped in leave, retry, copy, the clipboard read, the backup and the core version;
+  - React Native's `Pressable` was used inside Gesture Handler rows;
+  - a `query` prop existed only for a test;
+  - times froze at mount, and a time slightly ahead of the phone's clock showed as a date;
+  - volume moved in 1 % steps;
+  - the name field took 64 characters.
+- **Tests.** 132 Jest tests in 20 suites: tokens and color literals, components, boot and onboarding, `formatTime`, `connectionText`, the server list, invite links, adding a server and the trust step, and the You tab.
+
+## D77: Channels and chat on the phone (2026-10-28)
+
+Milestone R2 of `docs/superpowers/plans/2026-10-26-mobile-client.md` gives the phone app the inside of a server: the panes, the channel list, the chat, attachments and the image viewer, the composer and message actions. Commits: `1db7d28` (the server screen and its panes), written by Claude; `2c32bb9` (the channel list), `b2d8823` (messages and markdown), `28b9014` (attachments and the viewer) and `bf6cfe8` (the composer and message actions), written by Gemini; the review's fixes in `6a3b3e9`.
+
+- **The server screen** (`features/server/`). `ServerScreen` picks `PhonePanes` below 768 pt and `TabletPanes` from there.
+  - **On a phone:** the channel list starts at the full width. Choosing a channel slides the list out and the chat in. After that the list is a sidebar `min(86 % of the width, 360 pt)` wide, opened by a swipe from the left half or the header's sidebar button, over the content under `scrim` at 40 %. A custom pan gesture drives it rather than `ReanimatedDrawerLayout`, which can't start open at the full width and widen again.
+  - **Back** closes the sidebar, then returns from a channel to the list, then leaves the server.
+  - **On a tablet:** the list is a fixed 320 pt sidebar beside the content.
+- **The channel list.**
+  - Categories are uppercase captions. Unread channels have a 4 × 8 pt pill and a semibold name, mentions a count badge, and the open channel the `selected` background.
+  - Voice channels show their count (with "/limit"), their people (22 pt avatars with the speaking ring, mute and deafen glyphs) and what plays (`NowPlayingRow`).
+  - The header's menu has Mark all as read, Copy address and Leave server.
+- **The chat** (`features/chat/`).
+  - **Bubbles:** a `FlashList` of bubbles, grouped by author within five minutes. Others' are on the left in `bubbleIn`, with the avatar beside the group's last bubble and the name on its first; the user's own are on the right in `bubbleOut`. Corners are 18 pt, 6 pt on the author's side where a bubble joins its group.
+  - **Width:** a bubble is at most 78 % of the pane, which the list measures, and at most 480 pt on a tablet.
+  - **The time** sits at the end of the last line: the text keeps room for it in the bubble's colour, and the time is drawn over that room. It takes a line of its own only when the last line is full, after code, or under attachments. Pending sends show a clock, and failed ones a red outline with "Not sent. Tap to retry".
+  - **Day pills, the divider and the jump button:** day pills read "Today", "Yesterday" or the date, and a hairline divider reads "New messages". The jump-to-latest button appears when the list is scrolled up more than a screen, with the count of new messages.
+  - **Markdown:** `MarkdownText` renders the desktop's subset (`markdown.ts`, a port of `markdown.dart`): paragraphs, quotes, fenced code in JetBrains Mono on `mentionBg`, bold (semibold, as on desktop), italic, strike, inline code, links, `<@user>` mentions and `<#channel>` links. Bubble text isn't selectable: a long press opens the message's menu, whose Copy text copies.
+  - **Keyboard:** the list scrolls in keyboard-controller's `KeyboardChatScrollView` and the composer rides a `KeyboardStickyView`. Both move by the keyboard's height less the bottom inset, so the newest message stays above the composer. The list opens on its newest message and keeps to its end until the user drags.
+- **Attachments and the viewer.**
+  - **Pictures:** pictures fit within 260 × 320 pt and the bubble's room, sized before they load on a `surface` placeholder.
+  - **Other files:** a row with the kind's icon in a circle, the name, the size and the kind; a tap downloads the file and opens the share sheet.
+  - **The viewer** (`/viewer`) is black, with pinch and double-tap zoom, pan, swipe down to close, and share and close buttons that fade with a tap.
+- **The composer.**
+  - **The bar:** a `sidebar` bar with a hairline, the + menu (Photo library, Files) and a 40 pt `hover` field in Inter that grows to six lines. The send button appears only when there is text or a file; above 4,000 characters it is off, and from 3,900 a counter shows what's left.
+  - **Files and typing:** picked files are chips with remove buttons. Typing is sent at most every 8 s.
+  - **Message actions:** a long press opens Copy text, Edit and Delete ("Delete message?" "This cannot be undone."). Editing shows the "Editing message" bar, and its keyboard comes up on the text.
+  - **Tests and the fake core:** `FakeCore` refuses a message whose text is exactly "fail", so the failed state can be seen on a device.
+- **Review** (`6a3b3e9`). The screens, measured on the Pixel 7, showed:
+  - **Wrapping:** bubbles broke mid-word and cropped pictures, because the markdown block was 100 % wide inside a bubble sized by its content.
+  - **The time:** it took a line of its own under every message.
+  - **The keyboard:** it covered the newest messages, and the composer had no bar, touched the navigation bar and used the system font.
+  - **Long press:** pressing on text started a selection instead of opening the menu.
+  - **Small parts:** day pills and the typing line were in capitals, the divider was a red "NEW", the jump button had a shadow, code blocks were nearly invisible, and the voice member's ring was drawn twice and square.
+  - **Code:** `fontWeight` was set on Inter, React Native's `Pressable` was used in Gesture Handler panes, errors were dropped (attach, send, share), and a failed load left the chat silently empty.
+- **Tests.** 198 Jest tests in 33 suites. Among them:
+  - the panes, the channel list and the chat's items;
+  - the markdown port against the desktop's cases;
+  - the message list, attachments and `fitSize`, and the viewer;
+  - the composer, including the send button showing only with something to send;
+  - sending, retrying and editing;
+  - the bubble corners and the time's room at the end of the text.
+
+## D78: Sheets, menus and questions drawn in the app's style (2026-10-29)
+
+The owner tried the phone app on its first real server and found the overlays the worst of it: the Add server sheet opened with half of it blank, and in dark mode the menus and questions came up in Android's own colours. Each was measured on the Pixel 7 in both themes, against the real server, and redrawn.
+
+- **The Add server sheet** (`features/servers/AddServerForm.tsx`).
+  - **Size:** it was fixed at 60 % of the screen, with the form at its top. It now fits its content (`sheetAllowedDetents: 'fitToContents'`), so each step is as tall as what it shows and the sheet rides above the keyboard.
+  - **Colour:** it was `chat`, the colour of the screen behind it, so nothing marked where it started. It is now `elevated` (design §9.1: sheets and toasts), with 20 pt corners.
+  - **`SheetHeader`:** the title, a line under it and a close button, plus a grabber on Android, which has none of its own (iOS shows its native one).
+  - **Fields:** 52 pt wells in `chat`, outlined in `border`, `textMuted` while they have focus and `recording` with an error. Paste is a pill in the field while it's empty, and a clear button replaces it once there's text. The error shows under the field with a warning glyph, and editing the address clears it.
+  - **"I own this server":** a disclosure row in a lightly tinted panel. The claim token field opens inside it.
+- **The trust step** (`TrustStep.tsx`): a lock badge, "Trust this server?" with the address under it, and the SHA-256 fingerprint as four lines of four groups in JetBrains Mono, to read out and compare. Cancel is a plain text button under Trust and add.
+- **Menus on Android** (`ui/Menu.android.tsx`). `@react-native-menu/menu`'s PopupMenu can't take the app's colours, font or icons: it was a square grey box in the system font, without icons, with a pure red Delete. Android now draws the app's own menu, a deliberate change to the spec's "native menu" there. iOS keeps `UIMenu`, which already looks as iOS should (`Menu.ios.tsx`).
+  - **The card:** 232 pt wide, `elevated`, 14 pt corners, 48 pt rows with a 20 pt icon and Inter text, destructive rows in `recording`, over `scrim` at half strength. It grows in from the corner nearest what was pressed in 160 ms.
+  - **Placement** (`menuPlacement.ts`): below what was pressed, or above it when there's no room, on its side. The user's own bubble's menu lines up with its right edge and others' with their left; a full-width row's starts at the rows' 16 pt inset. It stays 8 pt inside the screen and the system bars.
+  - **Opening:** a long press (with the long-press haptic) or a tap opens it. A picture or file card in a bubble passes its long press on through `useMenuOpener`, and Gesture Handler rows and buttons call the ref's `open()`, since they take the touch first.
+- **Questions** (`ui/confirm*.ts`, `ui/DialogHost.android.tsx`). `Alert.alert` on Android is the old dialog: a square grey box with teal capital buttons. `confirm()` asks instead: on iOS it is still `Alert.alert`, and on Android `DialogHost` draws a card in `elevated` with 20 pt corners in the middle of the scrim: the title, the message, and Cancel beside the confirming button (`danger` when destructive). Back and a tap outside cancel. Leaving a server and deleting a message ask through it.
+- **Smaller fixes.**
+  - **Disabled buttons:** a disabled `Button` is `selected` with `textMuted` text, instead of its own colour at 45 %, which made a disabled primary a muddy grey.
+  - **`plain` buttons:** the new `plain` variant is text alone.
+  - **The tab bar:** its selected pill was Material's blue-grey (#374955). It is now `selected`, and the ripple `hover`.
+  - **Leave server's icon:** it was the voice hang-up handset; it is now `leaveServer` (`logout`, `rectangle.portrait.and.arrow.right`).
+- **Not changed.**
+  - **The navigation bar:** Android draws a contrast scrim behind the three-button navigation bar (#1A1D21 under a `#1F1F23` sheet). Expo 58's config doesn't expose `enforceNavigationBarContrast`; turning it off needs a config plugin and a rebuild.
+  - **A trusted certificate that changed:** after a server's certificate changes, the app says so and refuses, with no way to trust the new one from the sheet. Trust is kept per address.
+- **Tests.** 205 Jest tests in 35 suites, among them:
+  - the menu's placement (a header button, own and others' bubbles, a full-width row, a bubble taller than the screen's room);
+  - the Android dialog (Cancel doesn't act, confirming acts once and closes);
+  - the fingerprint's four lines;
+  - editing the address clearing its error.
+
+## D79: Voice on the phone (2026-10-29)
+
+Milestone R3 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.6, §11). Commits:
+- `d7dca91` and `bdf5ea3`: the foreground service, permissions, the audio session and two Android core fixes, by Claude;
+- `530bec7`: the voice pane, a person's sheet and the connected bar, by Gemini;
+- the review below.
+
+- **Voice that keeps going** (`modules/voice-service`, `state/actions/voice.ts`).
+  - **The service:** an Android foreground service of type `microphone|mediaPlayback`, declared in the module's own `AndroidManifest.xml`. Its notification reads "In voice: Lounge · Night Owls" and opens the app. It starts before the core joins, while the app is in the foreground, as Android 14 requires. It stops whenever this device's voice ends, however it ended. iOS's module does nothing: background audio there is the audio session's.
+  - **Permissions:** the first Join asks for the microphone through `expo-audio`, and asks again whenever it isn't granted, since Expo's `canAskAgain` stays stale after a revoke. Refused, it says "Opencord needs the microphone for voice. You can allow it in Settings." with Open Settings. `expo-image-picker`'s `microphonePermission: false` had removed `RECORD_AUDIO` from the whole app; it now names the microphone.
+  - **The audio session and focus:** media mode, not `MODE_IN_COMMUNICATION`, since cpal's streams are media streams. The service holds audio focus, after LiveKit's Android client.
+  - **Android core fixes** (`crates/opencord-mobile`): aws-lc's weak `sdallocx` bound to React Native's data symbol of that name and crashed on join (`android_alloc.rs` and `-Bsymbolic-functions`). cpal needs `ndk_context`, handed over by the module (`android_context.rs`).
+- **The voice pane** (`features/voice/VoicePane.tsx`).
+  - **Tiles:** `surface` squares at most 200 pt wide, so two columns on a phone and more on a tablet. Each has a 64 pt avatar whose `voice` ring fades in while speaking, the name, and a mute or deafen glyph. The user's own tile is first.
+  - **Not connected:** Join voice, a `voice` button with white words in both themes. It is off with "You can't join this channel" without `connect`, or "This channel is full".
+  - **Connected:** the link banner ("Connecting…", "Reconnecting…", "Can't reach the voice server. Your network may block it.", "Disconnected from voice." with Rejoin). The control bar's four 56 pt buttons are Mute, Deafen, Music and Leave; a toggle's glyph shows its state, and Leave is `recording` with a white glyph. Joining and leaving give a medium haptic.
+- **A person's sheet** (`/server/[serverKey]/member/[userId]`, `ParticipantSheet.tsx`): a `formSheet` that fits its content. The header is the avatar and the name, then Volume (0–200 %, marked at 0, 100 and 200 %) and Mute for me. The values are kept in the store (`userAudio`, by `serverKey/userId`) as they are handed to the core, so the sheet opens on what was set; like the core, they last until the app closes. The user's own sheet says "This is you."
+- **The connected bar** (`ConnectedBar.tsx`): 56 pt, the `voice` speaker, the channel and the server, or "♪ Song — Artist" while music plays, with mute and leave.
+  - **Where:** above the tab bar on Servers. On a phone's server screen, under the channel list and at the bottom of the open pane (above the composer in a chat). On a tablet, under the sidebar only. It hides beside the voice channel itself, and at the screen's bottom edge it stands on the inset.
+  - **A tap** opens the channel in place on its own server's screen, and otherwise pushes that server's screen.
+- **Review** (Claude, on the commit after `158d7c9`). The screenshots and the code showed:
+  - **Colors:** Join voice and the Leave glyph used `onAccent`, which is near-black in the dark theme. `onHue` (the light set's `onAccent`, white) is now the foreground on `voice` and `recording`, in `Button` too.
+  - **Deafen** always showed the headset-off glyph, so it looked deafened while it wasn't. The new `listen` icon is for off.
+  - **The sheet** started at 100 % and unmuted every time it opened while the core kept the earlier choice, and the name appeared twice.
+  - **The bar:** on a tablet chat there were two, one in the sidebar and one in the pane. A tap on the server's own screen pushed a second copy of that screen. Under the channel list it sat behind Android's navigation buttons.
+  - **Tablet tiles** were three columns of about 300 pt squares.
+  - **Code:** Leave's promise was dropped unreported, there were no haptics, and Join was hand-built instead of the shared `Button`.
+- **Not done:** a person's volume isn't kept across launches (the desktop keeps it in its settings). In dev builds, expo-router warns about `REMOVE_ROUTES` for `welcome` when the boot guard flips; that is older than R3.
+- **Tests.** 233 Jest tests in 39 suites. Among them:
+  - the service's lifecycle, the permission flows and the haptics;
+  - the pane's access checks and speaking rings, and the link banner's states;
+  - the tile layout, and the sheet opening on what was set;
+  - where the bar shows and what a tap opens;
+  - `Button`'s white words on the hues.
+
+## D80: Music on the phone (2026-10-29)
+
+Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7). Tasks 18, 19 and 20 by Gemini: `eff95ab` (the player), `65a763f` (the queue, search and history), `0ba1f9b` (uploading songs). Redesigned by Claude after the owner asked for a premium player rather than a copy of the desktop's ("remove unnecessary components … inspire by Apple design and Material").
+
+- **The sheet** (`app/server/[serverKey]/music/[channelId].tsx`, `features/music/MusicPlayer.tsx`):
+  - a `formSheet` with detents 0.55 and 1 (`features/music/sheet.ts`), opening at half height on a phone and full when it has two columns (the owner: "open in half, then pull it up to change the queue or search … not close when he wants to scroll down"). The lists scroll with the sheet (`nestedScrollEnabled`), so scrolling back up lowers it to half and only a drag from half closes it; checked on the emulator with two hard flings back up. Search raises it with the keyboard;
+  - its own top bar (`PlayerTopBar`): a chevron that closes it, "Playing in" over the channel, and **Join** as a `voice` pill while the user isn't in that channel's voice;
+  - **one page on a phone:** what plays, the transport, the volume, then adding music (`AddBar`), the uploads, Up next and Recently played. Search takes the page over with what plays shrunk to a row (`MiniPlayer`) above it;
+  - **two columns wider than 720 pt** (measured on the sheet, not the window: an iPad's form sheet is narrower than its screen). The player column is as wide as its artwork, which shrinks to fit the height.
+- **What plays** (`NowPlaying.tsx`):
+  - on a phone the artwork (76 pt) sits beside the title so the half-height sheet holds the whole player; in two columns it is above it, up to 360 pt with 16 pt corners;
+  - the artwork settling to 86 % while paused (a CSS transition; none with reduced motion), lifted by a shadow in the light theme;
+  - title, artist, and "Added by Kai · YouTube", left-aligned, with ⋯ beside them: Copy link, Lower while people talk (ticked when on);
+  - **the position** is the app's own `Scrubber` (`ui/Scrubber.tsx`), not the platform slider: a 4 pt bar that thickens to 8 pt under the finger, drag or tap anywhere, glides between the 500 ms ticks, and steps 10 s for a screen reader. After a seek the bar holds where the finger left it until the session catches up (2 s at most).
+- **Transport** (`PlayerControls.tsx`): a 72 pt play circle; previous and next at 30 pt; shuffle and repeat at 22 pt with a dot under them when on. Repeat reads "Repeat" with its setting as the value. Without Control music, next votes to skip with the count ("1/3") on its corner. Each press gives a haptic and shrinks a little (`activeScale`).
+- **Volume** (`VolumeRow.tsx`): the speaker mutes; a `Scrubber` sets 0–200 % in 1 % steps, settling on 100 % with a tick; dragging unmutes.
+- **Lists** share `TrackRow` (64 pt; 48 pt artwork with the requester's avatar on its corner; the length, or the row's own button):
+  - **Up next** (`UpNext.tsx`): "6 songs · 26 min", text **Clear** (asks "Clear the queue?"), swipe to remove, long-press menu (Play next, Move up, Move down, Copy link, Remove). Hidden while nothing plays and nothing is queued, where the player says it already.
+  - **Search** (`MusicSearch.tsx`): the field opens with the keyboard up and Cancel; source chips (`SourceChips.tsx`); a hint before, a spinner during, "No results for “…”" or the server's reason after; a blank search asks nothing of the server. A tap adds at the end and the row's **+** becomes a tick once queued.
+  - **Recently played** (`History.tsx`): five songs, Show all for up to 50, **+** to add again; hidden while empty.
+- **Uploads** (`Uploads.tsx`, `UploadRow.tsx`): an upload button beside the search bar (`useUploadPicker`), dimmed with a toast saying what's missing when the user may not upload; rows under "Uploading" above Up next. A cancelled row can be dismissed.
+- **Artwork** (`Artwork.tsx`): one cached `useArtwork`, at 128 or 512 px, as a `file://` URI; a note on an `avatarShades` shade without one or when loading fails.
+- **Tests:** 282 Jest tests in 47 suites, among them the scrubber's tap, drag, detent, disabled tap and screen-reader steps; the player's empty state, search mode and Cancel, ⋯ ducking, nothing to add without Add to music queue; source chips re-searching; Show all; the upload button's missing-permission toast and Manage music outside the channel; the voice pane fetching the music settings.
+- **Review** (Claude, on `710dfb4`). The code and the screenshots showed:
+  - **Artwork never loaded on a real server:** the core makes only 128 and 512 px (`artwork::SIZES`), and the app asked for 40 and the drawn width, which it refuses; and the path it returns was used without `file://`. The fake world's artwork is a path to nothing, so the screenshots showed blank boxes and nobody noticed.
+  - **The music settings were never fetched:** only `MusicSettingsChanged` set them, so the voice pane's Music button would not show on a real server until an admin changed a setting. The screenshots opened the player by deep link.
+  - **The Material slider** drew stop dots and a gap for the position and volume; the four-way `Segmented` crowded the width; Upload and History were tabs holding a button and a list; a 220 pt blank square with no artwork; "Music" pressed against the sheet's edge (`SheetHeader` with no padding); rows without artwork out of line with those with it; subtitles bigger than titles; an "M" circle on every row.
+  - **Android's media glyphs were hollow:** expo-symbols draws Material Symbols' outlined face. `Icon` now uses the filled face where the SF Symbol is `.fill`, which also fills the mic and leave glyphs of the voice controls.
+  - **Toasts were invisible on sheets:** `elevated` on `elevated`. They are inverse now (`accent`, `onAccent`), with a `warning` for errors.
+  - **Android's menu** truncated titles at 232 pt; it is 280 pt, Material's widest.
+  - `eff95ab` added `LogBox.ignoreAllLogs(true)`, hiding every development warning (it hid the boot warning over its screenshots); removed.
+  - A cancelled upload row had no way to go away; "Added to the queue" toasts were replaced by the row's tick.
+- **Not done:** the player hasn't been seen on iOS, and real artwork only on the code path (the fake world has none); the scrubber's feel is checked on the emulator, not a phone.
+
+
+## D81: The phone apps' first release (2026-10-31)
+
+Milestone R5 of `docs/superpowers/plans/2026-10-26-mobile-client.md`: Task 22 (iOS, by Claude on the Mac), the Android checks after it, and Task 21 (release builds). Merged into beta through #15 (`1cd012b`) and #19.
+
+- **Two platforms, one app.** Shared code holds the behaviour. A platform-only file (`*.ios.tsx`, `*.android.tsx`) holds a look the other platform draws differently, and `features/servers/chrome.{ios,android}.ts` holds where the voice bar and the search live. A fix that belongs to one platform goes in that platform's file; a shared file changes only for a reason both platforms share.
+- **iOS 26, as Apple's own apps** (Task 22, `35a5fbf..22a25b0`):
+  - Liquid Glass: `ui/GlassSurface.ios.tsx`, and `GlassIconButton.ios.tsx` for the round buttons;
+  - native SwiftUI menus and swipe actions on the server list (`ServerList.ios.tsx`), large titles that follow the list as Settings' do, and the native headers in the app's theme;
+  - search as the tab bar's own search tab;
+  - sheets built as Apple's (`sheetLook.ios.ts`), with the screen's own corner radius;
+  - **the voice pill:** the call's own glass floats above the tab bar, or above the composer in a chat. It rises in on joining, sinks away on leaving and follows the sidebar frame by frame. Pulled up or tapped, it grows into the call, as Apple Maps' card does (`voice/CallSheet.tsx`, `callPosition.ts`), and a pull down on the call takes it back. The open call floats inset with the screen's corners (`callInset.ios.ts`);
+  - the call's sound output beside Music, with AirPods and the speaker (`modules/voice-service/ios/AudioRouteButtonView.swift`), and Deafen drawn as headphones;
+  - voice keeps going when another app plays (`voiceMixing.ios.ts`).
+- **On both platforms,** added in the same pass:
+  - the composer floats over the messages, as Telegram's. The field grows up out of a one-line slot, so the messages never move while typing; sent messages rise into the chat; scrolling down closes the keyboard (`chat/Composer.tsx`, `dock.ts`, `SendRise.tsx`);
+  - **voice messages:** hold the mic to record, slide up to lock and left to cancel; play back at 1×, 1.5× and 2× with seeking (`features/voiceMessages`, `state/actions/voiceMessages.ts`). Outside a call they take the audio session, ducking other apps, and give it back once nothing plays;
+  - **the soundboard** in voice, with search and a preview (`features/soundboard`);
+  - voice channels as a sheet, the tab bar inside a server, and voice tiles that fill the call as WhatsApp's and Discord's do (`voice/tileGrid.ts`);
+  - the Rust facade's soundboard and voice-message calls (`crates/opencord-mobile/src/api/soundboard.rs`, `voice_messages.rs`), with round-trip tests.
+- **Android, from the owner's checks** (`df19e5c`, `c327a4c`). Android's screens end above the system's navigation bar, though the window's inset still counts it:
+  - the voice bar stands right on the tab bar, with no inset under it;
+  - the composer sits 8 dp above the navigation bar and above the keyboard, whose height counts that bar (`dock.ts`: `useDockBottom`, `useDockLift`);
+  - with the sidebar out over a chat, the voice bar spans the screen's width, sliding in and out with the list;
+  - the chat keeps its height while the tab bar shows with the sidebar, its foot under the tab bar, so the messages don't move as the sidebar comes and goes (`server/PhonePanes.tsx`);
+  - the voice bar is square and edge to edge, so the call grows from its square corners (`callOriginRound`). From the chat's round pill it grows from the pill's round ends. Open, the call stands on the screen's bottom edge with only its top corners round (`callInset.ts`: `OPEN_BOTTOM_ROUND`).
+- **Release builds** (Task 21, #19):
+  - the apps take the release version; Android's version code is `major*10000000 + minor*100000 + patch*1000 + rank*100 + pre`, rank 0/1/9 for beta/canary/stable (`mobile/plugins/versionCode.ts`);
+  - the APK is signed with Opencord's key from four secrets (`plugins/withReleaseSigning.ts`, docs/releasing.md "Phone apps"); without them it's signed with the debug key and left out of the release;
+  - the release waits for both phone jobs and leaves out the simulator app. Before this, the manifest stopped on the phone jobs' files, so the first beta release after #15 couldn't publish.
+- **Hand checks** (Task 23, by Claude at the owner's word, on the emulator against a fresh local server and a voicebot):
+  - passed: adding a server through the trust step with a claim token; sending, editing and deleting; a picture from the photo picker; voice both ways (the bot decoded every packet from the phone) and with the screen off; an upload from the phone playing on the server, with seek and pause; leaving a server drops its pin.
+  - **found and fixed:**
+    - On Android, a long-press menu (a Modal) moved the newest message under the composer. keyboard-controller's chat scroll view does this when its `offset` is exactly the navigation bar's height, so the messages take a point less (`useMessagesLift`).
+    - The editing card and the picked files' card covered the newest message. The list now follows the dock up when it is at its end, and again once a keyboard opening at the same time has settled.
+    - On Android, Music, the soundboard and a person's sheet opened from the call opened under it, unseen. The call is put away first (`SHEETS_ABOVE_CALL`).
+- **Review** (Claude, of the Mac's work as Android runs it): the facade's ids and tests, the recorder's use of the call's microphone permission and audio session, and the platform split hold up. Two small leftovers:
+  - `cancelRecording` and `discardDraft` let a core error through uncaught;
+  - the live waveform copies its 600-level array on every level event (about 30 a second).
+- **Not done:**
+  - the iPhone app isn't released: CI builds it for the simulator, unsigned, and TestFlight needs an Apple Developer account;
+  - the APK isn't released until the owner sets the signing secrets;
+  - a certificate that changed can't be trusted again from the phone. A pin left by a server added before leaving existed also blocks a new server at that address;
+  - checks owed with a desktop client and real phones: unread counts against the desktop's, pictures from the desktop, voice locked for 2 minutes on a phone, skip and the queue with several songs, the music volume with the desktop's music, and anything on an iPhone.
 
 ## D82: Session logs in the desktop app (2026-10-30)
 

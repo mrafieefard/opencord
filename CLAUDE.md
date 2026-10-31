@@ -15,4 +15,4 @@ Moving work between release tracks (`beta` → `canary` → `main`) is a pull re
 
 ## Build commands
 
-Start every `cargo`, `flutter`, `dart` and `flutter_rust_bridge_codegen` command with `source .superpowers/sdd/media/env.sh &&` (GEMINI.md says why). Check `df -h /` before the full checks. Never run `cargo clean` without asking.
+Start every `cargo`, `flutter`, `dart` and `flutter_rust_bridge_codegen` command with `source .superpowers/sdd/media/env.sh &&` (GEMINI.md says why); for the phone apps, every `yarn`, `npx`, `ubrn`, `adb`, `emulator` and Gradle command starts with `source mobile/scripts/env.sh &&`. Check `df -h /` before the full checks. Never run `cargo clean` without asking.

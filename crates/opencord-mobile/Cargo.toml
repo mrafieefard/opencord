@@ -1,0 +1,34 @@
+[package]
+name = "opencord-mobile"
+description = "Opencord client core for the phone apps, through UniFFI and uniffi-bindgen-react-native."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[lib]
+name = "opencord_mobile"
+# ubrn builds the `cdylib` for Android (it links the system libraries cpal
+# needs, which a static library can't carry) and the `staticlib` for iOS.
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[dependencies]
+hex.workspace = true
+opencord-common.workspace = true
+opencord-core.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uniffi.workspace = true
+
+[dev-dependencies]
+image.workspace = true
+opencord-server.workspace = true
+tempfile.workspace = true
+
+# The Java VM and Context cpal's Android back end reads (src/android_context.rs).
+[target.'cfg(target_os = "android")'.dependencies]
+jni-sys.workspace = true
+ndk-context.workspace = true

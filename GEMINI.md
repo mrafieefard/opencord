@@ -2,8 +2,9 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-10-22-private-messages.md`: private messages, friends and offline delivery. The design it builds on is `docs/superpowers/specs/2026-10-22-private-messages-design.md`. The media uploads plan before it is finished.
+You are implementing `docs/superpowers/plans/2026-10-26-mobile-client.md`: the phone apps, in React Native on the Rust core. The design it builds on is `docs/superpowers/specs/2026-10-26-mobile-client-design.md`. Milestone R0 (the facade, the app's build, its core layer and its store) is Claude's and comes first; the screens from R1 on are mostly yours. The private messages plan before it is finished.
 
+- **UI work follows Software Mansion's React Native skills** (`~/.claude/plugins/marketplaces/swmansion/skills/react-native-best-practices`), as the plan's "Skills for UI work" says.
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
 - Each milestone ends in a pull request (see "Every change is a pull request"). Its code is reviewed and fixed there, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
 - The plan gives behavior, interfaces, names and tests, not finished code. Only the proto, the SQL and a few types are given exactly: copy those as they are. You write the rest, and the rules below are what the review checks it against.
@@ -44,6 +45,8 @@ export PATH="$HOME/.cargo/bin:$HOME/.local/share/flutter/bin:$PATH"
 export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_RELEASE_DEBUG=0
 ```
 
+**The phone apps** (`mobile/`) have their own: start every `yarn`, `npx`, `ubrn`, `adb`, `emulator` and Gradle command for them with `source mobile/scripts/env.sh &&`. It loads the line above too, and sets the Android SDK, React Native's NDK and Java (docs/mobile.md).
+
 Check `df -h /` before the full checks. With less than 10 GB free, delete `target/debug/incremental` and the test binaries in `target/debug/deps` older than 45 minutes. Never run `cargo clean` without asking.
 
 ## How to write code here
@@ -64,6 +67,7 @@ Every rule here was broken at least once and caught in review.
 - **In Dart, catch what you expect:** `on RepoException catch (error)`, never a bare `catch` or `catch (_) {}`.
   - An error the user can cause reaches them, as a toast or an inline error.
   - An `unawaited` future catches its own errors; nothing else will.
+- **In the phone app, a promise started from a tap goes through `report(promise, 'what')`** (`@/core`), which shows its failure as a toast. `onPress={leaveVoice}` drops it.
 - **A worker thread's error reaches its caller.**
   - A thread that can fail (opening a device, encoding) stores its error where the caller's next call returns it, and says so at once through the event stream.
   - `Err(_) => None` on a thread is the same swallowed error as anywhere else.
@@ -73,7 +77,7 @@ Every rule here was broken at least once and caught in review.
   - Log each step that can fail, with its outcome and `after_ms`.
   - Name servers, addresses, users and channels through `crate::log::alias`.
   - Never log message text, file names, window titles, tokens or keys.
-- **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up": fix the test's setup instead. When a test needs to stand in for something (a call, a device), put a small trait in front of it, as `TapEngine` does, and give the test a fake.
+- **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up", and no prop or branch only a test uses: fix the test's setup instead, or drive the real path (a header's search through the options the screen sets). When a test needs to stand in for something (a call, a device), put a small trait in front of it, as `TapEngine` does, and give the test a fake.
 
 ### Shared state and races
 
@@ -103,7 +107,45 @@ Every rule here was broken at least once and caught in review.
 
 ### What the user sees
 
-- **Every failure is shown.** If a model has an `error` or `failed` field, some widget renders it.
+- **Every failure is shown, where the user is looking.** If a model has an `error` or `failed` field, some widget renders it. A step that replaces a form (a confirmation, a trust step) shows its own errors.
+- **Use it on the device before calling it done.** Tests check text and calls, not what is drawn or how it feels. For every screen a task touches:
+  - take its screenshots in dark and light and look at each one;
+  - try every gesture on it (tap, long press, both swipes, pull) and every way in from outside the app (`adb shell am start -d '<link>'`);
+  - restart Metro with `-c` after editing if the screen didn't change: a stale bundle looks like a fix that didn't work;
+  - crop the screenshot at full size (`magick shot.png -crop 1080x700+0+1500 crop.png`) and measure: paddings, sizes and gaps against the plan's numbers (1 pt = 2.625 px on the Pixel 7), text that wraps early or breaks inside a word, things that overlap or touch the screen's edges;
+  - with a text field: open the keyboard and type several lines. What the user was reading stays above the field.
+
+  If you can't run the emulator, the task isn't done. Say so in the first line of your report.
+
+  Running the phone app, each line starting with `source mobile/scripts/env.sh &&`:
+  - `adb devices` shows `emulator-5554` when the `Pixel_7` emulator is up; else `cd mobile && yarn emulator`. The app is installed; after a change to `app.config.ts` or a native package, reinstall with `cd mobile && yarn android:fake`.
+  - Metro on the fake world: `cd mobile && EXPO_PUBLIC_FAKE_CORE=1 npx expo start --dev-client -c`, run in the background, then `adb reverse tcp:8081 tcp:8081`. Add `EXPO_PUBLIC_FAKE_SCENARIO=empty` for no identity and no servers.
+  - Open a screen: `adb shell am start -W -a android.intent.action.VIEW -d 'opencord-app:///servers' dev.opencord.mobile`. A blank screen right after Metro starts means the app didn't reach it: run `adb reverse` again and open it a second time.
+  - Screenshots: `mobile/scripts/screens.sh <task> <name>=<route> …` writes both themes to `.superpowers/sdd/mobile/screens/<task>/`. Open each PNG and look at it.
+  - Gestures: `adb shell input tap X Y`, `adb shell input swipe X1 Y1 X2 Y2 300` (a swipe), `adb shell input swipe X Y X Y 1200` (a long press). Screenshots are 1080 × 2400.
+  - Stop Metro when you're done, by its pid (`ss -ltnp | grep 8081`).
+  - If the app reloads by itself, shows "isn't responding" at every launch, or logs "runtime not ready", look for a key stuck on the emulator: `adb shell dumpsys input | grep -m3 keyCode`. Repeated `R` presses reload a dev build; `adb emu kill`, then `yarn emulator`, clears it.
+- **A surface differs from what it sits on.** A card is `surface` on `chat`, never on a background of the same colour. A row with swipe actions behind it has an opaque background.
+- **Overlays in the phone app are the app's own (D78).**
+  - **Sheets:** a sheet fits its content (`sheetAllowedDetents: 'fitToContents'`) unless the plan names detents. It is `elevated` with `radius.sheet` corners and starts with `SheetHeader`. Look for blank space under the last control in its screenshot.
+  - **Menus and questions:** use `Menu` and `confirm()` from `@/ui`, never `Alert.alert` or a library's popup. Android's own PopupMenu and AlertDialog ignore the theme.
+  - **Colours:** a colour a system component picks for itself (Material's tinted indicator, ripple, accent) is a bug. Find its prop and give it a token.
+- **Colours and glyphs in the phone app (D79 review).**
+  - **On a hue:** words and glyphs on `voice` or `recording` are `onHue` (white) in both themes, never `onAccent`, which is near-black in the dark theme. `Button`'s `voice` and `danger` variants do this; use them rather than building a button.
+  - **Toggles:** a toggle's glyph shows its state: `mic`/`micOff`, `listen`/`deafen`. A glyph that always shows "off" reads as off.
+- **In the phone app, after the D80 review.**
+  - **Reach a screen the way a person does.** Open it from its button, not only by deep link: a deep link hid that the voice pane's Music button never showed, because nothing fetched the music settings. Data a screen needs is fetched while the screen shows; an event that changes it later is not a source.
+  - **Feed the core what it accepts.** Look up what a call takes before choosing values: `musicArtwork` makes only 128 and 512 px (`artwork::SIZES`). A path from the core becomes a URI with `fileUri()`. The fake world may not prove either: blank artwork in a screenshot is a bug to chase, not the fake's look.
+  - **On a sheet,** fills are `selected` (`hover` sinks below `elevated` in the dark theme) and nothing floats in `elevated` over it; toasts are inverse for that reason.
+  - **Media and level controls use `Scrubber`** from `@/ui`, not `Slider`: Material's slider draws stop dots and a gap.
+  - **Glyphs:** play, pause, the mic and the other `.fill` symbols are solid on Android too (`Icon` uses the filled face). A hollow one in a screenshot means the icon's iOS name lost its `.fill`.
+  - **A sheet with detents and a list:** give the list's `ScrollView` `nestedScrollEnabled` (Android), so pulling up raises the sheet before the list scrolls and scrolling back up lowers it instead of closing it. Check both on the emulator with hard flings (`adb shell input swipe 540 700 540 2100 150`).
+  - **Less, better:** a tab that holds one button is a button; a setting set once (ducking) goes in a ⋯ menu; a list with nothing in it says so once or hides.
+- **A sheet opens on what is set.** A value a sheet edits (a volume, a switch) comes from the store, and its action writes the store as well as the core. A `useState(default)` in the sheet forgets it when the sheet closes.
+- **One copy of a bar per screen.** Before adding a bar or a banner to a pane, check what the screen around it already draws, on a phone and a tablet. On the server's own screen, open its channels in place (`panes.select`); `router.push` there stacks a second copy of the screen.
+- **The screen's bottom edge belongs to the system.** Whatever sits at the very bottom stands on `insets.bottom`; look at the screenshot's navigation buttons.
+- **A screenshot with a red dev banner over it isn't done:** dismiss the banner (its ✕) or fix what it says, then take it again.
+- **What the system needs is part of the feature.** URL schemes, permissions and intent filters go in `app.config.ts` in the task that needs them, checked from outside the app.
 - **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
 - **A retry starts clean and sends the same thing.**
   - It resets what belongs to one attempt: progress, errors.
@@ -152,6 +194,12 @@ Every rule here was broken at least once and caught in review.
   - `core/` never imports `features/`: shared state goes in `core/providers`.
   - The repository's methods mirror the core's: no parameters the core ignores.
 - **The two hues are for their one use each:** `voice` for the voice waveform, `recording` for the recording dot and the cancel state. Everything else is monochrome, even a selected chip.
+- **No percentage size inside a parent sized by its content.** A `width: '100%'` or `maxWidth: '78%'` inside a view that shrinks to its content has nothing to resolve against, and text then wraps mid-word. Measure the container (`onLayout`) and pass numbers.
+- **Weights come from the font's family** (`fonts.semiBold`), never `fontWeight` on Inter: Android then picks a wrong file. The type scale's variants already carry theirs. `caption` is uppercase: never for sentences.
+- **Selectable text takes the long press.** Where a long press opens a menu, the text in it isn't selectable; the menu offers Copy.
+- **Chat screens use keyboard-controller's chat pieces:** the list's scroll view is `KeyboardChatScrollView` and the composer sits in a `KeyboardStickyView`, both offset by the bottom inset (see `features/chat`).
+- **A style passed to a text variant replaces its fields.** To change a variant's size, pass `fontSize` and `lineHeight`; another variant's style brings its font too.
+- **Numbers come from the plan's table.** A step, limit or duration the plan's Numbers table gives is used as given, never a guess.
 - **Check both themes.** Theme colours (`colors.text`, `colors.scrim`) flip with the theme. Anything drawn on a photo or a video uses the fixed dark set, `OcColors.dark`, as the image grid's overlay does.
 - **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
 - **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
@@ -205,6 +253,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   Private helpers you needed to build what the plan describes are not deviations.
 
   Name each one in the ledger and in the report, with the failure that made you add it. If `git diff` shows one, "Deviations: none" is wrong.
+- **A required step you skipped leads the report** (screenshots, a check, a by-hand step), with why. The ledger alone doesn't count.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.
 - **Re-run a flaky test alone,** one test per command, and paste the result:
 

@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- The voice call's foreground service (design §11). The permissions are
+         in app.config.ts. -->
+    <service
+      android:name=".VoiceService"
+      android:exported="false"
+      android:foregroundServiceType="microphone|mediaPlayback" />
+  </application>
+</manifest>
