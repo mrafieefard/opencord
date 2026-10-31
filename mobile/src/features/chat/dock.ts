@@ -65,3 +65,15 @@ export function useDockLift(): number {
   const dock = useDockBottom();
   return dock - space.sm + (SCREEN_ABOVE_NAV_BAR ? bottom : 0);
 }
+
+/**
+ * The messages' own lift, keyboard-controller's `offset`: the dock's, but on
+ * Android a point less. At exactly the navigation bar's height, its chat
+ * scroll view moves the list down when a Modal opens over it (a long-press
+ * menu), hiding the newest message under the composer; a point less keeps
+ * the list still, and is a point no one sees (measured on the emulator).
+ */
+export function useMessagesLift(): number {
+  const lift = useDockLift();
+  return SCREEN_ABOVE_NAV_BAR ? Math.max(lift - 1, 0) : lift;
+}

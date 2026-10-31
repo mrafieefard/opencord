@@ -4,7 +4,7 @@ import { renderHook } from '@testing-library/react-native';
 const WINDOW_BOTTOM = 48;
 
 /** The dock's margin and keyboard lift as `os` builds them, the window's bottom inset 48. */
-async function dockOn(os: 'ios' | 'android'): Promise<{ bottom: number; lift: number }> {
+async function dockOn(os: 'ios' | 'android'): Promise<{ bottom: number; lift: number; messages: number }> {
   let hooks: typeof import('../dock') | undefined;
   jest.isolateModules(() => {
     const insets = { top: 0, left: 0, right: 0, bottom: WINDOW_BOTTOM };
@@ -18,15 +18,17 @@ async function dockOn(os: 'ios' | 'android'): Promise<{ bottom: number; lift: nu
   if (!hooks) throw new Error('dock not loaded');
   const bottom = (await renderHook(hooks.useDockBottom)).result.current;
   const lift = (await renderHook(hooks.useDockLift)).result.current;
-  return { bottom, lift };
+  const messages = (await renderHook(hooks.useMessagesLift)).result.current;
+  return { bottom, lift, messages };
 }
 
 describe('the chat dock', () => {
   it('on iOS stands on the home indicator, a little lower, and the keyboard lifts it less that', async () => {
-    expect(await dockOn('ios')).toEqual({ bottom: 44, lift: 36 });
+    expect(await dockOn('ios')).toEqual({ bottom: 44, lift: 36, messages: 36 });
   });
 
   it('on Android stands just above the navigation bar the screen ends on, and the keyboard, which counts that bar, lifts it less the bar', async () => {
-    expect(await dockOn('android')).toEqual({ bottom: 8, lift: WINDOW_BOTTOM });
+    // The messages a point less: at exactly the bar's height a Modal moves them (useMessagesLift).
+    expect(await dockOn('android')).toEqual({ bottom: 8, lift: WINDOW_BOTTOM, messages: WINDOW_BOTTOM - 1 });
   });
 });

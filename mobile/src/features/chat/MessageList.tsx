@@ -23,7 +23,7 @@ import { channelKey, compareIds } from '@/state/types';
 import { useTheme } from '@/ui';
 
 import { DaySeparator } from './DaySeparator';
-import { useChatDock, useDockLift } from './dock';
+import { useChatDock, useMessagesLift } from './dock';
 import { buildChatItems, type ChatItem } from './items';
 import { JumpToLatest } from './JumpToLatest';
 import { MessageBubble } from './MessageBubble';
@@ -31,6 +31,8 @@ import { NewMessagesDivider } from './NewMessagesDivider';
 import { TypingLine } from './TypingLine';
 import { useChannelLoader } from './useChannelLoader';
 
+/** How long a keyboard takes to open, after which the list keeps to its end again. */
+const KEYBOARD_SETTLE_MS = 350;
 /** A bubble is at most this share of the pane (spec §8.5)… */
 const BUBBLE_SHARE = 0.78;
 /** …and no wider than this on a tablet, where 78 % makes lines too long to read. */
@@ -43,7 +45,7 @@ const BUBBLE_MAX = 480;
  */
 const ChatScrollView = forwardRef<KeyboardChatScrollViewRef, ScrollViewProps & KeyboardChatScrollViewProps>(
   function ChatScrollView(props, ref) {
-    const lift = useDockLift();
+    const lift = useMessagesLift();
     const { padding } = useChatDock();
     return (
       <KeyboardChatScrollView
@@ -97,6 +99,17 @@ export const MessageList = memo(function MessageList({
   const onScrollBeginDrag = useCallback(() => {
     pinnedToEnd.current = false;
   }, []);
+  // The dock growing (the editing card, files to send) would cover the
+  // newest messages: at the end, the list follows it up.
+  const atEnd = useRef(true);
+  useEffect(() => {
+    if (!atEnd.current) return undefined;
+    listRef.current?.scrollToEnd({ animated: true });
+    // Again once a keyboard opening with it (picked files bring it up) has
+    // settled: its own scrolling would leave the newest message covered.
+    const settle = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), KEYBOARD_SETTLE_MS);
+    return () => clearTimeout(settle);
+  }, [dock.height]);
 
   const { loadOlder } = useChannelLoader(serverKey, channelId);
 
@@ -140,6 +153,7 @@ export const MessageList = memo(function MessageList({
       const scrolledUp =
         contentSize.height - (layoutMeasurement.height + contentOffset.y) > layoutMeasurement.height;
 
+      atEnd.current = isAtBottom;
       setIsScrolledUp(scrolledUp);
       markReadIfAtBottom(serverKey, channelId, isAtBottom);
     },
