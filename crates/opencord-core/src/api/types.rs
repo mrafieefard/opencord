@@ -2160,6 +2160,14 @@ pub enum PrivateMessageKind {
     UnacceptedKeys,
 }
 
+/// 16 words to compare, and the keys they were made from (hex), which the
+/// answer hands back so a tap can only act on what was shown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyWords {
+    pub words: Vec<String>,
+    pub keys: String,
+}
+
 /// Whether two people compared their words (design 2026-11-01 §9.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrivateVerification {

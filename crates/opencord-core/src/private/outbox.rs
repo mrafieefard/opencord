@@ -139,6 +139,9 @@ struct Target {
     device: VerifiedDevice,
 }
 
+/// A device id with the Curve25519 and Ed25519 keys it must be listed with.
+pub(super) type OnlyDevice = ([u8; DEVICE_ID_LEN], [u8; KEY_LEN], [u8; KEY_LEN]);
+
 /// Who a payload is encrypted for, and the listed devices it deliberately
 /// isn't (design 2026-11-01 §10).
 struct Devices {
@@ -486,8 +489,9 @@ struct Encrypting<'a> {
     /// A session reset: the device with this Curve25519 key gets it on a
     /// new session.
     fresh: Option<[u8; KEY_LEN]>,
-    /// Only this device of this person's own gets it: a chat key share.
-    only: Option<[u8; DEVICE_ID_LEN]>,
+    /// Only this device of this person's own gets it, and only while listed
+    /// with these Curve25519 and Ed25519 keys: a chat key share.
+    only: Option<OnlyDevice>,
 }
 
 /// A session reset (design 2026-10-22 §10.8), after a message from the
@@ -717,7 +721,7 @@ async fn devices(
     relay: &Relay,
     peer: &[u8; KEY_LEN],
     this_device: [u8; DEVICE_ID_LEN],
-    only: Option<[u8; DEVICE_ID_LEN]>,
+    only: Option<OnlyDevice>,
 ) -> Result<Devices, CoreError> {
     let cache = service.device_cache();
     let now = Instant::now();
@@ -725,6 +729,14 @@ async fn devices(
     let cached = cache
         .get(&relay.key, relay.recipient_id, now)
         .zip(cache.get(&relay.key, relay.self_id, now));
+    // A cached list holding a device under a key not trusted here is asked
+    // for again: that device may have been approved since.
+    let cached = match cached {
+        Some((theirs, mine)) if !holds_others(open, peer, &theirs, &mine).await? => {
+            Some((theirs, mine))
+        }
+        _ => None,
+    };
     let (theirs, mine, fresh) = match cached {
         Some((theirs, mine)) => (theirs, mine, Vec::new()),
         None => {
@@ -760,6 +772,13 @@ async fn devices(
     // get it only under the chat key pinned for them (design 2026-11-01
     // §8.1).
     if relay.recipient_id != relay.self_id {
+        if theirs.is_empty() {
+            return Err(CoreError::Server {
+                code: ErrorCode::PrivateMessagesUnavailable,
+                message: "they can't get private messages on this server".to_owned(),
+                retry_after_ms: None,
+            });
+        }
         let sorted = trust::observe(service, open, peer, &theirs, &fresh).await?;
         if sorted.trusted.is_empty() {
             return Err(keys_not_accepted());
@@ -771,10 +790,14 @@ async fn devices(
         targets.extend(sorted.trusted.into_iter().map(theirs));
         withheld.extend(sorted.held.into_iter().map(theirs));
     }
-    let chat_key = open.chat_key().lock().await.public();
+    let chat_key = open.chat_key_public();
     for device in mine {
         let wanted = match only {
-            Some(only) => device.device_id == only,
+            Some((id, curve25519, ed25519)) => {
+                device.device_id == id
+                    && device.curve25519 == curve25519
+                    && device.ed25519 == ed25519
+            }
             None => device.chat_key == chat_key,
         };
         let target = Target {
@@ -787,16 +810,23 @@ async fn devices(
             withheld.push(target);
         }
     }
+    if only.is_some() && targets.is_empty() {
+        return Err(CoreError::InvalidInput {
+            message: "That device's keys changed. Compare the words again.".to_owned(),
+        });
+    }
     Ok(Devices { targets, withheld })
 }
 
-/// Gives this person's device `device_id` the chat key `secret`, through
-/// `server_key`, after both showed the same words (design 2026-11-01 §7.2).
+/// Gives this person's `device` the chat key `secret`, through
+/// `server_key`, after both showed the same words (design 2026-11-01 §7.2):
+/// only to that id listed with exactly the compared keys, so its Olm
+/// session (old or new) is with the device the words were made from.
 pub(super) async fn share_chat_key(
     service: &PrivateService,
     open: &Open,
     server_key: &str,
-    device_id: [u8; DEVICE_ID_LEN],
+    device: OnlyDevice,
     secret: [u8; KEY_LEN],
 ) -> Result<(), CoreError> {
     let members = service.members();
@@ -834,7 +864,7 @@ pub(super) async fn share_chat_key(
             their_slip: None,
             text: false,
             fresh: None,
-            only: Some(device_id),
+            only: Some(device),
         },
         None,
     )
@@ -845,7 +875,25 @@ pub(super) async fn share_chat_key(
     }
 }
 
-/// The listed devices of `owner` this device hadn't seen before.
+/// Whether a device in these lists is signed by a chat key other than this
+/// person's (for `mine`) or the one pinned for `peer` (for `theirs`).
+async fn holds_others(
+    open: &Open,
+    peer: &[u8; KEY_LEN],
+    theirs: &[VerifiedDevice],
+    mine: &[VerifiedDevice],
+) -> Result<bool, PrivateError> {
+    let chat_key = open.chat_key_public();
+    if mine.iter().any(|device| device.chat_key != chat_key) {
+        return Ok(true);
+    }
+    let mut conn = open.store().pool().acquire().await?;
+    let pinned = trust::load(&mut conn, peer).await?.map(|keys| keys.pinned);
+    Ok(theirs.iter().any(|device| Some(device.chat_key) != pinned))
+}
+
+/// The listed devices of `owner` this device hadn't seen before, or had
+/// seen under another chat key.
 async fn unknown(
     open: &Open,
     owner: &[u8; KEY_LEN],
@@ -854,14 +902,14 @@ async fn unknown(
     let mut conn = open.store().pool().acquire().await?;
     let mut fresh = Vec::new();
     for device in listed {
-        let known: Option<i64> = sqlx::query_scalar(
-            "SELECT 1 FROM peer_devices WHERE public_key = $1 AND device_id = $2",
+        let known: Option<Vec<u8>> = sqlx::query_scalar(
+            "SELECT chat_key FROM peer_devices WHERE public_key = $1 AND device_id = $2",
         )
         .bind(owner.as_slice())
         .bind(device.device_id.as_slice())
         .fetch_optional(&mut *conn)
         .await?;
-        if known.is_none() {
+        if known.as_deref() != Some(device.chat_key.as_slice()) {
             fresh.push(device.device_id);
         }
     }

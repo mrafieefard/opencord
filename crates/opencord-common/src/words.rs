@@ -30,12 +30,14 @@ pub fn chat_words(a: &[u8; 32], b: &[u8; 32]) -> [&'static str; WORD_COUNT] {
     words(CHAT_CONTEXT, a, b)
 }
 
-/// The words two of a person's devices show, from their Ed25519 keys.
-pub fn pairing_words(a: &[u8; 32], b: &[u8; 32]) -> [&'static str; WORD_COUNT] {
+/// The words two of a person's devices show, from each device's
+/// Curve25519 ‖ Ed25519 keys: what the chat key is encrypted to, and what
+/// signs it.
+pub fn pairing_words(a: &[u8; 64], b: &[u8; 64]) -> [&'static str; WORD_COUNT] {
     words(PAIRING_CONTEXT, a, b)
 }
 
-fn words(context: &[u8], a: &[u8; 32], b: &[u8; 32]) -> [&'static str; WORD_COUNT] {
+fn words<const N: usize>(context: &[u8], a: &[u8; N], b: &[u8; N]) -> [&'static str; WORD_COUNT] {
     let (lower, higher) = if a <= b { (a, b) } else { (b, a) };
     let digest = Sha512::new()
         .chain_update(context)
@@ -62,8 +64,8 @@ mod tests {
             chat_words(&[2; 32], &[1; 32])
         );
         assert_eq!(
-            pairing_words(&[1; 32], &[2; 32]),
-            pairing_words(&[2; 32], &[1; 32])
+            pairing_words(&[1; 64], &[2; 64]),
+            pairing_words(&[2; 64], &[1; 64])
         );
     }
 
@@ -77,9 +79,26 @@ mod tests {
 
     #[test]
     fn pairing_words_differ_from_chat_words() {
+        let mut a = [1; 64];
+        a[32..].copy_from_slice(&[1; 32]);
+        assert_ne!(chat_words(&[1; 32], &[2; 32]), pairing_words(&a, &[2; 64]));
+    }
+
+    #[test]
+    fn pairing_words_cover_both_device_keys() {
+        // Same Ed25519 half, another Curve25519 half: other words.
+        let mut a = [1; 64];
+        let mut forged = [1; 64];
+        forged[..32].copy_from_slice(&[9; 32]);
         assert_ne!(
-            chat_words(&[1; 32], &[2; 32]),
-            pairing_words(&[1; 32], &[2; 32])
+            pairing_words(&a, &[2; 64]),
+            pairing_words(&forged, &[2; 64])
+        );
+        // And the other way round.
+        a[32..].copy_from_slice(&[9; 32]);
+        assert_ne!(
+            pairing_words(&a, &[2; 64]),
+            pairing_words(&[1; 64], &[2; 64])
         );
     }
 

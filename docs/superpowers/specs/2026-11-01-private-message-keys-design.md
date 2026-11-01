@@ -199,7 +199,18 @@ used.
 
 ### 9.2 Pairing words
 
-The same, with `"opencord-own-words-v1"` and the two devices' Ed25519 keys.
+The same, with `"opencord-own-words-v1"` and each device's Curve25519 ‖
+Ed25519 keys (64 bytes each): the key the chat key is encrypted to, and the
+one its listing is signed with. *(Changed in review, 2026-11-01: with the
+Ed25519 keys alone, a server could list the compared Ed25519 key beside a
+Curve25519 key of its own and receive the chat key.)*
+
+Every answer is bound to what was shown: the words come back with the keys
+they were made from, and Approve, They match and They don't match hand those
+keys back. The chat key goes only to that device id listed with exactly
+those keys, and a share is taken only from the keys its Olm message came
+from, and only when the key given is the chat key that device was listed
+with. A share is dropped when its sender is listed with other keys.
 
 ### 9.3 Verifying
 
@@ -209,7 +220,8 @@ The same, with `"opencord-own-words-v1"` and the two devices' Ed25519 keys.
   - "Compare these words with *Name* in person or on a call. If they're the
     same, only you two can read this chat.";
   - **They match** and **They don't match**.
-- They match records the chat as verified for these two keys. It stays
+- They match records the chat as verified for these two keys, and is
+  refused when either key changed since the words were shown. It stays
   verified while neither key changes.
 - They don't match marks the chat "Didn't match": the lock turns red, a
   banner says "The words didn't match. Someone may be able to read this

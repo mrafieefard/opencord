@@ -65,13 +65,13 @@ class WordGrid extends StatelessWidget {
 class _Words extends StatelessWidget {
   const _Words({required this.words});
 
-  final Future<List<String>> words;
+  final Future<KeyWords> words;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<List<String>>(
+  Widget build(BuildContext context) => FutureBuilder<KeyWords>(
     future: words,
     builder: (context, snapshot) => switch (snapshot) {
-      AsyncSnapshot(hasData: true, :final data?) => WordGrid(words: data),
+      AsyncSnapshot(hasData: true, :final data?) => WordGrid(words: data.words),
       AsyncSnapshot(hasError: true) => Text(
         "The words couldn't be worked out.",
         style: OcText.body.copyWith(color: context.oc.textSecondary),
@@ -122,7 +122,14 @@ Future<void> showEncryptionDialog(
               };
         Future<void> answer(bool matched) async {
           try {
-            await repo.verifyPrivate(peer, matched: matched, newKeys: newKeys);
+            // Only what was shown is answered for.
+            final shown = await words;
+            await repo.verifyPrivate(
+              peer,
+              matched: matched,
+              keys: shown.keys,
+              newKeys: newKeys,
+            );
             if (dialogContext.mounted) Navigator.pop(dialogContext);
           } on RepoException catch (e) {
             if (!dialogContext.mounted) return;
@@ -182,10 +189,15 @@ Future<void> showPairingDialog(
       final colors = dialogContext.oc;
       Future<void> answer(bool matched) async {
         try {
+          final shown = await words;
           if (offering) {
-            await repo.acceptKeysFrom(deviceId, matched: matched);
+            await repo.acceptKeysFrom(
+              deviceId,
+              matched: matched,
+              keys: shown.keys,
+            );
           } else if (matched) {
-            await repo.approveOwnDevice(deviceId);
+            await repo.approveOwnDevice(deviceId, keys: shown.keys);
           }
           if (dialogContext.mounted) Navigator.pop(dialogContext);
         } on RepoException catch (e) {

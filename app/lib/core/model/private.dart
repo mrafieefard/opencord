@@ -21,6 +21,10 @@ enum PrivateMessageKind {
   unacceptedKeys,
 }
 
+/// 16 words to compare, and the keys they were made from, handed back with
+/// the answer so a tap acts only on what was shown.
+typedef KeyWords = ({List<String> words, String keys});
+
 /// Whether two people compared their words (design 2026-11-01 §9.3).
 enum PrivateVerification { unverified, verified, mismatch }
 

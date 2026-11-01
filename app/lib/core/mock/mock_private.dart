@@ -619,18 +619,34 @@ class MockPrivateWorld {
       _words[(seed.codeUnitAt(i % seed.length) + i * 7) % _words.length],
   ];
 
-  Future<List<String>> privateWords(
-    String peer, {
-    bool newKeys = false,
-  }) async => _wordsFor('$peer${newKeys ? 'new' : ''}');
+  /// The keys behind the mock's words: the seed.
+  String _keysFor(String seed) => seed.codeUnits
+      .map((unit) => unit.toRadixString(16).padLeft(2, '0'))
+      .join();
+
+  void _compared(String seed, String keys) {
+    if (keys != _keysFor(seed)) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'The keys changed while you compared. Compare the words again.',
+      );
+    }
+  }
+
+  Future<KeyWords> privateWords(String peer, {bool newKeys = false}) async {
+    final seed = '$peer${newKeys ? 'new' : ''}';
+    return (words: _wordsFor(seed), keys: _keysFor(seed));
+  }
 
   Future<void> verifyPrivate(
     String peer, {
     required bool matched,
+    required String keys,
     bool newKeys = false,
   }) async {
     final contact = contacts[peer];
     if (contact == null) return;
+    _compared('$peer${newKeys ? 'new' : ''}', keys);
     final next = contact.copyWith(
       verification: matched
           ? PrivateVerification.verified
@@ -676,14 +692,21 @@ class MockPrivateWorld {
     hasChats: ownHasChats,
   );
 
-  Future<List<String>> pairingWords(String deviceId) async =>
-      _wordsFor(deviceId);
+  Future<KeyWords> pairingWords(String deviceId) async =>
+      (words: _wordsFor(deviceId), keys: _keysFor(deviceId));
 
-  Future<void> approveOwnDevice(String deviceId) async =>
-      _forgetOwnDevice(deviceId);
+  Future<void> approveOwnDevice(String deviceId, {required String keys}) async {
+    _compared(deviceId, keys);
+    _forgetOwnDevice(deviceId);
+  }
 
-  Future<void> acceptKeysFrom(String deviceId, {required bool matched}) async {
+  Future<void> acceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  }) async {
     if (matched) {
+      _compared(deviceId, keys);
       _forgetOwnDevice(deviceId);
       return;
     }

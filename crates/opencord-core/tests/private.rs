@@ -227,6 +227,15 @@ impl TestClient {
         store.close().await;
     }
 
+    /// They match (`matched`) or not, on the words just fetched for `peer`.
+    async fn verify(&self, peer: &str, new_keys: bool, matched: bool) {
+        let shown = self.client.private_words(peer, new_keys).await.unwrap();
+        self.client
+            .private_verify(peer, new_keys, matched, &shown.keys)
+            .await
+            .unwrap();
+    }
+
     /// This person's chat key, read from this device's database.
     async fn chat_key(&self) -> [u8; 32] {
         let store = self.store().await;
@@ -1166,7 +1175,16 @@ async fn a_share_is_ignored_before_they_match() {
     three
         .a
         .client
-        .private_approve_device(&a2_hex)
+        .private_approve_device(
+            &a2_hex,
+            &three
+                .a
+                .client
+                .private_pairing_words(&a2_hex)
+                .await
+                .unwrap()
+                .keys,
+        )
         .await
         .unwrap();
 
@@ -1182,7 +1200,17 @@ async fn a_share_is_ignored_before_they_match() {
     three
         .a2
         .client
-        .private_accept_keys_from(&a_hex1, false)
+        .private_accept_keys_from(
+            &a_hex1,
+            false,
+            &three
+                .a2
+                .client
+                .private_pairing_words(&a_hex1)
+                .await
+                .unwrap()
+                .keys,
+        )
         .await
         .unwrap();
     let devices = three
@@ -1208,7 +1236,16 @@ async fn a_waiting_share_survives_a_restart() {
     three
         .a
         .client
-        .private_approve_device(&a2_hex)
+        .private_approve_device(
+            &a2_hex,
+            &three
+                .a
+                .client
+                .private_pairing_words(&a2_hex)
+                .await
+                .unwrap()
+                .keys,
+        )
         .await
         .unwrap();
     let offering = |devices: &[OwnDevice]| {
@@ -1224,7 +1261,17 @@ async fn a_waiting_share_survives_a_restart() {
     three
         .a2
         .client
-        .private_accept_keys_from(&a_hex1, true)
+        .private_accept_keys_from(
+            &a_hex1,
+            true,
+            &three
+                .a2
+                .client
+                .private_pairing_words(&a_hex1)
+                .await
+                .unwrap()
+                .keys,
+        )
         .await
         .unwrap();
     assert_eq!(three.a2.chat_key().await, three.a.chat_key().await);
@@ -1509,12 +1556,7 @@ async fn they_match_verifies_until_a_key_changes() {
     let three = after_a_key_appears(&server).await;
     let a_hex = hex::encode(three.a.identity.public_key());
 
-    three
-        .b
-        .client
-        .private_verify(&a_hex, false, true)
-        .await
-        .unwrap();
+    three.b.verify(&a_hex, false, true).await;
     assert_eq!(
         contact(&three.b, &a_hex).await.verification,
         PrivateVerification::Verified
@@ -1532,12 +1574,7 @@ async fn they_match_verifies_until_a_key_changes() {
         PrivateVerification::Unverified
     );
 
-    three
-        .b
-        .client
-        .private_verify(&a_hex, false, true)
-        .await
-        .unwrap();
+    three.b.verify(&a_hex, false, true).await;
     assert_eq!(
         contact(&three.b, &a_hex).await.verification,
         PrivateVerification::Verified
@@ -1556,22 +1593,41 @@ async fn comparing_the_new_keys_pins_and_verifies_them() {
     send(&three.b, &a_hex, "first").await;
 
     assert_eq!(
-        three.b.client.private_words(&a_hex, true).await.unwrap(),
-        three.a2.client.private_words(&b_hex, false).await.unwrap(),
+        three
+            .b
+            .client
+            .private_words(&a_hex, true)
+            .await
+            .unwrap()
+            .words,
+        three
+            .a2
+            .client
+            .private_words(&b_hex, false)
+            .await
+            .unwrap()
+            .words,
     );
-    three
-        .b
-        .client
-        .private_verify(&a_hex, true, true)
-        .await
-        .unwrap();
+    three.b.verify(&a_hex, true, true).await;
 
     let seen = contact(&three.b, &a_hex).await;
     assert!(!seen.new_keys);
     assert_eq!(seen.verification, PrivateVerification::Verified);
     assert_eq!(
-        three.b.client.private_words(&a_hex, false).await.unwrap(),
-        three.a2.client.private_words(&b_hex, false).await.unwrap(),
+        three
+            .b
+            .client
+            .private_words(&a_hex, false)
+            .await
+            .unwrap()
+            .words,
+        three
+            .a2
+            .client
+            .private_words(&b_hex, false)
+            .await
+            .unwrap()
+            .words,
     );
 }
 
@@ -1581,23 +1637,13 @@ async fn they_dont_match_marks_a_mismatch_and_they_match_clears_it() {
     let three = after_a_key_appears(&server).await;
     let a_hex = hex::encode(three.a.identity.public_key());
 
-    three
-        .b
-        .client
-        .private_verify(&a_hex, false, false)
-        .await
-        .unwrap();
+    three.b.verify(&a_hex, false, false).await;
     assert_eq!(
         contact(&three.b, &a_hex).await.verification,
         PrivateVerification::Mismatch
     );
 
-    three
-        .b
-        .client
-        .private_verify(&a_hex, false, true)
-        .await
-        .unwrap();
+    three.b.verify(&a_hex, false, true).await;
     assert_eq!(
         contact(&three.b, &a_hex).await.verification,
         PrivateVerification::Verified
@@ -1612,14 +1658,32 @@ async fn both_sides_see_the_same_words() {
     let b_hex = hex::encode(three.b.identity.public_key());
     send(&three.a2, &b_hex, "it's me").await;
 
-    let on_a = three.a.client.private_words(&b_hex, false).await.unwrap();
-    let on_b = three.b.client.private_words(&a_hex, false).await.unwrap();
+    let on_a = three
+        .a
+        .client
+        .private_words(&b_hex, false)
+        .await
+        .unwrap()
+        .words;
+    let on_b = three
+        .b
+        .client
+        .private_words(&a_hex, false)
+        .await
+        .unwrap()
+        .words;
 
     assert_eq!(on_a.len(), 16);
     assert_eq!(on_a, on_b);
     // The thief's device holds another chat key, so its words differ.
     assert_ne!(
-        three.a2.client.private_words(&b_hex, false).await.unwrap(),
+        three
+            .a2
+            .client
+            .private_words(&b_hex, false)
+            .await
+            .unwrap()
+            .words,
         on_b
     );
 }
@@ -1629,12 +1693,10 @@ async fn a_new_device_with_the_pinned_key_shows_a_quiet_divider() {
     let server = TestServer::start().await;
     let three = after_a_key_appears(&server).await;
     let a_hex = hex::encode(three.a.identity.public_key());
-    three
-        .b
-        .client
-        .private_verify(&a_hex, false, true)
-        .await
-        .unwrap();
+    three.b.verify(&a_hex, false, true).await;
+    // B sees the laptop while it's still held.
+    send(&three.b, &a_hex, "before").await;
+    assert!(contact(&three.b, &a_hex).await.new_keys);
 
     approve(&server, three.a_id, &three.a, &three.a2).await;
     let a2_device = three.a2.device_id().await;
@@ -1657,6 +1719,243 @@ async fn a_new_device_with_the_pinned_key_shows_a_quiet_divider() {
     let seen = contact(&three.b, &a_hex).await;
     assert_eq!(seen.verification, PrivateVerification::Verified);
     assert!(!seen.new_keys);
+}
+
+/// Keys a dishonest server or a thief could list under `device_id`: good
+/// keys of their own, signed by a chat key of their own.
+async fn forged_listing(device_id: [u8; 16]) -> (proto::DeviceKeys, proto::Prekey) {
+    let dir = tempfile::tempdir().unwrap();
+    let store = PrivateStore::open(dir.path(), &Identity::generate().public_key(), &[7; 32], 0)
+        .await
+        .unwrap()
+        .store;
+    let device = Device::load_or_create(&store, 0).await.unwrap();
+    let chat_key = ChatKey::load_or_create(&store, 0).await.unwrap();
+    let (curve25519, ed25519) = (device.curve25519(), device.ed25519());
+    let keys = proto::DeviceKeys {
+        device_id: device_id.to_vec(),
+        curve25519: curve25519.to_vec(),
+        ed25519: ed25519.to_vec(),
+        signature: chat_key
+            .sign_device(&device_id, &curve25519, &ed25519)
+            .to_vec(),
+        chat_key: chat_key.public().to_vec(),
+    };
+    let fallback = device.fallback_prekey();
+    store.close().await;
+    (keys, fallback)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn approving_refuses_keys_that_changed_after_the_words() {
+    let server = TestServer::start().await;
+    let three = unapproved_second_device(&server).await;
+    let a2_device = three.a2.device_id().await;
+    let a2_hex = hex::encode(a2_device);
+    three
+        .a
+        .own_devices_until(|devices| devices.iter().any(|d| d.device_id == a2_hex))
+        .await;
+    let shown = three.a.client.private_pairing_words(&a2_hex).await.unwrap();
+    three.a2.client.shutdown().await;
+    // The server now lists that device with someone else's keys.
+    let (forged, fallback) = forged_listing(a2_device).await;
+    server
+        .handle
+        .insert_private_device_unchecked(three.a_id, forged, fallback)
+        .await;
+
+    let refused = three
+        .a
+        .client
+        .private_approve_device(&a2_hex, &shown.keys)
+        .await;
+
+    assert!(refused.is_err(), "{refused:?}");
+    assert!(server.copies_for(three.a_id, a2_device).await.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn taking_keys_needs_the_words_that_were_compared() {
+    let server = TestServer::start().await;
+    let three = unapproved_second_device(&server).await;
+    let (a1_hex, a2_hex) = (
+        hex::encode(three.a.device_id().await),
+        hex::encode(three.a2.device_id().await),
+    );
+    three
+        .a
+        .own_devices_until(|devices| devices.iter().any(|d| d.device_id == a2_hex))
+        .await;
+    let shown = three.a.client.private_pairing_words(&a2_hex).await.unwrap();
+    three
+        .a
+        .client
+        .private_approve_device(&a2_hex, &shown.keys)
+        .await
+        .unwrap();
+    three
+        .a2
+        .own_devices_until(|devices| {
+            devices
+                .iter()
+                .any(|d| d.device_id == a1_hex && d.state == OwnDeviceState::Offering)
+        })
+        .await;
+    let before = three.a2.chat_key().await;
+
+    let refused = three
+        .a2
+        .client
+        .private_accept_keys_from(&a1_hex, true, &"00".repeat(64))
+        .await;
+
+    assert!(refused.is_err(), "{refused:?}");
+    assert_eq!(three.a2.chat_key().await, before);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_waiting_share_is_dropped_when_its_senders_keys_change() {
+    let server = TestServer::start().await;
+    let three = unapproved_second_device(&server).await;
+    let a1_device = three.a.device_id().await;
+    let (a1_hex, a2_hex) = (
+        hex::encode(a1_device),
+        hex::encode(three.a2.device_id().await),
+    );
+    three
+        .a
+        .own_devices_until(|devices| devices.iter().any(|d| d.device_id == a2_hex))
+        .await;
+    let shown = three.a.client.private_pairing_words(&a2_hex).await.unwrap();
+    three
+        .a
+        .client
+        .private_approve_device(&a2_hex, &shown.keys)
+        .await
+        .unwrap();
+    let offering = |devices: &[OwnDevice]| {
+        devices
+            .iter()
+            .any(|d| d.device_id == a1_hex && d.state == OwnDeviceState::Offering)
+    };
+    three.a2.own_devices_until(offering).await;
+    three.a.client.shutdown().await;
+
+    // The sender's id is listed again with someone else's keys.
+    let (forged, fallback) = forged_listing(a1_device).await;
+    server
+        .handle
+        .insert_private_device_unchecked(three.a_id, forged, fallback)
+        .await;
+
+    three
+        .a2
+        .own_devices_until(|devices| !offering(devices))
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn they_match_needs_the_words_that_were_compared() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    send(&three.b, &a_hex, "first").await;
+    let shown = three.b.client.private_words(&a_hex, true).await.unwrap();
+    assert_eq!(shown.words.len(), 16);
+
+    let refused = three
+        .b
+        .client
+        .private_verify(&a_hex, true, true, &"00".repeat(64))
+        .await;
+
+    assert!(refused.is_err(), "{refused:?}");
+    let seen = contact(&three.b, &a_hex).await;
+    assert!(seen.new_keys, "the new keys weren't pinned");
+    assert_eq!(seen.verification, PrivateVerification::Unverified);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn using_new_keys_then_approving_the_device_offers_the_key_again() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    // B takes the laptop's own key before A approves it.
+    send(&three.b, &a_hex, "first").await;
+    three
+        .b
+        .client
+        .private_accept_new_keys(&a_hex)
+        .await
+        .unwrap();
+
+    approve(&server, three.a_id, &three.a, &three.a2).await;
+    let refused = three
+        .b
+        .client
+        .private_send(&a_hex, "after".to_owned())
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(
+            refused,
+            CoreError::Server {
+                code: ErrorCode::KeysNotAccepted,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+    let seen = contact(&three.b, &a_hex).await;
+    assert!(seen.new_keys, "A's one key is offered, so B isn't stuck");
+    three
+        .b
+        .client
+        .private_accept_new_keys(&a_hex)
+        .await
+        .unwrap();
+    assert_eq!(
+        send(&three.b, &a_hex, "again").await.state,
+        PrivateSendState::Sent
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_peer_with_no_devices_listed_is_unavailable_not_unaccepted() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    for device in [&three.a, &three.a2] {
+        device
+            .client
+            .remove_server(&server.address())
+            .await
+            .unwrap();
+    }
+    server
+        .counts_until(three.a_id, |counts| counts.devices == 0)
+        .await;
+
+    let refused = three
+        .b
+        .client
+        .private_send(&a_hex, "anyone?".to_owned())
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(
+            refused,
+            CoreError::Server {
+                code: ErrorCode::PrivateMessagesUnavailable,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+    assert!(contact(&three.b, &a_hex).await.reachable);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1724,20 +2023,25 @@ async fn approve(server: &TestServer, user_id: i64, old: &TestClient, new: &Test
         .await;
     new.own_devices_until(|devices| devices.iter().any(|d| d.device_id == old_hex))
         .await;
+    let on_old = old.client.private_pairing_words(&new_hex).await.unwrap();
+    let on_new = new.client.private_pairing_words(&old_hex).await.unwrap();
     assert_eq!(
-        old.client.private_pairing_words(&new_hex).await.unwrap(),
-        new.client.private_pairing_words(&old_hex).await.unwrap(),
+        on_old.words, on_new.words,
         "both devices show the same words"
     );
-    old.client.private_approve_device(&new_hex).await.unwrap();
+    old.client
+        .private_approve_device(&new_hex, &on_old.keys)
+        .await
+        .unwrap();
     new.own_devices_until(|devices| {
         devices
             .iter()
             .any(|d| d.device_id == old_hex && d.state == OwnDeviceState::Offering)
     })
     .await;
+    let offered = new.client.private_pairing_words(&old_hex).await.unwrap();
     new.client
-        .private_accept_keys_from(&old_hex, true)
+        .private_accept_keys_from(&old_hex, true, &offered.keys)
         .await
         .unwrap();
     let chat_key = old.chat_key().await.to_vec();

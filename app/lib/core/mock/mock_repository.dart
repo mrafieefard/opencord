@@ -5203,15 +5203,21 @@ class MockRepository implements OpencordRepository {
       _privateWorld.hideConversation(peer);
 
   @override
-  Future<List<String>> privateWords(String peer, {bool newKeys = false}) =>
+  Future<KeyWords> privateWords(String peer, {bool newKeys = false}) =>
       _privateWorld.privateWords(peer, newKeys: newKeys);
 
   @override
   Future<void> verifyPrivate(
     String peer, {
     required bool matched,
+    required String keys,
     bool newKeys = false,
-  }) => _privateWorld.verifyPrivate(peer, matched: matched, newKeys: newKeys);
+  }) => _privateWorld.verifyPrivate(
+    peer,
+    matched: matched,
+    keys: keys,
+    newKeys: newKeys,
+  );
 
   @override
   Future<void> acceptNewPrivateKeys(String peer) =>
@@ -5222,16 +5228,19 @@ class MockRepository implements OpencordRepository {
       _privateWorld.listOwnDevices();
 
   @override
-  Future<List<String>> pairingWords(String deviceId) =>
+  Future<KeyWords> pairingWords(String deviceId) =>
       _privateWorld.pairingWords(deviceId);
 
   @override
-  Future<void> approveOwnDevice(String deviceId) =>
-      _privateWorld.approveOwnDevice(deviceId);
+  Future<void> approveOwnDevice(String deviceId, {required String keys}) =>
+      _privateWorld.approveOwnDevice(deviceId, keys: keys);
 
   @override
-  Future<void> acceptKeysFrom(String deviceId, {required bool matched}) =>
-      _privateWorld.acceptKeysFrom(deviceId, matched: matched);
+  Future<void> acceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  }) => _privateWorld.acceptKeysFrom(deviceId, matched: matched, keys: keys);
 
   @override
   Future<void> rejectOwnDevice(String deviceId) =>

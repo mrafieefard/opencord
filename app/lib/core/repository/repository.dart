@@ -1154,14 +1154,17 @@ abstract interface class OpencordRepository {
 
   // Chat keys (design 2026-11-01) -------------------------------------------
 
-  /// The 16 words for the chat with [peer]; with [newKeys], for the other
-  /// chat key their devices offer.
-  Future<List<String>> privateWords(String peer, {bool newKeys = false});
+  /// The 16 words for the chat with [peer], and the keys they were made
+  /// from; with [newKeys], for the other chat key their devices offer.
+  Future<KeyWords> privateWords(String peer, {bool newKeys = false});
 
-  /// They match or They don't match; a match on the new keys pins them.
+  /// They match or They don't match, on the words made from [keys] (as
+  /// [privateWords] gave them); a match on the new keys pins them. Refused
+  /// when the keys changed since.
   Future<void> verifyPrivate(
     String peer, {
     required bool matched,
+    required String keys,
     bool newKeys = false,
   });
 
@@ -1172,14 +1175,21 @@ abstract interface class OpencordRepository {
   /// device has chats.
   Future<({List<OwnDevice> devices, bool hasChats})> ownDevices();
 
-  /// The 16 words this device and [deviceId] both show.
-  Future<List<String>> pairingWords(String deviceId);
+  /// The 16 words this device and [deviceId] both show, and the keys they
+  /// were made from.
+  Future<KeyWords> pairingWords(String deviceId);
 
-  /// They match, here: [deviceId] gets this device's chat key.
-  Future<void> approveOwnDevice(String deviceId);
+  /// They match, here: [deviceId] gets this device's chat key, only while
+  /// listed with [keys].
+  Future<void> approveOwnDevice(String deviceId, {required String keys});
 
-  /// They match or They don't match, for the chat key [deviceId] offered.
-  Future<void> acceptKeysFrom(String deviceId, {required bool matched});
+  /// They match or They don't match, for the chat key [deviceId] offered,
+  /// on the words made from [keys].
+  Future<void> acceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  });
 
   /// Not mine.
   Future<void> rejectOwnDevice(String deviceId);

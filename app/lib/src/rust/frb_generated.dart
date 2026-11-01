@@ -516,11 +516,15 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiPrivatePrivateAcceptKeysFrom({
     required String deviceId,
     required bool matched,
+    required String keys,
   });
 
   Future<void> crateApiPrivatePrivateAcceptNewKeys({required String peer});
 
-  Future<void> crateApiPrivatePrivateApproveDevice({required String deviceId});
+  Future<void> crateApiPrivatePrivateApproveDevice({
+    required String deviceId,
+    required String keys,
+  });
 
   Future<void> crateApiPrivatePrivateBlock({required String peer});
 
@@ -568,7 +572,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<OwnDevices> crateApiPrivatePrivateOwnDevices();
 
-  Future<List<String>> crateApiPrivatePrivatePairingWords({
+  Future<KeyWords> crateApiPrivatePrivatePairingWords({
     required String deviceId,
   });
 
@@ -600,9 +604,10 @@ abstract class RustLibApi extends BaseApi {
     required String peer,
     required bool newKeys,
     required bool matched,
+    required String keys,
   });
 
-  Future<List<String>> crateApiPrivatePrivateWords({
+  Future<KeyWords> crateApiPrivatePrivateWords({
     required String peer,
     required bool newKeys,
   });
@@ -4435,6 +4440,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void> crateApiPrivatePrivateAcceptKeysFrom({
     required String deviceId,
     required bool matched,
+    required String keys,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4442,6 +4448,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(deviceId, serializer);
           sse_encode_bool(matched, serializer);
+          sse_encode_String(keys, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4454,7 +4461,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiPrivatePrivateAcceptKeysFromConstMeta,
-        argValues: [deviceId, matched],
+        argValues: [deviceId, matched, keys],
         apiImpl: this,
       ),
     );
@@ -4463,7 +4470,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiPrivatePrivateAcceptKeysFromConstMeta =>
       const TaskConstMeta(
         debugName: "private_accept_keys_from",
-        argNames: ["deviceId", "matched"],
+        argNames: ["deviceId", "matched", "keys"],
       );
 
   @override
@@ -4498,12 +4505,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiPrivatePrivateApproveDevice({required String deviceId}) {
+  Future<void> crateApiPrivatePrivateApproveDevice({
+    required String deviceId,
+    required String keys,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(deviceId, serializer);
+          sse_encode_String(keys, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4516,7 +4527,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiPrivatePrivateApproveDeviceConstMeta,
-        argValues: [deviceId],
+        argValues: [deviceId, keys],
         apiImpl: this,
       ),
     );
@@ -4525,7 +4536,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiPrivatePrivateApproveDeviceConstMeta =>
       const TaskConstMeta(
         debugName: "private_approve_device",
-        argNames: ["deviceId"],
+        argNames: ["deviceId", "keys"],
       );
 
   @override
@@ -4942,7 +4953,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "private_own_devices", argNames: []);
 
   @override
-  Future<List<String>> crateApiPrivatePrivatePairingWords({
+  Future<KeyWords> crateApiPrivatePrivatePairingWords({
     required String deviceId,
   }) {
     return handler.executeNormal(
@@ -4958,7 +4969,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
+          decodeSuccessData: sse_decode_key_words,
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiPrivatePrivatePairingWordsConstMeta,
@@ -5223,6 +5234,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String peer,
     required bool newKeys,
     required bool matched,
+    required String keys,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -5231,6 +5243,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(peer, serializer);
           sse_encode_bool(newKeys, serializer);
           sse_encode_bool(matched, serializer);
+          sse_encode_String(keys, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -5243,7 +5256,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiPrivatePrivateVerifyConstMeta,
-        argValues: [peer, newKeys, matched],
+        argValues: [peer, newKeys, matched, keys],
         apiImpl: this,
       ),
     );
@@ -5252,11 +5265,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiPrivatePrivateVerifyConstMeta =>
       const TaskConstMeta(
         debugName: "private_verify",
-        argNames: ["peer", "newKeys", "matched"],
+        argNames: ["peer", "newKeys", "matched", "keys"],
       );
 
   @override
-  Future<List<String>> crateApiPrivatePrivateWords({
+  Future<KeyWords> crateApiPrivatePrivateWords({
     required String peer,
     required bool newKeys,
   }) {
@@ -5274,7 +5287,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
+          decodeSuccessData: sse_decode_key_words,
           decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiPrivatePrivateWordsConstMeta,
@@ -10402,6 +10415,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  KeyWords dco_decode_key_words(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return KeyWords(
+      words: dco_decode_list_String(arr[0]),
+      keys: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
   LavalinkBridge dco_decode_lavalink_bridge(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -14184,6 +14209,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       uses: var_uses,
       expiresAtMs: var_expiresAtMs,
     );
+  }
+
+  @protected
+  KeyWords sse_decode_key_words(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_words = sse_decode_list_String(deserializer);
+    var var_keys = sse_decode_String(deserializer);
+    return KeyWords(words: var_words, keys: var_keys);
   }
 
   @protected
@@ -18714,6 +18747,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_u_32(self.maxUses, serializer);
     sse_encode_u_32(self.uses, serializer);
     sse_encode_opt_box_autoadd_i_64(self.expiresAtMs, serializer);
+  }
+
+  @protected
+  void sse_encode_key_words(KeyWords self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_String(self.words, serializer);
+    sse_encode_String(self.keys, serializer);
   }
 
   @protected

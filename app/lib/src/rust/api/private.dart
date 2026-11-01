@@ -152,25 +152,26 @@ Future<void> privateSetMuted({required String peer, required bool muted}) =>
 Future<void> privateHide({required String peer}) =>
     RustLib.instance.api.crateApiPrivatePrivateHide(peer: peer);
 
-/// The 16 words for the chat with `peer`; with `new_keys`, for the other
-/// chat key their devices offer.
-Future<List<String>> privateWords({
-  required String peer,
-  required bool newKeys,
-}) => RustLib.instance.api.crateApiPrivatePrivateWords(
-  peer: peer,
-  newKeys: newKeys,
-);
+/// The 16 words for the chat with `peer` and the keys they were made from;
+/// with `new_keys`, for the other chat key their devices offer.
+Future<KeyWords> privateWords({required String peer, required bool newKeys}) =>
+    RustLib.instance.api.crateApiPrivatePrivateWords(
+      peer: peer,
+      newKeys: newKeys,
+    );
 
-/// They match or They don't match, for the chat with `peer`.
+/// They match or They don't match, for the chat with `peer`, on the words
+/// made from `keys`.
 Future<void> privateVerify({
   required String peer,
   required bool newKeys,
   required bool matched,
+  required String keys,
 }) => RustLib.instance.api.crateApiPrivatePrivateVerify(
   peer: peer,
   newKeys: newKeys,
   matched: matched,
+  keys: keys,
 );
 
 /// Use new keys anyway.
@@ -180,23 +181,31 @@ Future<void> privateAcceptNewKeys({required String peer}) =>
 Future<OwnDevices> privateOwnDevices() =>
     RustLib.instance.api.crateApiPrivatePrivateOwnDevices();
 
-/// The 16 words this device and `device_id` both show.
-Future<List<String>> privatePairingWords({required String deviceId}) =>
+/// The 16 words this device and `device_id` both show, and the keys they
+/// were made from.
+Future<KeyWords> privatePairingWords({required String deviceId}) =>
     RustLib.instance.api.crateApiPrivatePrivatePairingWords(deviceId: deviceId);
 
-/// They match, on the device giving its chat key to `device_id`.
-Future<void> privateApproveDevice({required String deviceId}) => RustLib
-    .instance
-    .api
-    .crateApiPrivatePrivateApproveDevice(deviceId: deviceId);
+/// They match, on the device giving its chat key to `device_id`, on the
+/// words made from `keys`.
+Future<void> privateApproveDevice({
+  required String deviceId,
+  required String keys,
+}) => RustLib.instance.api.crateApiPrivatePrivateApproveDevice(
+  deviceId: deviceId,
+  keys: keys,
+);
 
-/// They match or They don't match, for the chat key `device_id` offered.
+/// They match or They don't match, for the chat key `device_id` offered, on
+/// the words made from `keys`.
 Future<void> privateAcceptKeysFrom({
   required String deviceId,
   required bool matched,
+  required String keys,
 }) => RustLib.instance.api.crateApiPrivatePrivateAcceptKeysFrom(
   deviceId: deviceId,
   matched: matched,
+  keys: keys,
 );
 
 /// Not mine.

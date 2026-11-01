@@ -13,7 +13,7 @@ use super::inbox::{self, Insert};
 use super::outbox::{self, KEYS_CHANGED, NEW_DEVICE, RECEIVED, VerifiedDevice};
 use super::seal::Sealer;
 use super::service::{Open, PrivateService, now_ms, parse_hex};
-use crate::api::types::{CoreError, PrivateEvent, PrivateVerification};
+use crate::api::types::{CoreError, KeyWords, PrivateEvent, PrivateVerification};
 
 /// What this device holds about one contact's chat key.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,17 +130,33 @@ pub(super) async fn observe(
         tx.commit().await?;
         return Ok(classified);
     };
+    // The key replaced before isn't offered again while another device
+    // can still be written to; when none can, it's offered, so the chat
+    // never locks up.
     let replaced = before.as_ref().and_then(|keys| keys.replaced);
     let offered = most_used(
         classified
             .held
             .iter()
             .filter(|device| Some(device.chat_key) != replaced),
-    );
+    )
+    .or_else(|| {
+        classified
+            .trusted
+            .is_empty()
+            .then(|| most_used(classified.held.iter()))
+            .flatten()
+    });
+    // Nobody listed at all is no reason to think the keys changed.
+    let reachable = if listed.is_empty() {
+        before.as_ref().is_none_or(|keys| keys.reachable)
+    } else {
+        !classified.trusted.is_empty()
+    };
     let after = ContactKeys {
         pinned,
         candidate: offered,
-        reachable: !classified.trusted.is_empty(),
+        reachable,
         ..before.clone().unwrap_or(ContactKeys {
             pinned,
             candidate: None,
@@ -206,7 +222,13 @@ pub(super) async fn accepts(
                 reachable: true,
             },
         ),
-        Some(keys) if keys.pinned == device.chat_key => (true, keys.clone()),
+        Some(keys) if keys.pinned == device.chat_key => (
+            true,
+            ContactKeys {
+                reachable: true,
+                ..keys.clone()
+            },
+        ),
         Some(keys) if keys.replaced == Some(device.chat_key) => (false, keys.clone()),
         Some(keys) => (
             false,
@@ -233,7 +255,7 @@ pub async fn chat_words(
     service: &PrivateService,
     peer: &str,
     new_keys: bool,
-) -> Result<Vec<String>, CoreError> {
+) -> Result<KeyWords, CoreError> {
     let open = service.opened()?;
     let peer = parse_hex::<KEY_LEN>(peer, "That isn't someone's key.")?;
     let keys = stored(&open, &peer).await?;
@@ -242,24 +264,45 @@ pub async fn chat_words(
     } else {
         keys.pinned
     };
-    let mine = open.chat_key().lock().await.public();
-    Ok(words::chat_words(&mine, &theirs)
-        .iter()
-        .map(|word| (*word).to_owned())
-        .collect())
+    let mine = open.chat_key_public();
+    Ok(KeyWords {
+        words: words::chat_words(&mine, &theirs)
+            .iter()
+            .map(|word| (*word).to_owned())
+            .collect(),
+        keys: compared(&mine, &theirs),
+    })
 }
 
-/// They match or They don't match. A match on the new keys pins them.
+/// The two chat keys words were made from, as `chat_words` hands them out.
+fn compared(mine: &[u8; KEY_LEN], theirs: &[u8; KEY_LEN]) -> String {
+    format!("{}{}", hex::encode(mine), hex::encode(theirs))
+}
+
+/// They match or They don't match, on the words made from `shown` (as
+/// `chat_words` gave it): refused when either key changed since. A match
+/// on the new keys pins them.
 pub async fn verify(
     service: &PrivateService,
     peer: &str,
     new_keys: bool,
     matched: bool,
+    shown: &str,
 ) -> Result<(), CoreError> {
     let open = service.opened()?;
     let peer = parse_hex::<KEY_LEN>(peer, "That isn't someone's key.")?;
-    let mine = open.chat_key().lock().await.public();
+    let mine = open.chat_key_public();
     let mut keys = stored(&open, &peer).await?;
+    let theirs = if new_keys {
+        keys.candidate.ok_or_else(no_new_keys)?
+    } else {
+        keys.pinned
+    };
+    if compared(&mine, &theirs) != shown.to_ascii_lowercase() {
+        return Err(CoreError::InvalidInput {
+            message: "The keys changed while you compared. Compare the words again.".to_owned(),
+        });
+    }
     let pin_new = matched && new_keys;
     if pin_new {
         keys.replaced = Some(keys.pinned);
@@ -304,7 +347,11 @@ async fn finish(
         .begin_with("BEGIN IMMEDIATE")
         .await
         .map_err(PrivateError::from)?;
-    save(&mut tx, peer, keys).await?;
+    let keys = ContactKeys {
+        reachable: keys.reachable || pinned_new,
+        ..keys.clone()
+    };
+    save(&mut tx, peer, &keys).await?;
     let added = if pinned_new {
         divider(&mut tx, sealer, peer, KEYS_CHANGED).await?
     } else {

@@ -440,6 +440,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Invite dco_decode_invite(dynamic raw);
 
   @protected
+  KeyWords dco_decode_key_words(dynamic raw);
+
+  @protected
   LavalinkBridge dco_decode_lavalink_bridge(dynamic raw);
 
   @protected
@@ -1540,6 +1543,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Invite sse_decode_invite(SseDeserializer deserializer);
+
+  @protected
+  KeyWords sse_decode_key_words(SseDeserializer deserializer);
 
   @protected
   LavalinkBridge sse_decode_lavalink_bridge(SseDeserializer deserializer);
@@ -2919,6 +2925,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_invite(Invite self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_key_words(KeyWords self, SseSerializer serializer);
 
   @protected
   void sse_encode_lavalink_bridge(

@@ -3932,6 +3932,7 @@ fn wire__crate__api__private__private_accept_keys_from_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_device_id = <String>::sse_decode(&mut deserializer);
             let api_matched = <bool>::sse_decode(&mut deserializer);
+            let api_keys = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::types::CoreError>(
@@ -3939,6 +3940,7 @@ fn wire__crate__api__private__private_accept_keys_from_impl(
                         let output_ok = crate::api::private::private_accept_keys_from(
                             api_device_id,
                             api_matched,
+                            api_keys,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -4009,12 +4011,14 @@ fn wire__crate__api__private__private_approve_device_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_device_id = <String>::sse_decode(&mut deserializer);
+            let api_keys = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::types::CoreError>(
                     (move || async move {
                         let output_ok =
-                            crate::api::private::private_approve_device(api_device_id).await?;
+                            crate::api::private::private_approve_device(api_device_id, api_keys)
+                                .await?;
                         std::result::Result::Ok(output_ok)
                     })()
                     .await,
@@ -4863,6 +4867,7 @@ fn wire__crate__api__private__private_verify_impl(
             let api_peer = <String>::sse_decode(&mut deserializer);
             let api_new_keys = <bool>::sse_decode(&mut deserializer);
             let api_matched = <bool>::sse_decode(&mut deserializer);
+            let api_keys = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::types::CoreError>(
@@ -4871,6 +4876,7 @@ fn wire__crate__api__private__private_verify_impl(
                             api_peer,
                             api_new_keys,
                             api_matched,
+                            api_keys,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -10483,6 +10489,18 @@ impl SseDecode for crate::api::types::Invite {
     }
 }
 
+impl SseDecode for crate::api::types::KeyWords {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_words = <Vec<String>>::sse_decode(deserializer);
+        let mut var_keys = <String>::sse_decode(deserializer);
+        return crate::api::types::KeyWords {
+            words: var_words,
+            keys: var_keys,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::LavalinkBridge {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -15916,6 +15934,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Invite> for crate::api
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::KeyWords {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.words.into_into_dart().into_dart(),
+            self.keys.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::KeyWords {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::KeyWords>
+    for crate::api::types::KeyWords
+{
+    fn into_into_dart(self) -> crate::api::types::KeyWords {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::LavalinkBridge {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -20055,6 +20091,14 @@ impl SseEncode for crate::api::types::Invite {
         <Option<u32>>::sse_encode(self.max_uses, serializer);
         <u32>::sse_encode(self.uses, serializer);
         <Option<i64>>::sse_encode(self.expires_at_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::KeyWords {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<String>>::sse_encode(self.words, serializer);
+        <String>::sse_encode(self.keys, serializer);
     }
 }
 

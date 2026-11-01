@@ -109,6 +109,8 @@ pub struct Open {
     /// This person's chat key (design 2026-11-01 §6.1). Taken after
     /// `device` when both are needed.
     chat_key: tokio::sync::Mutex<ChatKey>,
+    /// Its public half, read without that lock.
+    chat_key_public: Mutex<[u8; 32]>,
     queue: mpsc::UnboundedSender<Job>,
     /// Servers where this device registered. An entry leaves when its
     /// server is removed.
@@ -126,6 +128,16 @@ impl Open {
 
     pub fn chat_key(&self) -> &tokio::sync::Mutex<ChatKey> {
         &self.chat_key
+    }
+
+    /// This person's chat key, public half.
+    pub fn chat_key_public(&self) -> [u8; 32] {
+        *lock(&self.chat_key_public)
+    }
+
+    /// After `ChatKey::replace`, with the chat key lock still held.
+    pub(super) fn set_chat_key_public(&self, public: [u8; 32]) {
+        *lock(&self.chat_key_public) = public;
     }
 
     /// Servers where this device registered.
@@ -266,6 +278,7 @@ impl PrivateService {
             identity: public_key,
             store,
             device: tokio::sync::Mutex::new(device),
+            chat_key_public: Mutex::new(chat_key.public()),
             chat_key: tokio::sync::Mutex::new(chat_key),
             queue,
             registered: Mutex::new(HashSet::new()),
@@ -403,7 +416,7 @@ impl PrivateService {
             _ => None,
         };
         let keys = super::trust::load(conn, &contact.public_key).await?;
-        let mine = open.chat_key.lock().await.public();
+        let mine = open.chat_key_public();
         Ok(PrivateContact {
             peer: hex::encode(contact.public_key),
             name: contact.name.clone(),

@@ -54,8 +54,8 @@ void main() {
       withMock((async, repo, events) {
         List<String>? first;
         List<String>? again;
-        repo.privateWords(kai).then((w) => first = w);
-        repo.privateWords(kai).then((w) => again = w);
+        repo.privateWords(kai).then((w) => first = w.words);
+        repo.privateWords(kai).then((w) => again = w.words);
         async.flushMicrotasks();
 
         expect(first, hasLength(16));
@@ -65,7 +65,9 @@ void main() {
 
     test('They match verifies the chat', () {
       withMock((async, repo, events) {
-        repo.verifyPrivate(kai, matched: true);
+        repo
+            .privateWords(kai)
+            .then((w) => repo.verifyPrivate(kai, matched: true, keys: w.keys));
         async.flushMicrotasks();
 
         final changed = events.whereType<PrivateContactChanged>().last;
@@ -74,9 +76,26 @@ void main() {
       });
     });
 
+    test('They match on words for other keys is refused', () {
+      withMock((async, repo, events) {
+        Object? failure;
+        repo
+            .verifyPrivate(kai, matched: true, keys: 'not these')
+            .catchError((Object e) => failure = e);
+        async.flushMicrotasks();
+
+        expect(failure, isA<RepoException>());
+        expect(events.whereType<PrivateContactChanged>(), isEmpty);
+      });
+    });
+
     test("They don't match marks a mismatch", () {
       withMock((async, repo, events) {
-        repo.verifyPrivate(mira, matched: false);
+        repo
+            .privateWords(mira)
+            .then(
+              (w) => repo.verifyPrivate(mira, matched: false, keys: w.keys),
+            );
         async.flushMicrotasks();
 
         final changed = events.whereType<PrivateContactChanged>().last;
@@ -110,8 +129,10 @@ void main() {
         );
 
         List<String>? words;
-        repo.pairingWords(other.deviceId).then((w) => words = w);
-        repo.approveOwnDevice(other.deviceId);
+        repo.pairingWords(other.deviceId).then((w) {
+          words = w.words;
+          return repo.approveOwnDevice(other.deviceId, keys: w.keys);
+        });
         async.flushMicrotasks();
 
         expect(words, hasLength(16));
@@ -129,7 +150,7 @@ void main() {
           (d) => d.state == OwnDeviceState.offering,
         );
 
-        repo.acceptKeysFrom(offering.deviceId, matched: false);
+        repo.acceptKeysFrom(offering.deviceId, matched: false, keys: '');
         async.flushMicrotasks();
         final refused = events.whereType<OwnDevicesChanged>().last.devices;
         expect(refused.every((d) => d.state == OwnDeviceState.other), isTrue);

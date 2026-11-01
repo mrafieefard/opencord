@@ -2856,16 +2856,25 @@ class RustRepository implements OpencordRepository {
       _call(() => _core.privateHide(peer));
 
   @override
-  Future<List<String>> privateWords(String peer, {bool newKeys = false}) =>
-      _call(() => _core.privateWords(peer, newKeys: newKeys));
+  Future<KeyWords> privateWords(String peer, {bool newKeys = false}) =>
+      _call(() async {
+        final shown = await _core.privateWords(peer, newKeys: newKeys);
+        return (words: shown.words, keys: shown.keys);
+      });
 
   @override
   Future<void> verifyPrivate(
     String peer, {
     required bool matched,
+    required String keys,
     bool newKeys = false,
   }) => _call(
-    () => _core.privateVerify(peer, newKeys: newKeys, matched: matched),
+    () => _core.privateVerify(
+      peer,
+      newKeys: newKeys,
+      matched: matched,
+      keys: keys,
+    ),
   );
 
   @override
@@ -2883,16 +2892,23 @@ class RustRepository implements OpencordRepository {
       });
 
   @override
-  Future<List<String>> pairingWords(String deviceId) =>
-      _call(() => _core.privatePairingWords(deviceId));
+  Future<KeyWords> pairingWords(String deviceId) => _call(() async {
+    final shown = await _core.privatePairingWords(deviceId);
+    return (words: shown.words, keys: shown.keys);
+  });
 
   @override
-  Future<void> approveOwnDevice(String deviceId) =>
-      _call(() => _core.privateApproveDevice(deviceId));
+  Future<void> approveOwnDevice(String deviceId, {required String keys}) =>
+      _call(() => _core.privateApproveDevice(deviceId, keys: keys));
 
   @override
-  Future<void> acceptKeysFrom(String deviceId, {required bool matched}) =>
-      _call(() => _core.privateAcceptKeysFrom(deviceId, matched: matched));
+  Future<void> acceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  }) => _call(
+    () => _core.privateAcceptKeysFrom(deviceId, matched: matched, keys: keys),
+  );
 
   @override
   Future<void> rejectOwnDevice(String deviceId) =>

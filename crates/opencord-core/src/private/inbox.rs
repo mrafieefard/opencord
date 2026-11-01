@@ -200,7 +200,7 @@ pub async fn receive(
     }
     // A copy from one's own device under another chat key: only its chat
     // key share is read (design 2026-11-01 §7.3).
-    let other_key = at.from_me && device.chat_key != open.chat_key().lock().await.public();
+    let other_key = at.from_me && device.chat_key != open.chat_key_public();
 
     // 3–6.
     let pickle_key = open.store().pickle_key();
