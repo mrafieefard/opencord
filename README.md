@@ -23,7 +23,7 @@ The screenshots are the app on its built-in demo data (`app/test/showcase`).
 
 ## Phones
 
-Opencord for Android and iOS (`mobile/`) is a React Native app on the same Rust core as the desktop app: servers and channels, chat with pictures, files and voice messages, voice that keeps going with the screen off, the soundboard, and the music player with uploads. Android releases carry `opencord-android.apk`; the iPhone app isn't released yet. [docs/mobile.md](docs/mobile.md) is the guide, and says how to build and run it.
+Opencord for Android and iOS (`mobile/`) is a React Native app on the same Rust core as the desktop app: servers and channels, chat with pictures, files and voice messages, voice that keeps going with the screen off, the soundboard, and the music player with uploads. Releases carry `opencord-android.apk` and an unsigned `opencord-ios-unsigned.ipa`, which installs with a sideloading app such as AltStore. [docs/mobile.md](docs/mobile.md) is the guide, and says how to build and run it.
 
 | | |
 |---|---|

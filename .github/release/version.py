@@ -315,6 +315,7 @@ ASSETS = {
     "opencord-server-windows-x64.zip": "server-windows-x64",
     "opencord-server-macos.tar.gz": "server-macos-universal",
     "opencord-android.apk": "android-apk",
+    "opencord-ios-unsigned.ipa": "ios-ipa-unsigned",
 }
 
 # Release files a release may go without: the APK is there only when it was

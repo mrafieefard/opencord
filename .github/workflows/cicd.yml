@@ -709,7 +709,7 @@ jobs:
   # Tags the image only once everything passed, so :beta, :canary and
   # :latest never point at a build whose tests failed.
   # The phone apps (mobile/, docs/mobile.md): React Native on the Rust core
-  # through crates/opencord-mobile. Built on every run; released by Task 21.
+  # through crates/opencord-mobile. Built on every run, and released.
   mobile-android:
     name: Phone (Android)
     needs: version
@@ -837,7 +837,9 @@ jobs:
         working-directory: mobile
         run: scripts/build-core.sh ios --release
 
-      # A simulator build: nothing is signed (Task 22 runs it on a phone).
+      # A phone build, unsigned: Apple signs nothing without a developer
+      # account, so people install the IPA with a sideloading app (AltStore,
+      # Sideloadly), which signs it with their own Apple ID.
       - name: Build the app
         working-directory: mobile
         env:
@@ -845,17 +847,16 @@ jobs:
         run: |
           npx expo prebuild -p ios --no-install
           (cd ios && pod install)
-          # arm64 only: the core is built for Apple Silicon simulators
-          # (ubrn.config.yaml), and an xcframework slice must cover every
-          # architecture a build asks for.
-          xcodebuild -workspace ios/Opencord.xcworkspace -scheme Opencord -sdk iphonesimulator \
-            -configuration Release -derivedDataPath build ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
-          mkdir -p "$RUNNER_TEMP/dist"
-          (cd build/Build/Products/Release-iphonesimulator && zip -qr "$RUNNER_TEMP/dist/opencord-ios-simulator.zip" Opencord.app)
+          xcodebuild -workspace ios/Opencord.xcworkspace -scheme Opencord -sdk iphoneos \
+            -destination 'generic/platform=iOS' -configuration Release -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= build
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" "$RUNNER_TEMP/dist"
+          cp -R build/Build/Products/Release-iphoneos/Opencord.app "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$RUNNER_TEMP/dist/opencord-ios-unsigned.ipa" Payload)
 
       - uses: actions/upload-artifact@v7
         with:
-          path: ${{ runner.temp }}/dist/opencord-ios-simulator.zip
+          path: ${{ runner.temp }}/dist/opencord-ios-unsigned.ipa
           archive: false
           if-no-files-found: error
           retention-days: 30
@@ -921,10 +922,10 @@ jobs:
           merge-multiple: true
           skip-decompress: true
 
-      # Built and checked, not released: the simulator app, and an APK
-      # signed with the debug key (ANDROID_KEYSTORE_BASE64 unset).
+      # Built and checked, not released: an APK signed with the debug key
+      # (ANDROID_KEYSTORE_BASE64 unset).
       - name: Leave out what isn't released
-        run: rm -f dist/opencord-ios-simulator.zip dist/*-unsigned-debugkey.apk
+        run: rm -f dist/*-unsigned-debugkey.apk
 
       # release.json is what the app's updater reads (docs/releasing.md).
       - name: Manifest
@@ -980,6 +981,7 @@ jobs:
             if [[ -f dist/opencord-android.apk ]]; then
               echo "| Android 8.0 and up | [opencord-android.apk]($base/opencord-android.apk) | |"
             fi
+            echo "| iPhone (iOS 16.4 and up) | [opencord-ios-unsigned.ipa]($base/opencord-ios-unsigned.ipa) | |"
             echo
             echo "The installers install for you alone, with no administrator needed, and keep Opencord on the newest **$CHANNEL** build: it checks for updates each time it starts. Settings → About switches the track. A copy run from the zip or tarball doesn't update itself."
             echo
@@ -988,6 +990,7 @@ jobs:
             if [[ -f dist/opencord-android.apk ]]; then
               echo "- **Android:** open the APK on the phone and allow your browser or files app to install apps when Android asks. A newer APK installs over it, keeping your servers."
             fi
+            echo "- **iPhone:** the IPA isn't signed (Opencord isn't on the App Store yet). Install it with a sideloading app such as [AltStore](https://altstore.io) or [Sideloadly](https://sideloadly.io), which signs it with your Apple ID. With a free Apple ID the app must be signed again every 7 days."
             echo "- **Linux:** run \`chmod +x opencord-setup-linux-x64 && ./opencord-setup-linux-x64\`; Opencord then appears with your other apps. Needs GTK 3, libsecret, PipeWire, ALSA and libva, which most desktops already have."
             echo
             echo "## Server"

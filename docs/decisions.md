@@ -1531,6 +1531,7 @@ Milestone R5 of `docs/superpowers/plans/2026-10-26-mobile-client.md`: Task 22 (i
   - the apps take the release version; Android's version code is `major*10000000 + minor*100000 + patch*1000 + rank*100 + pre`, rank 0/1/9 for beta/canary/stable (`mobile/plugins/versionCode.ts`);
   - the APK is signed with Opencord's key from four secrets (`plugins/withReleaseSigning.ts`, docs/releasing.md "Phone apps"); without them it's signed with the debug key and left out of the release;
   - the release waits for both phone jobs and leaves out the simulator app. Before this, the manifest stopped on the phone jobs' files, so the first beta release after #15 couldn't publish.
+  - on the owner's word (2026-11-01), releases carry the iPhone app too: CI builds it for phones, unsigned, as `opencord-ios-unsigned.ipa`, for sideloading apps (AltStore, Sideloadly) to sign with the user's Apple ID. The simulator build is gone; a phone build checks the same code. Claude made the Android key on the owner's machine; the owner sets the secrets from it.
 - **Hand checks** (Task 23, by Claude at the owner's word, on the emulator against a fresh local server and a voicebot):
   - passed: adding a server through the trust step with a claim token; sending, editing and deleting; a picture from the photo picker; voice both ways (the bot decoded every packet from the phone) and with the screen off; an upload from the phone playing on the server, with seek and pause; leaving a server drops its pin.
   - **found and fixed:**
@@ -1541,7 +1542,7 @@ Milestone R5 of `docs/superpowers/plans/2026-10-26-mobile-client.md`: Task 22 (i
   - `cancelRecording` and `discardDraft` let a core error through uncaught;
   - the live waveform copies its 600-level array on every level event (about 30 a second).
 - **Not done:**
-  - the iPhone app isn't released: CI builds it for the simulator, unsigned, and TestFlight needs an Apple Developer account;
+  - the iPhone app is released only unsigned: TestFlight and the App Store need an Apple Developer account;
   - the APK isn't released until the owner sets the signing secrets;
   - a certificate that changed can't be trusted again from the phone. A pin left by a server added before leaving existed also blocks a new server at that address;
   - checks owed with a desktop client and real phones: unread counts against the desktop's, pictures from the desktop, voice locked for 2 minutes on a phone, skip and the queue with several songs, the music volume with the desktop's music, and anything on an iPhone.
