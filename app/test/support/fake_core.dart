@@ -61,7 +61,7 @@ class FakeCoreApi extends Fake implements CoreApi {
   @override
   Stream<core.PrivateEvent> privateEventStream() => privateEvents.stream;
 
-  var privateOpened = const core.PrivateOpened(startedFresh: false);
+  var privateOpened = const core.PrivateOpened(startedFresh: false, keysReset: false);
 
   @override
   Future<core.PrivateOpened> privateOpen(Uint8List key) async => privateOpened;

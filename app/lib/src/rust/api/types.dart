@@ -3398,17 +3398,22 @@ class PrivateOpened {
   /// The old database couldn't be read with the key and was moved aside.
   final bool startedFresh;
 
-  const PrivateOpened({required this.startedFresh});
+  /// The database was from before chat keys (design 2026-11-01 §10): its
+  /// chats were removed. Says so once.
+  final bool keysReset;
+
+  const PrivateOpened({required this.startedFresh, required this.keysReset});
 
   @override
-  int get hashCode => startedFresh.hashCode;
+  int get hashCode => startedFresh.hashCode ^ keysReset.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is PrivateOpened &&
           runtimeType == other.runtimeType &&
-          startedFresh == other.startedFresh;
+          startedFresh == other.startedFresh &&
+          keysReset == other.keysReset;
 }
 
 enum PrivateSendState { received, sending, sent, failed }

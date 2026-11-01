@@ -21,6 +21,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
 use super::PrivateError;
+use super::chat_key::ChatKey;
 use super::contacts::{self, Contact, Conversation, FollowUp, FriendEvent, FriendState};
 use super::device::Device;
 use super::inbox::{self, Reset, ResetLimiter};
@@ -105,6 +106,9 @@ pub struct Open {
     /// The crypto lock (Working Rule 11): held from loading sessions until
     /// their transaction commits, never across a network request.
     device: tokio::sync::Mutex<Device>,
+    /// This person's chat key (design 2026-11-01 §6.1). Taken after
+    /// `device` when both are needed.
+    chat_key: tokio::sync::Mutex<ChatKey>,
     queue: mpsc::UnboundedSender<Job>,
     /// Servers where this device registered. An entry leaves when its
     /// server is removed.
@@ -118,6 +122,10 @@ impl Open {
 
     pub fn device(&self) -> &tokio::sync::Mutex<Device> {
         &self.device
+    }
+
+    pub fn chat_key(&self) -> &tokio::sync::Mutex<ChatKey> {
+        &self.chat_key
     }
 
     /// This identity's public key.
@@ -229,6 +237,7 @@ impl PrivateService {
         {
             return Ok(PrivateOpened {
                 started_fresh: false,
+                keys_reset: false,
             });
         }
         let earlier = lock(&self.shared.open).take();
@@ -240,8 +249,8 @@ impl PrivateService {
         let opened =
             PrivateStore::open(&self.shared.data_dir, &public_key, &master_key, now).await?;
         let store = opened.store;
-        let device = match prepare(&store, now).await {
-            Ok(device) => device,
+        let (device, chat_key) = match prepare(&store, now).await {
+            Ok(prepared) => prepared,
             Err(error) => {
                 store.close().await;
                 return Err(error.into());
@@ -252,6 +261,7 @@ impl PrivateService {
             identity: public_key,
             store,
             device: tokio::sync::Mutex::new(device),
+            chat_key: tokio::sync::Mutex::new(chat_key),
             queue,
             registered: Mutex::new(HashSet::new()),
         });
@@ -266,6 +276,7 @@ impl PrivateService {
         }
         Ok(PrivateOpened {
             started_fresh: opened.started_fresh,
+            keys_reset: opened.keys_reset,
         })
     }
 
@@ -473,7 +484,7 @@ impl PrivateService {
         if !members.is_empty() {
             queue(&open, Job::Names(members));
         }
-        if ready.private_messages {
+        if ready.private_messages_v2 {
             self.start_registration(key);
         }
     }
@@ -708,7 +719,6 @@ impl PrivateService {
     /// Steps 1–5 of a registration; the first failure stops it until the
     /// next `Ready`.
     async fn register(&self, open: &Open, key: &str) -> Result<(), CoreError> {
-        let identity = self.identity_for(open)?;
         let pickle_key = open.store.pickle_key();
         // 1.
         let (keys, fallback) = {
@@ -722,7 +732,8 @@ impl PrivateService {
                     .map_err(PrivateError::from)?;
                 device.save(&mut conn, pickle_key).await?;
             }
-            (device.keys(&identity), device.fallback_prekey())
+            let chat_key = open.chat_key.lock().await;
+            (device.keys(&chat_key), device.fallback_prekey())
         };
         // 2.
         let response = self
@@ -1220,13 +1231,14 @@ async fn run_worker(
 }
 
 /// The device, and received-event records older than 35 days gone.
-async fn prepare(store: &PrivateStore, now: i64) -> Result<Device, PrivateError> {
+async fn prepare(store: &PrivateStore, now: i64) -> Result<(Device, ChatKey), PrivateError> {
     let device = Device::load_or_create(store, now).await?;
+    let chat_key = ChatKey::load_or_create(store, now).await?;
     sqlx::query("DELETE FROM received_events WHERE received_at < $1")
         .bind(now.saturating_sub(RECEIVED_RECORD_TTL_MS))
         .execute(store.pool())
         .await?;
-    Ok(device)
+    Ok((device, chat_key))
 }
 
 /// The event was handled: a delivery of it again is only acknowledged.

@@ -39,19 +39,9 @@ pub const UNSENT_RESEND_MS: i64 = 86_400_000;
 pub const RECEIVED_RECORD_TTL_MS: i64 = 3_024_000_000;
 pub const TYPING_INTERVAL_MS: i64 = 8_000;
 
-const DEVICE_CONTEXT: &[u8; 18] = b"opencord-device-v1";
 const DEVICE_CONTEXT_V2: &[u8; 18] = b"opencord-device-v2";
 const PREKEY_CONTEXT: &[u8; 18] = b"opencord-prekey-v1";
 const SLIP_CONTEXT: &[u8; 20] = b"opencord-dm-allow-v1";
-
-pub fn device_payload(device_id: &[u8; 16], curve25519: &[u8; 32], ed25519: &[u8; 32]) -> [u8; 98] {
-    let mut payload = [0u8; 98];
-    payload[..18].copy_from_slice(DEVICE_CONTEXT);
-    payload[18..34].copy_from_slice(device_id);
-    payload[34..66].copy_from_slice(curve25519);
-    payload[66..98].copy_from_slice(ed25519);
-    payload
-}
 
 /// What a person's chat key signs for each of their devices (design
 /// 2026-11-01 §6.2).
@@ -60,8 +50,11 @@ pub fn device_payload_v2(
     curve25519: &[u8; 32],
     ed25519: &[u8; 32],
 ) -> [u8; 98] {
-    let mut payload = device_payload(device_id, curve25519, ed25519);
+    let mut payload = [0u8; 98];
     payload[..18].copy_from_slice(DEVICE_CONTEXT_V2);
+    payload[18..34].copy_from_slice(device_id);
+    payload[34..66].copy_from_slice(curve25519);
+    payload[66..98].copy_from_slice(ed25519);
     payload
 }
 
@@ -80,17 +73,6 @@ pub fn slip_payload(granter: &[u8; 32], grantee: &[u8; 32]) -> [u8; 84] {
     payload[20..52].copy_from_slice(granter);
     payload[52..84].copy_from_slice(grantee);
     payload
-}
-
-pub fn sign_device(
-    identity: &SigningKey,
-    device_id: &[u8; 16],
-    curve25519: &[u8; 32],
-    ed25519: &[u8; 32],
-) -> [u8; 64] {
-    identity
-        .sign(&device_payload(device_id, curve25519, ed25519))
-        .to_bytes()
 }
 
 pub fn sign_device_v2(
@@ -118,36 +100,6 @@ pub fn sign_prekey(
 pub fn sign_slip(identity: &SigningKey, grantee: &[u8; 32]) -> [u8; 64] {
     let granter = identity.verifying_key().to_bytes();
     identity.sign(&slip_payload(&granter, grantee)).to_bytes()
-}
-
-pub fn verify_device(
-    identity_public_key: &[u8],
-    device_id: &[u8],
-    curve25519: &[u8],
-    ed25519: &[u8],
-    signature: &[u8],
-) -> bool {
-    let Ok(key_bytes) = identity_public_key.try_into() else {
-        return false;
-    };
-    let Ok(device_id_bytes) = device_id.try_into() else {
-        return false;
-    };
-    let Ok(curve25519_bytes) = curve25519.try_into() else {
-        return false;
-    };
-    let Ok(ed25519_bytes) = ed25519.try_into() else {
-        return false;
-    };
-    let Ok(sig_bytes) = signature.try_into() else {
-        return false;
-    };
-    let Ok(key) = VerifyingKey::from_bytes(key_bytes) else {
-        return false;
-    };
-    let sig = Signature::from_bytes(sig_bytes);
-    let payload = device_payload(device_id_bytes, curve25519_bytes, ed25519_bytes);
-    key.verify_strict(&payload, &sig).is_ok()
 }
 
 /// Whether `chat_key` signed these device keys.
@@ -236,13 +188,6 @@ mod tests {
         let dev_id = [1u8; 16];
         let curve = [2u8; 32];
         let ed = [3u8; 32];
-        let dev_p = device_payload(&dev_id, &curve, &ed);
-        assert_eq!(dev_p.len(), 98);
-        assert_eq!(&dev_p[..18], b"opencord-device-v1");
-        assert_eq!(&dev_p[18..34], &dev_id);
-        assert_eq!(&dev_p[34..66], &curve);
-        assert_eq!(&dev_p[66..98], &ed);
-
         let pre_p_true = prekey_payload(&dev_id, &curve, true);
         assert_eq!(pre_p_true.len(), 67);
         assert_eq!(&pre_p_true[..18], b"opencord-prekey-v1");
@@ -294,7 +239,9 @@ mod tests {
         assert!(!verify_device_v2(&chat_pub, &dev_id, &curve, &bad_ed, &sig));
 
         // A v1 signature by the same key over the same keys is not a v2 one.
-        let v1 = sign_device(&chat, &dev_id, &curve, &ed);
+        let mut v1_payload = device_payload_v2(&dev_id, &curve, &ed);
+        v1_payload[..18].copy_from_slice(b"opencord-device-v1");
+        let v1 = chat.sign(&v1_payload).to_bytes();
         assert!(!verify_device_v2(&chat_pub, &dev_id, &curve, &ed, &v1));
         assert!(!verify_device_v2(
             &chat_pub[..31],
@@ -303,43 +250,6 @@ mod tests {
             &ed,
             &sig
         ));
-    }
-
-    #[test]
-    fn device_signatures_bind_every_field() {
-        let id_key = key(10);
-        let id_pub = id_key.verifying_key().to_bytes();
-        let dev_id = [1u8; 16];
-        let curve = [2u8; 32];
-        let ed = [3u8; 32];
-
-        let sig = sign_device(&id_key, &dev_id, &curve, &ed);
-        assert!(verify_device(&id_pub, &dev_id, &curve, &ed, &sig));
-
-        // Flip one byte of device id
-        let mut bad_dev_id = dev_id;
-        bad_dev_id[0] ^= 0xff;
-        assert!(!verify_device(&id_pub, &bad_dev_id, &curve, &ed, &sig));
-
-        // Flip one byte of curve key
-        let mut bad_curve = curve;
-        bad_curve[0] ^= 0xff;
-        assert!(!verify_device(&id_pub, &dev_id, &bad_curve, &ed, &sig));
-
-        // Flip one byte of ed key
-        let mut bad_ed = ed;
-        bad_ed[0] ^= 0xff;
-        assert!(!verify_device(&id_pub, &dev_id, &curve, &bad_ed, &sig));
-
-        // Flip one byte of signature
-        let mut bad_sig = sig;
-        bad_sig[0] ^= 0xff;
-        assert!(!verify_device(&id_pub, &dev_id, &curve, &ed, &bad_sig));
-
-        // Another identity's key fails
-        let other_key = key(11);
-        let other_pub = other_key.verifying_key().to_bytes();
-        assert!(!verify_device(&other_pub, &dev_id, &curve, &ed, &sig));
     }
 
     #[test]
@@ -422,22 +332,22 @@ mod tests {
         let dev_id = [1u8; 16];
         let curve = [2u8; 32];
         let ed = [3u8; 32];
-        let sig = sign_device(&id_key, &dev_id, &curve, &ed);
+        let sig = sign_device_v2(&id_key, &dev_id, &curve, &ed);
 
         // 31- or 33-byte keys
-        assert!(!verify_device(&id_pub[..31], &dev_id, &curve, &ed, &sig));
+        assert!(!verify_device_v2(&id_pub[..31], &dev_id, &curve, &ed, &sig));
         let mut key33 = vec![0u8; 33];
         key33[..32].copy_from_slice(&id_pub);
-        assert!(!verify_device(&key33, &dev_id, &curve, &ed, &sig));
+        assert!(!verify_device_v2(&key33, &dev_id, &curve, &ed, &sig));
 
-        assert!(!verify_device(&id_pub, &dev_id, &curve[..31], &ed, &sig));
-        assert!(!verify_device(&id_pub, &dev_id, &curve, &ed[..31], &sig));
+        assert!(!verify_device_v2(&id_pub, &dev_id, &curve[..31], &ed, &sig));
+        assert!(!verify_device_v2(&id_pub, &dev_id, &curve, &ed[..31], &sig));
 
         // 15-byte device id
-        assert!(!verify_device(&id_pub, &dev_id[..15], &curve, &ed, &sig));
+        assert!(!verify_device_v2(&id_pub, &dev_id[..15], &curve, &ed, &sig));
 
         // 63-byte signature
-        assert!(!verify_device(&id_pub, &dev_id, &curve, &ed, &sig[..63]));
+        assert!(!verify_device_v2(&id_pub, &dev_id, &curve, &ed, &sig[..63]));
 
         // verify_prekey wrong lengths
         let sig_prekey = sign_prekey(&id_key, &dev_id, &curve, false);

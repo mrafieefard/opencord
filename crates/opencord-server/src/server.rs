@@ -403,6 +403,28 @@ impl ServerHandle {
             .expect("the device is stored");
     }
 
+    /// The member's devices as `FetchDevices` lists them. Intended for tests.
+    pub async fn private_device_keys(&self, user_id: i64) -> Vec<opencord_proto::v1::DeviceKeys> {
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::devices(&mut conn, user_id)
+            .await
+            .expect("the devices")
+            .into_iter()
+            .map(|device| opencord_proto::v1::DeviceKeys {
+                device_id: device.device_id,
+                curve25519: device.curve25519,
+                ed25519: device.ed25519,
+                signature: device.signature,
+                chat_key: device.chat_key,
+            })
+            .collect()
+    }
+
     /// The events waiting for the device, oldest first. Intended for tests.
     pub async fn private_pending_for(
         &self,

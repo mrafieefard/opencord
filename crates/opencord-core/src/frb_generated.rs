@@ -12316,8 +12316,10 @@ impl SseDecode for crate::api::types::PrivateOpened {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_startedFresh = <bool>::sse_decode(deserializer);
+        let mut var_keysReset = <bool>::sse_decode(deserializer);
         return crate::api::types::PrivateOpened {
             started_fresh: var_startedFresh,
+            keys_reset: var_keysReset,
         };
     }
 }
@@ -16996,7 +16998,11 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PrivateMessageKind>
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::PrivateOpened {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.started_fresh.into_into_dart().into_dart()].into_dart()
+        [
+            self.started_fresh.into_into_dart().into_dart(),
+            self.keys_reset.into_into_dart().into_dart(),
+        ]
+        .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
@@ -21262,6 +21268,7 @@ impl SseEncode for crate::api::types::PrivateOpened {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.started_fresh, serializer);
+        <bool>::sse_encode(self.keys_reset, serializer);
     }
 }
 

@@ -167,7 +167,7 @@ pub async fn receive(
         tracing::warn!(
             server = %server_key,
             event_id,
-            "a private message from a device its sender's identity didn't sign"
+            "a private message from a device not listed for its sender"
         );
         let applied = save(open, &at, Content::Undecryptable, privacy, None).await?;
         show(service, open, server_key, applied).await;
@@ -257,7 +257,6 @@ async fn known_device(
     let devices = outbox::verified(
         server_key,
         outbox::listed(&lists, sender_id),
-        &sender_key,
         Some(this_device),
     );
     outbox::remember(open, &sender_key, &devices).await?;
@@ -271,14 +270,15 @@ async fn stored_device(
     owner: &[u8; KEY_LEN],
     device_id: [u8; DEVICE_ID_LEN],
 ) -> Result<Option<VerifiedDevice>, PrivateError> {
-    let row: Option<(Vec<u8>, Vec<u8>)> = sqlx::query_as(
-        "SELECT curve25519, ed25519 FROM peer_devices WHERE public_key = $1 AND device_id = $2",
+    let row: Option<(Vec<u8>, Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT curve25519, ed25519, chat_key FROM peer_devices \
+         WHERE public_key = $1 AND device_id = $2",
     )
     .bind(owner.as_slice())
     .bind(device_id.as_slice())
     .fetch_optional(open.store().pool())
     .await?;
-    let Some((curve25519, ed25519)) = row else {
+    let Some((curve25519, ed25519, chat_key)) = row else {
         return Ok(None);
     };
     let key = |bytes: Vec<u8>| {
@@ -289,6 +289,7 @@ async fn stored_device(
         device_id,
         curve25519: key(curve25519)?,
         ed25519: key(ed25519)?,
+        chat_key: key(chat_key)?,
     }))
 }
 

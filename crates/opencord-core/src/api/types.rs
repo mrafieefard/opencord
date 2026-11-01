@@ -2121,6 +2121,9 @@ pub enum AttachmentVariant {
 pub struct PrivateOpened {
     /// The old database couldn't be read with the key and was moved aside.
     pub started_fresh: bool,
+    /// The database was from before chat keys (design 2026-11-01 §10): its
+    /// chats were removed. Says so once.
+    pub keys_reset: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

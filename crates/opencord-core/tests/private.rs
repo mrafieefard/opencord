@@ -12,6 +12,7 @@ use opencord_core::api::types::{
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
+use opencord_core::private::chat_key::ChatKey;
 use opencord_core::private::contacts::{self, Contact};
 use opencord_core::private::device::Device;
 use opencord_core::private::payload;
@@ -204,6 +205,14 @@ impl TestClient {
             seen.push(event);
         }
         seen
+    }
+
+    /// This person's chat key, read from this device's database.
+    async fn chat_key(&self) -> [u8; 32] {
+        let store = self.store().await;
+        let key = ChatKey::load_or_create(&store, 0).await.unwrap().public();
+        store.close().await;
+        key
     }
 
     /// This device's Curve25519 key, read from its own database.
@@ -690,7 +699,6 @@ async fn pump(
 /// waits on the server.
 struct Pair {
     a: TestClient,
-    a_ready: ReadySnapshot,
     b: TestClient,
     b_ready: ReadySnapshot,
     b_device: [u8; 16],
@@ -712,7 +720,6 @@ impl Pair {
         a.set_relay(&b, &a_ready.server.server_id_hex).await;
         Self {
             a,
-            a_ready,
             b,
             b_ready,
             b_device,
@@ -934,52 +941,26 @@ async fn a_send_retried_after_a_lost_answer_arrives_once() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_device_the_identity_did_not_sign_is_never_used() {
+async fn devices_register_with_their_chat_key() {
     let server = TestServer::start().await;
-    let pair = Pair::on(&server).await;
-    let b_hex = pair.b_hex();
-    let b_id = pair.b_ready.self_user.id;
-    // A device with good keys of its own, vouched for by someone else.
-    let forger = Identity::generate();
-    let forged_dir = tempfile::tempdir().unwrap();
-    let forged_store = PrivateStore::open(forged_dir.path(), &forger.public_key(), &[7; 32], 0)
-        .await
-        .unwrap()
-        .store;
-    let forged = Device::load_or_create(&forged_store, 0).await.unwrap();
-    server
-        .handle
-        .insert_private_device_unchecked(b_id, forged.keys(&forger), forged.fallback_prekey())
-        .await;
+    let (mut a, a_ready, _b, _) = owner_and_member(&server).await;
+    a.open_private(1).await;
+    let a_id = a_ready.self_user.id;
+    server.counts_until(a_id, registered).await;
 
-    let refused = pair
-        .a
-        .client
-        .private_send(&b_hex, "hello".to_owned())
-        .await
-        .unwrap_err();
+    let listed = server.handle.private_device_keys(a_id).await;
 
-    assert!(
-        matches!(
-            refused,
-            CoreError::Server {
-                code: ErrorCode::DeviceListChanged,
-                ..
-            }
-        ),
-        "{refused:?}"
-    );
-    assert!(server.copies_for(b_id, forged.id()).await.is_empty());
-    assert!(server.copies_for(b_id, pair.b_device).await.is_empty());
-    let stored = pair
-        .a
-        .client
-        .private_messages(&b_hex, None, 10)
-        .await
-        .unwrap();
-    assert_eq!(stored.len(), 2);
-    assert_eq!(stored[0].state, PrivateSendState::Failed);
-    assert_eq!(stored[1].kind, PrivateMessageKind::Divider);
+    let chat_key = a.chat_key().await;
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].chat_key, chat_key.to_vec());
+    assert_ne!(listed[0].chat_key, a.identity.public_key().to_vec());
+    assert!(opencord_common::private::verify_device_v2(
+        &listed[0].chat_key,
+        &listed[0].device_id,
+        &listed[0].curve25519,
+        &listed[0].ed25519,
+        &listed[0].signature,
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1068,12 +1049,6 @@ struct ThreeDevices {
     a2: TestClient,
     b: TestClient,
     b_ready: ReadySnapshot,
-}
-
-fn text(content: &str) -> proto::private_payload::Body {
-    proto::private_payload::Body::Text(proto::PrivateText {
-        content: content.to_owned(),
-    })
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1537,89 +1512,6 @@ async fn a_broken_session_recovers_with_a_reset() {
     let third = pair.b.message_added(|message| message.peer == a_hex).await;
     assert_eq!(third.kind, PrivateMessageKind::Text);
     assert_eq!(third.content, "third");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn a_message_from_a_forged_device_is_not_believed() {
-    let server = TestServer::start().await;
-    let mut pair = Pair::on(&server).await;
-    let a_hex = pair.a_hex();
-    let b_id = pair.b_ready.self_user.id;
-    let a_id = pair.a_ready.self_user.id;
-    pair.b.reopen().await;
-    server.counts_until(b_id, registered).await;
-    // A device with good keys of its own, vouched for by someone else, put
-    // under A's name by the server.
-    let forger = Identity::generate();
-    let forged_dir = tempfile::tempdir().unwrap();
-    let forged_store = PrivateStore::open(forged_dir.path(), &forger.public_key(), &[7; 32], 0)
-        .await
-        .unwrap()
-        .store;
-    let forged = Device::load_or_create(&forged_store, 0).await.unwrap();
-    server
-        .handle
-        .insert_private_device_unchecked(a_id, forged.keys(&forger), forged.fallback_prekey())
-        .await;
-    let b_fallback: [u8; 32] = {
-        let store = pair.b.store().await;
-        let device = Device::load_or_create(&store, 0).await.unwrap();
-        store.close().await;
-        device.fallback_prekey().key.try_into().unwrap()
-    };
-    let mut conn = forged_store.pool().acquire().await.unwrap();
-    let mut sessions = PeerSessions::load(
-        &mut conn,
-        forged_store.pickle_key(),
-        pair.b.curve25519().await,
-    )
-    .await
-    .unwrap();
-    sessions.add_outbound(&forged, b_fallback, 0).unwrap();
-    let payload = payload::build(
-        [5; 16],
-        &pair.b.identity.public_key(),
-        None,
-        text("this is really A"),
-        0,
-    );
-    let (olm_type, body) = sessions.encrypt(&payload).unwrap();
-
-    server
-        .handle
-        .queue_private_events(
-            b_id,
-            pair.b_device,
-            vec![proto::pending_event::Kind::PrivateMessage(
-                proto::PrivateMessage {
-                    sender: Some(pair.a.user(&pair.a_ready, "Owner")),
-                    sender_device_id: forged.id().to_vec(),
-                    olm_type,
-                    body,
-                    sent_at_ms: 1,
-                },
-            )],
-        )
-        .await;
-
-    let line = pair.b.message_added(|message| message.peer == a_hex).await;
-    assert_eq!(line.kind, PrivateMessageKind::Undecryptable);
-    assert!(line.content.is_empty());
-    server
-        .counts_until(b_id, |counts| counts.pending == 0)
-        .await;
-    let stored = pair
-        .b
-        .client
-        .private_messages(&a_hex, None, 10)
-        .await
-        .unwrap();
-    assert!(
-        stored
-            .iter()
-            .all(|message| message.kind == PrivateMessageKind::Undecryptable),
-        "{stored:?}"
-    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use opencord_common::private::{
     DEVICE_ID_LEN, DEVICE_LIST_TTL_MS, KEY_LEN, MESSAGE_ID_LEN, SIGNATURE_LEN, UNSENT_RESEND_MS,
-    verify_device, verify_prekey,
+    verify_device_v2, verify_prekey,
 };
 use opencord_common::validation;
 use opencord_proto::v1 as proto;
@@ -60,12 +60,13 @@ pub struct Sent {
     pub sent_at_ms: Option<i64>,
 }
 
-/// One device whose keys its owner's identity key signed.
+/// One device whose keys the chat key it names signed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedDevice {
     pub device_id: [u8; DEVICE_ID_LEN],
     pub curve25519: [u8; KEY_LEN],
     pub ed25519: [u8; KEY_LEN],
+    pub chat_key: [u8; KEY_LEN],
 }
 
 /// Verified device lists by (server key, user id).
@@ -666,8 +667,8 @@ async fn encrypt(
 }
 
 /// The peer's devices and this person's other ones on the relay, from the
-/// cache or fetched. Only devices whose signature verifies against their
-/// owner's key are kept, and stored as known.
+/// cache or fetched. Only devices whose signature verifies against the chat
+/// key they name are kept, and stored as known.
 async fn devices(
     service: &PrivateService,
     open: &Open,
@@ -695,13 +696,8 @@ async fn devices(
             let Response::DeviceLists(lists) = response else {
                 return Err(crate::client::unexpected(&response));
             };
-            let theirs = verified(&relay.key, listed(&lists, relay.recipient_id), peer, None);
-            let mine = verified(
-                &relay.key,
-                listed(&lists, relay.self_id),
-                &me,
-                Some(this_device),
-            );
+            let theirs = verified(&relay.key, listed(&lists, relay.recipient_id), None);
+            let mine = verified(&relay.key, listed(&lists, relay.self_id), Some(this_device));
             remember(open, peer, &theirs).await?;
             remember(open, &me, &mine).await?;
             cache.put(&relay.key, relay.recipient_id, theirs.clone(), now);
@@ -731,18 +727,18 @@ pub(super) fn listed(
         .flat_map(|user| &user.devices)
 }
 
-/// The devices `owner`'s identity key signed, but not `skip`.
+/// The devices the chat key they name signed, but not `skip`. Whose chat
+/// keys to trust is decided later (design 2026-11-01 §8).
 pub(super) fn verified<'a>(
     key: &str,
     listed: impl Iterator<Item = &'a proto::DeviceKeys>,
-    owner: &[u8; KEY_LEN],
     skip: Option<[u8; DEVICE_ID_LEN]>,
 ) -> Vec<VerifiedDevice> {
     let mut unverified = 0;
     let mut devices = Vec::new();
     for keys in listed {
-        let device = verify_device(
-            owner,
+        let device = verify_device_v2(
+            &keys.chat_key,
             &keys.device_id,
             &keys.curve25519,
             &keys.ed25519,
@@ -753,6 +749,7 @@ pub(super) fn verified<'a>(
                 device_id: keys.device_id.as_slice().try_into().ok()?,
                 curve25519: keys.curve25519.as_slice().try_into().ok()?,
                 ed25519: keys.ed25519.as_slice().try_into().ok()?,
+                chat_key: keys.chat_key.as_slice().try_into().ok()?,
             })
         })
         .flatten();
@@ -785,15 +782,18 @@ pub(super) async fn remember(
     let mut tx = open.store().pool().begin().await?;
     for device in devices {
         sqlx::query(
-            "INSERT INTO peer_devices (public_key, device_id, curve25519, ed25519, first_seen_at) \
-             VALUES ($1, $2, $3, $4, $5) \
+            "INSERT INTO peer_devices \
+             (public_key, device_id, curve25519, ed25519, chat_key, first_seen_at) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
              ON CONFLICT (public_key, device_id) DO UPDATE SET \
-             curve25519 = excluded.curve25519, ed25519 = excluded.ed25519",
+             curve25519 = excluded.curve25519, ed25519 = excluded.ed25519, \
+             chat_key = excluded.chat_key",
         )
         .bind(owner.as_slice())
         .bind(device.device_id.as_slice())
         .bind(device.curve25519.as_slice())
         .bind(device.ed25519.as_slice())
+        .bind(device.chat_key.as_slice())
         .bind(now)
         .execute(&mut *tx)
         .await?;
@@ -1244,6 +1244,7 @@ mod tests {
             device_id: [byte; 16],
             curve25519: [byte; 32],
             ed25519: [byte; 32],
+            chat_key: [byte; 32],
         }
     }
 

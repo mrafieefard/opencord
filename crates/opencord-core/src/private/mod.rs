@@ -3,6 +3,7 @@
 //! device's own encrypted database.
 
 pub mod actions;
+pub mod chat_key;
 pub mod contacts;
 pub mod device;
 pub mod inbox;
