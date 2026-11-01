@@ -369,7 +369,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                           Expanded(
                             key: DesktopShell.mainKey,
                             child: homeShown
-                                ? const HomeMain()
+                                ? HomeMain(
+                                    leadingControls: !layout.sidebarInline,
+                                    trailingControls: true,
+                                  )
                                 : ChatArea(
                                     membersShown: membersActive,
                                     onToggleMembers: _selectMembers,
