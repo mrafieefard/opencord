@@ -2147,6 +2147,26 @@ pub enum PrivateMessageKind {
     Divider,
     Moved,
     Undecryptable,
+    /// "*Name*'s keys changed." or, outgoing, "Your keys changed." (design
+    /// 2026-11-01 §8.2).
+    KeysChanged,
+}
+
+/// Another device signed in as this person, with a chat key of its own
+/// (design 2026-11-01 §7.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnDevice {
+    /// Hex.
+    pub device_id: String,
+    pub state: OwnDeviceState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnDeviceState {
+    /// Listed with another chat key.
+    Other,
+    /// It offered this device its chat key, waiting for They match.
+    Offering,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2215,11 +2235,27 @@ pub struct PrivacySettingsData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrivateEvent {
+    /// This person's other devices with other chat keys, and whether this
+    /// device has any chats.
+    OwnDevicesChanged {
+        devices: Vec<OwnDevice>,
+        has_chats: bool,
+    },
     ContactChanged(PrivateContact),
-    ContactRemoved { peer: String },
+    ContactRemoved {
+        peer: String,
+    },
     MessageAdded(PrivateMessage),
     MessageChanged(PrivateMessage),
-    MessageDeleted { peer: String, message_id: String },
-    Typing { peer: String },
-    FriendRequestReceived { peer: String, spam: bool },
+    MessageDeleted {
+        peer: String,
+        message_id: String,
+    },
+    Typing {
+        peer: String,
+    },
+    FriendRequestReceived {
+        peer: String,
+        spam: bool,
+    },
 }

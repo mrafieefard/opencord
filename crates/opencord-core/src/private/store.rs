@@ -466,6 +466,7 @@ mod tests {
                 "contacts",
                 "device",
                 "messages",
+                "own_devices",
                 "peer_devices",
                 "received_events",
                 "sessions",

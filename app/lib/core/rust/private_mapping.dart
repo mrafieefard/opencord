@@ -35,6 +35,7 @@ PrivateMessageKind privateMessageKindFrom(core.PrivateMessageKind kind) =>
       core.PrivateMessageKind.divider => PrivateMessageKind.divider,
       core.PrivateMessageKind.moved => PrivateMessageKind.moved,
       core.PrivateMessageKind.undecryptable => PrivateMessageKind.undecryptable,
+      core.PrivateMessageKind.keysChanged => PrivateMessageKind.keysChanged,
     };
 
 core.PrivateMessageKind privateMessageKindTo(PrivateMessageKind kind) =>
@@ -43,6 +44,7 @@ core.PrivateMessageKind privateMessageKindTo(PrivateMessageKind kind) =>
       PrivateMessageKind.divider => core.PrivateMessageKind.divider,
       PrivateMessageKind.moved => core.PrivateMessageKind.moved,
       PrivateMessageKind.undecryptable => core.PrivateMessageKind.undecryptable,
+      PrivateMessageKind.keysChanged => core.PrivateMessageKind.keysChanged,
     };
 
 PrivateSendState privateSendStateFrom(core.PrivateSendState state) =>

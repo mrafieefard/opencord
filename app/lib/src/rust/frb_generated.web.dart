@@ -571,6 +571,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<OutgoingFile> dco_decode_list_outgoing_file(dynamic raw);
 
   @protected
+  List<OwnDevice> dco_decode_list_own_device(dynamic raw);
+
+  @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
 
   @protected
@@ -798,6 +801,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OverwriteTargetKind dco_decode_overwrite_target_kind(dynamic raw);
+
+  @protected
+  OwnDevice dco_decode_own_device(dynamic raw);
+
+  @protected
+  OwnDeviceState dco_decode_own_device_state(dynamic raw);
 
   @protected
   PermissionOverwrite dco_decode_permission_overwrite(dynamic raw);
@@ -1702,6 +1711,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<OwnDevice> sse_decode_list_own_device(SseDeserializer deserializer);
+
+  @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   );
@@ -1987,6 +1999,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   OverwriteTargetKind sse_decode_overwrite_target_kind(
     SseDeserializer deserializer,
   );
+
+  @protected
+  OwnDevice sse_decode_own_device(SseDeserializer deserializer);
+
+  @protected
+  OwnDeviceState sse_decode_own_device_state(SseDeserializer deserializer);
 
   @protected
   PermissionOverwrite sse_decode_permission_overwrite(
@@ -3119,6 +3137,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_own_device(
+    List<OwnDevice> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
     SseSerializer serializer,
@@ -3481,6 +3505,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_overwrite_target_kind(
     OverwriteTargetKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_own_device(OwnDevice self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_own_device_state(
+    OwnDeviceState self,
     SseSerializer serializer,
   );
 

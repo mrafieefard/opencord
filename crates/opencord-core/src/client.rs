@@ -21,9 +21,9 @@ use crate::api::types::{
     AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
     ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
-    Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
-    PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened,
-    PrivateSettings, Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest,
+    Message, OutgoingFile, OverwriteTargetKind, OwnDevice, PermissionOverwrite, PlaybackItem,
+    PresenceStatus, PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage,
+    PrivateOpened, PrivateSettings, Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest,
     ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SharedServer, SoundDraft,
     SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo, StorageTestResult,
     StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant, VoiceCue, VoiceDraft,
@@ -47,6 +47,7 @@ use crate::music_listening::MusicListening;
 use crate::now_playing::{NowPlaying, Player};
 use crate::private::actions;
 use crate::private::outbox::{self, SendOptions};
+use crate::private::own_devices;
 use crate::private::service::{PrivateService, Transport, parse_hex};
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
@@ -641,6 +642,36 @@ impl Client {
 
     pub async fn private_hide(&self, peer: &str) -> Result<(), CoreError> {
         actions::private_hide(&self.inner.private, peer).await
+    }
+
+    /// This person's other devices with chat keys of their own, and whether
+    /// this device has chats (design 2026-11-01 §7.1).
+    pub async fn private_own_devices(&self) -> Result<(Vec<OwnDevice>, bool), CoreError> {
+        own_devices::own_devices(&self.inner.private).await
+    }
+
+    /// The 16 words this device and `device_id` both show.
+    pub async fn private_pairing_words(&self, device_id: &str) -> Result<Vec<String>, CoreError> {
+        own_devices::pairing_words(&self.inner.private, device_id).await
+    }
+
+    /// They match, here: `device_id` is given this device's chat key.
+    pub async fn private_approve_device(&self, device_id: &str) -> Result<(), CoreError> {
+        own_devices::approve(&self.inner.private, device_id).await
+    }
+
+    /// They match or They don't match, for the chat key `device_id` offered.
+    pub async fn private_accept_keys_from(
+        &self,
+        device_id: &str,
+        matched: bool,
+    ) -> Result<(), CoreError> {
+        own_devices::accept(&self.inner.private, device_id, matched).await
+    }
+
+    /// Not mine: `device_id` is hidden here and never sent anything.
+    pub async fn private_reject_device(&self, device_id: &str) -> Result<(), CoreError> {
+        own_devices::reject(&self.inner.private, device_id).await
     }
 
     pub async fn send_message(

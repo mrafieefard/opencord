@@ -350,10 +350,12 @@ pub async fn send_private_message(
         .rate_limits
         .check_private_message(ctx.user_id, recipient_id)
         .map_err(ApiError::rate_limited)?;
-    // 3.
-    let people = people(ctx, recipient_id)?;
+    // 3. To oneself: only one's other devices (design 2026-11-01 §7.2).
+    let people = people(ctx, recipient_id, true)?;
     // 4–5.
-    may_reach(ctx, recipient_id, &people, &request.slip)?;
+    if recipient_id != ctx.user_id {
+        may_reach(ctx, recipient_id, &people, &request.slip)?;
+    }
     // 6.
     let targets = check_copies(&request)?;
     let withheld = check_withheld(&request)?;
@@ -420,7 +422,7 @@ pub fn start_private_typing(
 ) -> Result<Response, ApiError> {
     require_enabled(ctx)?;
     // 1.
-    let people = people(ctx, request.recipient_id)?;
+    let people = people(ctx, request.recipient_id, false)?;
     // 2. A refusal looks like success, so typing never reveals a block.
     if may_reach(ctx, request.recipient_id, &people, &request.slip).is_ok() {
         // 3.
@@ -441,13 +443,13 @@ struct People {
 }
 
 /// The recipient is a member and not the caller.
-fn people(ctx: &Ctx<'_>, recipient_id: i64) -> Result<People, ApiError> {
+fn people(ctx: &Ctx<'_>, recipient_id: i64, to_self: bool) -> Result<People, ApiError> {
     let guild = ctx.state.guild();
     let recipient = guild
         .members
         .get(&recipient_id)
         .ok_or_else(|| ApiError::not_found("member"))?;
-    if recipient_id == ctx.user_id {
+    if recipient_id == ctx.user_id && !to_self {
         return Err(ApiError::invalid_argument("you can't message yourself"));
     }
     let caller = guild
@@ -545,7 +547,10 @@ async fn check_targets(
     targets: &[(i64, [u8; 16])],
     withheld: &[(i64, [u8; 16])],
 ) -> Result<(), ApiError> {
-    let recipient_devices = devices_of(conn, recipient).await?;
+    let mut recipient_devices = devices_of(conn, recipient).await?;
+    if recipient == caller {
+        recipient_devices.retain(|device| device != device_id);
+    }
     if recipient_devices.is_empty() {
         return Err(ApiError::private_messages_unavailable(
             "they can't get private messages on this server",

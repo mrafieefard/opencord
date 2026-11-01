@@ -10458,6 +10458,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<OwnDevice> dco_decode_list_own_device(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_own_device).toList();
+  }
+
+  @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_permission_overwrite).toList();
@@ -11224,6 +11230,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OwnDevice dco_decode_own_device(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return OwnDevice(
+      deviceId: dco_decode_String(arr[0]),
+      state: dco_decode_own_device_state(arr[1]),
+    );
+  }
+
+  @protected
+  OwnDeviceState dco_decode_own_device_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return OwnDeviceState.values[raw as int];
+  }
+
+  @protected
   PermissionOverwrite dco_decode_permission_overwrite(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11345,27 +11369,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
+        return PrivateEvent_OwnDevicesChanged(
+          devices: dco_decode_list_own_device(raw[1]),
+          hasChats: dco_decode_bool(raw[2]),
+        );
+      case 1:
         return PrivateEvent_ContactChanged(
           dco_decode_box_autoadd_private_contact(raw[1]),
         );
-      case 1:
-        return PrivateEvent_ContactRemoved(peer: dco_decode_String(raw[1]));
       case 2:
+        return PrivateEvent_ContactRemoved(peer: dco_decode_String(raw[1]));
+      case 3:
         return PrivateEvent_MessageAdded(
           dco_decode_box_autoadd_private_message(raw[1]),
         );
-      case 3:
+      case 4:
         return PrivateEvent_MessageChanged(
           dco_decode_box_autoadd_private_message(raw[1]),
         );
-      case 4:
+      case 5:
         return PrivateEvent_MessageDeleted(
           peer: dco_decode_String(raw[1]),
           messageId: dco_decode_String(raw[2]),
         );
-      case 5:
-        return PrivateEvent_Typing(peer: dco_decode_String(raw[1]));
       case 6:
+        return PrivateEvent_Typing(peer: dco_decode_String(raw[1]));
+      case 7:
         return PrivateEvent_FriendRequestReceived(
           peer: dco_decode_String(raw[1]),
           spam: dco_decode_bool(raw[2]),
@@ -14455,6 +14484,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<OwnDevice> sse_decode_list_own_device(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <OwnDevice>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_own_device(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   ) {
@@ -15614,6 +15655,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OwnDevice sse_decode_own_device(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_deviceId = sse_decode_String(deserializer);
+    var var_state = sse_decode_own_device_state(deserializer);
+    return OwnDevice(deviceId: var_deviceId, state: var_state);
+  }
+
+  @protected
+  OwnDeviceState sse_decode_own_device_state(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return OwnDeviceState.values[inner];
+  }
+
+  @protected
   PermissionOverwrite sse_decode_permission_overwrite(
     SseDeserializer deserializer,
   ) {
@@ -15759,28 +15815,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
+        var var_devices = sse_decode_list_own_device(deserializer);
+        var var_hasChats = sse_decode_bool(deserializer);
+        return PrivateEvent_OwnDevicesChanged(
+          devices: var_devices,
+          hasChats: var_hasChats,
+        );
+      case 1:
         var var_field0 = sse_decode_box_autoadd_private_contact(deserializer);
         return PrivateEvent_ContactChanged(var_field0);
-      case 1:
+      case 2:
         var var_peer = sse_decode_String(deserializer);
         return PrivateEvent_ContactRemoved(peer: var_peer);
-      case 2:
-        var var_field0 = sse_decode_box_autoadd_private_message(deserializer);
-        return PrivateEvent_MessageAdded(var_field0);
       case 3:
         var var_field0 = sse_decode_box_autoadd_private_message(deserializer);
-        return PrivateEvent_MessageChanged(var_field0);
+        return PrivateEvent_MessageAdded(var_field0);
       case 4:
+        var var_field0 = sse_decode_box_autoadd_private_message(deserializer);
+        return PrivateEvent_MessageChanged(var_field0);
+      case 5:
         var var_peer = sse_decode_String(deserializer);
         var var_messageId = sse_decode_String(deserializer);
         return PrivateEvent_MessageDeleted(
           peer: var_peer,
           messageId: var_messageId,
         );
-      case 5:
+      case 6:
         var var_peer = sse_decode_String(deserializer);
         return PrivateEvent_Typing(peer: var_peer);
-      case 6:
+      case 7:
         var var_peer = sse_decode_String(deserializer);
         var var_spam = sse_decode_bool(deserializer);
         return PrivateEvent_FriendRequestReceived(
@@ -18821,6 +18884,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_own_device(
+    List<OwnDevice> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_own_device(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
     SseSerializer serializer,
@@ -19803,6 +19878,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_own_device(OwnDevice self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.deviceId, serializer);
+    sse_encode_own_device_state(self.state, serializer);
+  }
+
+  @protected
+  void sse_encode_own_device_state(
+    OwnDeviceState self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_permission_overwrite(
     PermissionOverwrite self,
     SseSerializer serializer,
@@ -19911,33 +20002,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_private_event(PrivateEvent self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case PrivateEvent_ContactChanged(field0: final field0):
+      case PrivateEvent_OwnDevicesChanged(
+        devices: final devices,
+        hasChats: final hasChats,
+      ):
         sse_encode_i_32(0, serializer);
+        sse_encode_list_own_device(devices, serializer);
+        sse_encode_bool(hasChats, serializer);
+      case PrivateEvent_ContactChanged(field0: final field0):
+        sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_private_contact(field0, serializer);
       case PrivateEvent_ContactRemoved(peer: final peer):
-        sse_encode_i_32(1, serializer);
+        sse_encode_i_32(2, serializer);
         sse_encode_String(peer, serializer);
       case PrivateEvent_MessageAdded(field0: final field0):
-        sse_encode_i_32(2, serializer);
+        sse_encode_i_32(3, serializer);
         sse_encode_box_autoadd_private_message(field0, serializer);
       case PrivateEvent_MessageChanged(field0: final field0):
-        sse_encode_i_32(3, serializer);
+        sse_encode_i_32(4, serializer);
         sse_encode_box_autoadd_private_message(field0, serializer);
       case PrivateEvent_MessageDeleted(
         peer: final peer,
         messageId: final messageId,
       ):
-        sse_encode_i_32(4, serializer);
+        sse_encode_i_32(5, serializer);
         sse_encode_String(peer, serializer);
         sse_encode_String(messageId, serializer);
       case PrivateEvent_Typing(peer: final peer):
-        sse_encode_i_32(5, serializer);
+        sse_encode_i_32(6, serializer);
         sse_encode_String(peer, serializer);
       case PrivateEvent_FriendRequestReceived(
         peer: final peer,
         spam: final spam,
       ):
-        sse_encode_i_32(6, serializer);
+        sse_encode_i_32(7, serializer);
         sse_encode_String(peer, serializer);
         sse_encode_bool(spam, serializer);
     }

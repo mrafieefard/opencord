@@ -2709,6 +2709,9 @@ class RustRepository implements OpencordRepository {
         _emit(PrivateTypingStarted(peer));
       case core.PrivateEvent_FriendRequestReceived(:final peer, :final spam):
         _emit(FriendRequestArrived(peer, spam));
+      case core.PrivateEvent_OwnDevicesChanged():
+        // Shown from Task 6 of the chat keys plan.
+        break;
     }
   }
 

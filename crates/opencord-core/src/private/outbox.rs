@@ -21,6 +21,7 @@ use proto::response::Result as Response;
 
 use super::PrivateError;
 use super::contacts::{self, Contact, Conversation};
+use super::own_devices;
 use super::payload;
 use super::service::{
     MESSAGE_BODY_LABEL, MessageRow, Open, PrivateService, now_ms, open_text, warn_core,
@@ -44,6 +45,7 @@ pub(super) const TEXT: i64 = 0;
 pub(super) const DIVIDER: i64 = 1;
 pub(super) const MOVED: i64 = 2;
 pub(super) const UNDECRYPTABLE: i64 = 3;
+pub(super) const KEYS_CHANGED: i64 = 4;
 
 #[derive(Debug, Clone, Default)]
 pub struct SendOptions {
@@ -101,6 +103,11 @@ impl DeviceCache {
         self.lock().remove(&(key.to_owned(), user_id));
     }
 
+    /// Every list: this device's chat key changed.
+    pub fn clear(&self) {
+        self.lock().clear();
+    }
+
     /// The server was removed.
     pub fn forget_server(&self, key: &str) {
         self.lock().retain(|(server, _), _| server != key);
@@ -127,6 +134,13 @@ pub(crate) struct Relay {
 struct Target {
     user_id: i64,
     device: VerifiedDevice,
+}
+
+/// Who a payload is encrypted for, and the listed devices it deliberately
+/// isn't (design 2026-11-01 §10).
+struct Devices {
+    targets: Vec<Target>,
+    withheld: Vec<Target>,
 }
 
 /// How one send ended.
@@ -191,6 +205,7 @@ pub async fn send_timed(
                 their_slip,
                 text: false,
                 fresh: None,
+                only: None,
             },
             None,
         )
@@ -250,6 +265,7 @@ pub async fn send_timed(
             their_slip,
             text: true,
             fresh: None,
+            only: None,
         },
         None,
     )
@@ -322,6 +338,7 @@ pub async fn retry(
             their_slip: contact.and_then(|contact| contact.their_slip),
             text: true,
             fresh: None,
+            only: None,
         },
         first,
     )
@@ -463,6 +480,8 @@ struct Encrypting<'a> {
     /// A session reset: the device with this Curve25519 key gets it on a
     /// new session.
     fresh: Option<[u8; KEY_LEN]>,
+    /// Only this device of this person's own gets it: a chat key share.
+    only: Option<[u8; DEVICE_ID_LEN]>,
 }
 
 /// A session reset (design 2026-10-22 §10.8), after a message from the
@@ -499,6 +518,7 @@ pub async fn reset_session(
             their_slip: contact.and_then(|contact| contact.their_slip),
             text: false,
             fresh: Some(device),
+            only: None,
         },
         None,
     )
@@ -568,7 +588,15 @@ async fn encrypt(
 ) -> Result<proto::SendPrivateMessage, CoreError> {
     let this_device = open.device().lock().await.id();
     // 3.
-    let targets = devices(service, open, relay, &encrypting.peer, this_device).await?;
+    let Devices { targets, withheld } = devices(
+        service,
+        open,
+        relay,
+        &encrypting.peer,
+        this_device,
+        encrypting.only,
+    )
+    .await?;
     // 4.
     let prekeys = claim(service, open, relay, &targets, encrypting.fresh).await?;
     // 5.
@@ -626,7 +654,13 @@ async fn encrypt(
             .their_slip
             .map(|slip| slip.to_vec())
             .unwrap_or_default(),
-        withheld: Vec::new(),
+        withheld: withheld
+            .iter()
+            .map(|target| proto::DeviceRef {
+                user_id: target.user_id,
+                device_id: target.device.device_id.to_vec(),
+            })
+            .collect(),
     };
     let mut tx = open
         .store()
@@ -668,14 +702,17 @@ async fn encrypt(
 
 /// The peer's devices and this person's other ones on the relay, from the
 /// cache or fetched. Only devices whose signature verifies against the chat
-/// key they name are kept, and stored as known.
+/// key they name are kept, and stored as known. This person's devices with
+/// another chat key are withheld (design 2026-11-01 §7.3), and with `only`,
+/// every one but that.
 async fn devices(
     service: &PrivateService,
     open: &Open,
     relay: &Relay,
     peer: &[u8; KEY_LEN],
     this_device: [u8; DEVICE_ID_LEN],
-) -> Result<Vec<Target>, CoreError> {
+    only: Option<[u8; DEVICE_ID_LEN]>,
+) -> Result<Devices, CoreError> {
     let cache = service.device_cache();
     let now = Instant::now();
     let me = open.identity();
@@ -689,7 +726,11 @@ async fn devices(
                 .request(
                     &relay.key,
                     Request::FetchDevices(proto::FetchDevices {
-                        user_ids: vec![relay.recipient_id, relay.self_id],
+                        user_ids: if relay.recipient_id == relay.self_id {
+                            vec![relay.self_id]
+                        } else {
+                            vec![relay.recipient_id, relay.self_id]
+                        },
                     }),
                 )
                 .await?;
@@ -700,20 +741,96 @@ async fn devices(
             let mine = verified(&relay.key, listed(&lists, relay.self_id), Some(this_device));
             remember(open, peer, &theirs).await?;
             remember(open, &me, &mine).await?;
+            own_devices::observe(service, open, &mine).await?;
             cache.put(&relay.key, relay.recipient_id, theirs.clone(), now);
             cache.put(&relay.key, relay.self_id, mine.clone(), now);
             (theirs, mine)
         }
     };
-    let theirs = theirs.into_iter().map(|device| Target {
-        user_id: relay.recipient_id,
-        device,
-    });
-    let mine = mine.into_iter().map(|device| Target {
-        user_id: relay.self_id,
-        device,
-    });
-    Ok(theirs.chain(mine).collect())
+    // To oneself, the recipient's devices are one's own.
+    let theirs = if relay.recipient_id == relay.self_id {
+        Vec::new()
+    } else {
+        theirs
+    };
+    let chat_key = open.chat_key().lock().await.public();
+    let mut targets: Vec<Target> = theirs
+        .into_iter()
+        .map(|device| Target {
+            user_id: relay.recipient_id,
+            device,
+        })
+        .collect();
+    let mut withheld = Vec::new();
+    for device in mine {
+        let wanted = match only {
+            Some(only) => device.device_id == only,
+            None => device.chat_key == chat_key,
+        };
+        let target = Target {
+            user_id: relay.self_id,
+            device,
+        };
+        if wanted {
+            targets.push(target);
+        } else {
+            withheld.push(target);
+        }
+    }
+    Ok(Devices { targets, withheld })
+}
+
+/// Gives this person's device `device_id` the chat key `secret`, through
+/// `server_key`, after both showed the same words (design 2026-11-01 §7.2).
+pub(super) async fn share_chat_key(
+    service: &PrivateService,
+    open: &Open,
+    server_key: &str,
+    device_id: [u8; DEVICE_ID_LEN],
+    secret: [u8; KEY_LEN],
+) -> Result<(), CoreError> {
+    let members = service.members();
+    let self_id = members.self_id(server_key).ok_or(CoreError::NotConnected)?;
+    let relay = Relay {
+        key: server_key.to_owned(),
+        server_id: members
+            .server_id(server_key)
+            .or_else(|| service.transport().server_id_of(server_key))
+            .ok_or(CoreError::NotConnected)?,
+        recipient_id: self_id,
+        self_id,
+    };
+    let me = open.identity();
+    let message_id = new_message_id()?;
+    let payload = payload::build(
+        message_id,
+        &me,
+        None,
+        Body::ChatKeyShare(proto::ChatKeyShare {
+            secret: secret.to_vec(),
+        }),
+        now_ms(),
+    );
+    let outcome = deliver(
+        service,
+        open,
+        &relay,
+        &Encrypting {
+            message_id,
+            peer: me,
+            payload: &payload,
+            their_slip: None,
+            text: false,
+            fresh: None,
+            only: Some(device_id),
+        },
+        None,
+    )
+    .await;
+    match outcome {
+        Outcome::Sent(_) => Ok(()),
+        Outcome::Unsent(error) | Outcome::Failed(error) => Err(error),
+    }
 }
 
 pub(super) fn listed(
@@ -755,6 +872,10 @@ pub(super) fn verified<'a>(
         .flatten();
         match device {
             Some(device) if Some(device.device_id) == skip => {}
+            Some(device)
+                if devices
+                    .iter()
+                    .any(|known: &VerifiedDevice| known.device_id == device.device_id) => {}
             Some(device) => devices.push(device),
             None => unverified += 1,
         }
@@ -1019,6 +1140,7 @@ async fn resend(
             their_slip,
             text: true,
             fresh: None,
+            only: None,
         },
         Some(first),
     )

@@ -9,6 +9,7 @@ pub mod device;
 pub mod inbox;
 pub mod members;
 pub mod outbox;
+pub mod own_devices;
 pub mod payload;
 pub mod seal;
 pub mod service;

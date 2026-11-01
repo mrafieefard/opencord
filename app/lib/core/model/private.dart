@@ -9,7 +9,7 @@ enum FriendStatus { none, outgoing, incoming, friends }
 enum ConversationStatus { none, request, accepted }
 
 /// The kind of entry in a private conversation (§6.3).
-enum PrivateMessageKind { text, divider, moved, undecryptable }
+enum PrivateMessageKind { text, divider, moved, undecryptable, keysChanged }
 
 /// The state of an outbound or inbound private message.
 enum PrivateSendState { received, sending, sent, failed }

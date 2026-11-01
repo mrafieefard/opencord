@@ -128,6 +128,11 @@ impl Open {
         &self.chat_key
     }
 
+    /// Servers where this device registered.
+    pub fn registered_servers(&self) -> Vec<String> {
+        lock(&self.registered).iter().cloned().collect()
+    }
+
     /// This identity's public key.
     pub fn identity(&self) -> [u8; 32] {
         self.identity
@@ -445,6 +450,7 @@ impl PrivateService {
                 1 => PrivateMessageKind::Divider,
                 2 => PrivateMessageKind::Moved,
                 3 => PrivateMessageKind::Undecryptable,
+                4 => PrivateMessageKind::KeysChanged,
                 _ => {
                     return Err(PrivateError::Storage(
                         "a stored message has an unknown kind".to_owned(),
@@ -667,7 +673,7 @@ impl PrivateService {
 
     /// Registers on `key` in its own task, at most one at a time per
     /// server: a `Ready` meanwhile makes the running one go again.
-    fn start_registration(&self, key: &str) {
+    pub(super) fn start_registration(&self, key: &str) {
         let holder = {
             let mut running = lock(&self.shared.registering);
             if let Some(running) = running.get_mut(key) {
@@ -778,6 +784,11 @@ impl PrivateService {
         super::actions::sync_privacy_to_server(self, open, key).await?;
         // 5.
         self.catch_up(open, key).await?;
+        // This person's other devices, for the notice (design 2026-11-01
+        // §7.1).
+        if let Err(error) = super::own_devices::refresh_on(self, open, key).await {
+            warn_core("listing this person's devices failed", key, &error);
+        }
         // Then what waited to be sent through this server.
         outbox::resend_unsent(self, key).await
     }

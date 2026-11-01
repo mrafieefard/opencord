@@ -10800,6 +10800,18 @@ impl SseDecode for Vec<crate::api::types::OutgoingFile> {
     }
 }
 
+impl SseDecode for Vec<crate::api::types::OwnDevice> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::OwnDevice>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::types::PermissionOverwrite> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12046,6 +12058,30 @@ impl SseDecode for crate::api::types::OverwriteTargetKind {
     }
 }
 
+impl SseDecode for crate::api::types::OwnDevice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_deviceId = <String>::sse_decode(deserializer);
+        let mut var_state = <crate::api::types::OwnDeviceState>::sse_decode(deserializer);
+        return crate::api::types::OwnDevice {
+            device_id: var_deviceId,
+            state: var_state,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::OwnDeviceState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::OwnDeviceState::Other,
+            1 => crate::api::types::OwnDeviceState::Offering,
+            _ => unreachable!("Invalid variant for OwnDeviceState: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::PermissionOverwrite {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12230,22 +12266,30 @@ impl SseDecode for crate::api::types::PrivateEvent {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
+                let mut var_devices = <Vec<crate::api::types::OwnDevice>>::sse_decode(deserializer);
+                let mut var_hasChats = <bool>::sse_decode(deserializer);
+                return crate::api::types::PrivateEvent::OwnDevicesChanged {
+                    devices: var_devices,
+                    has_chats: var_hasChats,
+                };
+            }
+            1 => {
                 let mut var_field0 = <crate::api::types::PrivateContact>::sse_decode(deserializer);
                 return crate::api::types::PrivateEvent::ContactChanged(var_field0);
             }
-            1 => {
+            2 => {
                 let mut var_peer = <String>::sse_decode(deserializer);
                 return crate::api::types::PrivateEvent::ContactRemoved { peer: var_peer };
             }
-            2 => {
+            3 => {
                 let mut var_field0 = <crate::api::types::PrivateMessage>::sse_decode(deserializer);
                 return crate::api::types::PrivateEvent::MessageAdded(var_field0);
             }
-            3 => {
+            4 => {
                 let mut var_field0 = <crate::api::types::PrivateMessage>::sse_decode(deserializer);
                 return crate::api::types::PrivateEvent::MessageChanged(var_field0);
             }
-            4 => {
+            5 => {
                 let mut var_peer = <String>::sse_decode(deserializer);
                 let mut var_messageId = <String>::sse_decode(deserializer);
                 return crate::api::types::PrivateEvent::MessageDeleted {
@@ -12253,11 +12297,11 @@ impl SseDecode for crate::api::types::PrivateEvent {
                     message_id: var_messageId,
                 };
             }
-            5 => {
+            6 => {
                 let mut var_peer = <String>::sse_decode(deserializer);
                 return crate::api::types::PrivateEvent::Typing { peer: var_peer };
             }
-            6 => {
+            7 => {
                 let mut var_peer = <String>::sse_decode(deserializer);
                 let mut var_spam = <bool>::sse_decode(deserializer);
                 return crate::api::types::PrivateEvent::FriendRequestReceived {
@@ -12307,6 +12351,7 @@ impl SseDecode for crate::api::types::PrivateMessageKind {
             1 => crate::api::types::PrivateMessageKind::Divider,
             2 => crate::api::types::PrivateMessageKind::Moved,
             3 => crate::api::types::PrivateMessageKind::Undecryptable,
+            4 => crate::api::types::PrivateMessageKind::KeysChanged,
             _ => unreachable!("Invalid variant for PrivateMessageKind: {}", inner),
         };
     }
@@ -16658,6 +16703,45 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::OverwriteTargetKind>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::OwnDevice {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.device_id.into_into_dart().into_dart(),
+            self.state.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::OwnDevice {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::OwnDevice>
+    for crate::api::types::OwnDevice
+{
+    fn into_into_dart(self) -> crate::api::types::OwnDevice {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::OwnDeviceState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Other => 0.into_dart(),
+            Self::Offering => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::OwnDeviceState
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::OwnDeviceState>
+    for crate::api::types::OwnDeviceState
+{
+    fn into_into_dart(self) -> crate::api::types::OwnDeviceState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::PermissionOverwrite {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -16900,29 +16984,35 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PrivateContact>
 impl flutter_rust_bridge::IntoDart for crate::api::types::PrivateEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
+            crate::api::types::PrivateEvent::OwnDevicesChanged { devices, has_chats } => [
+                0.into_dart(),
+                devices.into_into_dart().into_dart(),
+                has_chats.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::api::types::PrivateEvent::ContactChanged(field0) => {
-                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::PrivateEvent::ContactRemoved { peer } => {
-                [1.into_dart(), peer.into_into_dart().into_dart()].into_dart()
+                [2.into_dart(), peer.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::PrivateEvent::MessageAdded(field0) => {
-                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
-            crate::api::types::PrivateEvent::MessageChanged(field0) => {
                 [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::PrivateEvent::MessageChanged(field0) => {
+                [4.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             crate::api::types::PrivateEvent::MessageDeleted { peer, message_id } => [
-                4.into_dart(),
+                5.into_dart(),
                 peer.into_into_dart().into_dart(),
                 message_id.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::PrivateEvent::Typing { peer } => {
-                [5.into_dart(), peer.into_into_dart().into_dart()].into_dart()
+                [6.into_dart(), peer.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::PrivateEvent::FriendRequestReceived { peer, spam } => [
-                6.into_dart(),
+                7.into_dart(),
                 peer.into_into_dart().into_dart(),
                 spam.into_into_dart().into_dart(),
             ]
@@ -16980,6 +17070,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::PrivateMessageKind {
             Self::Divider => 1.into_dart(),
             Self::Moved => 2.into_dart(),
             Self::Undecryptable => 3.into_dart(),
+            Self::KeysChanged => 4.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -20045,6 +20136,16 @@ impl SseEncode for Vec<crate::api::types::OutgoingFile> {
     }
 }
 
+impl SseEncode for Vec<crate::api::types::OwnDevice> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::OwnDevice>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::types::PermissionOverwrite> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -21037,6 +21138,30 @@ impl SseEncode for crate::api::types::OverwriteTargetKind {
     }
 }
 
+impl SseEncode for crate::api::types::OwnDevice {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.device_id, serializer);
+        <crate::api::types::OwnDeviceState>::sse_encode(self.state, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::OwnDeviceState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::OwnDeviceState::Other => 0,
+                crate::api::types::OwnDeviceState::Offering => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::types::PermissionOverwrite {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -21194,33 +21319,38 @@ impl SseEncode for crate::api::types::PrivateEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::types::PrivateEvent::ContactChanged(field0) => {
+            crate::api::types::PrivateEvent::OwnDevicesChanged { devices, has_chats } => {
                 <i32>::sse_encode(0, serializer);
+                <Vec<crate::api::types::OwnDevice>>::sse_encode(devices, serializer);
+                <bool>::sse_encode(has_chats, serializer);
+            }
+            crate::api::types::PrivateEvent::ContactChanged(field0) => {
+                <i32>::sse_encode(1, serializer);
                 <crate::api::types::PrivateContact>::sse_encode(field0, serializer);
             }
             crate::api::types::PrivateEvent::ContactRemoved { peer } => {
-                <i32>::sse_encode(1, serializer);
+                <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(peer, serializer);
             }
             crate::api::types::PrivateEvent::MessageAdded(field0) => {
-                <i32>::sse_encode(2, serializer);
-                <crate::api::types::PrivateMessage>::sse_encode(field0, serializer);
-            }
-            crate::api::types::PrivateEvent::MessageChanged(field0) => {
                 <i32>::sse_encode(3, serializer);
                 <crate::api::types::PrivateMessage>::sse_encode(field0, serializer);
             }
-            crate::api::types::PrivateEvent::MessageDeleted { peer, message_id } => {
+            crate::api::types::PrivateEvent::MessageChanged(field0) => {
                 <i32>::sse_encode(4, serializer);
+                <crate::api::types::PrivateMessage>::sse_encode(field0, serializer);
+            }
+            crate::api::types::PrivateEvent::MessageDeleted { peer, message_id } => {
+                <i32>::sse_encode(5, serializer);
                 <String>::sse_encode(peer, serializer);
                 <String>::sse_encode(message_id, serializer);
             }
             crate::api::types::PrivateEvent::Typing { peer } => {
-                <i32>::sse_encode(5, serializer);
+                <i32>::sse_encode(6, serializer);
                 <String>::sse_encode(peer, serializer);
             }
             crate::api::types::PrivateEvent::FriendRequestReceived { peer, spam } => {
-                <i32>::sse_encode(6, serializer);
+                <i32>::sse_encode(7, serializer);
                 <String>::sse_encode(peer, serializer);
                 <bool>::sse_encode(spam, serializer);
             }
@@ -21255,6 +21385,7 @@ impl SseEncode for crate::api::types::PrivateMessageKind {
                 crate::api::types::PrivateMessageKind::Divider => 1,
                 crate::api::types::PrivateMessageKind::Moved => 2,
                 crate::api::types::PrivateMessageKind::Undecryptable => 3,
+                crate::api::types::PrivateMessageKind::KeysChanged => 4,
                 _ => {
                     unimplemented!("");
                 }

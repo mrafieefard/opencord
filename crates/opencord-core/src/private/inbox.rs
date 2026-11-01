@@ -19,6 +19,7 @@ use super::PrivateError;
 use super::contacts::{self, Contact, Conversation, IncomingMessage, PrivacySettings};
 use super::device::Device;
 use super::outbox::{self, DIVIDER, MOVED, RECEIVED, SENT, TEXT, UNDECRYPTABLE, VerifiedDevice};
+use super::own_devices;
 use super::payload::{self, Parsed};
 use super::seal::Sealer;
 use super::service::{
@@ -96,6 +97,11 @@ enum Content {
         peer: [u8; KEY_LEN],
         parsed: Box<Parsed>,
     },
+    /// Another of this person's devices offers its chat key (design
+    /// 2026-11-01 §7.2).
+    Share {
+        secret: Vec<u8>,
+    },
 }
 
 /// What applying it left to show once committed.
@@ -106,6 +112,8 @@ struct Applied {
     contact: Option<Contact>,
     /// An undecryptable line was added for the sender.
     line: bool,
+    /// This person's other devices changed.
+    own_devices: bool,
 }
 
 enum Shown {
@@ -169,10 +177,14 @@ pub async fn receive(
             event_id,
             "a private message from a device not listed for its sender"
         );
-        let applied = save(open, &at, Content::Undecryptable, privacy, None).await?;
+        let applied = save(open, &at, Content::Undecryptable, privacy, None, None).await?;
         show(service, open, server_key, applied).await;
         return Ok(None);
     };
+
+    // A copy from one's own device under another chat key: only its chat
+    // key share is read (design 2026-11-01 §7.3).
+    let other_key = at.from_me && device.chat_key != open.chat_key().lock().await.public();
 
     // 3–6.
     let pickle_key = open.store().pickle_key();
@@ -202,7 +214,19 @@ pub async fn receive(
             );
             Content::Undecryptable
         }
-        Decrypted::Plaintext(plaintext) => read(&plaintext, &at, me, server_key),
+        Decrypted::Plaintext(plaintext) => match read(&plaintext, &at, me, server_key) {
+            share @ Content::Share { .. } if other_key => share,
+            _ if other_key => {
+                tracing::warn!(
+                    server = %server_key,
+                    event_id,
+                    "a copy from a device of this person's with another chat key was ignored"
+                );
+                Content::Undecryptable
+            }
+            Content::Share { .. } => Content::Duplicate,
+            content => content,
+        },
     };
     let applied = save(
         open,
@@ -210,6 +234,7 @@ pub async fn receive(
         content,
         privacy,
         Some((&mut sessions, changed.as_ref())),
+        Some(&device),
     )
     .await?;
     if let Some(changed) = changed {
@@ -260,6 +285,9 @@ async fn known_device(
         Some(this_device),
     );
     outbox::remember(open, &sender_key, &devices).await?;
+    if sender_key == open.identity() {
+        own_devices::observe(service, open, &devices).await?;
+    }
     Ok(devices
         .into_iter()
         .find(|device| device.device_id == device_id))
@@ -309,6 +337,14 @@ fn read(plaintext: &[u8], at: &Arrival<'_>, me: [u8; KEY_LEN], server_key: &str)
             return Content::Undecryptable;
         }
     };
+    if at.from_me
+        && parsed.recipient == me
+        && let Body::ChatKeyShare(share) = &parsed.body
+    {
+        return Content::Share {
+            secret: share.secret.clone(),
+        };
+    }
     let peer = if at.from_me {
         (parsed.recipient != me).then_some(parsed.recipient)
     } else {
@@ -338,6 +374,7 @@ async fn save(
     content: Content,
     privacy: &PrivacySettings,
     crypto: Option<(&mut PeerSessions, Option<&Device>)>,
+    sender: Option<&VerifiedDevice>,
 ) -> Result<Applied, PrivateError> {
     let pickle_key = open.store().pickle_key();
     let sealer = open.store().sealer();
@@ -353,6 +390,13 @@ async fn save(
     let applied = match content {
         Content::Duplicate => Applied::default(),
         Content::Undecryptable => undecryptable(&mut tx, sealer, at, privacy, now).await?,
+        Content::Share { secret } => match sender {
+            Some(sender) => Applied {
+                own_devices: own_devices::receive_share(&mut tx, sealer, sender, &secret).await?,
+                ..Applied::default()
+            },
+            None => Applied::default(),
+        },
         Content::Payload { peer, parsed } if at.from_me => {
             own_copy(&mut tx, sealer, at, peer, *parsed, now).await?
         }
@@ -408,6 +452,7 @@ async fn undecryptable(
         shown: vec![Shown::Added(id)],
         contact: Some(contact),
         line: true,
+        own_devices: false,
     })
 }
 
@@ -535,6 +580,7 @@ async fn from_peer(
         shown,
         contact: changed.then_some(contact),
         line: false,
+        own_devices: false,
     })
 }
 
@@ -617,12 +663,22 @@ async fn own_copy(
         shown,
         contact: changed.then_some(contact),
         line: false,
+        own_devices: false,
     })
 }
 
 /// Shows what was saved. A view that can't be read is logged: the event is
 /// saved, and the app reads the conversation again when it opens it.
 async fn show(service: &PrivateService, open: &Open, server_key: &str, applied: Applied) {
+    if applied.own_devices
+        && let Err(error) = own_devices::emit(service, open).await
+    {
+        warn_core(
+            "showing this person's devices failed",
+            server_key,
+            &CoreError::from(error),
+        );
+    }
     for shown in applied.shown {
         let event = match shown {
             Shown::Added(id) => outbox::view(service, open, id)
@@ -653,19 +709,19 @@ async fn show(service: &PrivateService, open: &Open, server_key: &str, applied: 
 }
 
 /// A message to insert; `body` is sealed with its id.
-struct Insert<'a> {
-    id: [u8; MESSAGE_ID_LEN],
-    peer: [u8; KEY_LEN],
-    outgoing: bool,
-    kind: i64,
-    body: Option<&'a str>,
-    server_id: Option<&'a str>,
-    sent_at: i64,
-    state: i64,
+pub(super) struct Insert<'a> {
+    pub(super) id: [u8; MESSAGE_ID_LEN],
+    pub(super) peer: [u8; KEY_LEN],
+    pub(super) outgoing: bool,
+    pub(super) kind: i64,
+    pub(super) body: Option<&'a str>,
+    pub(super) server_id: Option<&'a str>,
+    pub(super) sent_at: i64,
+    pub(super) state: i64,
 }
 
 /// `false` when a message with that id is there already.
-async fn insert(
+pub(super) async fn insert(
     conn: &mut SqliteConnection,
     sealer: &Sealer,
     message: Insert<'_>,
@@ -773,7 +829,7 @@ fn message_id(bytes: &[u8]) -> Result<[u8; MESSAGE_ID_LEN], PrivateError> {
         .map_err(|_| PrivateError::Invalid("a message id isn't 16 bytes".to_owned()))
 }
 
-fn random_id() -> Result<[u8; MESSAGE_ID_LEN], PrivateError> {
+pub(super) fn random_id() -> Result<[u8; MESSAGE_ID_LEN], PrivateError> {
     let mut id = [0; MESSAGE_ID_LEN];
     getrandom::fill(&mut id)
         .map_err(|_| PrivateError::Crypto("the random source failed".to_owned()))?;

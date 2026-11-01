@@ -1102,6 +1102,52 @@ async fn a_device_both_sent_and_withheld_is_refused() {
 }
 
 #[tokio::test]
+async fn a_message_to_yourself_reaches_only_your_other_devices() {
+    let server = TestServer::start().await;
+    let (mut a1, a, _b1, b) = people(&server).await;
+    let (mut a2, _) = owner_again(&server).await;
+    a2.register_device(&key(1), &TestDevice::new(A2), 0).await;
+
+    send(
+        &mut a1,
+        message(a, 1, vec![copy(a, A2, vec![1])], Vec::new()),
+    )
+    .await;
+
+    assert_eq!(
+        server
+            .handle
+            .private_pending_for(a, TestDevice::new(A2).id)
+            .await
+            .len(),
+        1
+    );
+    assert_eq!(pending_total(&server, [a, b]).await, 1);
+    // The sending device itself is never a target.
+    let error = a1
+        .error(message(
+            a,
+            2,
+            vec![copy(a, A1, vec![1]), copy(a, A2, vec![1])],
+            Vec::new(),
+        ))
+        .await;
+    assert_code(&error, proto::ErrorCode::DeviceListChanged);
+}
+
+#[tokio::test]
+async fn a_message_to_yourself_needs_another_device() {
+    let server = TestServer::start().await;
+    let (mut a1, a, _b1, _b) = people(&server).await;
+
+    let error = a1
+        .error(message(a, 1, vec![copy(a, A2, vec![1])], Vec::new()))
+        .await;
+
+    assert_code(&error, proto::ErrorCode::PrivateMessagesUnavailable);
+}
+
+#[tokio::test]
 async fn a_repeated_send_id_stores_nothing() {
     let server = TestServer::start().await;
     let (mut a1, _, _b1, b) = people(&server).await;
