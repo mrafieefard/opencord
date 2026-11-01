@@ -40,6 +40,7 @@ pub const RECEIVED_RECORD_TTL_MS: i64 = 3_024_000_000;
 pub const TYPING_INTERVAL_MS: i64 = 8_000;
 
 const DEVICE_CONTEXT: &[u8; 18] = b"opencord-device-v1";
+const DEVICE_CONTEXT_V2: &[u8; 18] = b"opencord-device-v2";
 const PREKEY_CONTEXT: &[u8; 18] = b"opencord-prekey-v1";
 const SLIP_CONTEXT: &[u8; 20] = b"opencord-dm-allow-v1";
 
@@ -49,6 +50,18 @@ pub fn device_payload(device_id: &[u8; 16], curve25519: &[u8; 32], ed25519: &[u8
     payload[18..34].copy_from_slice(device_id);
     payload[34..66].copy_from_slice(curve25519);
     payload[66..98].copy_from_slice(ed25519);
+    payload
+}
+
+/// What a person's chat key signs for each of their devices (design
+/// 2026-11-01 §6.2).
+pub fn device_payload_v2(
+    device_id: &[u8; 16],
+    curve25519: &[u8; 32],
+    ed25519: &[u8; 32],
+) -> [u8; 98] {
+    let mut payload = device_payload(device_id, curve25519, ed25519);
+    payload[..18].copy_from_slice(DEVICE_CONTEXT_V2);
     payload
 }
 
@@ -77,6 +90,17 @@ pub fn sign_device(
 ) -> [u8; 64] {
     identity
         .sign(&device_payload(device_id, curve25519, ed25519))
+        .to_bytes()
+}
+
+pub fn sign_device_v2(
+    chat_key: &SigningKey,
+    device_id: &[u8; 16],
+    curve25519: &[u8; 32],
+    ed25519: &[u8; 32],
+) -> [u8; 64] {
+    chat_key
+        .sign(&device_payload_v2(device_id, curve25519, ed25519))
         .to_bytes()
 }
 
@@ -124,6 +148,33 @@ pub fn verify_device(
     let sig = Signature::from_bytes(sig_bytes);
     let payload = device_payload(device_id_bytes, curve25519_bytes, ed25519_bytes);
     key.verify_strict(&payload, &sig).is_ok()
+}
+
+/// Whether `chat_key` signed these device keys.
+pub fn verify_device_v2(
+    chat_key: &[u8],
+    device_id: &[u8],
+    curve25519: &[u8],
+    ed25519: &[u8],
+    signature: &[u8],
+) -> bool {
+    let (Ok(key), Ok(device_id), Ok(curve25519), Ok(ed25519), Ok(signature)) = (
+        <&[u8; 32]>::try_from(chat_key),
+        <&[u8; 16]>::try_from(device_id),
+        <&[u8; 32]>::try_from(curve25519),
+        <&[u8; 32]>::try_from(ed25519),
+        <&[u8; 64]>::try_from(signature),
+    ) else {
+        return false;
+    };
+    let Ok(key) = VerifyingKey::from_bytes(key) else {
+        return false;
+    };
+    key.verify_strict(
+        &device_payload_v2(device_id, curve25519, ed25519),
+        &Signature::from_bytes(signature),
+    )
+    .is_ok()
 }
 
 pub fn verify_prekey(
@@ -203,6 +254,13 @@ mod tests {
         assert_eq!(pre_p_false.len(), 67);
         assert_eq!(pre_p_false[66], 0);
 
+        let dev_p2 = device_payload_v2(&dev_id, &curve, &ed);
+        assert_eq!(dev_p2.len(), 98);
+        assert_eq!(&dev_p2[..18], b"opencord-device-v2");
+        assert_eq!(&dev_p2[18..34], &dev_id);
+        assert_eq!(&dev_p2[34..66], &curve);
+        assert_eq!(&dev_p2[66..98], &ed);
+
         let granter = [4u8; 32];
         let grantee = [5u8; 32];
         let slip_p = slip_payload(&granter, &grantee);
@@ -210,6 +268,41 @@ mod tests {
         assert_eq!(&slip_p[..20], b"opencord-dm-allow-v1");
         assert_eq!(&slip_p[20..52], &granter);
         assert_eq!(&slip_p[52..84], &grantee);
+    }
+
+    #[test]
+    fn v2_device_signatures_verify_only_against_their_chat_key() {
+        let chat = key(20);
+        let chat_pub = chat.verifying_key().to_bytes();
+        let other_pub = key(21).verifying_key().to_bytes();
+        let dev_id = [1u8; 16];
+        let curve = [2u8; 32];
+        let ed = [3u8; 32];
+
+        let sig = sign_device_v2(&chat, &dev_id, &curve, &ed);
+        assert!(verify_device_v2(&chat_pub, &dev_id, &curve, &ed, &sig));
+        assert!(!verify_device_v2(&other_pub, &dev_id, &curve, &ed, &sig));
+
+        let mut bad_dev_id = dev_id;
+        bad_dev_id[0] ^= 0xff;
+        assert!(!verify_device_v2(&chat_pub, &bad_dev_id, &curve, &ed, &sig));
+        let mut bad_curve = curve;
+        bad_curve[0] ^= 0xff;
+        assert!(!verify_device_v2(&chat_pub, &dev_id, &bad_curve, &ed, &sig));
+        let mut bad_ed = ed;
+        bad_ed[0] ^= 0xff;
+        assert!(!verify_device_v2(&chat_pub, &dev_id, &curve, &bad_ed, &sig));
+
+        // A v1 signature by the same key over the same keys is not a v2 one.
+        let v1 = sign_device(&chat, &dev_id, &curve, &ed);
+        assert!(!verify_device_v2(&chat_pub, &dev_id, &curve, &ed, &v1));
+        assert!(!verify_device_v2(
+            &chat_pub[..31],
+            &dev_id,
+            &curve,
+            &ed,
+            &sig
+        ));
     }
 
     #[test]
