@@ -72,6 +72,11 @@ Every rule here was broken at least once and caught in review.
   - A thread that can fail (opening a device, encoding) stores its error where the caller's next call returns it, and says so at once through the event stream.
   - `Err(_) => None` on a thread is the same swallowed error as anywhere else.
 - **Know how a library reports failure.** Iterators that just end, an `Option`, a default value: where an error and "nothing more" look the same, call the lower-level function that tells them apart. A download that fails halfway is a failure, not the end of the file.
+- **Log what a stranger's machine did** (D82, docs/logs.md). Every line may end up in a session log a user sends:
+  - In Rust, use `tracing`; in Flutter, use `appLog`, never `print` or bare `developer.log`.
+  - Log each step that can fail, with its outcome and `after_ms`.
+  - Name servers, addresses, users and channels through `crate::log::alias`.
+  - Never log message text, file names, window titles, tokens or keys.
 - **Production code never bends for tests.** No `try`/`catch` "for tests where X isn't set up", and no prop or branch only a test uses: fix the test's setup instead, or drive the real path (a header's search through the options the screen sets). When a test needs to stand in for something (a call, a device), put a small trait in front of it, as `TapEngine` does, and give the test a fake.
 
 ### Shared state and races

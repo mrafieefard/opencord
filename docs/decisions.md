@@ -346,6 +346,11 @@ The Mac session's log is `docs/plans/macos.md` §7; this is what it decided. The
   - When a headset's microphone and speaker fall back within 2 s of each other, one notice tells of both; the second used to hide the first.
   - Switching cameras retries for up to 1 s while the camera switched from closes, so choosing the camera already on by its name (after Default) no longer fails as busy.
   - Debug builds optimize `aec3` and `nnnoiseless` like DeepFilterNet's crates: unoptimized, they took 79 % of a throttled Mac's audio thread and the call cut out.
+- **Found by running it.** A run under Xvfb crashed with `kill -SEGV` showed three things, now fixed with tests:
+  - The crash line was written, but the process didn't die: a sent signal faults nothing, so returning from the handler let the app carry on. A sent crash signal now goes to its default action.
+  - SIGTERM read as a crash.
+  - Dart names were taken for domains.
+  Reading the code back also found two more: a corrupt `update.json` would have stopped the app starting, and a clean quit followed by a few lines would have read as a crash.
 - **Checks.** `app/tool/macos/` holds the Mac's twins of the Linux checks (BlackHole, sox and `afplay` in place of PipeWire's sinks) and `serve_lan.sh` for calls across machines. Every acceptance passed, including AirPods during a call, sleep and wake, Continuity Camera, the "no double audio" test (Talker at −117.8 dBFS in the stream, the music at −12.0) and the call between the Mac, Linux and Windows. Not checked: two monitors with mixed DPI, HDR, macOS 13 and 14.0–14.1 (read only).
 
 ## D35: Windows (W0 to W8, 2026-10-13 to 2026-10-14)
@@ -1540,3 +1545,46 @@ Milestone R5 of `docs/superpowers/plans/2026-10-26-mobile-client.md`: Task 22 (i
   - the APK isn't released until the owner sets the signing secrets;
   - a certificate that changed can't be trusted again from the phone. A pin left by a server added before leaving existed also blocks a new server at that address;
   - checks owed with a desktop client and real phones: unread counts against the desktop's, pictures from the desktop, voice locked for 2 minutes on a phone, skip and the queue with several songs, the music volume with the desktop's music, and anything on an iPhone.
+
+## D82: Session logs in the desktop app (2026-10-30)
+
+(D75–D81 are the phone apps' decisions, on their own branch.)
+
+The owner asked for a log a user can export after an error and send them, so Claude can tell from it exactly what happened in that session. Screen sharing, which still fails on some Windows 10 and 11 machines, came first. Until now the core's `tracing` events went nowhere, since no subscriber was installed, and Flutter's only reached a debugger.
+
+- **Decision.** Every desktop launch writes one plain-text file in the support folder's `logs`, and the newest 10 are kept. **Settings → About → Logs** exports this session's file, exports the last one's when it ended unexpectedly, and opens the folder. docs/logs.md says how to read one. The design and plan are in docs/superpowers/specs/2026-10-30-session-logs-design.md and docs/superpowers/plans/2026-10-30-session-logs.md.
+- **How.**
+  - A `log` module in `opencord-core` installs a `tracing` subscriber.
+  - Each event becomes one line where it happens, passes through a privacy filter, and goes over a bounded channel to one writer thread. No audio or video thread waits on the disk; a full queue drops lines and counts them.
+  - Flutter starts the log before the core opens its data (`session_log_start`), writes through `appLog`, and sends uncaught errors and its key actions to it.
+- **Privacy (the owner's rule).** No passwords, logins, keys, IPs or addresses.
+  - **Aliases:** servers become `server-A`, addresses `public-ip-1` or `lan-ip-2` (the kind and port stay, which mattered in D70), users `user-1` or `you`, channels `channel-1`, other hosts `host-1`, the home folder `~`.
+  - **The filter** runs on every line, other crates' included, and also catches URLs, e-mail addresses and anything shaped like a token. A leak corpus test checks it.
+  - **The alias table** is only in memory.
+- **What's in it.**
+  - **A header:** app and core versions, track, the launcher's last run, displays, and the system with its exact build and edition.
+  - **The machine, written after start:** graphics cards with driver versions, audio devices, and capture support.
+  - **Connection and voice steps,** with times and the address reached.
+  - **Each screen share's steps:** capture method and why one was dropped (with the HRESULT), WARP fallback, encoder chosen and those that failed, first frames, then counters every 5 s on both ends and the stop's cause.
+  - **Failed core calls,** with the Dart frames that made them.
+  - **Panics** with backtraces, and native crashes as one line written without allocating.
+- **Calls made without the owner.**
+  - 20 MB per session; past it, only warnings and errors.
+  - `INFO`, with `DEBUG` for media and connection code; other crates at `WARN`.
+  - Window titles are left out and the app's name kept; device names are kept.
+  - Plain text, not JSON. Nothing uploads.
+  - Ids are aliased only where the core logs them (the filter can't tell an id from any other number), and Flutter logs none.
+  - The header holds only what's quick to read; the graphics cards and audio devices come as lines from a thread, so startup doesn't wait on DXGI or audio enumeration.
+- **Limits.**
+  - **Windows fail-fast crashes** (heap corruption `0xC0000374`, as in D72) end the process without running any handler in it. Such a session shows only as having ended unexpectedly, with no crash line. A crash dump through WER's LocalDumps would be the next step.
+  - **A clean exit** is marked by `NativeWindow.quit` and by a C `atexit` hook. On Windows the hook runs after the library's other threads are gone, so the last second of lines may be missing, though `session ended` is still written. On macOS and Linux, SIGTERM, SIGINT and SIGHUP (logging out, `kill`) write `session ended (signal N)` and are then handed on, so they don't read as crashes.
+  - **The filter's host names:** a dotted name counts as a host only when it's lowercase and ends in a country code or a common top-level domain. Otherwise Dart's `CoreError.notInitialized()` came out as `host-1()`, which the first real run showed. An uppercase or unusual host in another crate's message can still pass through.
+- **Checks.**
+  - **Rust:** 37 log tests in the core: rotation, the cap, folding, the header, a second start, an unwritable folder, a clean end followed by a few lines, the filter and its leak corpus, the panic hook, a real segfault in a child process, a normal exit in a child process, and the export.
+  - **Media:** counters, the machine facts, and a PipeWire share whose source goes away logging `cause="source closed"`.
+  - **Dart:** 4 unit and 7 widget tests.
+  - **Windows-only code** (crash filter, clock, machine facts, capture checkpoints) type-checks and lints from Linux through scratch crates. That caught one moved-value error.
+- **Owed by hand:**
+  - a share on Windows 10 and on Windows 11, with the exported log read back;
+  - a crash on Windows showing its line;
+  - the macOS log folder inside the sandbox.

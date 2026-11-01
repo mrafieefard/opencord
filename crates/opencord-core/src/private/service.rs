@@ -508,7 +508,7 @@ impl PrivateService {
                 if let Err(error) =
                     super::actions::sync_privacy_to_server(&service, &open, &key).await
                 {
-                    tracing::warn!(%error, server_key = %key, "could not send the friend list");
+                    tracing::warn!(%error, server_key = %crate::log::alias::server(&key), "could not send the friend list");
                 }
             });
         }
@@ -533,7 +533,7 @@ impl PrivateService {
                 if let Err(error) =
                     super::actions::sync_privacy_to_server(&service, &open, &key).await
                 {
-                    tracing::warn!(%error, server_key = %key, "could not send the friend list");
+                    tracing::warn!(%error, server_key = %crate::log::alias::server(&key), "could not send the friend list");
                 }
             });
         }
@@ -1293,9 +1293,11 @@ pub(crate) fn parse_hex<const N: usize>(text: &str, message: &str) -> Result<[u8
 pub(super) fn warn_core(what: &'static str, key: &str, error: &CoreError) {
     match error {
         CoreError::Server { code, .. } => {
-            tracing::warn!(server = %key, error = core_kind(error), code = ?code, "{what}");
+            tracing::warn!(server = %crate::log::alias::server(key), error = core_kind(error), code = ?code, "{what}");
         }
-        _ => tracing::warn!(server = %key, error = core_kind(error), "{what}"),
+        _ => {
+            tracing::warn!(server = %crate::log::alias::server(key), error = core_kind(error), "{what}")
+        }
     }
 }
 

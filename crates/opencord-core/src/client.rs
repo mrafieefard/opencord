@@ -1465,8 +1465,12 @@ impl Client {
             }
             self.sync_media();
         }
+        let channel = crate::log::alias::channel(channel_id);
+        tracing::info!(target: "opencord_core::voice", server = %crate::log::alias::server(key), %channel, "voice joining");
         let request = self.voice_update(channel_id);
-        let state = expect_voice_state(self.request(key, request).await?)?;
+        let state = expect_voice_state(self.request(key, request).await?)
+            .inspect_err(|error| tracing::warn!(target: "opencord_core::voice", %channel, %error, "voice join refused"))?;
+        tracing::info!(target: "opencord_core::voice", %channel, "voice joined");
         self.lock_voice().target = Some((key.to_owned(), channel_id));
         self.sync_media();
         Ok(convert::voice_state(state.clone(), &state.session_id))

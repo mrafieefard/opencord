@@ -25,5 +25,6 @@ pub mod idle;
 pub mod player;
 pub mod share_audio;
 pub mod soundboard;
+pub mod system;
 pub mod transport;
 pub mod video;

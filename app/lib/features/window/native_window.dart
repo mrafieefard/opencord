@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/features/window/window_mode.dart';
 
 enum ResizeEdge {
@@ -360,7 +361,12 @@ class ChannelNativeWindow implements NativeWindow {
   Future<void> close() => _invoke<void>('close');
 
   @override
-  Future<void> quit() => _invoke<void>('quit');
+  Future<void> quit() {
+    // While the core's writer still runs (D82); process exit is the
+    // fallback.
+    endSessionLog?.call();
+    return _invoke<void>('quit');
+  }
 
   @override
   Future<void> hide() => _invoke<void>('hide');

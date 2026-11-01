@@ -1,27 +1,27 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     as frb_types
     show Int64List;
 
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/lavalink.dart';
-import 'package:opencord/core/model/music.dart';
-import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/music.dart';
+import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
 import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/storage.dart';
-import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/stream.dart';
+import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/activity_state.dart';
@@ -36,6 +36,7 @@ import 'package:opencord/core/rust/network_mapping.dart';
 import 'package:opencord/core/rust/private_mapping.dart';
 import 'package:opencord/core/rust/read_positions.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 import 'package:opencord/src/rust/api/types.dart' as core;
 
 /// The app's repository over the Rust core (desktop UI plan §12 step 15,
@@ -187,7 +188,11 @@ class RustRepository implements OpencordRepository {
     try {
       _use(saved.secret, saved.displayName);
     } on RepoException catch (error) {
-      developer.log('The saved identity did not load: $error', name: 'core');
+      appLog(
+        'The saved identity did not load: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -210,6 +215,7 @@ class RustRepository implements OpencordRepository {
     try {
       return await call();
     } on core.CoreError catch (error) {
+      _failed(error);
       throw errorFrom(error);
     }
   }
@@ -218,15 +224,32 @@ class RustRepository implements OpencordRepository {
     try {
       return call();
     } on core.CoreError catch (error) {
+      _failed(error);
       throw errorFrom(error);
     }
   }
+
+  /// A core call that failed, with the app's frames that made it, in the
+  /// session log (D82).
+  void _failed(core.CoreError error) => appLog(
+    'a core call failed',
+    name: 'core',
+    error: error,
+    stackTrace: StackTrace.fromString(
+      '${StackTrace.current}'.split('\n').skip(2).take(6).join('\n'),
+    ),
+    level: LogLevel.warn,
+  );
 
   List<ServerSummary> _listServers() {
     try {
       return [for (final server in _core.serversList()) serverFrom(server)];
     } on core.CoreError catch (error) {
-      developer.log('The server list did not load: $error', name: 'core');
+      appLog(
+        'The server list did not load: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
       return const [];
     }
   }
@@ -366,7 +389,11 @@ class RustRepository implements OpencordRepository {
       if (ready.selfUser.avatarHash == _core.ownAvatarHash()) return;
       await _core.uploadAvatar(server);
     } on core.CoreError catch (error) {
-      developer.log('$server kept the old picture: $error', name: 'core');
+      appLog(
+        '$server kept the old picture: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -378,7 +405,11 @@ class RustRepository implements OpencordRepository {
     try {
       await _core.updateProfile(server, name);
     } on core.CoreError catch (error) {
-      developer.log('$server kept the old name: $error', name: 'core');
+      appLog(
+        '$server kept the old name: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -410,7 +441,7 @@ class RustRepository implements OpencordRepository {
       activity = await _recentActivity(server, ready);
     } on Exception catch (error, stack) {
       // The counts are a nicety: without them the server still goes on.
-      developer.log(
+      appLog(
         'Unread counts were not rebuilt',
         name: 'core',
         error: error,
@@ -480,10 +511,18 @@ class RustRepository implements OpencordRepository {
             .fetchMessages(server, channel, null, _recent)
             .timeout(_fetchTimeout);
       } on core.CoreError catch (error) {
-        developer.log('No history for $channel: $error', name: 'core');
+        appLog(
+          'No history for $channel: $error',
+          name: 'core',
+          level: LogLevel.warn,
+        );
         return;
       } on TimeoutException {
-        developer.log('History for $channel timed out', name: 'core');
+        appLog(
+          'History for $channel timed out',
+          name: 'core',
+          level: LogLevel.warn,
+        );
         return;
       }
       if (recent.isEmpty) {
@@ -825,9 +864,11 @@ class RustRepository implements OpencordRepository {
     String linkOrAddress, {
     String? claimToken,
   }) async {
+    appLog('adding a server', name: 'servers');
     final result = addServerFrom(
       await _call(() => _core.serverAdd(linkOrAddress, claimToken)),
     );
+    appLog('adding a server: ${result.runtimeType}', name: 'servers');
     if (result is ServerAdded) _refreshServers();
     return result;
   }
@@ -838,6 +879,7 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> removeServer(String serverKey) async {
+    appLog('removing $serverKey', name: 'servers');
     await _call(() => _core.serverRemove(serverKey));
     _positions.forget(serverKey);
     _snapshots.remove(serverKey);
@@ -1171,7 +1213,11 @@ class RustRepository implements OpencordRepository {
       await _core.updatePresence(server, presenceTo(_presence));
     } on core.CoreError catch (error) {
       // Sent again after the next Ready.
-      developer.log('Presence not sent to $server: $error', name: 'core');
+      appLog(
+        'Presence not sent to $server: $error',
+        name: 'core',
+        level: LogLevel.warn,
+      );
     }
   }
 
@@ -1780,12 +1826,14 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> joinVoice(String serverKey, int channelId) async {
+    appLog('joining voice on $serverKey', name: 'voice');
     await _call(() => _core.voiceJoin(serverKey, channelId));
     _ownVoice = (server: serverKey, channel: channelId);
   }
 
   @override
   Future<void> leaveVoice() async {
+    appLog('leaving voice', name: 'voice');
     _ownVoice = null;
     // Leaving voice turns the camera off and ends the screen share.
     _cameraOff();
@@ -1865,9 +1913,15 @@ class RustRepository implements OpencordRepository {
     bool audio = true,
     String? sourceId,
   }) async {
+    appLog(
+      'starting a screen share: quality ${quality.label}, sound $audio, '
+      '${sourceId == null ? "the system picks" : "source picked in the app"}',
+      name: 'share',
+    );
     final started = await _call(
       () => _core.screenShareStart(_screenRequest(quality, audio), sourceId),
     );
+    appLog('screen share started: ${started.sourceKind.name}', name: 'share');
     _screen = OwnScreenShare(
       key: started.streamKey,
       source: streamSourceFrom(started.sourceKind),
@@ -1951,12 +2005,16 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<void> stopScreenShare() async {
+    appLog('stopping the screen share', name: 'share');
     await _call(_core.screenShareStop);
     _screenOff();
   }
 
   @override
-  Future<void> watchStream(String key) => _call(() => _core.streamWatch(key));
+  Future<void> watchStream(String key) {
+    appLog('watching a stream', name: 'share');
+    return _call(() => _core.streamWatch(key));
+  }
 
   @override
   late final List<DefaultSound> defaultSounds = [
@@ -2065,8 +2123,10 @@ class RustRepository implements OpencordRepository {
       _now(() => _core.soundboardCloseDraft(draftId));
 
   @override
-  Future<void> unwatchStream(String key) =>
-      _call(() => _core.streamUnwatch(key));
+  Future<void> unwatchStream(String key) {
+    appLog('no longer watching a stream', name: 'share');
+    return _call(() => _core.streamUnwatch(key));
+  }
 
   /// Media's news as the app's; screens wait for V6.
   RepoEvent? _mediaEvent(core.MediaEvent event) => switch (event) {
@@ -2270,6 +2330,10 @@ class RustRepository implements OpencordRepository {
     if (muted != null) _now(() => _core.voiceSetSelfMute(muted));
     if (deafened != null) _now(() => _core.voiceSetSelfDeaf(deafened));
     if (camera == null || camera == _cameraOn) return;
+    appLog(
+      camera ? 'turning the camera on' : 'turning the camera off',
+      name: 'voice',
+    );
     if (!camera) {
       _now(_core.cameraStop);
       _cameraOff();

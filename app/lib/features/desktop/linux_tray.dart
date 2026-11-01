@@ -1,15 +1,16 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/features/desktop/dbus_menu.dart';
 import 'package:opencord/features/desktop/status_notifier_item.dart';
 import 'package:opencord/features/desktop/tray.dart';
 import 'package:opencord/features/desktop/tray_icon.dart';
 import 'package:opencord/features/desktop/tray_menu.dart';
+import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 
 const _watcher = 'org.kde.StatusNotifierWatcher';
 
@@ -38,7 +39,11 @@ class LinuxTray implements TrayService {
     try {
       client = DBusClient.session();
     } on Exception catch (error) {
-      developer.log('No session bus for the tray: $error', name: 'tray');
+      appLog(
+        'No session bus for the tray: $error',
+        name: 'tray',
+        level: LogLevel.warn,
+      );
       return null;
     }
     return startOn(client);
@@ -56,7 +61,11 @@ class LinuxTray implements TrayService {
       await tray._start();
       return tray;
     } on Exception catch (error) {
-      developer.log('The tray could not start: $error', name: 'tray');
+      appLog(
+        'The tray could not start: $error',
+        name: 'tray',
+        level: LogLevel.warn,
+      );
       await client.close();
       return null;
     }
@@ -95,11 +104,19 @@ class LinuxTray implements TrayService {
       _available = true;
     } on TimeoutException {
       // A hung panel: no tray to hide into for now. A late answer counts.
-      developer.log('The tray watcher did not answer', name: 'tray');
+      appLog(
+        'The tray watcher did not answer',
+        name: 'tray',
+        level: LogLevel.warn,
+      );
       _available = false;
       unawaited(call.then((_) => _available = true, onError: (Object _) {}));
     } on DBusMethodResponseException catch (error) {
-      developer.log('The tray watcher refused the icon: $error', name: 'tray');
+      appLog(
+        'The tray watcher refused the icon: $error',
+        name: 'tray',
+        level: LogLevel.warn,
+      );
       _available = false;
     }
   }
