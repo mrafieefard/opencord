@@ -137,7 +137,7 @@ Shared rules for all platforms:
 - **States:** normal, maximized, tiled/snapped, fullscreen. Maximized and tiled windows have no rounded corners and no resize borders; fullscreen hides the window controls and the macOS traffic-light spacer.
 - **Minimum window size:** 940 × 560. Restore the last size, position, monitor and maximized state on launch (and fall back to centered 1280 × 800 on the primary monitor if the saved position is off-screen).
 - Window controls are drawn in **monochrome** using the app tokens (they follow the dark/light theme), except the macOS traffic lights, which stay native.
-- A setting **Appearance → Window frame: Auto · Custom · System** lets users fall back to the native title bar if the custom one misbehaves on their setup. "Auto" applies the per-platform rules below.
+- The app draws this title bar on **every platform and desktop**; it never uses the system title bar, and there is no setting to bring one back (D83).
 
 #### Windows (Windows 10/11 style)
 - Frameless window that keeps native behavior: Aero Snap, **Windows 11 snap layouts** on hovering the maximize button, native resize borders, DWM shadow and Windows 11 rounded corners. This needs custom handling in the Windows runner (`WM_NCCALCSIZE` to remove the frame, `WM_NCHITTEST` returning `HTCAPTION` for drag regions and `HTMAXBUTTON` over the maximize button so snap layouts appear). Use a window-management package only if it supports all of this; otherwise write it in the runner.
@@ -148,13 +148,7 @@ Shared rules for all platforms:
 - Top 1 px of the window stays a resize area when not maximized.
 
 #### Linux (GNOME / libadwaita header bar style)
-Linux desktops differ a lot, so "Auto" picks a mode at startup from `XDG_CURRENT_DESKTOP` and `XDG_SESSION_TYPE`:
-
-| Desktop | Auto mode |
-|---|---|
-| GNOME, Budgie, Cinnamon, Pantheon, XFCE, MATE and unknown floating desktops | **Custom header bar** (client-side decorations, GNOME style) |
-| KDE Plasma | **System** decorations (server-side, Breeze), because KDE users expect them and KWin draws them well |
-| Tiling compositors: **Hyprland**, Sway, i3, river, niri, bspwm, dwm | **No window controls and no decorations.** The compositor manages the window; the headers are just headers. Request server-side/no decorations via xdg-decoration where available |
+Every desktop, KDE Plasma and tiling compositors included, gets the **custom header bar** (client-side decorations, GNOME style). A tiled window has no rounded corners, shadow or resize handles, as for any tiled window below.
 
 Custom header bar details (GNOME style):
 - Window controls are **round 24 px buttons** with 18 px hit-padding, 6 px apart, vertically centered in the 60 px header row. Icons: GNOME-style minimize (line), maximize (square), restore (two squares), close (×), 16 px, `text` color.
@@ -170,9 +164,6 @@ Custom header bar details (GNOME style):
 - Fullscreen: traffic lights hide automatically; remove the 52 px spacer.
 - Keep the native window shadow and rounded corners; no custom resize handling.
 - Respect the system "double-click title bar" action and native full-screen and tiling (green button menu).
-
-#### Fallback: System frame
-When "System" is selected (or Auto chooses it), the native title bar and decorations are used, the headers stay as they are, and the app draws no window controls.
 
 ---
 
@@ -416,7 +407,7 @@ One dialog shell for both user and server settings, styled like Telegram's setti
 ### 8.1 User settings
 - **My profile:** avatar (upload later), display name, presence selector as choice cards.
 - **Identity & keys:** public key fingerprint (mono, grouped), Copy public key, Export identity backup, Import identity, plain warning text about keeping the backup private.
-- **Appearance:** theme choice cards **System · Dark · Light** (each card shows a miniature of the layout in that theme), message density (Comfortable / Compact — compact removes bubbles and lays messages out as Discord does: the avatar, name, role and time over a group's first message, the time beside later ones while hovered, the hovered row highlighted; still monochrome), font size slider (12–18), reduce motion switch, **window frame** (Auto · Custom · System, §3.1; applies after restart if the platform needs it).
+- **Appearance:** theme choice cards **System · Dark · Light** (each card shows a miniature of the layout in that theme), message density (Comfortable / Compact — compact removes bubbles and lays messages out as Discord does: the avatar, name, role and time over a group's first message, the time beside later ones while hovered, the hovered row highlighted; still monochrome), font size slider (12–18), reduce motion switch.
 - **Windows & behavior** (desktop only): close button minimizes to tray (on by default on Windows and Linux, off on macOS), start minimized, launch at login, restore last window position.
 - **Voice & audio**, **Video**, **Screen share**, **Sounds** and **Voice diagnostics:** full specification in §17.
 - **Notifications:** desktop notifications, mentions only, message sound, flash taskbar.
@@ -513,10 +504,9 @@ Build this first so the whole UI can be reviewed before the Rust core exists:
 - Every action reachable by mouse is also reachable by keyboard or context menu.
 - Golden tests for: server rail item states, channel row states, bubble variants (incoming/own, first/middle/last, reply, reactions, code block, edited, pending), presence shapes, settings section, in both themes.
 - **Window chrome checklist** passes on each platform:
-  - Linux: Hyprland (no controls, content fills the tile), GNOME (round controls following the button-layout setting, rounded corners, drag, double-click maximize, resize from all edges), KDE (system frame).
+  - Linux: GNOME (round controls following the button-layout setting, rounded corners, drag, double-click maximize, resize from all edges), KDE and Hyprland (the same header bar; a tiled window has square corners and no shadow).
   - Windows 11: caption buttons look native, snap layouts appear on maximize hover, Aero Snap and resize work, close hover is inverted.
   - macOS: traffic lights sit above the rail, the header row drags the window, fullscreen hides the spacer.
-  - Switching Window frame to System works on all three.
 - Window size, position and maximized state survive a restart; a saved position on a disconnected monitor falls back to the primary monitor.
 - **Voice controls checklist** (on mock data until Phase 2): every control in §17 exists and is reachable; per-user volume and local mute persist across restarts and across servers for the same identity; the four mute states in §17.6 are visually distinct in both themes; global push-to-talk works on Hyprland through the GlobalShortcuts portal, on GNOME, on Windows and on macOS (after the permission prompt).
 - `flutter analyze` is clean and widget tests pass.

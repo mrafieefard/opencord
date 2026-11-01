@@ -11,7 +11,6 @@ import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
-import 'package:opencord/features/window/window_startup.dart';
 
 /// Client settings changed in the settings dialog and not saved yet: as in
 /// Discord, they wait for the save bar. Null: unchanged.
@@ -117,12 +116,7 @@ class ClientSettingsDraftNotifier extends Notifier<ClientSettingsDraft> {
   Future<void> save() async {
     final draft = state;
     if (draft.app case final app?) {
-      final frameChanged =
-          app.windowFrame != ref.read(appSettingsProvider).windowFrame;
       ref.read(appSettingsProvider.notifier).update((_) => app);
-      if (frameChanged) {
-        await ref.read(frameChoiceSaverProvider)(app.windowFrame);
-      }
     }
     if (draft.audio case final audio?) {
       ref.read(audioSettingsProvider.notifier).update((_) => audio);

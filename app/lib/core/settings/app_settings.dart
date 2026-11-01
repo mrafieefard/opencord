@@ -9,9 +9,6 @@ enum ThemePreference { system, dark, light }
 
 enum MessageDensity { comfortable, compact }
 
-/// §3.1: Auto picks per platform and desktop; System uses the native frame.
-enum WindowFramePreference { auto, custom, system }
-
 /// User settings that are not about a particular server (§8.1).
 @immutable
 class AppSettings {
@@ -20,7 +17,6 @@ class AppSettings {
     required this.fontSize,
     required this.reduceMotion,
     required this.density,
-    required this.windowFrame,
     required this.closeToTray,
     required this.startMinimized,
     required this.launchAtLogin,
@@ -36,7 +32,6 @@ class AppSettings {
     fontSize: defaultFontSize,
     reduceMotion: false,
     density: MessageDensity.comfortable,
-    windowFrame: WindowFramePreference.auto,
     closeToTray: platform != TargetPlatform.macOS,
     startMinimized: false,
     launchAtLogin: false,
@@ -72,11 +67,6 @@ class AppSettings {
           : defaults.fontSize,
       reduceMotion: pick('reduceMotion', defaults.reduceMotion),
       density: pickEnum('density', MessageDensity.values, defaults.density),
-      windowFrame: pickEnum(
-        'windowFrame',
-        WindowFramePreference.values,
-        defaults.windowFrame,
-      ),
       closeToTray: pick('closeToTray', defaults.closeToTray),
       startMinimized: pick('startMinimized', defaults.startMinimized),
       launchAtLogin: pick('launchAtLogin', defaults.launchAtLogin),
@@ -107,7 +97,6 @@ class AppSettings {
   final double fontSize;
   final bool reduceMotion;
   final MessageDensity density;
-  final WindowFramePreference windowFrame;
   final bool closeToTray;
   final bool startMinimized;
   final bool launchAtLogin;
@@ -125,7 +114,6 @@ class AppSettings {
     double? fontSize,
     bool? reduceMotion,
     MessageDensity? density,
-    WindowFramePreference? windowFrame,
     bool? closeToTray,
     bool? startMinimized,
     bool? launchAtLogin,
@@ -140,7 +128,6 @@ class AppSettings {
       fontSize: clampFontSize(fontSize ?? this.fontSize),
       reduceMotion: reduceMotion ?? this.reduceMotion,
       density: density ?? this.density,
-      windowFrame: windowFrame ?? this.windowFrame,
       closeToTray: closeToTray ?? this.closeToTray,
       startMinimized: startMinimized ?? this.startMinimized,
       launchAtLogin: launchAtLogin ?? this.launchAtLogin,
@@ -158,7 +145,6 @@ class AppSettings {
     'fontSize': fontSize,
     'reduceMotion': reduceMotion,
     'density': density.name,
-    'windowFrame': windowFrame.name,
     'closeToTray': closeToTray,
     'startMinimized': startMinimized,
     'launchAtLogin': launchAtLogin,
