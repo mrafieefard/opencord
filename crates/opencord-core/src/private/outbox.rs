@@ -27,6 +27,7 @@ use super::service::{
     MESSAGE_BODY_LABEL, MessageRow, Open, PrivateService, now_ms, open_text, warn_core,
 };
 use super::sessions::PeerSessions;
+use super::trust;
 use crate::api::types::{CoreError, ErrorCode, PrivateEvent, PrivateMessage};
 
 /// The label a message's saved request is sealed with (its id is the row).
@@ -46,6 +47,8 @@ pub(super) const DIVIDER: i64 = 1;
 pub(super) const MOVED: i64 = 2;
 pub(super) const UNDECRYPTABLE: i64 = 3;
 pub(super) const KEYS_CHANGED: i64 = 4;
+pub(super) const NEW_DEVICE: i64 = 5;
+pub(super) const UNACCEPTED: i64 = 6;
 
 #[derive(Debug, Clone, Default)]
 pub struct SendOptions {
@@ -219,6 +222,9 @@ pub async fn send_timed(
         };
     };
     let content = checked_content(&text.content)?;
+    // Nothing is stored when none of their devices can get it.
+    let this_device = open.device().lock().await.id();
+    devices(service, &open, &relay, &peer, this_device, None).await?;
     let has_any: bool =
         sqlx::query_scalar::<_, i64>("SELECT 1 FROM messages WHERE peer = $1 LIMIT 1")
             .bind(peer.as_slice())
@@ -719,8 +725,8 @@ async fn devices(
     let cached = cache
         .get(&relay.key, relay.recipient_id, now)
         .zip(cache.get(&relay.key, relay.self_id, now));
-    let (theirs, mine) = match cached {
-        Some(lists) => lists,
+    let (theirs, mine, fresh) = match cached {
+        Some((theirs, mine)) => (theirs, mine, Vec::new()),
         None => {
             let response = service
                 .request(
@@ -739,29 +745,33 @@ async fn devices(
             };
             let theirs = verified(&relay.key, listed(&lists, relay.recipient_id), None);
             let mine = verified(&relay.key, listed(&lists, relay.self_id), Some(this_device));
+            let fresh = unknown(open, peer, &theirs).await?;
             remember(open, peer, &theirs).await?;
             remember(open, &me, &mine).await?;
             own_devices::observe(service, open, &mine).await?;
             cache.put(&relay.key, relay.recipient_id, theirs.clone(), now);
             cache.put(&relay.key, relay.self_id, mine.clone(), now);
-            (theirs, mine)
+            (theirs, mine, fresh)
         }
     };
-    // To oneself, the recipient's devices are one's own.
-    let theirs = if relay.recipient_id == relay.self_id {
-        Vec::new()
-    } else {
-        theirs
-    };
-    let chat_key = open.chat_key().lock().await.public();
-    let mut targets: Vec<Target> = theirs
-        .into_iter()
-        .map(|device| Target {
+    let mut targets = Vec::new();
+    let mut withheld = Vec::new();
+    // To oneself, the recipient's devices are one's own. Others' devices
+    // get it only under the chat key pinned for them (design 2026-11-01
+    // §8.1).
+    if relay.recipient_id != relay.self_id {
+        let sorted = trust::observe(service, open, peer, &theirs, &fresh).await?;
+        if sorted.trusted.is_empty() {
+            return Err(keys_not_accepted());
+        }
+        let theirs = |device| Target {
             user_id: relay.recipient_id,
             device,
-        })
-        .collect();
-    let mut withheld = Vec::new();
+        };
+        targets.extend(sorted.trusted.into_iter().map(theirs));
+        withheld.extend(sorted.held.into_iter().map(theirs));
+    }
+    let chat_key = open.chat_key().lock().await.public();
     for device in mine {
         let wanted = match only {
             Some(only) => device.device_id == only,
@@ -791,6 +801,8 @@ pub(super) async fn share_chat_key(
 ) -> Result<(), CoreError> {
     let members = service.members();
     let self_id = members.self_id(server_key).ok_or(CoreError::NotConnected)?;
+    // A list cached before that device signed in would leave it out.
+    service.device_cache().forget(server_key, self_id);
     let relay = Relay {
         key: server_key.to_owned(),
         server_id: members
@@ -830,6 +842,38 @@ pub(super) async fn share_chat_key(
     match outcome {
         Outcome::Sent(_) => Ok(()),
         Outcome::Unsent(error) | Outcome::Failed(error) => Err(error),
+    }
+}
+
+/// The listed devices of `owner` this device hadn't seen before.
+async fn unknown(
+    open: &Open,
+    owner: &[u8; KEY_LEN],
+    listed: &[VerifiedDevice],
+) -> Result<Vec<[u8; DEVICE_ID_LEN]>, PrivateError> {
+    let mut conn = open.store().pool().acquire().await?;
+    let mut fresh = Vec::new();
+    for device in listed {
+        let known: Option<i64> = sqlx::query_scalar(
+            "SELECT 1 FROM peer_devices WHERE public_key = $1 AND device_id = $2",
+        )
+        .bind(owner.as_slice())
+        .bind(device.device_id.as_slice())
+        .fetch_optional(&mut *conn)
+        .await?;
+        if known.is_none() {
+            fresh.push(device.device_id);
+        }
+    }
+    Ok(fresh)
+}
+
+fn keys_not_accepted() -> CoreError {
+    CoreError::Server {
+        code: ErrorCode::KeysNotAccepted,
+        message: "Their keys changed. Compare the words, or use the new keys, to write to them."
+            .to_owned(),
+        retry_after_ms: None,
     }
 }
 

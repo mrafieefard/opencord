@@ -11345,22 +11345,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PrivateContact dco_decode_private_contact(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 13)
-      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return PrivateContact(
       peer: dco_decode_String(arr[0]),
-      fingerprint: dco_decode_String(arr[1]),
-      name: dco_decode_opt_String(arr[2]),
-      friend: dco_decode_friend_status(arr[3]),
-      requestSpam: dco_decode_bool(arr[4]),
-      blocked: dco_decode_bool(arr[5]),
-      conversation: dco_decode_conversation_status(arr[6]),
-      relayServerKey: dco_decode_opt_String(arr[7]),
-      lastActivityMs: dco_decode_opt_box_autoadd_i_64(arr[8]),
-      unread: dco_decode_u_32(arr[9]),
-      muted: dco_decode_bool(arr[10]),
-      hidden: dco_decode_bool(arr[11]),
-      preview: dco_decode_opt_String(arr[12]),
+      name: dco_decode_opt_String(arr[1]),
+      friend: dco_decode_friend_status(arr[2]),
+      requestSpam: dco_decode_bool(arr[3]),
+      blocked: dco_decode_bool(arr[4]),
+      conversation: dco_decode_conversation_status(arr[5]),
+      relayServerKey: dco_decode_opt_String(arr[6]),
+      lastActivityMs: dco_decode_opt_box_autoadd_i_64(arr[7]),
+      unread: dco_decode_u_32(arr[8]),
+      muted: dco_decode_bool(arr[9]),
+      hidden: dco_decode_bool(arr[10]),
+      preview: dco_decode_opt_String(arr[11]),
+      verification: dco_decode_private_verification(arr[12]),
+      newKeys: dco_decode_bool(arr[13]),
+      reachable: dco_decode_bool(arr[14]),
     );
   }
 
@@ -11458,6 +11460,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       friendsOnly: dco_decode_bool(arr[1]),
       allowedByConfig: dco_decode_bool(arr[2]),
     );
+  }
+
+  @protected
+  PrivateVerification dco_decode_private_verification(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PrivateVerification.values[raw as int];
   }
 
   @protected
@@ -15779,7 +15787,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PrivateContact sse_decode_private_contact(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_peer = sse_decode_String(deserializer);
-    var var_fingerprint = sse_decode_String(deserializer);
     var var_name = sse_decode_opt_String(deserializer);
     var var_friend = sse_decode_friend_status(deserializer);
     var var_requestSpam = sse_decode_bool(deserializer);
@@ -15791,9 +15798,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_muted = sse_decode_bool(deserializer);
     var var_hidden = sse_decode_bool(deserializer);
     var var_preview = sse_decode_opt_String(deserializer);
+    var var_verification = sse_decode_private_verification(deserializer);
+    var var_newKeys = sse_decode_bool(deserializer);
+    var var_reachable = sse_decode_bool(deserializer);
     return PrivateContact(
       peer: var_peer,
-      fingerprint: var_fingerprint,
       name: var_name,
       friend: var_friend,
       requestSpam: var_requestSpam,
@@ -15805,6 +15814,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       muted: var_muted,
       hidden: var_hidden,
       preview: var_preview,
+      verification: var_verification,
+      newKeys: var_newKeys,
+      reachable: var_reachable,
     );
   }
 
@@ -15918,6 +15930,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       friendsOnly: var_friendsOnly,
       allowedByConfig: var_allowedByConfig,
     );
+  }
+
+  @protected
+  PrivateVerification sse_decode_private_verification(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return PrivateVerification.values[inner];
   }
 
   @protected
@@ -19984,7 +20005,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.peer, serializer);
-    sse_encode_String(self.fingerprint, serializer);
     sse_encode_opt_String(self.name, serializer);
     sse_encode_friend_status(self.friend, serializer);
     sse_encode_bool(self.requestSpam, serializer);
@@ -19996,6 +20016,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.muted, serializer);
     sse_encode_bool(self.hidden, serializer);
     sse_encode_opt_String(self.preview, serializer);
+    sse_encode_private_verification(self.verification, serializer);
+    sse_encode_bool(self.newKeys, serializer);
+    sse_encode_bool(self.reachable, serializer);
   }
 
   @protected
@@ -20092,6 +20115,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.enabled, serializer);
     sse_encode_bool(self.friendsOnly, serializer);
     sse_encode_bool(self.allowedByConfig, serializer);
+  }
+
+  @protected
+  void sse_encode_private_verification(
+    PrivateVerification self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

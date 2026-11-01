@@ -1009,6 +1009,9 @@ pub enum ErrorCode {
     DeviceListChanged,
     PrivateMessagesUnavailable,
     FriendsOnly,
+    /// None of their devices has a chat key this device accepted (design
+    /// 2026-11-01 §8.2). Never from a server.
+    KeysNotAccepted,
     Unknown,
 }
 
@@ -2150,6 +2153,20 @@ pub enum PrivateMessageKind {
     /// "*Name*'s keys changed." or, outgoing, "Your keys changed." (design
     /// 2026-11-01 §8.2).
     KeysChanged,
+    /// "*Name* signed in on a new device." (§8.2).
+    NewDevice,
+    /// A message from a device whose chat key this device hasn't accepted;
+    /// it isn't shown (§8.1).
+    UnacceptedKeys,
+}
+
+/// Whether two people compared their words (design 2026-11-01 §9.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrivateVerification {
+    Unverified,
+    Verified,
+    /// They said the words didn't match.
+    Mismatch,
 }
 
 /// Another device signed in as this person, with a chat key of its own
@@ -2181,7 +2198,6 @@ pub enum PrivateSendState {
 pub struct PrivateContact {
     /// Their public key, lowercase hex.
     pub peer: String,
-    pub fingerprint: String,
     /// The name last seen.
     pub name: Option<String>,
     pub friend: FriendStatus,
@@ -2198,6 +2214,12 @@ pub struct PrivateContact {
     pub hidden: bool,
     /// The first line of the latest text, at most 100 characters.
     pub preview: Option<String>,
+    pub verification: PrivateVerification,
+    /// A device of theirs is signed by a chat key this device hasn't
+    /// accepted (design 2026-11-01 §8.2).
+    pub new_keys: bool,
+    /// At the last look, a device of theirs had the accepted chat key.
+    pub reachable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

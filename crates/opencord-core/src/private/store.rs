@@ -463,6 +463,7 @@ mod tests {
             tables,
             [
                 "chat_key",
+                "contact_keys",
                 "contacts",
                 "device",
                 "messages",

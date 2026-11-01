@@ -857,6 +857,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PrivateSettings dco_decode_private_settings(dynamic raw);
 
   @protected
+  PrivateVerification dco_decode_private_verification(dynamic raw);
+
+  @protected
   PublicAddress dco_decode_public_address(dynamic raw);
 
   @protected
@@ -2059,6 +2062,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PrivateSettings sse_decode_private_settings(SseDeserializer deserializer);
+
+  @protected
+  PrivateVerification sse_decode_private_verification(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PublicAddress sse_decode_public_address(SseDeserializer deserializer);
@@ -3586,6 +3594,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_private_settings(
     PrivateSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_private_verification(
+    PrivateVerification self,
     SseSerializer serializer,
   );
 

@@ -30,9 +30,9 @@ use super::outbox::{self, DeviceCache};
 use super::store::PrivateStore;
 use crate::api::types::{
     ConversationStatus, CoreError, FriendStatus, PrivateContact, PrivateEvent, PrivateMessage,
-    PrivateMessageKind, PrivateOpened, PrivateSendState,
+    PrivateMessageKind, PrivateOpened, PrivateSendState, PrivateVerification,
 };
-use crate::identity::{self, Identity};
+use crate::identity::Identity;
 
 /// Acknowledgements waiting for one server are sent once this many wait…
 const ACK_BATCH: usize = 100;
@@ -402,9 +402,10 @@ impl PrivateService {
             }
             _ => None,
         };
+        let keys = super::trust::load(conn, &contact.public_key).await?;
+        let mine = open.chat_key.lock().await.public();
         Ok(PrivateContact {
             peer: hex::encode(contact.public_key),
-            fingerprint: identity::public_key_fingerprint(&contact.public_key),
             name: contact.name.clone(),
             friend: match contact.friend_state {
                 FriendState::None => FriendStatus::None,
@@ -428,6 +429,13 @@ impl PrivateService {
             muted: contact.muted,
             hidden: contact.hidden,
             preview,
+            verification: keys
+                .as_ref()
+                .map_or(PrivateVerification::Unverified, |keys| {
+                    keys.verification(&mine)
+                }),
+            new_keys: keys.as_ref().is_some_and(|keys| keys.candidate.is_some()),
+            reachable: keys.as_ref().is_none_or(|keys| keys.reachable),
         })
     }
 
@@ -451,6 +459,8 @@ impl PrivateService {
                 2 => PrivateMessageKind::Moved,
                 3 => PrivateMessageKind::Undecryptable,
                 4 => PrivateMessageKind::KeysChanged,
+                5 => PrivateMessageKind::NewDevice,
+                6 => PrivateMessageKind::UnacceptedKeys,
                 _ => {
                     return Err(PrivateError::Storage(
                         "a stored message has an unknown kind".to_owned(),
@@ -1063,6 +1073,21 @@ impl PrivateService {
     ) -> Result<(), PrivateError> {
         let mut conn = open.store.pool().acquire().await?;
         let view = self.contact_view(open, &mut conn, contact).await?;
+        self.emit(PrivateEvent::ContactChanged(view));
+        Ok(())
+    }
+
+    /// As `emit_contact`, for the contact with this key, when there is one.
+    pub(super) async fn emit_contact_of(
+        &self,
+        open: &Open,
+        peer: &[u8; 32],
+    ) -> Result<(), PrivateError> {
+        let mut conn = open.store.pool().acquire().await?;
+        let Some(contact) = contacts::load(&mut conn, open.store.sealer(), *peer).await? else {
+            return Ok(());
+        };
+        let view = self.contact_view(open, &mut conn, &contact).await?;
         self.emit(PrivateEvent::ContactChanged(view));
         Ok(())
     }

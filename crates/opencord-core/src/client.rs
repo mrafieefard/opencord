@@ -49,6 +49,7 @@ use crate::private::actions;
 use crate::private::outbox::{self, SendOptions};
 use crate::private::own_devices;
 use crate::private::service::{PrivateService, Transport, parse_hex};
+use crate::private::trust;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
@@ -667,6 +668,32 @@ impl Client {
         matched: bool,
     ) -> Result<(), CoreError> {
         own_devices::accept(&self.inner.private, device_id, matched).await
+    }
+
+    /// The 16 words for the chat with `peer`; with `new_keys`, for the
+    /// other chat key their devices offer (design 2026-11-01 §9).
+    pub async fn private_words(
+        &self,
+        peer: &str,
+        new_keys: bool,
+    ) -> Result<Vec<String>, CoreError> {
+        trust::chat_words(&self.inner.private, peer, new_keys).await
+    }
+
+    /// They match (`matched`) or They don't match, for the chat with
+    /// `peer`; on the new keys, a match pins them.
+    pub async fn private_verify(
+        &self,
+        peer: &str,
+        new_keys: bool,
+        matched: bool,
+    ) -> Result<(), CoreError> {
+        trust::verify(&self.inner.private, peer, new_keys, matched).await
+    }
+
+    /// Use new keys anyway: `peer`'s other chat key is pinned, unverified.
+    pub async fn private_accept_new_keys(&self, peer: &str) -> Result<(), CoreError> {
+        trust::accept_new_keys(&self.inner.private, peer).await
     }
 
     /// Not mine: `device_id` is hidden here and never sent anything.

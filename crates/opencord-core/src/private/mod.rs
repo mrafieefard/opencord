@@ -15,6 +15,7 @@ pub mod seal;
 pub mod service;
 pub mod sessions;
 pub mod store;
+pub mod trust;
 
 use crate::api::types::CoreError;
 

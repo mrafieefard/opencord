@@ -10019,7 +10019,8 @@ impl SseDecode for crate::api::types::ErrorCode {
             50 => crate::api::types::ErrorCode::DeviceListChanged,
             51 => crate::api::types::ErrorCode::PrivateMessagesUnavailable,
             52 => crate::api::types::ErrorCode::FriendsOnly,
-            53 => crate::api::types::ErrorCode::Unknown,
+            53 => crate::api::types::ErrorCode::KeysNotAccepted,
+            54 => crate::api::types::ErrorCode::Unknown,
             _ => unreachable!("Invalid variant for ErrorCode: {}", inner),
         };
     }
@@ -12229,7 +12230,6 @@ impl SseDecode for crate::api::types::PrivateContact {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_peer = <String>::sse_decode(deserializer);
-        let mut var_fingerprint = <String>::sse_decode(deserializer);
         let mut var_name = <Option<String>>::sse_decode(deserializer);
         let mut var_friend = <crate::api::types::FriendStatus>::sse_decode(deserializer);
         let mut var_requestSpam = <bool>::sse_decode(deserializer);
@@ -12242,9 +12242,12 @@ impl SseDecode for crate::api::types::PrivateContact {
         let mut var_muted = <bool>::sse_decode(deserializer);
         let mut var_hidden = <bool>::sse_decode(deserializer);
         let mut var_preview = <Option<String>>::sse_decode(deserializer);
+        let mut var_verification =
+            <crate::api::types::PrivateVerification>::sse_decode(deserializer);
+        let mut var_newKeys = <bool>::sse_decode(deserializer);
+        let mut var_reachable = <bool>::sse_decode(deserializer);
         return crate::api::types::PrivateContact {
             peer: var_peer,
-            fingerprint: var_fingerprint,
             name: var_name,
             friend: var_friend,
             request_spam: var_requestSpam,
@@ -12256,6 +12259,9 @@ impl SseDecode for crate::api::types::PrivateContact {
             muted: var_muted,
             hidden: var_hidden,
             preview: var_preview,
+            verification: var_verification,
+            new_keys: var_newKeys,
+            reachable: var_reachable,
         };
     }
 }
@@ -12352,6 +12358,8 @@ impl SseDecode for crate::api::types::PrivateMessageKind {
             2 => crate::api::types::PrivateMessageKind::Moved,
             3 => crate::api::types::PrivateMessageKind::Undecryptable,
             4 => crate::api::types::PrivateMessageKind::KeysChanged,
+            5 => crate::api::types::PrivateMessageKind::NewDevice,
+            6 => crate::api::types::PrivateMessageKind::UnacceptedKeys,
             _ => unreachable!("Invalid variant for PrivateMessageKind: {}", inner),
         };
     }
@@ -12393,6 +12401,19 @@ impl SseDecode for crate::api::types::PrivateSettings {
             enabled: var_enabled,
             friends_only: var_friendsOnly,
             allowed_by_config: var_allowedByConfig,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::PrivateVerification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::PrivateVerification::Unverified,
+            1 => crate::api::types::PrivateVerification::Verified,
+            2 => crate::api::types::PrivateVerification::Mismatch,
+            _ => unreachable!("Invalid variant for PrivateVerification: {}", inner),
         };
     }
 }
@@ -15343,7 +15364,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ErrorCode {
             Self::DeviceListChanged => 50.into_dart(),
             Self::PrivateMessagesUnavailable => 51.into_dart(),
             Self::FriendsOnly => 52.into_dart(),
-            Self::Unknown => 53.into_dart(),
+            Self::KeysNotAccepted => 53.into_dart(),
+            Self::Unknown => 54.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -16953,7 +16975,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::PrivateContact {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.peer.into_into_dart().into_dart(),
-            self.fingerprint.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
             self.friend.into_into_dart().into_dart(),
             self.request_spam.into_into_dart().into_dart(),
@@ -16965,6 +16986,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::PrivateContact {
             self.muted.into_into_dart().into_dart(),
             self.hidden.into_into_dart().into_dart(),
             self.preview.into_into_dart().into_dart(),
+            self.verification.into_into_dart().into_dart(),
+            self.new_keys.into_into_dart().into_dart(),
+            self.reachable.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17071,6 +17095,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::PrivateMessageKind {
             Self::Moved => 2.into_dart(),
             Self::Undecryptable => 3.into_dart(),
             Self::KeysChanged => 4.into_dart(),
+            Self::NewDevice => 5.into_dart(),
+            Self::UnacceptedKeys => 6.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -17149,6 +17175,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PrivateSettings>
     for crate::api::types::PrivateSettings
 {
     fn into_into_dart(self) -> crate::api::types::PrivateSettings {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PrivateVerification {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Unverified => 0.into_dart(),
+            Self::Verified => 1.into_dart(),
+            Self::Mismatch => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::PrivateVerification
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PrivateVerification>
+    for crate::api::types::PrivateVerification
+{
+    fn into_into_dart(self) -> crate::api::types::PrivateVerification {
         self
     }
 }
@@ -19492,7 +19540,8 @@ impl SseEncode for crate::api::types::ErrorCode {
                 crate::api::types::ErrorCode::DeviceListChanged => 50,
                 crate::api::types::ErrorCode::PrivateMessagesUnavailable => 51,
                 crate::api::types::ErrorCode::FriendsOnly => 52,
-                crate::api::types::ErrorCode::Unknown => 53,
+                crate::api::types::ErrorCode::KeysNotAccepted => 53,
+                crate::api::types::ErrorCode::Unknown => 54,
                 _ => {
                     unimplemented!("");
                 }
@@ -21300,7 +21349,6 @@ impl SseEncode for crate::api::types::PrivateContact {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.peer, serializer);
-        <String>::sse_encode(self.fingerprint, serializer);
         <Option<String>>::sse_encode(self.name, serializer);
         <crate::api::types::FriendStatus>::sse_encode(self.friend, serializer);
         <bool>::sse_encode(self.request_spam, serializer);
@@ -21312,6 +21360,9 @@ impl SseEncode for crate::api::types::PrivateContact {
         <bool>::sse_encode(self.muted, serializer);
         <bool>::sse_encode(self.hidden, serializer);
         <Option<String>>::sse_encode(self.preview, serializer);
+        <crate::api::types::PrivateVerification>::sse_encode(self.verification, serializer);
+        <bool>::sse_encode(self.new_keys, serializer);
+        <bool>::sse_encode(self.reachable, serializer);
     }
 }
 
@@ -21386,6 +21437,8 @@ impl SseEncode for crate::api::types::PrivateMessageKind {
                 crate::api::types::PrivateMessageKind::Moved => 2,
                 crate::api::types::PrivateMessageKind::Undecryptable => 3,
                 crate::api::types::PrivateMessageKind::KeysChanged => 4,
+                crate::api::types::PrivateMessageKind::NewDevice => 5,
+                crate::api::types::PrivateMessageKind::UnacceptedKeys => 6,
                 _ => {
                     unimplemented!("");
                 }
@@ -21427,6 +21480,23 @@ impl SseEncode for crate::api::types::PrivateSettings {
         <bool>::sse_encode(self.enabled, serializer);
         <bool>::sse_encode(self.friends_only, serializer);
         <bool>::sse_encode(self.allowed_by_config, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::PrivateVerification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::PrivateVerification::Unverified => 0,
+                crate::api::types::PrivateVerification::Verified => 1,
+                crate::api::types::PrivateVerification::Mismatch => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 

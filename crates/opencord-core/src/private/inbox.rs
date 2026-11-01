@@ -18,7 +18,9 @@ use sqlx::SqliteConnection;
 use super::PrivateError;
 use super::contacts::{self, Contact, Conversation, IncomingMessage, PrivacySettings};
 use super::device::Device;
-use super::outbox::{self, DIVIDER, MOVED, RECEIVED, SENT, TEXT, UNDECRYPTABLE, VerifiedDevice};
+use super::outbox::{
+    self, DIVIDER, MOVED, RECEIVED, SENT, TEXT, UNACCEPTED, UNDECRYPTABLE, VerifiedDevice,
+};
 use super::own_devices;
 use super::payload::{self, Parsed};
 use super::seal::Sealer;
@@ -26,6 +28,7 @@ use super::service::{
     MESSAGE_BODY_LABEL, Open, PrivateService, now_ms, record_received, warn_core,
 };
 use super::sessions::{Decrypted, PeerSessions};
+use super::trust;
 use crate::api::types::{CoreError, PrivateEvent};
 
 /// At most one session reset per peer device in this long.
@@ -92,6 +95,9 @@ enum Content {
     /// Decrypted before: nothing to show.
     Duplicate,
     Undecryptable,
+    /// From a device whose chat key isn't the one accepted for its sender
+    /// (design 2026-11-01 §8.1): never decrypted.
+    Unaccepted,
     Payload {
         /// The conversation's other person.
         peer: [u8; KEY_LEN],
@@ -182,6 +188,16 @@ pub async fn receive(
         return Ok(None);
     };
 
+    if !at.from_me && !trust::accepts(service, open, &sender_key, &device).await? {
+        tracing::warn!(
+            server = %server_key,
+            event_id,
+            "a private message from keys this device hasn't accepted"
+        );
+        let applied = save(open, &at, Content::Unaccepted, privacy, None, None).await?;
+        show(service, open, server_key, applied).await;
+        return Ok(None);
+    }
     // A copy from one's own device under another chat key: only its chat
     // key share is read (design 2026-11-01 §7.3).
     let other_key = at.from_me && device.chat_key != open.chat_key().lock().await.public();
@@ -389,7 +405,10 @@ async fn save(
     }
     let applied = match content {
         Content::Duplicate => Applied::default(),
-        Content::Undecryptable => undecryptable(&mut tx, sealer, at, privacy, now).await?,
+        Content::Undecryptable => {
+            undecryptable(&mut tx, sealer, at, privacy, now, UNDECRYPTABLE).await?
+        }
+        Content::Unaccepted => undecryptable(&mut tx, sealer, at, privacy, now, UNACCEPTED).await?,
         Content::Share { secret } => match sender {
             Some(sender) => Applied {
                 own_devices: own_devices::receive_share(&mut tx, sealer, sender, &secret).await?,
@@ -418,6 +437,7 @@ async fn undecryptable(
     at: &Arrival<'_>,
     privacy: &PrivacySettings,
     now: i64,
+    kind: i64,
 ) -> Result<Applied, PrivateError> {
     if at.from_me {
         tracing::warn!(
@@ -438,7 +458,7 @@ async fn undecryptable(
             id,
             peer: at.sender,
             outgoing: false,
-            kind: UNDECRYPTABLE,
+            kind,
             body: None,
             server_id: None,
             sent_at: at.sent_at,

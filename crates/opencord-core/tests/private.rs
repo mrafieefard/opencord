@@ -8,7 +8,7 @@ use opencord_common::address::format_fingerprint;
 use opencord_core::api::types::{
     ConnectionState, ConversationStatus, CoreError, CoreEvent, CoreEventPayload, ErrorCode,
     FriendStatus, OwnDevice, OwnDeviceState, PrivacySettingsData, PrivateEvent, PrivateMessage,
-    PrivateMessageKind, PrivateSendState, ReadySnapshot,
+    PrivateMessageKind, PrivateSendState, PrivateVerification, ReadySnapshot,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -205,6 +205,26 @@ impl TestClient {
             seen.push(event);
         }
         seen
+    }
+
+    /// Puts `other`'s chat key in this device's database (opened with the
+    /// master key `[key; 32]`), as approving would.
+    async fn take_chat_key_of(&self, other: &TestClient, key: u8) {
+        let theirs = other.store().await;
+        let secret = ChatKey::load_or_create(&theirs, 0).await.unwrap().secret();
+        theirs.close().await;
+        let store = PrivateStore::open(self.dir.path(), &self.identity.public_key(), &[key; 32], 0)
+            .await
+            .unwrap()
+            .store;
+        let mut chat_key = ChatKey::load_or_create(&store, 0).await.unwrap();
+        let mut conn = store.pool().acquire().await.unwrap();
+        chat_key
+            .replace(&mut conn, store.sealer(), secret)
+            .await
+            .unwrap();
+        drop(conn);
+        store.close().await;
     }
 
     /// This person's chat key, read from this device's database.
@@ -838,6 +858,8 @@ async fn a_device_added_meanwhile_gets_the_message_after_the_refusal() {
         .b
         .another_device(&server.address(), &server.fingerprint(), "Member")
         .await;
+    // As if approved: B's chat key, so A trusts it.
+    b2.take_chat_key_of(&pair.b, 4).await;
     b2.open_private(4).await;
     // B1 is closed, with the key A claimed gone: 19 and B2's 20.
     server
@@ -1307,6 +1329,336 @@ async fn a_share_from_someone_else_is_ignored() {
     );
 }
 
+/// A and B have written once, so B has pinned A's chat key; then a device
+/// with A's identity and a chat key of its own signs in (a thief, or A
+/// starting over).
+async fn after_a_key_appears(server: &TestServer) -> ThreeDevices {
+    let (mut a, a_ready, mut b, b_ready) = owner_and_member(server).await;
+    a.open_private(1).await;
+    b.open_private(2).await;
+    server.counts_until(a_ready.self_user.id, registered).await;
+    server.counts_until(b_ready.self_user.id, registered).await;
+    a.set_relay(&b, &a_ready.server.server_id_hex).await;
+    b.set_relay(&a, &a_ready.server.server_id_hex).await;
+    let b_hex = hex::encode(b.identity.public_key());
+    a.client
+        .private_send(&b_hex, "hello".to_owned())
+        .await
+        .unwrap();
+    b.message_added(|m| m.content == "hello").await;
+    let mut a2 = a
+        .another_device(&server.address(), &server.fingerprint(), "Owner")
+        .await;
+    a2.open_private(3).await;
+    server
+        .counts_until(a_ready.self_user.id, |counts| counts.devices == 2)
+        .await;
+    a2.set_relay(&b, &a_ready.server.server_id_hex).await;
+    ThreeDevices {
+        a,
+        a_id: a_ready.self_user.id,
+        a2,
+        b,
+        b_ready,
+    }
+}
+
+async fn contact(client: &TestClient, peer: &str) -> opencord_core::api::types::PrivateContact {
+    client
+        .client
+        .private_contacts()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|contact| contact.peer == peer)
+        .expect("a contact")
+}
+
+async fn send(client: &TestClient, peer: &str, content: &str) -> PrivateMessage {
+    client
+        .client
+        .private_send(peer, content.to_owned())
+        .await
+        .unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stolen_identity_gets_nothing() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    let (a1_device, a2_device) = (three.a.device_id().await, three.a2.device_id().await);
+    // Offline, so the copies wait on the server to be counted.
+    three.a.client.shutdown().await;
+    three.a2.client.shutdown().await;
+
+    let sent = send(&three.b, &a_hex, "only for the real A").await;
+
+    assert_eq!(sent.state, PrivateSendState::Sent);
+    assert_eq!(server.copies_for(three.a_id, a1_device).await.len(), 1);
+    assert!(server.copies_for(three.a_id, a2_device).await.is_empty());
+    let seen = contact(&three.b, &a_hex).await;
+    assert!(seen.new_keys);
+    assert!(seen.reachable);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_message_from_held_keys_is_not_shown_as_text() {
+    let server = TestServer::start().await;
+    let mut three = after_a_key_appears(&server).await;
+    let b_hex = hex::encode(three.b.identity.public_key());
+
+    send(&three.a2, &b_hex, "trust me").await;
+
+    let line = three
+        .b
+        .message_added(|m| m.kind != PrivateMessageKind::Text || m.content == "trust me")
+        .await;
+    assert_eq!(line.kind, PrivateMessageKind::UnacceptedKeys);
+    assert_eq!(line.content, "");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn old_keys_keep_working_until_the_new_ones_are_accepted() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    let (a1_device, a2_device) = (three.a.device_id().await, three.a2.device_id().await);
+    three.a.client.shutdown().await;
+    three.a2.client.shutdown().await;
+
+    send(&three.b, &a_hex, "first").await;
+    three
+        .b
+        .client
+        .private_accept_new_keys(&a_hex)
+        .await
+        .unwrap();
+    send(&three.b, &a_hex, "second").await;
+
+    assert_eq!(server.copies_for(three.a_id, a1_device).await.len(), 1);
+    assert_eq!(server.copies_for(three.a_id, a2_device).await.len(), 1);
+    let seen = contact(&three.b, &a_hex).await;
+    assert!(!seen.new_keys);
+    assert_eq!(seen.verification, PrivateVerification::Unverified);
+    let changed: Vec<_> = three
+        .b
+        .client
+        .private_messages(&a_hex, None, 20)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|m| m.kind == PrivateMessageKind::KeysChanged)
+        .collect();
+    assert_eq!(changed.len(), 1);
+    assert!(!changed[0].outgoing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sending_with_only_held_devices_is_refused() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    three
+        .a
+        .client
+        .remove_server(&server.address())
+        .await
+        .unwrap();
+    server
+        .counts_until(three.a_id, |counts| counts.devices == 1)
+        .await;
+    let before = three
+        .b
+        .client
+        .private_messages(&a_hex, None, 20)
+        .await
+        .unwrap()
+        .len();
+
+    let refused = three
+        .b
+        .client
+        .private_send(&a_hex, "nowhere".to_owned())
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(
+            refused,
+            CoreError::Server {
+                code: ErrorCode::KeysNotAccepted,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+    let after = three
+        .b
+        .client
+        .private_messages(&a_hex, None, 20)
+        .await
+        .unwrap();
+    assert_eq!(after.len(), before);
+    assert!(!contact(&three.b, &a_hex).await.reachable);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn they_match_verifies_until_a_key_changes() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+
+    three
+        .b
+        .client
+        .private_verify(&a_hex, false, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        contact(&three.b, &a_hex).await.verification,
+        PrivateVerification::Verified
+    );
+    // B sees the new key when it next writes.
+    send(&three.b, &a_hex, "still you?").await;
+    three
+        .b
+        .client
+        .private_accept_new_keys(&a_hex)
+        .await
+        .unwrap();
+    assert_eq!(
+        contact(&three.b, &a_hex).await.verification,
+        PrivateVerification::Unverified
+    );
+
+    three
+        .b
+        .client
+        .private_verify(&a_hex, false, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        contact(&three.b, &a_hex).await.verification,
+        PrivateVerification::Verified
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn comparing_the_new_keys_pins_and_verifies_them() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    let b_hex = hex::encode(three.b.identity.public_key());
+    // The new device writes, so it knows B's chat key; B writes, so it sees
+    // the new one.
+    send(&three.a2, &b_hex, "it's me").await;
+    send(&three.b, &a_hex, "first").await;
+
+    assert_eq!(
+        three.b.client.private_words(&a_hex, true).await.unwrap(),
+        three.a2.client.private_words(&b_hex, false).await.unwrap(),
+    );
+    three
+        .b
+        .client
+        .private_verify(&a_hex, true, true)
+        .await
+        .unwrap();
+
+    let seen = contact(&three.b, &a_hex).await;
+    assert!(!seen.new_keys);
+    assert_eq!(seen.verification, PrivateVerification::Verified);
+    assert_eq!(
+        three.b.client.private_words(&a_hex, false).await.unwrap(),
+        three.a2.client.private_words(&b_hex, false).await.unwrap(),
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn they_dont_match_marks_a_mismatch_and_they_match_clears_it() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+
+    three
+        .b
+        .client
+        .private_verify(&a_hex, false, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        contact(&three.b, &a_hex).await.verification,
+        PrivateVerification::Mismatch
+    );
+
+    three
+        .b
+        .client
+        .private_verify(&a_hex, false, true)
+        .await
+        .unwrap();
+    assert_eq!(
+        contact(&three.b, &a_hex).await.verification,
+        PrivateVerification::Verified
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn both_sides_see_the_same_words() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    let b_hex = hex::encode(three.b.identity.public_key());
+    send(&three.a2, &b_hex, "it's me").await;
+
+    let on_a = three.a.client.private_words(&b_hex, false).await.unwrap();
+    let on_b = three.b.client.private_words(&a_hex, false).await.unwrap();
+
+    assert_eq!(on_a.len(), 16);
+    assert_eq!(on_a, on_b);
+    // The thief's device holds another chat key, so its words differ.
+    assert_ne!(
+        three.a2.client.private_words(&b_hex, false).await.unwrap(),
+        on_b
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_new_device_with_the_pinned_key_shows_a_quiet_divider() {
+    let server = TestServer::start().await;
+    let three = after_a_key_appears(&server).await;
+    let a_hex = hex::encode(three.a.identity.public_key());
+    three
+        .b
+        .client
+        .private_verify(&a_hex, false, true)
+        .await
+        .unwrap();
+
+    approve(&server, three.a_id, &three.a, &three.a2).await;
+    let a2_device = three.a2.device_id().await;
+    three.a.client.shutdown().await;
+    three.a2.client.shutdown().await;
+    send(&three.b, &a_hex, "to both").await;
+
+    assert_eq!(server.copies_for(three.a_id, a2_device).await.len(), 1);
+    let messages = three
+        .b
+        .client
+        .private_messages(&a_hex, None, 20)
+        .await
+        .unwrap();
+    let new_devices = messages
+        .iter()
+        .filter(|m| m.kind == PrivateMessageKind::NewDevice)
+        .count();
+    assert_eq!(new_devices, 1, "{messages:?}");
+    let seen = contact(&three.b, &a_hex).await;
+    assert_eq!(seen.verification, PrivateVerification::Verified);
+    assert!(!seen.new_keys);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn sessions_are_saved_before_sending() {
     let server = TestServer::start().await;
@@ -1369,6 +1721,8 @@ async fn approve(server: &TestServer, user_id: i64, old: &TestClient, new: &Test
     let (old_id, new_id) = (old.device_id().await, new.device_id().await);
     let (old_hex, new_hex) = (hex::encode(old_id), hex::encode(new_id));
     old.own_devices_until(|devices| devices.iter().any(|d| d.device_id == new_hex))
+        .await;
+    new.own_devices_until(|devices| devices.iter().any(|d| d.device_id == old_hex))
         .await;
     assert_eq!(
         old.client.private_pairing_words(&new_hex).await.unwrap(),
