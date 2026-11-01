@@ -32,6 +32,10 @@ bool FlutterWindow::OnCreate() {
   window_channel_ = std::make_unique<WindowChannel>(
       GetHandle(), flutter_controller_->view()->GetNativeWindow(),
       flutter_controller_->engine()->messenger());
+  tray_channel_ = std::make_unique<TrayChannel>(
+      GetHandle(), flutter_controller_->engine()->messenger(), [this]() {
+        if (window_channel_) window_channel_->Present(L"");
+      });
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     // Started minimized to the tray (desktop UI plan §15).
@@ -53,6 +57,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  tray_channel_ = nullptr;
   window_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
@@ -74,6 +79,15 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       const size_t length = data->cbData / sizeof(wchar_t);
       window_channel_->Present(std::wstring(text, ::wcsnlen(text, length)));
       return TRUE;
+    }
+  }
+
+  // The tray icon's clicks and Explorer restarting.
+  if (tray_channel_) {
+    std::optional<LRESULT> tray =
+        tray_channel_->HandleMessage(hwnd, message, wparam, lparam);
+    if (tray) {
+      return *tray;
     }
   }
 

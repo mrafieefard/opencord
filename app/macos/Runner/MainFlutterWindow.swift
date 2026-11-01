@@ -4,6 +4,7 @@ import ServiceManagement
 
 class MainFlutterWindow: NSWindow {
   private var windowChannel: WindowChannel?
+  private var trayChannel: TrayChannel?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -13,6 +14,8 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     windowChannel = WindowChannel(
+      window: self, messenger: flutterViewController.engine.binaryMessenger)
+    trayChannel = TrayChannel(
       window: self, messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
@@ -321,5 +324,129 @@ private func setLaunchAgent(enabled: Bool, launcher: String) {
     try data.write(to: plist, options: .atomic)
   } catch {
     NSLog("Opencord could not write its launch agent: \(error)")
+  }
+}
+
+/// The "dev.opencord/tray" method channel (desktop UI plan §15): the menu
+/// bar icon and its menu. The app draws the icon (a black template image,
+/// which macOS tints) and lays out the menu; a click brings the window
+/// forward and sends "activate", a right click shows the menu, and a
+/// picked item sends "menu" with its id.
+final class TrayChannel: NSObject {
+  /// The menu bar's height, in points.
+  private static let side: CGFloat = 18
+
+  private weak var window: NSWindow?
+  private let channel: FlutterMethodChannel
+  private var item: NSStatusItem?
+  private var menu = NSMenu()
+
+  init(window: NSWindow, messenger: FlutterBinaryMessenger) {
+    self.window = window
+    channel = FlutterMethodChannel(name: "dev.opencord/tray", binaryMessenger: messenger)
+    super.init()
+    channel.setMethodCallHandler { [weak self] call, result in
+      self?.handle(call, result: result)
+    }
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: FlutterResult) {
+    switch call.method {
+    case "show":
+      guard let args = call.arguments as? [String: Any] else {
+        result(false)
+        return
+      }
+      result(show(args))
+    case "close":
+      if let item { NSStatusBar.system.removeStatusItem(item) }
+      item = nil
+      result(nil)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func show(_ args: [String: Any]) -> Bool {
+    let item =
+      self.item
+      ?? {
+        let created = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        created.button?.target = self
+        created.button?.action = #selector(clicked(_:))
+        created.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        return created
+      }()
+    self.item = item
+    if let icons = args["icons"] as? [[String: Any]],
+      let image = Self.image(from: icons, template: args["template"] as? Bool ?? true)
+    {
+      item.button?.image = image
+    }
+    item.button?.toolTip = args["tooltip"] as? String
+    menu = makeMenu(args["menu"] as? [[String: Any]] ?? [])
+    return item.button?.image != nil
+  }
+
+  @objc private func clicked(_ sender: NSStatusBarButton) {
+    let event = NSApp.currentEvent
+    if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+      menu.popUp(
+        positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
+      return
+    }
+    window?.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    channel.invokeMethod("activate", arguments: nil)
+  }
+
+  @objc private func picked(_ sender: NSMenuItem) {
+    channel.invokeMethod("menu", arguments: sender.tag)
+  }
+
+  private func makeMenu(_ items: [[String: Any]]) -> NSMenu {
+    let built = NSMenu()
+    built.autoenablesItems = false
+    for entry in items {
+      if entry["separator"] as? Bool == true {
+        built.addItem(.separator())
+        continue
+      }
+      let item = NSMenuItem(
+        title: entry["label"] as? String ?? "", action: #selector(picked(_:)),
+        keyEquivalent: "")
+      item.target = self
+      item.tag = (entry["id"] as? NSNumber)?.intValue ?? 0
+      if let checked = entry["checked"] as? Bool {
+        item.state = checked ? .on : .off
+      }
+      if let children = entry["children"] as? [[String: Any]], !children.isEmpty {
+        item.action = nil
+        item.submenu = makeMenu(children)
+      }
+      built.addItem(item)
+    }
+    return built
+  }
+
+  /// The app's straight RGBA pixels, one representation per size.
+  private static func image(from icons: [[String: Any]], template: Bool) -> NSImage? {
+    let image = NSImage(size: NSSize(width: side, height: side))
+    for icon in icons {
+      guard let size = (icon["size"] as? NSNumber)?.intValue, size > 0,
+        let data = (icon["rgba"] as? FlutterStandardTypedData)?.data,
+        data.count == size * size * 4,
+        let rep = NSBitmapImageRep(
+          bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8,
+          samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+          bitmapFormat: .alphaNonpremultiplied, bytesPerRow: size * 4, bitsPerPixel: 32),
+        let pixels = rep.bitmapData
+      else { continue }
+      data.copyBytes(to: pixels, count: data.count)
+      rep.size = NSSize(width: side, height: side)
+      image.addRepresentation(rep)
+    }
+    image.isTemplate = template
+    return image.representations.isEmpty ? nil : image
   }
 }

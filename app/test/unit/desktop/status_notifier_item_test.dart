@@ -13,7 +13,7 @@ Future<DBusValue> _property(StatusNotifierItem item, String name) async {
 
 void main() {
   test('the item names the app and points at its menu', () async {
-    final item = StatusNotifierItem(onActivate: () {});
+    final item = StatusNotifierItem(onActivate: (_) {});
 
     expect(await _property(item, 'Id'), const DBusString('opencord'));
     expect(await _property(item, 'Title'), const DBusString('Opencord'));
@@ -27,7 +27,7 @@ void main() {
   });
 
   test('icons are offered as pixmaps, one per size', () async {
-    final item = StatusNotifierItem(onActivate: () {})
+    final item = StatusNotifierItem(onActivate: (_) {})
       ..icons = {16: Uint8List(16 * 16 * 4), 22: Uint8List(22 * 22 * 4)};
 
     final pixmaps = (await _property(item, 'IconPixmap')).asArray();
@@ -43,7 +43,7 @@ void main() {
   });
 
   test('the tooltip carries the unread count', () async {
-    final item = StatusNotifierItem(onActivate: () {})
+    final item = StatusNotifierItem(onActivate: (_) {})
       ..tooltip = '3 unread messages';
 
     final [_, _, title, body] = (await _property(item, 'ToolTip')).asStruct();
@@ -54,7 +54,7 @@ void main() {
 
   test('a click on the icon opens the window', () async {
     var opened = 0;
-    final item = StatusNotifierItem(onActivate: () => opened++);
+    final item = StatusNotifierItem(onActivate: (_) => opened++);
 
     await item.handleMethodCall(
       const DBusMethodCall(
@@ -66,5 +66,26 @@ void main() {
     );
 
     expect(opened, 1);
+  });
+
+  test('a click passes on the token the desktop gave for focus', () async {
+    final tokens = <String?>[];
+    final item = StatusNotifierItem(onActivate: tokens.add);
+    Future<void> call(String name, List<DBusValue> values) =>
+        item.handleMethodCall(
+          DBusMethodCall(
+            sender: ':1.7',
+            interface: _interface,
+            name: name,
+            values: values,
+          ),
+        );
+
+    await call('ProvideXdgActivationToken', [const DBusString('token-1')]);
+    await call('Activate', [const DBusInt32(10), const DBusInt32(20)]);
+    // A token is used once.
+    await call('Activate', [const DBusInt32(10), const DBusInt32(20)]);
+
+    expect(tokens, ['token-1', null]);
   });
 }

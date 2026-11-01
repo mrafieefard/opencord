@@ -79,7 +79,7 @@ void main() {
 
   for (final (platform, tray) in [
     (TargetPlatform.linux, true),
-    (TargetPlatform.windows, false),
+    (TargetPlatform.windows, true),
     (TargetPlatform.macOS, false),
   ]) {
     testWidgets(

@@ -339,6 +339,13 @@ void method_call_cb(FlMethodChannel*, FlMethodCall* call, gpointer data) {
   } else if (strcmp(method, "hide") == 0) {
     gtk_widget_hide(GTK_WIDGET(self->window));
   } else if (strcmp(method, "show") == 0) {
+    // A tray click on Wayland comes with an xdg-activation token (KDE sends
+    // it through ProvideXdgActivationToken); without it the compositor
+    // won't bring the window forward.
+    if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_STRING) {
+      gtk_window_set_startup_id(self->window, fl_value_get_string(args));
+    }
+    gtk_widget_show(GTK_WIDGET(self->window));
     gtk_window_present(self->window);
   } else if (strcmp(method, "setUrgent") == 0 &&
              fl_value_get_type(args) == FL_VALUE_TYPE_BOOL) {

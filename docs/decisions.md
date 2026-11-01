@@ -1589,3 +1589,35 @@ The owner asked for a log a user can export after an error and send them, so Cla
   - a share on Windows 10 and on Windows 11, with the exported log read back;
   - a crash on Windows showing its line;
   - the macOS log folder inside the sandbox.
+
+## D85: The tray on every desktop, and running in the background (2026-11-01)
+
+(D83 and D84 are taken by pull requests #22 and #23 in the same batch.)
+
+- **Why.** The owner found the tray and running in the background broken everywhere:
+  - Windows and macOS had no tray at all (D21 left them unbuilt);
+  - on KDE, the tray's Mute check mark stayed checked after unmuting;
+  - a click on the icon didn't bring the window forward;
+  - closing quit the app wherever no tray showed the icon.
+- **The check mark.** The menu sent only `LayoutUpdated`. KDE's dbusmenu importer (plasma-workspace `libdbusmenuqt`) defers that, drops one after a menu refresh it asked for, and refreshes only the menu's first level. It applies a property reliably only from `ItemsPropertiesUpdated`. The menu now sends `ItemsPropertiesUpdated` for changed items, and `LayoutUpdated` only when items come, go or move.
+- **Focus.** KDE on Wayland sends an xdg-activation token through `ProvideXdgActivationToken` just before `Activate`. The tray passes it to `NativeWindow.show`, and the GTK runner hands it to `gtk_window_set_startup_id` before presenting. On Windows the runner brings the window forward itself on the click, while the click still gives the process the foreground; on macOS it activates the app.
+- **Windows and macOS trays.** The `dev.opencord/tray` channel (`ChannelTray`): the app draws the icon and lays out the menu, and the runner shows them.
+  - **Windows:** `Shell_NotifyIconW` with `NOTIFYICON_VERSION_4`, the size nearest `SM_CXSMICON` at the window's DPI, a popup menu with check and radio marks, and the icon added again when Explorer restarts.
+  - **macOS:** an `NSStatusItem` with a template image; a click opens the window and a right click shows the menu.
+  - The UI plan had the macOS menu bar icon off by default. It's on now, since the owner asked for the tray on every platform.
+- **The icon in voice**, as Discord's (the owner's ask):
+  - out of voice: the chat bubble (until there's a logo);
+  - in a voice channel: a ring;
+  - talking: a filled circle;
+  - muted or deafened: the ring with a slash (my call).
+  The unread dot stays. Each look is drawn once and reused, since talking flips it many times a second.
+- **Closing** hides the window everywhere unless "Close button minimizes to the tray" is off; Windows now shows that switch too. With no tray it still keeps running: launching Opencord again brings the window back (D21's single instance), so it's never out of reach.
+- **The binding is listened to, not read.** A Riverpod 3 provider nobody listens to is paused, so the tray didn't follow the app. All of the tray's state now comes from one `trayStateProvider`.
+- **Checked:**
+  - Dart tests for the menu's property updates (the unmute case), the activation token, the voice states, the icon's shapes, the channel protocol, and closing with and without a tray;
+  - on this KDE Plasma 6 Wayland session, two Mute clicks sent `ItemsPropertiesUpdated` with toggle-state 1, then 0.
+- **Owed by hand:**
+  - KDE: the check mark following Mute in the real menu, and a click bringing the hidden window forward;
+  - GNOME with AppIndicator, Waybar on Hyprland;
+  - Windows 10 and 11: the icon, its menu, a click, close and come back, Explorer restarting;
+  - macOS: the menu bar icon, a right click, and dark and light menu bars.

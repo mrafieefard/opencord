@@ -80,7 +80,8 @@ class FakeNativeWindow implements NativeWindow {
   Future<void> hide() async => calls.add('hide');
 
   @override
-  Future<void> show() async => calls.add('show');
+  Future<void> show({String? activationToken}) async =>
+      calls.add(activationToken == null ? 'show' : 'show:$activationToken');
 
   @override
   Future<void> setUrgent(bool urgent) async => calls.add('setUrgent:$urgent');

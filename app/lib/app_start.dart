@@ -28,6 +28,7 @@ import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/hotkey_binding.dart';
 import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/desktop/linux_notifications.dart';
+import 'package:opencord/features/desktop/channel_tray.dart';
 import 'package:opencord/features/desktop/linux_tray.dart';
 import 'package:opencord/features/desktop/login_item.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
@@ -100,7 +101,14 @@ Future<ProviderContainer> startApp({
   final settings = loadAppSettings(store, defaultTargetPlatform);
   // The tray before the window: starting minimized needs one (§15).
   final linux = desktop && defaultTargetPlatform == TargetPlatform.linux;
-  final tray = linux ? await LinuxTray.start() : null;
+  final TrayService? tray = switch (defaultTargetPlatform) {
+    _ when !desktop => null,
+    TargetPlatform.linux => await LinuxTray.start(),
+    // The runner draws these; the first show says whether it took.
+    TargetPlatform.windows ||
+    TargetPlatform.macOS => ChannelTray(platform: defaultTargetPlatform),
+    _ => null,
+  };
   final notifications = linux ? await LinuxNotifications.start() : null;
   final window = ChannelNativeWindow();
   final windowInfo = await startWindow(
@@ -155,7 +163,9 @@ Future<ProviderContainer> startApp({
     ],
   );
   container.read(eventPumpProvider);
-  container.read(trayBindingProvider);
+  // Listened, not read: a provider nobody listens to is paused, and the
+  // tray would stop following the app.
+  container.listen(trayBindingProvider, (_, _) {});
   container.read(hotkeyBindingProvider);
   container.read(notificationBindingProvider);
   container.read(loginItemBindingProvider);
