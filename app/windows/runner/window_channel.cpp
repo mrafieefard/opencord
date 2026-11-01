@@ -74,13 +74,6 @@ bool BoolArg(const flutter::EncodableMap& map, const char* key,
   return flag == nullptr ? fallback : *flag;
 }
 
-std::string StringArg(const flutter::EncodableMap& map, const char* key) {
-  const flutter::EncodableValue* value = Find(map, key);
-  if (value == nullptr) return std::string();
-  const auto* text = std::get_if<std::string>(value);
-  return text == nullptr ? std::string() : *text;
-}
-
 }  // namespace
 
 WindowChannel::WindowChannel(HWND window, HWND view,
@@ -154,7 +147,7 @@ LRESULT WindowChannel::HitTest(POINT screen_point) const {
 std::optional<LRESULT> WindowChannel::HandleMessage(HWND hwnd, UINT message,
                                                     WPARAM wparam,
                                                     LPARAM lparam) {
-  const bool frameless = custom_ && !fullscreen_;
+  const bool frameless = !fullscreen_;
   switch (message) {
     case WM_NCCALCSIZE: {
       if (!frameless || wparam == FALSE) return std::nullopt;
@@ -243,7 +236,7 @@ LRESULT CALLBACK WindowChannel::ViewProc(HWND hwnd, UINT message,
                                          UINT_PTR, DWORD_PTR data) {
   if (message == WM_NCHITTEST) {
     auto* self = reinterpret_cast<WindowChannel*>(data);
-    if (self->custom_ && !self->fullscreen_) {
+    if (!self->fullscreen_) {
       const LRESULT hit =
           self->HitTest({GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)});
       // Let the top-level window answer for the top resize strip and the
@@ -348,7 +341,6 @@ void WindowChannel::ShowSystemMenu() {
 
 flutter::EncodableValue WindowChannel::Configure(
     const flutter::EncodableMap& args) {
-  custom_ = StringArg(args, "chrome") != "system";
   intercept_close_ = BoolArg(args, "interceptClose", false);
   min_width_ = IntArg(args, "minWidth").value_or(min_width_);
   min_height_ = IntArg(args, "minHeight").value_or(min_height_);
@@ -388,7 +380,7 @@ flutter::EncodableValue WindowChannel::Configure(
 
   flutter::EncodableMap info;
   info[flutter::EncodableValue("chrome")] =
-      flutter::EncodableValue(std::string(custom_ ? "custom" : "system"));
+      flutter::EncodableValue(std::string("custom"));
   info[flutter::EncodableValue("transparent")] = flutter::EncodableValue(false);
   info[flutter::EncodableValue("frameMargin")] = flutter::EncodableValue(0);
   info[flutter::EncodableValue("buttonLayout")] =

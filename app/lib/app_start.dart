@@ -107,7 +107,6 @@ Future<ProviderContainer> startApp({
     window: window,
     store: store,
     settings: settings,
-    dataDir: dataDir,
     hidden: startsHidden(
       atLogin: atLogin,
       settings: settings,
@@ -135,7 +134,6 @@ Future<ProviderContainer> startApp({
       repositoryProvider.overrideWithValue(repository),
       nativeWindowProvider.overrideWithValue(window),
       windowInfoProvider.overrideWithValue(windowInfo),
-      frameChoiceSaverProvider.overrideWithValue(frameChoiceSaver(dataDir)),
       if (mock) defaultMutedServersProvider.overrideWithValue(mockMutedServers),
       if (tray != null) trayServiceProvider.overrideWithValue(tray),
       if (notifications != null)

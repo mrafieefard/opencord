@@ -172,12 +172,10 @@ abstract interface class NativeWindow {
   /// them over and quit.
   Stream<String> get links;
 
-  /// [chrome] is what the app wants. Windows applies it at once; on Linux
-  /// it takes effect at the next start, and the returned info says what the
-  /// window has now. [hidden] keeps the window from showing with the first
+  /// Sets the window up for the app's own title bar; the returned info says
+  /// what the window has. [hidden] keeps the window from showing with the first
   /// frame (start minimized to the tray).
   Future<WindowInfo> configure({
-    required WindowChrome chrome,
     required int background,
     required double minWidth,
     required double minHeight,
@@ -302,7 +300,6 @@ class ChannelNativeWindow implements NativeWindow {
 
   @override
   Future<WindowInfo> configure({
-    required WindowChrome chrome,
     required int background,
     required double minWidth,
     required double minHeight,
@@ -314,7 +311,6 @@ class ChannelNativeWindow implements NativeWindow {
   }) async {
     final info = await _invoke<Map<Object?, Object?>>('configure', {
       'hidden': hidden,
-      'chrome': chrome.name,
       'background': background,
       'minWidth': minWidth.round(),
       'minHeight': minHeight.round(),
@@ -407,7 +403,6 @@ class NullNativeWindow implements NativeWindow {
 
   @override
   Future<WindowInfo> configure({
-    required WindowChrome chrome,
     required int background,
     required double minWidth,
     required double minHeight,

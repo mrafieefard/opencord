@@ -1589,3 +1589,12 @@ The owner asked for a log a user can export after an error and send them, so Cla
   - a share on Windows 10 and on Windows 11, with the exported log read back;
   - a crash on Windows showing its line;
   - the macOS log folder inside the sandbox.
+
+## D83: The app's own title bar everywhere (2026-11-01)
+
+The owner asked for the custom title bar on every platform, with the system or custom choice gone and the system title bar never drawn.
+
+- **Decision.** Every window gets the app's title bar (§3.1): GNOME-style buttons on every Linux desktop, the caption buttons on Windows, and on macOS the native traffic lights over the rail, as Discord has them. The owner made macOS the exception: its red, yellow and green buttons stay native, on the left.
+- **Gone.** The **Appearance → Window frame** setting (Auto · Custom · System), the `window-chrome` file the Linux runner read at start (D19's first point), Linux's Auto rules (KDE kept its own frame, tiling compositors got none), and the `bare` mode. `configure` no longer takes a frame; each runner sets up its own and reports `custom`. `WindowChrome.system` is left only for when there is no native window (tests, the null window).
+- **Tiling compositors** now show the header bar's buttons too. GTK reports a tiled window as tiled, so it has no margin, shadow or resize handles. A tiling X11 window manager that doesn't report tiling gets the frame only with a compositor running, since the margin needs transparency.
+- **Left over.** An old `window-chrome` file in the data folder is no longer read and does no harm. A saved `windowFrame` in the settings is ignored.

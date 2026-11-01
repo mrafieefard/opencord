@@ -36,7 +36,6 @@ final class WindowChannel: NSObject, NSWindowDelegate {
 
   private weak var window: NSWindow?
   private let channel: FlutterMethodChannel
-  private var custom = true
   private var interceptClose = false
   /// Links that arrived before the app configured the window, which is
   /// when it starts listening.
@@ -57,15 +56,9 @@ final class WindowChannel: NSObject, NSWindowDelegate {
 
   private func applyChrome() {
     guard let window else { return }
-    if custom {
-      window.titleVisibility = .hidden
-      window.titlebarAppearsTransparent = true
-      window.styleMask.insert(.fullSizeContentView)
-    } else {
-      window.titleVisibility = .visible
-      window.titlebarAppearsTransparent = false
-      window.styleMask.remove(.fullSizeContentView)
-    }
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.styleMask.insert(.fullSizeContentView)
     placeTrafficLights()
   }
 
@@ -73,7 +66,7 @@ final class WindowChannel: NSObject, NSWindowDelegate {
   /// from the left. The system resets this on some changes, so it runs
   /// again after resizes and full-screen transitions.
   private func placeTrafficLights() {
-    guard let window, custom, !window.styleMask.contains(.fullScreen),
+    guard let window, !window.styleMask.contains(.fullScreen),
       let close = window.standardWindowButton(.closeButton),
       let miniaturize = window.standardWindowButton(.miniaturizeButton),
       let zoom = window.standardWindowButton(.zoomButton),
@@ -120,7 +113,6 @@ final class WindowChannel: NSObject, NSWindowDelegate {
 
   private func configure(_ args: [String: Any]) -> [String: Any] {
     guard let window else { return [:] }
-    custom = (args["chrome"] as? String) != "system"
     interceptClose = args["interceptClose"] as? Bool ?? false
     let minWidth = args["minWidth"] as? Int ?? 940
     let minHeight = args["minHeight"] as? Int ?? 560
@@ -149,7 +141,7 @@ final class WindowChannel: NSObject, NSWindowDelegate {
       window.orderOut(nil)
     }
     return [
-      "chrome": custom ? "custom" : "system",
+      "chrome": "custom",
       "transparent": false,
       "frameMargin": 0,
       "buttonLayout": "",

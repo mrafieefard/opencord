@@ -13,7 +13,6 @@ import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
-import 'package:opencord/features/window/window_startup.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
@@ -134,37 +133,13 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('a window frame choice is saved for the next start', (
-    tester,
-  ) async {
-    final saved = <WindowFramePreference>[];
-    final app = await MockApp.pump(
-      tester,
-      platform: TargetPlatform.linux,
-      overrides: [
-        frameChoiceSaverProvider.overrideWithValue((frame) async {
-          saved.add(frame);
-        }),
-      ],
-    );
+  testWidgets('Appearance offers no window frame choice', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
     await _openSettings(tester);
     await _page(tester, 'Appearance');
-    await tester.scrollUntilVisible(
-      _inPage(find.text('System').last),
-      200,
-      scrollable: _inPage(find.byType(Scrollable)).last,
-    );
 
-    await tester.tap(_inPage(find.text('Your desktop draws the frame')));
-    await tester.pump();
-    expect(saved, isEmpty, reason: 'not before Save changes');
-    await _saveChanges(tester);
-
-    expect(
-      app.read(appSettingsProvider).windowFrame,
-      WindowFramePreference.system,
-    );
-    expect(saved, [WindowFramePreference.system]);
+    expect(_inPage(find.text('Window frame')), findsNothing);
+    expect(_inPage(find.text('Your desktop draws the frame')), findsNothing);
     await app.dispose(tester);
   });
 
