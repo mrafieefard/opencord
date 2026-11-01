@@ -182,11 +182,7 @@ class PrivateHeader extends ConsumerWidget {
                 icon: OcIcons.lock,
                 tooltip:
                     'End-to-end encrypted. Only you and $name can read these messages.',
-                onPressed: () => _showFingerprint(
-                  context,
-                  name,
-                  contact?.fingerprint ?? peer,
-                ),
+                onPressed: () => _showFingerprint(context, name, peer),
               ),
 
               const SizedBox(width: OcSpace.s8),

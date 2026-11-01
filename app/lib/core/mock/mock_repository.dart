@@ -85,6 +85,12 @@ class MockRepository implements OpencordRepository {
   void emit(RepoEvent event) => _emit(event);
   RepoException? _privateUnavailable;
   var _privateStartedFresh = false;
+  var _privateKeysReset = false;
+
+  void debugSetPrivateKeysReset(bool value) {
+    _privateKeysReset = value;
+    _emit(const PrivateStateChanged());
+  }
 
   void debugSetPrivateUnavailable(RepoException? error) {
     _privateUnavailable = error;
@@ -5066,6 +5072,14 @@ class MockRepository implements OpencordRepository {
   }
 
   @override
+  bool get privateKeysReset => _privateKeysReset;
+
+  @override
+  void acknowledgePrivateKeysReset() {
+    _privateKeysReset = false;
+  }
+
+  @override
   Future<List<PrivateContact>> privateContacts() =>
       _privateWorld.privateContacts();
 
@@ -5187,6 +5201,41 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> hideConversation(String peer) =>
       _privateWorld.hideConversation(peer);
+
+  @override
+  Future<List<String>> privateWords(String peer, {bool newKeys = false}) =>
+      _privateWorld.privateWords(peer, newKeys: newKeys);
+
+  @override
+  Future<void> verifyPrivate(
+    String peer, {
+    required bool matched,
+    bool newKeys = false,
+  }) => _privateWorld.verifyPrivate(peer, matched: matched, newKeys: newKeys);
+
+  @override
+  Future<void> acceptNewPrivateKeys(String peer) =>
+      _privateWorld.acceptNewPrivateKeys(peer);
+
+  @override
+  Future<({List<OwnDevice> devices, bool hasChats})> ownDevices() =>
+      _privateWorld.listOwnDevices();
+
+  @override
+  Future<List<String>> pairingWords(String deviceId) =>
+      _privateWorld.pairingWords(deviceId);
+
+  @override
+  Future<void> approveOwnDevice(String deviceId) =>
+      _privateWorld.approveOwnDevice(deviceId);
+
+  @override
+  Future<void> acceptKeysFrom(String deviceId, {required bool matched}) =>
+      _privateWorld.acceptKeysFrom(deviceId, matched: matched);
+
+  @override
+  Future<void> rejectOwnDevice(String deviceId) =>
+      _privateWorld.rejectOwnDevice(deviceId);
 }
 
 /// [domain] with some fields changed.

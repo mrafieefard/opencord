@@ -652,6 +652,15 @@ final class FriendRequestArrived extends RepoEvent {
   final bool spam;
 }
 
+/// This person's other devices with other chat keys changed (design
+/// 2026-11-01 §7.1).
+final class OwnDevicesChanged extends RepoEvent {
+  const OwnDevicesChanged(this.devices, {required this.hasChats}) : super('');
+
+  final List<OwnDevice> devices;
+  final bool hasChats;
+}
+
 final class PrivateStateChanged extends RepoEvent {
   const PrivateStateChanged() : super('');
 }

@@ -122,6 +122,7 @@ class RustRepository implements OpencordRepository {
   RepoException? _identityUnavailable;
   RepoException? _privateUnavailable;
   var _privateStartedFresh = false;
+  var _privateKeysReset = false;
   var _servers = const <ServerSummary>[];
   var _presence = SelfPresence.online;
 
@@ -283,6 +284,7 @@ class RustRepository implements OpencordRepository {
         try {
           final opened = await _core.privateOpen(_privateKey);
           _privateStartedFresh = opened.startedFresh;
+          _privateKeysReset = opened.keysReset;
           _privateUnavailable = null;
         } on core.CoreError catch (error) {
           _privateUnavailable = errorFrom(error);
@@ -2709,9 +2711,12 @@ class RustRepository implements OpencordRepository {
         _emit(PrivateTypingStarted(peer));
       case core.PrivateEvent_FriendRequestReceived(:final peer, :final spam):
         _emit(FriendRequestArrived(peer, spam));
-      case core.PrivateEvent_OwnDevicesChanged():
-        // Shown from Task 6 of the chat keys plan.
-        break;
+      case core.PrivateEvent_OwnDevicesChanged(:final devices, :final hasChats):
+        _emit(
+          OwnDevicesChanged([
+            for (final device in devices) ownDeviceFrom(device),
+          ], hasChats: hasChats),
+        );
     }
   }
 
@@ -2724,6 +2729,14 @@ class RustRepository implements OpencordRepository {
   @override
   void acknowledgePrivateStartedFresh() {
     _privateStartedFresh = false;
+  }
+
+  @override
+  bool get privateKeysReset => _privateKeysReset;
+
+  @override
+  void acknowledgePrivateKeysReset() {
+    _privateKeysReset = false;
   }
 
   @override
@@ -2841,4 +2854,47 @@ class RustRepository implements OpencordRepository {
   @override
   Future<void> hideConversation(String peer) =>
       _call(() => _core.privateHide(peer));
+
+  @override
+  Future<List<String>> privateWords(String peer, {bool newKeys = false}) =>
+      _call(() => _core.privateWords(peer, newKeys: newKeys));
+
+  @override
+  Future<void> verifyPrivate(
+    String peer, {
+    required bool matched,
+    bool newKeys = false,
+  }) => _call(
+    () => _core.privateVerify(peer, newKeys: newKeys, matched: matched),
+  );
+
+  @override
+  Future<void> acceptNewPrivateKeys(String peer) =>
+      _call(() => _core.privateAcceptNewKeys(peer));
+
+  @override
+  Future<({List<OwnDevice> devices, bool hasChats})> ownDevices() =>
+      _call(() async {
+        final own = await _core.privateOwnDevices();
+        return (
+          devices: [for (final device in own.devices) ownDeviceFrom(device)],
+          hasChats: own.hasChats,
+        );
+      });
+
+  @override
+  Future<List<String>> pairingWords(String deviceId) =>
+      _call(() => _core.privatePairingWords(deviceId));
+
+  @override
+  Future<void> approveOwnDevice(String deviceId) =>
+      _call(() => _core.privateApproveDevice(deviceId));
+
+  @override
+  Future<void> acceptKeysFrom(String deviceId, {required bool matched}) =>
+      _call(() => _core.privateAcceptKeysFrom(deviceId, matched: matched));
+
+  @override
+  Future<void> rejectOwnDevice(String deviceId) =>
+      _call(() => _core.privateRejectDevice(deviceId));
 }

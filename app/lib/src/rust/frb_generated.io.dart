@@ -807,6 +807,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   OwnDeviceState dco_decode_own_device_state(dynamic raw);
 
   @protected
+  OwnDevices dco_decode_own_devices(dynamic raw);
+
+  @protected
   PermissionOverwrite dco_decode_permission_overwrite(dynamic raw);
 
   @protected
@@ -2006,6 +2009,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OwnDeviceState sse_decode_own_device_state(SseDeserializer deserializer);
+
+  @protected
+  OwnDevices sse_decode_own_devices(SseDeserializer deserializer);
 
   @protected
   PermissionOverwrite sse_decode_permission_overwrite(
@@ -3522,6 +3528,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     OwnDeviceState self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_own_devices(OwnDevices self, SseSerializer serializer);
 
   @protected
   void sse_encode_permission_overwrite(

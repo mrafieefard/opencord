@@ -186,7 +186,9 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
             serverKey: m.serverKey,
           ),
           // Drawn from Task 7 of the chat keys plan.
-          PrivateMessageKind.keysChanged => const SizedBox.shrink(),
+          PrivateMessageKind.keysChanged ||
+          PrivateMessageKind.newDevice ||
+          PrivateMessageKind.unacceptedKeys => const SizedBox.shrink(),
           PrivateMessageKind.undecryptable => Padding(
             padding: const EdgeInsets.symmetric(vertical: OcSpace.s8),
             child: Center(

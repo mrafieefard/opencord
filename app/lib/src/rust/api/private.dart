@@ -7,6 +7,8 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `eq`, `fmt`
+
 /// Opens private messages for the identity using the master key from the
 /// keychain. Not 32 bytes returns `CoreError::InvalidInput`.
 Future<PrivateOpened> privateOpen({required List<int> key}) =>
@@ -149,3 +151,75 @@ Future<void> privateSetMuted({required String peer, required bool muted}) =>
 
 Future<void> privateHide({required String peer}) =>
     RustLib.instance.api.crateApiPrivatePrivateHide(peer: peer);
+
+/// The 16 words for the chat with `peer`; with `new_keys`, for the other
+/// chat key their devices offer.
+Future<List<String>> privateWords({
+  required String peer,
+  required bool newKeys,
+}) => RustLib.instance.api.crateApiPrivatePrivateWords(
+  peer: peer,
+  newKeys: newKeys,
+);
+
+/// They match or They don't match, for the chat with `peer`.
+Future<void> privateVerify({
+  required String peer,
+  required bool newKeys,
+  required bool matched,
+}) => RustLib.instance.api.crateApiPrivatePrivateVerify(
+  peer: peer,
+  newKeys: newKeys,
+  matched: matched,
+);
+
+/// Use new keys anyway.
+Future<void> privateAcceptNewKeys({required String peer}) =>
+    RustLib.instance.api.crateApiPrivatePrivateAcceptNewKeys(peer: peer);
+
+Future<OwnDevices> privateOwnDevices() =>
+    RustLib.instance.api.crateApiPrivatePrivateOwnDevices();
+
+/// The 16 words this device and `device_id` both show.
+Future<List<String>> privatePairingWords({required String deviceId}) =>
+    RustLib.instance.api.crateApiPrivatePrivatePairingWords(deviceId: deviceId);
+
+/// They match, on the device giving its chat key to `device_id`.
+Future<void> privateApproveDevice({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiPrivatePrivateApproveDevice(deviceId: deviceId);
+
+/// They match or They don't match, for the chat key `device_id` offered.
+Future<void> privateAcceptKeysFrom({
+  required String deviceId,
+  required bool matched,
+}) => RustLib.instance.api.crateApiPrivatePrivateAcceptKeysFrom(
+  deviceId: deviceId,
+  matched: matched,
+);
+
+/// Not mine.
+Future<void> privateRejectDevice({required String deviceId}) =>
+    RustLib.instance.api.crateApiPrivatePrivateRejectDevice(deviceId: deviceId);
+
+/// This person's other devices with chat keys of their own.
+class OwnDevices {
+  final List<OwnDevice> devices;
+
+  /// This device has private chats.
+  final bool hasChats;
+
+  const OwnDevices({required this.devices, required this.hasChats});
+
+  @override
+  int get hashCode => devices.hashCode ^ hasChats.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OwnDevices &&
+          runtimeType == other.runtimeType &&
+          devices == other.devices &&
+          hasChats == other.hasChats;
+}

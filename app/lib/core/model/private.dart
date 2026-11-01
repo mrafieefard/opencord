@@ -8,8 +8,47 @@ enum FriendStatus { none, outgoing, incoming, friends }
 /// Conversation status between the local user and a contact (§6.3, §7.1).
 enum ConversationStatus { none, request, accepted }
 
-/// The kind of entry in a private conversation (§6.3).
-enum PrivateMessageKind { text, divider, moved, undecryptable, keysChanged }
+/// The kind of entry in a private conversation (§6.3). `keysChanged`,
+/// `newDevice` and `unacceptedKeys` are the chat key lines (design
+/// 2026-11-01 §8).
+enum PrivateMessageKind {
+  text,
+  divider,
+  moved,
+  undecryptable,
+  keysChanged,
+  newDevice,
+  unacceptedKeys,
+}
+
+/// Whether two people compared their words (design 2026-11-01 §9.3).
+enum PrivateVerification { unverified, verified, mismatch }
+
+/// How another device of this person's shows (design 2026-11-01 §7.1).
+enum OwnDeviceState {
+  /// Signed in with another chat key.
+  other,
+
+  /// It offered this device its chat key, waiting for They match.
+  offering,
+}
+
+/// Another device signed in as this person, with a chat key of its own.
+@immutable
+class OwnDevice {
+  const OwnDevice({required this.deviceId, required this.state});
+
+  /// Hex.
+  final String deviceId;
+  final OwnDeviceState state;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OwnDevice && other.deviceId == deviceId && other.state == state;
+
+  @override
+  int get hashCode => Object.hash(deviceId, state);
+}
 
 /// The state of an outbound or inbound private message.
 enum PrivateSendState { received, sending, sent, failed }
@@ -20,7 +59,6 @@ enum PrivateSendState { received, sending, sent, failed }
 class PrivateContact {
   const PrivateContact({
     required this.peer,
-    required this.fingerprint,
     this.name,
     required this.friend,
     this.requestSpam = false,
@@ -32,13 +70,13 @@ class PrivateContact {
     this.muted = false,
     this.hidden = false,
     this.preview = '',
+    this.verification = PrivateVerification.unverified,
+    this.newKeys = false,
+    this.reachable = true,
   });
 
   /// Lowercase hex identity public key.
   final String peer;
-
-  /// Formatted key fingerprint (e.g. `ABCD-EFGH-IJKL-MNOP`).
-  final String fingerprint;
 
   /// The display name last seen.
   final String? name;
@@ -64,9 +102,16 @@ class PrivateContact {
   /// Preview of the newest message (at most 100 characters).
   final String preview;
 
+  final PrivateVerification verification;
+
+  /// A device of theirs uses a chat key this device hasn't accepted.
+  final bool newKeys;
+
+  /// A device of theirs had the accepted chat key at the last look.
+  final bool reachable;
+
   PrivateContact copyWith({
     String? peer,
-    String? fingerprint,
     Object? name = _sentinel,
     FriendStatus? friend,
     bool? requestSpam,
@@ -78,9 +123,11 @@ class PrivateContact {
     bool? muted,
     bool? hidden,
     String? preview,
+    PrivateVerification? verification,
+    bool? newKeys,
+    bool? reachable,
   }) => PrivateContact(
     peer: peer ?? this.peer,
-    fingerprint: fingerprint ?? this.fingerprint,
     name: identical(name, _sentinel) ? this.name : name as String?,
     friend: friend ?? this.friend,
     requestSpam: requestSpam ?? this.requestSpam,
@@ -96,6 +143,9 @@ class PrivateContact {
     muted: muted ?? this.muted,
     hidden: hidden ?? this.hidden,
     preview: preview ?? this.preview,
+    verification: verification ?? this.verification,
+    newKeys: newKeys ?? this.newKeys,
+    reachable: reachable ?? this.reachable,
   );
 
   @override
@@ -103,7 +153,6 @@ class PrivateContact {
       identical(this, other) ||
       other is PrivateContact &&
           other.peer == peer &&
-          other.fingerprint == fingerprint &&
           other.name == name &&
           other.friend == friend &&
           other.requestSpam == requestSpam &&
@@ -114,12 +163,14 @@ class PrivateContact {
           other.unread == unread &&
           other.muted == muted &&
           other.hidden == hidden &&
-          other.preview == preview;
+          other.preview == preview &&
+          other.verification == verification &&
+          other.newKeys == newKeys &&
+          other.reachable == reachable;
 
   @override
   int get hashCode => Object.hash(
     peer,
-    fingerprint,
     name,
     friend,
     requestSpam,
@@ -131,6 +182,9 @@ class PrivateContact {
     muted,
     hidden,
     preview,
+    verification,
+    newKeys,
+    reachable,
   );
 
   @override

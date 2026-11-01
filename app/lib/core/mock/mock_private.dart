@@ -43,7 +43,6 @@ class MockPrivateWorld {
     // 1. Friend 1: Kai Nakamura (online, accepted conversation, divider & move card)
     contacts[kaiKey] = PrivateContact(
       peer: kaiKey,
-      fingerprint: '1001-KAI0-NAKA-MURA',
       name: 'Kai Nakamura',
       friend: FriendStatus.friends,
       conversation: ConversationStatus.accepted,
@@ -51,6 +50,7 @@ class MockPrivateWorld {
       lastActivity: _now.subtract(const Duration(minutes: 10)),
       unread: 0,
       preview: 'Sure, I will move over in a bit.',
+      newKeys: true,
     );
 
     messages[kaiKey] = [
@@ -115,7 +115,6 @@ class MockPrivateWorld {
     // 2. Friend 2: Mira Okafor (online, accepted conversation, divider at top)
     contacts[miraKey] = PrivateContact(
       peer: miraKey,
-      fingerprint: '1002-MIRA-OKAF-0000',
       name: 'Mira Okafor',
       friend: FriendStatus.friends,
       conversation: ConversationStatus.accepted,
@@ -123,6 +122,7 @@ class MockPrivateWorld {
       lastActivity: _now.subtract(const Duration(minutes: 15)),
       unread: 1,
       preview: 'Sounds good!',
+      verification: PrivateVerification.verified,
     );
 
     messages[miraKey] = [
@@ -186,7 +186,6 @@ class MockPrivateWorld {
     // 3. Friend 3: Noah Kim (offline)
     contacts[noahKey] = PrivateContact(
       peer: noahKey,
-      fingerprint: '1008-NOAH-KIM0-0000',
       name: 'Noah Kim',
       friend: FriendStatus.friends,
       conversation: ConversationStatus.none,
@@ -198,7 +197,6 @@ class MockPrivateWorld {
     // 4. Incoming request: Jonas Weber (not spam)
     contacts[jonasKey] = PrivateContact(
       peer: jonasKey,
-      fingerprint: '1003-JONA-SWE0-0000',
       name: 'Jonas Weber',
       friend: FriendStatus.incoming,
       requestSpam: false,
@@ -211,7 +209,6 @@ class MockPrivateWorld {
     // 5. Spam request: Lena Fischer
     contacts[lenaKey] = PrivateContact(
       peer: lenaKey,
-      fingerprint: '1004-LENA-FISC-0000',
       name: 'Lena Fischer',
       friend: FriendStatus.incoming,
       requestSpam: true,
@@ -224,7 +221,6 @@ class MockPrivateWorld {
     // 6. Outgoing request: Tomás Ruiz
     contacts[tomasKey] = PrivateContact(
       peer: tomasKey,
-      fingerprint: '1006-TOMA-SRUI-0000',
       name: 'Tomás Ruiz',
       friend: FriendStatus.outgoing,
       conversation: ConversationStatus.none,
@@ -236,7 +232,6 @@ class MockPrivateWorld {
     // 7. Message request 1: Priya Shah
     contacts[priyaKey] = PrivateContact(
       peer: priyaKey,
-      fingerprint: '1005-PRIY-ASHA-0000',
       name: 'Priya Shah',
       friend: FriendStatus.none,
       conversation: ConversationStatus.request,
@@ -260,7 +255,6 @@ class MockPrivateWorld {
     // 8. Message request 2: Greta Hoffmann (Rust Berlin)
     contacts[gretaKey] = PrivateContact(
       peer: gretaKey,
-      fingerprint: '2001-GRET-AHOF-0000',
       name: 'Greta Hoffmann',
       friend: FriendStatus.none,
       conversation: ConversationStatus.request,
@@ -286,7 +280,6 @@ class MockPrivateWorld {
     // 9. Blocked person: Old Friend (no shared server)
     contacts[oldFriendKey] = PrivateContact(
       peer: oldFriendKey,
-      fingerprint: 'ABCD-EFGH-1234-5678',
       name: 'Old Friend',
       friend: FriendStatus.none,
       blocked: true,
@@ -341,7 +334,6 @@ class MockPrivateWorld {
         (contacts[peer] ??
                 PrivateContact(
                   peer: peer,
-                  fingerprint: fakeFingerprint(peer).substring(0, 19),
                   friend: FriendStatus.none,
                   conversation: ConversationStatus.accepted,
                 ))
@@ -422,7 +414,6 @@ class MockPrivateWorld {
         (contacts[peerKey] ??
                 PrivateContact(
                   peer: peerKey,
-                  fingerprint: fakeFingerprint(peerKey).substring(0, 19),
                   friend: FriendStatus.outgoing,
                   conversation: ConversationStatus.none,
                   relayServerKey: serverKey,
@@ -481,7 +472,6 @@ class MockPrivateWorld {
         contacts[peer] ??
         PrivateContact(
           peer: peer,
-          fingerprint: fakeFingerprint(peer).substring(0, 19),
           friend: FriendStatus.none,
           conversation: ConversationStatus.none,
         );
@@ -518,7 +508,6 @@ class MockPrivateWorld {
         (contacts[peerKey] ??
                 PrivateContact(
                   peer: peerKey,
-                  fingerprint: fakeFingerprint(peerKey).substring(0, 19),
                   friend: FriendStatus.none,
                   conversation: ConversationStatus.accepted,
                   relayServerKey: serverKey,
@@ -603,4 +592,113 @@ class MockPrivateWorld {
     contacts[peer] = next;
     _emit(PrivateContactChanged(next));
   }
+
+  // Chat keys (design 2026-11-01) -------------------------------------------
+
+  /// Another desktop with other keys, and one offering its keys.
+  final List<OwnDevice> ownDevices = [
+    const OwnDevice(
+      deviceId: '0a1b2c3d4e5f60718293a4b5c6d7e8f9',
+      state: OwnDeviceState.other,
+    ),
+    const OwnDevice(
+      deviceId: 'f9e8d7c6b5a4938271605f4e3d2c1b0a',
+      state: OwnDeviceState.offering,
+    ),
+  ];
+
+  static const _words = [
+    'anchor', 'barrel', 'candle', 'dolphin', 'ember', 'falcon', 'garden', //
+    'harbor', 'island', 'jungle', 'kettle', 'lantern', 'meadow', 'nectar',
+    'orchid', 'pepper', 'quartz', 'ribbon', 'saddle', 'timber', 'umbrella',
+    'velvet', 'walnut', 'yellow',
+  ];
+
+  List<String> _wordsFor(String seed) => [
+    for (var i = 0; i < 16; i++)
+      _words[(seed.codeUnitAt(i % seed.length) + i * 7) % _words.length],
+  ];
+
+  Future<List<String>> privateWords(
+    String peer, {
+    bool newKeys = false,
+  }) async => _wordsFor('$peer${newKeys ? 'new' : ''}');
+
+  Future<void> verifyPrivate(
+    String peer, {
+    required bool matched,
+    bool newKeys = false,
+  }) async {
+    final contact = contacts[peer];
+    if (contact == null) return;
+    final next = contact.copyWith(
+      verification: matched
+          ? PrivateVerification.verified
+          : PrivateVerification.mismatch,
+      newKeys: matched && newKeys ? false : contact.newKeys,
+    );
+    contacts[peer] = next;
+    if (matched && newKeys) _keysChanged(peer);
+    _emit(PrivateContactChanged(next));
+  }
+
+  Future<void> acceptNewPrivateKeys(String peer) async {
+    final contact = contacts[peer];
+    if (contact == null) return;
+    final next = contact.copyWith(
+      newKeys: false,
+      verification: PrivateVerification.unverified,
+    );
+    contacts[peer] = next;
+    _keysChanged(peer);
+    _emit(PrivateContactChanged(next));
+  }
+
+  void _keysChanged(String peer) {
+    final line = PrivateMessage(
+      id: _nextId(),
+      peer: peer,
+      outgoing: false,
+      kind: PrivateMessageKind.keysChanged,
+      content: '',
+      sentAt: _now,
+      state: PrivateSendState.received,
+    );
+    messages.putIfAbsent(peer, () => []).add(line);
+    _emit(PrivateMessageAdded(line));
+  }
+
+  Future<({List<OwnDevice> devices, bool hasChats})> listOwnDevices() async =>
+      (devices: List<OwnDevice>.unmodifiable(ownDevices), hasChats: true);
+
+  Future<List<String>> pairingWords(String deviceId) async =>
+      _wordsFor(deviceId);
+
+  Future<void> approveOwnDevice(String deviceId) async =>
+      _forgetOwnDevice(deviceId);
+
+  Future<void> acceptKeysFrom(String deviceId, {required bool matched}) async {
+    if (matched) {
+      _forgetOwnDevice(deviceId);
+      return;
+    }
+    final index = ownDevices.indexWhere((d) => d.deviceId == deviceId);
+    if (index < 0) return;
+    ownDevices[index] = OwnDevice(
+      deviceId: deviceId,
+      state: OwnDeviceState.other,
+    );
+    _emitOwnDevices();
+  }
+
+  Future<void> rejectOwnDevice(String deviceId) async =>
+      _forgetOwnDevice(deviceId);
+
+  void _forgetOwnDevice(String deviceId) {
+    ownDevices.removeWhere((d) => d.deviceId == deviceId);
+    _emitOwnDevices();
+  }
+
+  void _emitOwnDevices() =>
+      _emit(OwnDevicesChanged(List.unmodifiable(ownDevices), hasChats: true));
 }
