@@ -35,6 +35,10 @@ PrivateMessageKind privateMessageKindFrom(core.PrivateMessageKind kind) =>
       core.PrivateMessageKind.divider => PrivateMessageKind.divider,
       core.PrivateMessageKind.moved => PrivateMessageKind.moved,
       core.PrivateMessageKind.undecryptable => PrivateMessageKind.undecryptable,
+      core.PrivateMessageKind.keysChanged => PrivateMessageKind.keysChanged,
+      core.PrivateMessageKind.newDevice => PrivateMessageKind.newDevice,
+      core.PrivateMessageKind.unacceptedKeys =>
+        PrivateMessageKind.unacceptedKeys,
     };
 
 core.PrivateMessageKind privateMessageKindTo(PrivateMessageKind kind) =>
@@ -43,7 +47,26 @@ core.PrivateMessageKind privateMessageKindTo(PrivateMessageKind kind) =>
       PrivateMessageKind.divider => core.PrivateMessageKind.divider,
       PrivateMessageKind.moved => core.PrivateMessageKind.moved,
       PrivateMessageKind.undecryptable => core.PrivateMessageKind.undecryptable,
+      PrivateMessageKind.keysChanged => core.PrivateMessageKind.keysChanged,
+      PrivateMessageKind.newDevice => core.PrivateMessageKind.newDevice,
+      PrivateMessageKind.unacceptedKeys =>
+        core.PrivateMessageKind.unacceptedKeys,
     };
+
+PrivateVerification privateVerificationFrom(core.PrivateVerification value) =>
+    switch (value) {
+      core.PrivateVerification.unverified => PrivateVerification.unverified,
+      core.PrivateVerification.verified => PrivateVerification.verified,
+      core.PrivateVerification.mismatch => PrivateVerification.mismatch,
+    };
+
+OwnDevice ownDeviceFrom(core.OwnDevice device) => OwnDevice(
+  deviceId: device.deviceId,
+  state: switch (device.state) {
+    core.OwnDeviceState.other => OwnDeviceState.other,
+    core.OwnDeviceState.offering => OwnDeviceState.offering,
+  },
+);
 
 PrivateSendState privateSendStateFrom(core.PrivateSendState state) =>
     switch (state) {
@@ -64,7 +87,6 @@ core.PrivateSendState privateSendStateTo(PrivateSendState state) =>
 PrivateContact privateContactFrom(core.PrivateContact contact) =>
     PrivateContact(
       peer: contact.peer,
-      fingerprint: contact.fingerprint,
       name: contact.name,
       friend: friendStatusFrom(contact.friend),
       requestSpam: contact.requestSpam,
@@ -81,6 +103,9 @@ PrivateContact privateContactFrom(core.PrivateContact contact) =>
       muted: contact.muted,
       hidden: contact.hidden,
       preview: contact.preview ?? '',
+      verification: privateVerificationFrom(contact.verification),
+      newKeys: contact.newKeys,
+      reachable: contact.reachable,
     );
 
 PrivateMessage privateMessageFrom(core.PrivateMessage message) =>

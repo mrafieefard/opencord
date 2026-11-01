@@ -710,6 +710,31 @@ abstract interface class CoreApi {
   Future<void> privateSetMuted(String peer, {required bool muted});
 
   Future<void> privateHide(String peer);
+
+  Future<core.KeyWords> privateWords(String peer, {required bool newKeys});
+
+  Future<void> privateVerify(
+    String peer, {
+    required bool newKeys,
+    required bool matched,
+    required String keys,
+  });
+
+  Future<void> privateAcceptNewKeys(String peer);
+
+  Future<frb_private.OwnDevices> privateOwnDevices();
+
+  Future<core.KeyWords> privatePairingWords(String deviceId);
+
+  Future<void> privateApproveDevice(String deviceId, {required String keys});
+
+  Future<void> privateAcceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  });
+
+  Future<void> privateRejectDevice(String deviceId);
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -1987,4 +2012,52 @@ class FrbCoreApi implements CoreApi {
 
   @override
   Future<void> privateHide(String peer) => frb_private.privateHide(peer: peer);
+
+  @override
+  Future<core.KeyWords> privateWords(String peer, {required bool newKeys}) =>
+      frb_private.privateWords(peer: peer, newKeys: newKeys);
+
+  @override
+  Future<void> privateVerify(
+    String peer, {
+    required bool newKeys,
+    required bool matched,
+    required String keys,
+  }) => frb_private.privateVerify(
+    peer: peer,
+    newKeys: newKeys,
+    matched: matched,
+    keys: keys,
+  );
+
+  @override
+  Future<void> privateAcceptNewKeys(String peer) =>
+      frb_private.privateAcceptNewKeys(peer: peer);
+
+  @override
+  Future<frb_private.OwnDevices> privateOwnDevices() =>
+      frb_private.privateOwnDevices();
+
+  @override
+  Future<core.KeyWords> privatePairingWords(String deviceId) =>
+      frb_private.privatePairingWords(deviceId: deviceId);
+
+  @override
+  Future<void> privateApproveDevice(String deviceId, {required String keys}) =>
+      frb_private.privateApproveDevice(deviceId: deviceId, keys: keys);
+
+  @override
+  Future<void> privateAcceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  }) => frb_private.privateAcceptKeysFrom(
+    deviceId: deviceId,
+    matched: matched,
+    keys: keys,
+  );
+
+  @override
+  Future<void> privateRejectDevice(String deviceId) =>
+      frb_private.privateRejectDevice(deviceId: deviceId);
 }

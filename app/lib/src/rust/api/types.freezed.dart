@@ -7513,10 +7513,11 @@ extension PrivateEventPatterns on PrivateEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PrivateEvent_ContactChanged value)?  contactChanged,TResult Function( PrivateEvent_ContactRemoved value)?  contactRemoved,TResult Function( PrivateEvent_MessageAdded value)?  messageAdded,TResult Function( PrivateEvent_MessageChanged value)?  messageChanged,TResult Function( PrivateEvent_MessageDeleted value)?  messageDeleted,TResult Function( PrivateEvent_Typing value)?  typing,TResult Function( PrivateEvent_FriendRequestReceived value)?  friendRequestReceived,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PrivateEvent_OwnDevicesChanged value)?  ownDevicesChanged,TResult Function( PrivateEvent_ContactChanged value)?  contactChanged,TResult Function( PrivateEvent_ContactRemoved value)?  contactRemoved,TResult Function( PrivateEvent_MessageAdded value)?  messageAdded,TResult Function( PrivateEvent_MessageChanged value)?  messageChanged,TResult Function( PrivateEvent_MessageDeleted value)?  messageDeleted,TResult Function( PrivateEvent_Typing value)?  typing,TResult Function( PrivateEvent_FriendRequestReceived value)?  friendRequestReceived,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case PrivateEvent_ContactChanged() when contactChanged != null:
+case PrivateEvent_OwnDevicesChanged() when ownDevicesChanged != null:
+return ownDevicesChanged(_that);case PrivateEvent_ContactChanged() when contactChanged != null:
 return contactChanged(_that);case PrivateEvent_ContactRemoved() when contactRemoved != null:
 return contactRemoved(_that);case PrivateEvent_MessageAdded() when messageAdded != null:
 return messageAdded(_that);case PrivateEvent_MessageChanged() when messageChanged != null:
@@ -7541,10 +7542,11 @@ return friendRequestReceived(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PrivateEvent_ContactChanged value)  contactChanged,required TResult Function( PrivateEvent_ContactRemoved value)  contactRemoved,required TResult Function( PrivateEvent_MessageAdded value)  messageAdded,required TResult Function( PrivateEvent_MessageChanged value)  messageChanged,required TResult Function( PrivateEvent_MessageDeleted value)  messageDeleted,required TResult Function( PrivateEvent_Typing value)  typing,required TResult Function( PrivateEvent_FriendRequestReceived value)  friendRequestReceived,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PrivateEvent_OwnDevicesChanged value)  ownDevicesChanged,required TResult Function( PrivateEvent_ContactChanged value)  contactChanged,required TResult Function( PrivateEvent_ContactRemoved value)  contactRemoved,required TResult Function( PrivateEvent_MessageAdded value)  messageAdded,required TResult Function( PrivateEvent_MessageChanged value)  messageChanged,required TResult Function( PrivateEvent_MessageDeleted value)  messageDeleted,required TResult Function( PrivateEvent_Typing value)  typing,required TResult Function( PrivateEvent_FriendRequestReceived value)  friendRequestReceived,}){
 final _that = this;
 switch (_that) {
-case PrivateEvent_ContactChanged():
+case PrivateEvent_OwnDevicesChanged():
+return ownDevicesChanged(_that);case PrivateEvent_ContactChanged():
 return contactChanged(_that);case PrivateEvent_ContactRemoved():
 return contactRemoved(_that);case PrivateEvent_MessageAdded():
 return messageAdded(_that);case PrivateEvent_MessageChanged():
@@ -7565,10 +7567,11 @@ return friendRequestReceived(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PrivateEvent_ContactChanged value)?  contactChanged,TResult? Function( PrivateEvent_ContactRemoved value)?  contactRemoved,TResult? Function( PrivateEvent_MessageAdded value)?  messageAdded,TResult? Function( PrivateEvent_MessageChanged value)?  messageChanged,TResult? Function( PrivateEvent_MessageDeleted value)?  messageDeleted,TResult? Function( PrivateEvent_Typing value)?  typing,TResult? Function( PrivateEvent_FriendRequestReceived value)?  friendRequestReceived,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PrivateEvent_OwnDevicesChanged value)?  ownDevicesChanged,TResult? Function( PrivateEvent_ContactChanged value)?  contactChanged,TResult? Function( PrivateEvent_ContactRemoved value)?  contactRemoved,TResult? Function( PrivateEvent_MessageAdded value)?  messageAdded,TResult? Function( PrivateEvent_MessageChanged value)?  messageChanged,TResult? Function( PrivateEvent_MessageDeleted value)?  messageDeleted,TResult? Function( PrivateEvent_Typing value)?  typing,TResult? Function( PrivateEvent_FriendRequestReceived value)?  friendRequestReceived,}){
 final _that = this;
 switch (_that) {
-case PrivateEvent_ContactChanged() when contactChanged != null:
+case PrivateEvent_OwnDevicesChanged() when ownDevicesChanged != null:
+return ownDevicesChanged(_that);case PrivateEvent_ContactChanged() when contactChanged != null:
 return contactChanged(_that);case PrivateEvent_ContactRemoved() when contactRemoved != null:
 return contactRemoved(_that);case PrivateEvent_MessageAdded() when messageAdded != null:
 return messageAdded(_that);case PrivateEvent_MessageChanged() when messageChanged != null:
@@ -7592,9 +7595,10 @@ return friendRequestReceived(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( PrivateContact field0)?  contactChanged,TResult Function( String peer)?  contactRemoved,TResult Function( PrivateMessage field0)?  messageAdded,TResult Function( PrivateMessage field0)?  messageChanged,TResult Function( String peer,  String messageId)?  messageDeleted,TResult Function( String peer)?  typing,TResult Function( String peer,  bool spam)?  friendRequestReceived,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( List<OwnDevice> devices,  bool hasChats)?  ownDevicesChanged,TResult Function( PrivateContact field0)?  contactChanged,TResult Function( String peer)?  contactRemoved,TResult Function( PrivateMessage field0)?  messageAdded,TResult Function( PrivateMessage field0)?  messageChanged,TResult Function( String peer,  String messageId)?  messageDeleted,TResult Function( String peer)?  typing,TResult Function( String peer,  bool spam)?  friendRequestReceived,required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case PrivateEvent_ContactChanged() when contactChanged != null:
+case PrivateEvent_OwnDevicesChanged() when ownDevicesChanged != null:
+return ownDevicesChanged(_that.devices,_that.hasChats);case PrivateEvent_ContactChanged() when contactChanged != null:
 return contactChanged(_that.field0);case PrivateEvent_ContactRemoved() when contactRemoved != null:
 return contactRemoved(_that.peer);case PrivateEvent_MessageAdded() when messageAdded != null:
 return messageAdded(_that.field0);case PrivateEvent_MessageChanged() when messageChanged != null:
@@ -7619,9 +7623,10 @@ return friendRequestReceived(_that.peer,_that.spam);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( PrivateContact field0)  contactChanged,required TResult Function( String peer)  contactRemoved,required TResult Function( PrivateMessage field0)  messageAdded,required TResult Function( PrivateMessage field0)  messageChanged,required TResult Function( String peer,  String messageId)  messageDeleted,required TResult Function( String peer)  typing,required TResult Function( String peer,  bool spam)  friendRequestReceived,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( List<OwnDevice> devices,  bool hasChats)  ownDevicesChanged,required TResult Function( PrivateContact field0)  contactChanged,required TResult Function( String peer)  contactRemoved,required TResult Function( PrivateMessage field0)  messageAdded,required TResult Function( PrivateMessage field0)  messageChanged,required TResult Function( String peer,  String messageId)  messageDeleted,required TResult Function( String peer)  typing,required TResult Function( String peer,  bool spam)  friendRequestReceived,}) {final _that = this;
 switch (_that) {
-case PrivateEvent_ContactChanged():
+case PrivateEvent_OwnDevicesChanged():
+return ownDevicesChanged(_that.devices,_that.hasChats);case PrivateEvent_ContactChanged():
 return contactChanged(_that.field0);case PrivateEvent_ContactRemoved():
 return contactRemoved(_that.peer);case PrivateEvent_MessageAdded():
 return messageAdded(_that.field0);case PrivateEvent_MessageChanged():
@@ -7642,9 +7647,10 @@ return friendRequestReceived(_that.peer,_that.spam);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( PrivateContact field0)?  contactChanged,TResult? Function( String peer)?  contactRemoved,TResult? Function( PrivateMessage field0)?  messageAdded,TResult? Function( PrivateMessage field0)?  messageChanged,TResult? Function( String peer,  String messageId)?  messageDeleted,TResult? Function( String peer)?  typing,TResult? Function( String peer,  bool spam)?  friendRequestReceived,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( List<OwnDevice> devices,  bool hasChats)?  ownDevicesChanged,TResult? Function( PrivateContact field0)?  contactChanged,TResult? Function( String peer)?  contactRemoved,TResult? Function( PrivateMessage field0)?  messageAdded,TResult? Function( PrivateMessage field0)?  messageChanged,TResult? Function( String peer,  String messageId)?  messageDeleted,TResult? Function( String peer)?  typing,TResult? Function( String peer,  bool spam)?  friendRequestReceived,}) {final _that = this;
 switch (_that) {
-case PrivateEvent_ContactChanged() when contactChanged != null:
+case PrivateEvent_OwnDevicesChanged() when ownDevicesChanged != null:
+return ownDevicesChanged(_that.devices,_that.hasChats);case PrivateEvent_ContactChanged() when contactChanged != null:
 return contactChanged(_that.field0);case PrivateEvent_ContactRemoved() when contactRemoved != null:
 return contactRemoved(_that.peer);case PrivateEvent_MessageAdded() when messageAdded != null:
 return messageAdded(_that.field0);case PrivateEvent_MessageChanged() when messageChanged != null:
@@ -7656,6 +7662,80 @@ return friendRequestReceived(_that.peer,_that.spam);case _:
 
 }
 }
+
+}
+
+/// @nodoc
+
+
+class PrivateEvent_OwnDevicesChanged extends PrivateEvent {
+  const PrivateEvent_OwnDevicesChanged({required final  List<OwnDevice> devices, required this.hasChats}): _devices = devices,super._();
+  
+
+ final  List<OwnDevice> _devices;
+ List<OwnDevice> get devices {
+  if (_devices is EqualUnmodifiableListView) return _devices;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_devices);
+}
+
+ final  bool hasChats;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PrivateEvent_OwnDevicesChangedCopyWith<PrivateEvent_OwnDevicesChanged> get copyWith => _$PrivateEvent_OwnDevicesChangedCopyWithImpl<PrivateEvent_OwnDevicesChanged>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivateEvent_OwnDevicesChanged&&const DeepCollectionEquality().equals(other._devices, _devices)&&(identical(other.hasChats, hasChats) || other.hasChats == hasChats));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_devices),hasChats);
+
+@override
+String toString() {
+  return 'PrivateEvent.ownDevicesChanged(devices: $devices, hasChats: $hasChats)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PrivateEvent_OwnDevicesChangedCopyWith<$Res> implements $PrivateEventCopyWith<$Res> {
+  factory $PrivateEvent_OwnDevicesChangedCopyWith(PrivateEvent_OwnDevicesChanged value, $Res Function(PrivateEvent_OwnDevicesChanged) _then) = _$PrivateEvent_OwnDevicesChangedCopyWithImpl;
+@useResult
+$Res call({
+ List<OwnDevice> devices, bool hasChats
+});
+
+
+
+
+}
+/// @nodoc
+class _$PrivateEvent_OwnDevicesChangedCopyWithImpl<$Res>
+    implements $PrivateEvent_OwnDevicesChangedCopyWith<$Res> {
+  _$PrivateEvent_OwnDevicesChangedCopyWithImpl(this._self, this._then);
+
+  final PrivateEvent_OwnDevicesChanged _self;
+  final $Res Function(PrivateEvent_OwnDevicesChanged) _then;
+
+/// Create a copy of PrivateEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? devices = null,Object? hasChats = null,}) {
+  return _then(PrivateEvent_OwnDevicesChanged(
+devices: null == devices ? _self._devices : devices // ignore: cast_nullable_to_non_nullable
+as List<OwnDevice>,hasChats: null == hasChats ? _self.hasChats : hasChats // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
 
 }
 

@@ -442,6 +442,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Invite dco_decode_invite(dynamic raw);
 
   @protected
+  KeyWords dco_decode_key_words(dynamic raw);
+
+  @protected
   LavalinkBridge dco_decode_lavalink_bridge(dynamic raw);
 
   @protected
@@ -569,6 +572,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<OutgoingFile> dco_decode_list_outgoing_file(dynamic raw);
+
+  @protected
+  List<OwnDevice> dco_decode_list_own_device(dynamic raw);
 
   @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
@@ -800,6 +806,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   OverwriteTargetKind dco_decode_overwrite_target_kind(dynamic raw);
 
   @protected
+  OwnDevice dco_decode_own_device(dynamic raw);
+
+  @protected
+  OwnDeviceState dco_decode_own_device_state(dynamic raw);
+
+  @protected
+  OwnDevices dco_decode_own_devices(dynamic raw);
+
+  @protected
   PermissionOverwrite dco_decode_permission_overwrite(dynamic raw);
 
   @protected
@@ -846,6 +861,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PrivateSettings dco_decode_private_settings(dynamic raw);
+
+  @protected
+  PrivateVerification dco_decode_private_verification(dynamic raw);
 
   @protected
   PublicAddress dco_decode_public_address(dynamic raw);
@@ -1529,6 +1547,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Invite sse_decode_invite(SseDeserializer deserializer);
 
   @protected
+  KeyWords sse_decode_key_words(SseDeserializer deserializer);
+
+  @protected
   LavalinkBridge sse_decode_lavalink_bridge(SseDeserializer deserializer);
 
   @protected
@@ -1700,6 +1721,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<OutgoingFile> sse_decode_list_outgoing_file(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<OwnDevice> sse_decode_list_own_device(SseDeserializer deserializer);
 
   @protected
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
@@ -1989,6 +2013,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OwnDevice sse_decode_own_device(SseDeserializer deserializer);
+
+  @protected
+  OwnDeviceState sse_decode_own_device_state(SseDeserializer deserializer);
+
+  @protected
+  OwnDevices sse_decode_own_devices(SseDeserializer deserializer);
+
+  @protected
   PermissionOverwrite sse_decode_permission_overwrite(
     SseDeserializer deserializer,
   );
@@ -2041,6 +2074,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PrivateSettings sse_decode_private_settings(SseDeserializer deserializer);
+
+  @protected
+  PrivateVerification sse_decode_private_verification(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PublicAddress sse_decode_public_address(SseDeserializer deserializer);
@@ -2891,6 +2929,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_invite(Invite self, SseSerializer serializer);
 
   @protected
+  void sse_encode_key_words(KeyWords self, SseSerializer serializer);
+
+  @protected
   void sse_encode_lavalink_bridge(
     LavalinkBridge self,
     SseSerializer serializer,
@@ -3115,6 +3156,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_outgoing_file(
     List<OutgoingFile> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_own_device(
+    List<OwnDevice> self,
     SseSerializer serializer,
   );
 
@@ -3485,6 +3532,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_own_device(OwnDevice self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_own_device_state(
+    OwnDeviceState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_own_devices(OwnDevices self, SseSerializer serializer);
+
+  @protected
   void sse_encode_permission_overwrite(
     PermissionOverwrite self,
     SseSerializer serializer,
@@ -3553,6 +3612,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_private_settings(
     PrivateSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_private_verification(
+    PrivateVerification self,
     SseSerializer serializer,
   );
 

@@ -3,16 +3,19 @@
 //! device's own encrypted database.
 
 pub mod actions;
+pub mod chat_key;
 pub mod contacts;
 pub mod device;
 pub mod inbox;
 pub mod members;
 pub mod outbox;
+pub mod own_devices;
 pub mod payload;
 pub mod seal;
 pub mod service;
 pub mod sessions;
 pub mod store;
+pub mod trust;
 
 use crate::api::types::CoreError;
 

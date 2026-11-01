@@ -1,5 +1,6 @@
 //! This device's Olm account (design 2026-10-22 §10.2): its keys, vouched for
-//! by the person's identity key, and the prekeys others start sessions with.
+//! by the person's chat key (design 2026-11-01 §6.2), and the prekeys others
+//! start sessions with.
 
 use opencord_common::private::{DEVICE_ID_LEN, FALLBACK_ROTATION_MS, prekey_payload};
 use opencord_proto::v1 as proto;
@@ -8,8 +9,8 @@ use vodozemac::Curve25519PublicKey;
 use vodozemac::olm::{Account, AccountPickle};
 
 use super::PrivateError;
+use super::chat_key::ChatKey;
 use super::store::PrivateStore;
-use crate::identity::Identity;
 
 /// This device's account and id.
 ///
@@ -106,17 +107,18 @@ impl Device {
         *self.account.ed25519_key().as_bytes()
     }
 
-    /// The device's keys with `identity`'s signature over them.
-    pub fn keys(&self, identity: &Identity) -> proto::DeviceKeys {
+    /// The device's keys with the chat key's signature over them.
+    pub fn keys(&self, chat_key: &ChatKey) -> proto::DeviceKeys {
         let curve25519 = self.curve25519();
         let ed25519 = self.ed25519();
         proto::DeviceKeys {
             device_id: self.id.to_vec(),
             curve25519: curve25519.to_vec(),
             ed25519: ed25519.to_vec(),
-            signature: identity
+            signature: chat_key
                 .sign_device(&self.id, &curve25519, &ed25519)
                 .to_vec(),
+            chat_key: chat_key.public().to_vec(),
         }
     }
 
@@ -211,7 +213,9 @@ fn unpublished_fallback(account: &Account) -> Option<Curve25519PublicKey> {
 mod tests {
     use std::collections::HashSet;
 
-    use opencord_common::private::{verify_device, verify_prekey};
+    use opencord_common::private::{verify_device_v2, verify_prekey};
+
+    use crate::identity::Identity;
 
     use super::*;
 
@@ -235,26 +239,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn device_keys_carry_a_valid_identity_signature() {
+    async fn device_keys_carry_a_valid_chat_key_signature() {
         let dir = tempfile::tempdir().unwrap();
         let identity = Identity::generate();
         let store = open(dir.path(), &identity).await;
         let device = Device::load_or_create(&store, 0).await.unwrap();
+        let chat_key = ChatKey::load_or_create(&store, 0).await.unwrap();
 
-        let keys = device.keys(&identity);
+        let keys = device.keys(&chat_key);
 
         assert_eq!(keys.device_id, device.id());
         assert_eq!(keys.curve25519, device.curve25519());
         assert_eq!(keys.ed25519, device.ed25519());
-        assert!(verify_device(
-            &identity.public_key(),
+        assert_eq!(keys.chat_key, chat_key.public());
+        assert!(verify_device_v2(
+            &chat_key.public(),
             &keys.device_id,
             &keys.curve25519,
             &keys.ed25519,
             &keys.signature
         ));
-        assert!(!verify_device(
-            &Identity::generate().public_key(),
+        assert!(!verify_device_v2(
+            &identity.public_key(),
             &keys.device_id,
             &keys.curve25519,
             &keys.ed25519,

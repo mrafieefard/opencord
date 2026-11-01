@@ -207,6 +207,10 @@ enum RepoErrorKind {
   /// The server relays private messages only between friends.
   friendsOnly,
 
+  /// None of their devices has a chat key this device accepted (design
+  /// 2026-11-01 §8.2).
+  keysNotAccepted,
+
   unauthorized,
   forbidden,
   notFound,
@@ -1088,6 +1092,12 @@ abstract interface class OpencordRepository {
 
   void acknowledgePrivateStartedFresh();
 
+  /// Whether this device's private chats were removed because private
+  /// messages moved to chat keys (design 2026-11-01 §10). Says so once.
+  bool get privateKeysReset;
+
+  void acknowledgePrivateKeysReset();
+
   Future<List<PrivateContact>> privateContacts();
 
   Future<List<PrivateMessage>> privateMessages(
@@ -1141,6 +1151,48 @@ abstract interface class OpencordRepository {
   Future<void> setPrivateMuted(String peer, {required bool muted});
 
   Future<void> hideConversation(String peer);
+
+  // Chat keys (design 2026-11-01) -------------------------------------------
+
+  /// The 16 words for the chat with [peer], and the keys they were made
+  /// from; with [newKeys], for the other chat key their devices offer.
+  Future<KeyWords> privateWords(String peer, {bool newKeys = false});
+
+  /// They match or They don't match, on the words made from [keys] (as
+  /// [privateWords] gave them); a match on the new keys pins them. Refused
+  /// when the keys changed since.
+  Future<void> verifyPrivate(
+    String peer, {
+    required bool matched,
+    required String keys,
+    bool newKeys = false,
+  });
+
+  /// Use new keys anyway.
+  Future<void> acceptNewPrivateKeys(String peer);
+
+  /// This person's other devices with other chat keys, and whether this
+  /// device has chats.
+  Future<({List<OwnDevice> devices, bool hasChats})> ownDevices();
+
+  /// The 16 words this device and [deviceId] both show, and the keys they
+  /// were made from.
+  Future<KeyWords> pairingWords(String deviceId);
+
+  /// They match, here: [deviceId] gets this device's chat key, only while
+  /// listed with [keys].
+  Future<void> approveOwnDevice(String deviceId, {required String keys});
+
+  /// They match or They don't match, for the chat key [deviceId] offered,
+  /// on the words made from [keys].
+  Future<void> acceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  });
+
+  /// Not mine.
+  Future<void> rejectOwnDevice(String deviceId);
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

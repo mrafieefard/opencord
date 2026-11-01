@@ -15,7 +15,6 @@ import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/home/relay_divider.dart';
 import 'package:opencord/features/home/request_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
-import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
@@ -382,25 +381,6 @@ void main() {
       find.textContaining('Testing enter key', findRichText: true),
       findsOneWidget,
     );
-
-    await app.dispose(tester);
-  });
-
-  testWidgets('the_lock_shows_their_fingerprint', (tester) async {
-    final app = await MockApp.pump(tester);
-    final kaiKey = app.repository.privateWorld.contacts.values
-        .firstWhere((c) => c.name == 'Kai Nakamura')
-        .peer;
-
-    await _pumpChat(tester, app, kaiKey);
-
-    // Tap the lock button
-    await tester.tap(find.byIcon(OcIcons.lock));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(OcDialog), findsOneWidget);
-    expect(find.text('End-to-end encryption'), findsOneWidget);
-    expect(find.textContaining('1001 KAI0 NAKA MURA'), findsOneWidget);
 
     await app.dispose(tester);
   });

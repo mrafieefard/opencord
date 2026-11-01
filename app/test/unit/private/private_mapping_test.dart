@@ -54,7 +54,6 @@ void main() {
     test('PrivateContact with all values and with nulls', () {
       final fullCore = core.PrivateContact(
         peer: 'aabbcc',
-        fingerprint: 'AABB-CCDD-EEFF-0011',
         name: 'Kai',
         friend: core.FriendStatus.friends,
         requestSpam: false,
@@ -66,11 +65,13 @@ void main() {
         muted: true,
         hidden: false,
         preview: 'See you tomorrow!',
+        verification: core.PrivateVerification.verified,
+        newKeys: true,
+        reachable: false,
       );
 
       final full = privateContactFrom(fullCore);
       expect(full.peer, 'aabbcc');
-      expect(full.fingerprint, 'AABB-CCDD-EEFF-0011');
       expect(full.name, 'Kai');
       expect(full.friend, FriendStatus.friends);
       expect(full.requestSpam, isFalse);
@@ -85,10 +86,12 @@ void main() {
       expect(full.muted, isTrue);
       expect(full.hidden, isFalse);
       expect(full.preview, 'See you tomorrow!');
+      expect(full.verification, PrivateVerification.verified);
+      expect(full.newKeys, isTrue);
+      expect(full.reachable, isFalse);
 
       const nullCore = core.PrivateContact(
         peer: 'ddeeff',
-        fingerprint: 'DDEE-FF00-1122-3344',
         name: null,
         friend: core.FriendStatus.none,
         requestSpam: false,
@@ -100,6 +103,9 @@ void main() {
         muted: false,
         hidden: true,
         preview: null,
+        verification: core.PrivateVerification.unverified,
+        newKeys: false,
+        reachable: true,
       );
 
       final nullMapped = privateContactFrom(nullCore);

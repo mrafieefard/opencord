@@ -21,6 +21,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
 use super::PrivateError;
+use super::chat_key::ChatKey;
 use super::contacts::{self, Contact, Conversation, FollowUp, FriendEvent, FriendState};
 use super::device::Device;
 use super::inbox::{self, Reset, ResetLimiter};
@@ -29,9 +30,9 @@ use super::outbox::{self, DeviceCache};
 use super::store::PrivateStore;
 use crate::api::types::{
     ConversationStatus, CoreError, FriendStatus, PrivateContact, PrivateEvent, PrivateMessage,
-    PrivateMessageKind, PrivateOpened, PrivateSendState,
+    PrivateMessageKind, PrivateOpened, PrivateSendState, PrivateVerification,
 };
-use crate::identity::{self, Identity};
+use crate::identity::Identity;
 
 /// Acknowledgements waiting for one server are sent once this many wait…
 const ACK_BATCH: usize = 100;
@@ -105,6 +106,11 @@ pub struct Open {
     /// The crypto lock (Working Rule 11): held from loading sessions until
     /// their transaction commits, never across a network request.
     device: tokio::sync::Mutex<Device>,
+    /// This person's chat key (design 2026-11-01 §6.1). Taken after
+    /// `device` when both are needed.
+    chat_key: tokio::sync::Mutex<ChatKey>,
+    /// Its public half, read without that lock.
+    chat_key_public: Mutex<[u8; 32]>,
     queue: mpsc::UnboundedSender<Job>,
     /// Servers where this device registered. An entry leaves when its
     /// server is removed.
@@ -118,6 +124,25 @@ impl Open {
 
     pub fn device(&self) -> &tokio::sync::Mutex<Device> {
         &self.device
+    }
+
+    pub fn chat_key(&self) -> &tokio::sync::Mutex<ChatKey> {
+        &self.chat_key
+    }
+
+    /// This person's chat key, public half.
+    pub fn chat_key_public(&self) -> [u8; 32] {
+        *lock(&self.chat_key_public)
+    }
+
+    /// After `ChatKey::replace`, with the chat key lock still held.
+    pub(super) fn set_chat_key_public(&self, public: [u8; 32]) {
+        *lock(&self.chat_key_public) = public;
+    }
+
+    /// Servers where this device registered.
+    pub fn registered_servers(&self) -> Vec<String> {
+        lock(&self.registered).iter().cloned().collect()
     }
 
     /// This identity's public key.
@@ -229,6 +254,7 @@ impl PrivateService {
         {
             return Ok(PrivateOpened {
                 started_fresh: false,
+                keys_reset: false,
             });
         }
         let earlier = lock(&self.shared.open).take();
@@ -240,8 +266,8 @@ impl PrivateService {
         let opened =
             PrivateStore::open(&self.shared.data_dir, &public_key, &master_key, now).await?;
         let store = opened.store;
-        let device = match prepare(&store, now).await {
-            Ok(device) => device,
+        let (device, chat_key) = match prepare(&store, now).await {
+            Ok(prepared) => prepared,
             Err(error) => {
                 store.close().await;
                 return Err(error.into());
@@ -252,6 +278,8 @@ impl PrivateService {
             identity: public_key,
             store,
             device: tokio::sync::Mutex::new(device),
+            chat_key_public: Mutex::new(chat_key.public()),
+            chat_key: tokio::sync::Mutex::new(chat_key),
             queue,
             registered: Mutex::new(HashSet::new()),
         });
@@ -266,6 +294,7 @@ impl PrivateService {
         }
         Ok(PrivateOpened {
             started_fresh: opened.started_fresh,
+            keys_reset: opened.keys_reset,
         })
     }
 
@@ -386,9 +415,10 @@ impl PrivateService {
             }
             _ => None,
         };
+        let keys = super::trust::load(conn, &contact.public_key).await?;
+        let mine = open.chat_key_public();
         Ok(PrivateContact {
             peer: hex::encode(contact.public_key),
-            fingerprint: identity::public_key_fingerprint(&contact.public_key),
             name: contact.name.clone(),
             friend: match contact.friend_state {
                 FriendState::None => FriendStatus::None,
@@ -412,6 +442,13 @@ impl PrivateService {
             muted: contact.muted,
             hidden: contact.hidden,
             preview,
+            verification: keys
+                .as_ref()
+                .map_or(PrivateVerification::Unverified, |keys| {
+                    keys.verification(&mine)
+                }),
+            new_keys: keys.as_ref().is_some_and(|keys| keys.candidate.is_some()),
+            reachable: keys.as_ref().is_none_or(|keys| keys.reachable),
         })
     }
 
@@ -434,6 +471,9 @@ impl PrivateService {
                 1 => PrivateMessageKind::Divider,
                 2 => PrivateMessageKind::Moved,
                 3 => PrivateMessageKind::Undecryptable,
+                4 => PrivateMessageKind::KeysChanged,
+                5 => PrivateMessageKind::NewDevice,
+                6 => PrivateMessageKind::UnacceptedKeys,
                 _ => {
                     return Err(PrivateError::Storage(
                         "a stored message has an unknown kind".to_owned(),
@@ -473,7 +513,7 @@ impl PrivateService {
         if !members.is_empty() {
             queue(&open, Job::Names(members));
         }
-        if ready.private_messages {
+        if ready.private_messages_v2 {
             self.start_registration(key);
         }
     }
@@ -656,7 +696,7 @@ impl PrivateService {
 
     /// Registers on `key` in its own task, at most one at a time per
     /// server: a `Ready` meanwhile makes the running one go again.
-    fn start_registration(&self, key: &str) {
+    pub(super) fn start_registration(&self, key: &str) {
         let holder = {
             let mut running = lock(&self.shared.registering);
             if let Some(running) = running.get_mut(key) {
@@ -708,7 +748,6 @@ impl PrivateService {
     /// Steps 1–5 of a registration; the first failure stops it until the
     /// next `Ready`.
     async fn register(&self, open: &Open, key: &str) -> Result<(), CoreError> {
-        let identity = self.identity_for(open)?;
         let pickle_key = open.store.pickle_key();
         // 1.
         let (keys, fallback) = {
@@ -722,7 +761,8 @@ impl PrivateService {
                     .map_err(PrivateError::from)?;
                 device.save(&mut conn, pickle_key).await?;
             }
-            (device.keys(&identity), device.fallback_prekey())
+            let chat_key = open.chat_key.lock().await;
+            (device.keys(&chat_key), device.fallback_prekey())
         };
         // 2.
         let response = self
@@ -767,6 +807,11 @@ impl PrivateService {
         super::actions::sync_privacy_to_server(self, open, key).await?;
         // 5.
         self.catch_up(open, key).await?;
+        // This person's other devices, for the notice (design 2026-11-01
+        // §7.1).
+        if let Err(error) = super::own_devices::refresh_on(self, open, key).await {
+            warn_core("listing this person's devices failed", key, &error);
+        }
         // Then what waited to be sent through this server.
         outbox::resend_unsent(self, key).await
     }
@@ -1045,6 +1090,21 @@ impl PrivateService {
         Ok(())
     }
 
+    /// As `emit_contact`, for the contact with this key, when there is one.
+    pub(super) async fn emit_contact_of(
+        &self,
+        open: &Open,
+        peer: &[u8; 32],
+    ) -> Result<(), PrivateError> {
+        let mut conn = open.store.pool().acquire().await?;
+        let Some(contact) = contacts::load(&mut conn, open.store.sealer(), *peer).await? else {
+            return Ok(());
+        };
+        let view = self.contact_view(open, &mut conn, &contact).await?;
+        self.emit(PrivateEvent::ContactChanged(view));
+        Ok(())
+    }
+
     /// Sends the acknowledgements in their own task: a failure is logged,
     /// and the server delivers those events again.
     fn send_acks(&self, key: String, ids: Vec<i64>) {
@@ -1220,13 +1280,14 @@ async fn run_worker(
 }
 
 /// The device, and received-event records older than 35 days gone.
-async fn prepare(store: &PrivateStore, now: i64) -> Result<Device, PrivateError> {
+async fn prepare(store: &PrivateStore, now: i64) -> Result<(Device, ChatKey), PrivateError> {
     let device = Device::load_or_create(store, now).await?;
+    let chat_key = ChatKey::load_or_create(store, now).await?;
     sqlx::query("DELETE FROM received_events WHERE received_at < $1")
         .bind(now.saturating_sub(RECEIVED_RECORD_TTL_MS))
         .execute(store.pool())
         .await?;
-    Ok(device)
+    Ok((device, chat_key))
 }
 
 /// The event was handled: a delivery of it again is only acknowledged.

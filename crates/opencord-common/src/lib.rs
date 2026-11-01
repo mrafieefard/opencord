@@ -19,6 +19,7 @@ pub mod validation;
 pub mod video;
 pub mod voice;
 pub mod waveform;
+pub mod words;
 
 /// Version of the gateway protocol spoken by this build.
 pub const PROTOCOL_VERSION: u32 = 1;

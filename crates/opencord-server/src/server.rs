@@ -388,6 +388,7 @@ impl ServerHandle {
             curve25519: keys.curve25519,
             ed25519: keys.ed25519,
             signature: keys.signature,
+            chat_key: keys.chat_key,
             fallback_key: fallback.key,
             fallback_signature: fallback.signature,
         };
@@ -400,6 +401,28 @@ impl ServerHandle {
         crate::db::private::upsert_device(&mut conn, user_id, &device, now_ms())
             .await
             .expect("the device is stored");
+    }
+
+    /// The member's devices as `FetchDevices` lists them. Intended for tests.
+    pub async fn private_device_keys(&self, user_id: i64) -> Vec<opencord_proto::v1::DeviceKeys> {
+        let mut conn = self
+            .state
+            .db
+            .acquire()
+            .await
+            .expect("a database connection");
+        crate::db::private::devices(&mut conn, user_id)
+            .await
+            .expect("the devices")
+            .into_iter()
+            .map(|device| opencord_proto::v1::DeviceKeys {
+                device_id: device.device_id,
+                curve25519: device.curve25519,
+                ed25519: device.ed25519,
+                signature: device.signature,
+                chat_key: device.chat_key,
+            })
+            .collect()
     }
 
     /// The events waiting for the device, oldest first. Intended for tests.

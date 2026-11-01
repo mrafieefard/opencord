@@ -5,6 +5,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/home/friend_rows.dart';
+import 'package:opencord/features/home/own_device_notice.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -89,6 +90,10 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             ],
           ),
         ),
+
+        // This person's other devices with other chat keys (design
+        // 2026-11-01 §7.1).
+        const OwnDeviceNotice(),
 
         // Main content area
         Expanded(
