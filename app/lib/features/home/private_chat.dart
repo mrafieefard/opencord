@@ -7,6 +7,7 @@ import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
+import 'package:opencord/features/home/key_banners.dart';
 import 'package:opencord/features/home/private_composer.dart';
 import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/home/private_header.dart';
@@ -133,6 +134,21 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
           style: OcText.body.copyWith(color: colors.textMuted),
         ),
       );
+    } else if (contact != null && !contact.reachable) {
+      bottomBar = Container(
+        height: 56,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: Text(
+          'Nothing you write would reach $name until you compare the words '
+          'or use the new keys.',
+          style: OcText.body.copyWith(color: colors.textMuted),
+        ),
+      );
     } else if (!anyConnectedSharedServer) {
       bottomBar = Container(
         height: 56,
@@ -178,6 +194,7 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
               ],
             ),
           ),
+        if (!isRequestMode && !isBlocked) KeyBanners(peer: widget.peer),
         bottomBar,
       ],
     );

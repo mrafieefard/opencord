@@ -41,6 +41,12 @@ Future<void> showPrivateFailure(
       }
       break;
 
+    case RepoErrorKind.keysNotAccepted:
+      title = "Couldn't send message";
+      message =
+          "$name's keys changed. Compare the words, or use the new keys, to write to them.";
+      break;
+
     case RepoErrorKind.privateMessagesUnavailable:
       if (action == PrivateAction.move) {
         title = "Couldn't move the chat";

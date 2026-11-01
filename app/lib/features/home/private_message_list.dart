@@ -185,10 +185,21 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
             serverName: m.content,
             serverKey: m.serverKey,
           ),
-          // Drawn from Task 7 of the chat keys plan.
-          PrivateMessageKind.keysChanged ||
-          PrivateMessageKind.newDevice ||
-          PrivateMessageKind.unacceptedKeys => const SizedBox.shrink(),
+          PrivateMessageKind.keysChanged => _keyLine(
+            context,
+            OcIcons.key,
+            m.outgoing ? 'Your keys changed.' : "$peerName's keys changed.",
+          ),
+          PrivateMessageKind.newDevice => _keyLine(
+            context,
+            OcIcons.lock,
+            '$peerName signed in on a new device.',
+          ),
+          PrivateMessageKind.unacceptedKeys => _keyLine(
+            context,
+            OcIcons.warning,
+            "A message from keys you haven't accepted.",
+          ),
           PrivateMessageKind.undecryptable => Padding(
             padding: const EdgeInsets.symmetric(vertical: OcSpace.s8),
             child: Center(
@@ -217,6 +228,29 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
           ),
         };
       },
+    );
+  }
+
+  /// A quiet line about the chat's keys (design 2026-11-01 §8.2).
+  Widget _keyLine(BuildContext context, IconData icon, String text) {
+    final colors = context.oc;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: OcSpace.s8),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: colors.textMuted),
+            const SizedBox(width: OcSpace.s6),
+            Flexible(
+              child: Text(
+                text,
+                style: OcText.small.copyWith(color: colors.textMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

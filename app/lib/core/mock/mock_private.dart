@@ -668,8 +668,13 @@ class MockPrivateWorld {
     _emit(PrivateMessageAdded(line));
   }
 
-  Future<({List<OwnDevice> devices, bool hasChats})> listOwnDevices() async =>
-      (devices: List<OwnDevice>.unmodifiable(ownDevices), hasChats: true);
+  /// Whether this device has chats, for the notices.
+  var ownHasChats = true;
+
+  Future<({List<OwnDevice> devices, bool hasChats})> listOwnDevices() async => (
+    devices: List<OwnDevice>.unmodifiable(ownDevices),
+    hasChats: ownHasChats,
+  );
 
   Future<List<String>> pairingWords(String deviceId) async =>
       _wordsFor(deviceId);
@@ -699,6 +704,7 @@ class MockPrivateWorld {
     _emitOwnDevices();
   }
 
-  void _emitOwnDevices() =>
-      _emit(OwnDevicesChanged(List.unmodifiable(ownDevices), hasChats: true));
+  void _emitOwnDevices() => _emit(
+    OwnDevicesChanged(List.unmodifiable(ownDevices), hasChats: ownHasChats),
+  );
 }

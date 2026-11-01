@@ -34,6 +34,28 @@ class _HomeMainState extends ConsumerState<HomeMain> {
   void _checkStartedFresh() {
     if (!mounted || _checkedStartedFresh) return;
     final repo = ref.read(repositoryProvider);
+    if (repo.privateKeysReset) {
+      _checkedStartedFresh = true;
+      repo.acknowledgePrivateKeysReset();
+      showOcDialog(
+        context: context,
+        builder: (context) => OcDialog(
+          title: 'Private messages',
+          actions: [
+            OcButton.primary(
+              label: 'OK',
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+          child: Text(
+            'Private messages now use new encryption. Your old private chats '
+            'were removed from this device.',
+            style: OcText.body.copyWith(color: context.oc.textSecondary),
+          ),
+        ),
+      );
+      return;
+    }
     if (repo.privateStartedFresh) {
       _checkedStartedFresh = true;
       repo.acknowledgePrivateStartedFresh();

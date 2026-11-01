@@ -15,7 +15,6 @@ import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/home/relay_divider.dart';
 import 'package:opencord/features/home/request_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
-import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
