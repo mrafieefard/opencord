@@ -83,9 +83,9 @@ Windows' and macOS' file versions get the plain `X.Y.Z`, because they can't hold
 | Client (Windows) | Runs clippy and the tests of the app's crates, and builds `opencord-windows-x64.zip`. |
 | Client (macOS) | Runs clippy and the tests of the app's crates, and builds the universal `opencord-macos.zip`. |
 | Phone (Android) | Type-checks, lints and tests the phone app, checks its bindings and licences, and builds `opencord-android.apk`, signed with Opencord's key (see "Phone apps" below). |
-| Phone (iOS) | Builds the iPhone app for the simulator, unsigned. It is checked, not released. |
+| Phone (iOS) | Builds the iPhone app for phones, unsigned, as `opencord-ios-unsigned.ipa` (see "Phone apps" below). |
 | Docker | Tags the image (`beta`, `canary`, `latest`, the version) once every job above has passed. |
-| Release | Once the Docker job and both phone jobs have passed, leaves out the simulator app and a debug-signed APK, writes `release.json`, `SHA256SUMS` and the notes, and publishes the GitHub release. |
+| Release | Once the Docker job and both phone jobs have passed, leaves out a debug-signed APK, writes `release.json`, `SHA256SUMS` and the notes, and publishes the GitHub release. |
 
 Nothing is tagged or released unless every test passes on every platform. Tests that need real hardware or millisecond timing skip on the shared runners (`OPENCORD_SHARED_RUNNER`): hardware encoders, VideoToolbox's bitrate, and speaking and frame-pacing timings.
 
@@ -107,6 +107,7 @@ The app's launcher (docs/updater.md) reads GitHub releases. Every release carrie
 | `server-windows-x64` | `opencord-server-windows-x64.zip` |
 | `server-macos-universal` | `opencord-server-macos.tar.gz` |
 | `android-apk` | `opencord-android.apk`, when it was signed with Opencord's key |
+| `ios-ipa-unsigned` | `opencord-ios-unsigned.ipa` |
 |  | `SHA256SUMS` |
 |  | `release.json` |
 |  | `release.json.sig`, when the signing key is set |
@@ -174,7 +175,7 @@ gh secret set ANDROID_KEY_PASSWORD        # the key's password
 
 The Android job decodes the keystore into the runner's temporary folder, and Gradle reads the four values when it signs (`mobile/plugins/withReleaseSigning.ts`), so they never end up in the generated project. Without the secrets, the APK is signed with the debug key and named `opencord-android-unsigned-debugkey.apk`. It is still uploaded with the run, for testing, but the release leaves it out: no update signed with the real key could install over it.
 
-The iPhone app isn't released yet. CI builds it for the simulator, unsigned. TestFlight and the App Store need an Apple Developer account and their own signing.
+The iPhone app is released unsigned, as `opencord-ios-unsigned.ipa`: Apple signs apps only for a paid developer account. People install it with a sideloading app such as AltStore or Sideloadly, which signs it with their own Apple ID; with a free Apple ID that signature lasts 7 days and the app has to be signed again. TestFlight and the App Store need an Apple Developer account and their own signing.
 
 ## Setup on GitHub
 

@@ -19,7 +19,7 @@ Opencord for Android and iOS lives in `mobile/`. It is a React Native app (Expo 
 ### Installing it
 
 - **Android 8.0 and up:** download `opencord-android.apk` from a release on GitHub and open it on the phone. Android asks to let your browser or files app install apps; allow it once. A newer APK installs over the old one and keeps your identity and servers. (A release carries the APK once it is signed with Opencord's key: docs/releasing.md, "Phone apps".)
-- **iPhone:** not released yet. CI builds it for the simulator only; TestFlight comes later.
+- **iPhone (iOS 16.4 and up):** download `opencord-ios-unsigned.ipa` from a release. It isn't signed, since Opencord isn't on the App Store yet, so install it with a sideloading app such as [AltStore](https://altstore.io) or [Sideloadly](https://sideloadly.io), which signs it with your Apple ID. With a free Apple ID the app has to be signed again every 7 days; the sideloading app can do that for you. TestFlight comes later.
 
 ### Your identity
 
@@ -168,4 +168,4 @@ That is Expo SDK 58's template. `scripts/build-core.sh ios` builds the core for 
 
 React Native is built from source on iOS (`buildReactNativeFromSource` in `app.config.ts`), which makes the first build slower. `@react-native-menu/menu` 2.0.0 imports `"RCTBridge.h"` as a local header, and the precompiled React core doesn't provide it.
 
-The simulator build is for Apple Silicon only: the core's xcframework has `aarch64-apple-ios` and `aarch64-apple-ios-sim` slices, so a simulator build passes `ARCHS=arm64` (CI does). An Intel Mac's simulator would need `x86_64-apple-ios` added to `ios.targets` in `ubrn.config.yaml`.
+The simulator build is for Apple Silicon only: the core's xcframework has `aarch64-apple-ios` and `aarch64-apple-ios-sim` slices, so a simulator build passes `ARCHS=arm64`. (CI builds for phones, where arm64 is the only architecture.) An Intel Mac's simulator would need `x86_64-apple-ios` added to `ios.targets` in `ubrn.config.yaml`.
