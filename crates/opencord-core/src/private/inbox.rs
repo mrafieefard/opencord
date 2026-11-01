@@ -524,6 +524,8 @@ async fn from_peer(
         }
         // The new session is saved already.
         Body::SessionReset(_) => {}
+        // Task 4 of the chat keys plan reads these.
+        Body::ChatKeyShare(_) => {}
     }
     if changed {
         contacts::save(conn, sealer, &contact, now).await?;
@@ -604,6 +606,8 @@ async fn own_copy(
             }
         }
         Body::SessionReset(_) => {}
+        // Task 4 of the chat keys plan reads these.
+        Body::ChatKeyShare(_) => {}
     }
     if changed {
         contacts::save(conn, sealer, &contact, now).await?;

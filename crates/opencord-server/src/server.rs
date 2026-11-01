@@ -388,6 +388,7 @@ impl ServerHandle {
             curve25519: keys.curve25519,
             ed25519: keys.ed25519,
             signature: keys.signature,
+            chat_key: keys.chat_key,
             fallback_key: fallback.key,
             fallback_signature: fallback.signature,
         };

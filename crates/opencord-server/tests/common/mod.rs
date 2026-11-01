@@ -765,20 +765,21 @@ impl TestDevice {
     }
 }
 
-/// The device's keys, signed by `identity`.
-pub fn device_keys(identity: &SigningKey, device: &TestDevice) -> proto::DeviceKeys {
+/// The device's keys, signed by `chat_key`.
+pub fn device_keys(chat_key: &SigningKey, device: &TestDevice) -> proto::DeviceKeys {
     let ed25519 = device.ed.verifying_key().to_bytes();
     proto::DeviceKeys {
         device_id: device.id.to_vec(),
         curve25519: device.curve.to_vec(),
         ed25519: ed25519.to_vec(),
-        signature: opencord_common::private::sign_device(
-            identity,
+        signature: opencord_common::private::sign_device_v2(
+            chat_key,
             &device.id,
             &device.curve,
             &ed25519,
         )
         .to_vec(),
+        chat_key: chat_key.verifying_key().to_bytes().to_vec(),
     }
 }
 
@@ -812,12 +813,12 @@ pub fn fallback_key(device: &TestDevice) -> [u8; 32] {
 
 /// A valid `RegisterDevice` with `one_time_keys` keys.
 pub fn register_request(
-    identity: &SigningKey,
+    chat_key: &SigningKey,
     device: &TestDevice,
     one_time_keys: u8,
 ) -> proto::request::Kind {
     proto::request::Kind::RegisterDevice(proto::RegisterDevice {
-        device: Some(device_keys(identity, device)),
+        device: Some(device_keys(chat_key, device)),
         one_time_keys: (0..one_time_keys)
             .map(|i| prekey(device, one_time_key(device, i), false))
             .collect(),
@@ -829,12 +830,12 @@ impl TestClient {
     /// Registers `device` for this session, with `one_time_keys` keys.
     pub async fn register_device(
         &mut self,
-        identity: &SigningKey,
+        chat_key: &SigningKey,
         device: &TestDevice,
         one_time_keys: u8,
     ) -> proto::DeviceRegistration {
         match self
-            .ok(register_request(identity, device, one_time_keys))
+            .ok(register_request(chat_key, device, one_time_keys))
             .await
         {
             proto::response::Result::DeviceRegistration(registration) => registration,

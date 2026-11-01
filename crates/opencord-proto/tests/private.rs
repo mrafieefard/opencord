@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use opencord_proto::v1::{
-    DeviceRegistration, ErrorCode, Event, FriendRemoved, FriendRequestAnswered,
-    FriendRequestCancelled, FriendRequestReceived, FriendRequestSent, PendingEvent, PrivateDelete,
-    PrivateEdit, PrivateMessage, PrivatePayload, PrivateText, Ready, RegisterDevice, RelayMoved,
-    Request, RequestAccepted, Response, SessionReset, User, event, pending_event, private_payload,
-    request, response,
+    ChatKeyShare, DeviceKeys, DeviceRef, DeviceRegistration, ErrorCode, Event, FriendRemoved,
+    FriendRequestAnswered, FriendRequestCancelled, FriendRequestReceived, FriendRequestSent,
+    PendingEvent, PrivateDelete, PrivateEdit, PrivateMessage, PrivatePayload, PrivateText, Ready,
+    RegisterDevice, RelayMoved, Request, RequestAccepted, Response, SendPrivateMessage,
+    SessionReset, User, event, pending_event, private_payload, request, response,
 };
 use prost::Message as _;
 
@@ -33,6 +33,30 @@ fn field_numbers_are_the_planned_ones() {
         ..Default::default()
     };
     assert_eq!(ready.encode_to_vec(), [0xA8, 0x01, 0x01]);
+
+    // Chat keys (design 2026-11-01).
+    let ready = Ready {
+        private_messages_v2: true,
+        ..Default::default()
+    };
+    assert_eq!(ready.encode_to_vec(), [0xB8, 0x01, 0x01]);
+    let keys = DeviceKeys {
+        chat_key: vec![7],
+        ..Default::default()
+    };
+    assert_eq!(keys.encode_to_vec(), [0x2A, 0x01, 0x07]);
+    let send = SendPrivateMessage {
+        withheld: vec![DeviceRef::default()],
+        ..Default::default()
+    };
+    assert_eq!(send.encode_to_vec(), [0x2A, 0x00]);
+    let share = PrivatePayload {
+        body: Some(private_payload::Body::ChatKeyShare(ChatKeyShare {
+            secret: vec![9],
+        })),
+        ..Default::default()
+    };
+    assert_eq!(share.encode_to_vec(), [0x82, 0x01, 0x03, 0x0A, 0x01, 0x09]);
 
     assert_eq!(ErrorCode::FriendRequestsClosed as i32, 48);
     assert_eq!(ErrorCode::MessageRequestsClosed as i32, 49);
@@ -119,6 +143,9 @@ fn pending_events_and_payloads_round_trip() {
         }),
         private_payload::Body::RequestAccepted(RequestAccepted {}),
         private_payload::Body::SessionReset(SessionReset {}),
+        private_payload::Body::ChatKeyShare(ChatKeyShare {
+            secret: vec![8; 32],
+        }),
     ];
 
     for (idx, body) in payload_bodies.into_iter().enumerate() {

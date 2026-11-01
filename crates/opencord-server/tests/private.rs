@@ -20,12 +20,15 @@ use proto::response::Result as Response;
 async fn ready_says_whether_private_messages_are_on() {
     let default_server = TestServer::start().await;
     let (_client, ready) = owner(&default_server).await;
-    assert!(ready.private_messages);
+    // Apps from before chat keys must see them as off.
+    assert!(!ready.private_messages);
+    assert!(ready.private_messages_v2);
 
     let disabled_server =
         TestServer::start_with(|config| config.private_messages.enabled = false).await;
     let (_client, ready) = owner(&disabled_server).await;
     assert!(!ready.private_messages);
+    assert!(!ready.private_messages_v2);
 }
 
 async fn fetch_devices(client: &mut TestClient, user_ids: Vec<i64>) -> proto::DeviceLists {
@@ -96,15 +99,17 @@ async fn a_device_registers_and_reports_its_keys() {
 }
 
 #[tokio::test]
-async fn a_device_signed_by_someone_else_is_refused() {
+async fn a_device_signed_by_another_chat_key_is_refused() {
     let server = TestServer::start().await;
     let (mut client, ready) = owner(&server).await;
     let me = self_id(&ready);
     let code = invite(&mut client, None).await;
     let (mut other, _) = join(&server, 2, &code).await;
     let device = TestDevice::new(10);
+    let mut keys = device_keys(&key(9), &device);
+    keys.chat_key = key(1).verifying_key().to_bytes().to_vec();
 
-    let error = client.error(register_request(&key(9), &device, 1)).await;
+    let error = client.error(registration_of(&device, keys)).await;
 
     assert_code(&error, proto::ErrorCode::InvalidArgument);
     other
@@ -113,6 +118,42 @@ async fn a_device_signed_by_someone_else_is_refused() {
     let lists = fetch_devices(&mut other, vec![me]).await;
     assert!(device_ids(&lists, me).is_empty());
     assert_eq!(server.handle.private_counts(me).await.devices, 0);
+}
+
+#[tokio::test]
+async fn an_identity_signature_is_no_longer_enough() {
+    let server = TestServer::start().await;
+    let (mut client, _) = owner(&server).await;
+    let device = TestDevice::new(10);
+    let identity = key(1);
+    let ed25519 = device.ed.verifying_key().to_bytes();
+    // The old layout: "opencord-device-v1" by the identity key.
+    let mut payload = Vec::from(*b"opencord-device-v1");
+    payload.extend_from_slice(&device.id);
+    payload.extend_from_slice(&device.curve);
+    payload.extend_from_slice(&ed25519);
+    let keys = proto::DeviceKeys {
+        device_id: device.id.to_vec(),
+        curve25519: device.curve.to_vec(),
+        ed25519: ed25519.to_vec(),
+        signature: ed25519_dalek::Signer::sign(&identity, &payload)
+            .to_bytes()
+            .to_vec(),
+        chat_key: identity.verifying_key().to_bytes().to_vec(),
+    };
+
+    let error = client.error(registration_of(&device, keys)).await;
+
+    assert_code(&error, proto::ErrorCode::InvalidArgument);
+}
+
+/// A `RegisterDevice` for `device` with these keys and one one-time key.
+fn registration_of(device: &TestDevice, keys: proto::DeviceKeys) -> Kind {
+    Kind::RegisterDevice(proto::RegisterDevice {
+        device: Some(keys),
+        one_time_keys: vec![prekey(device, one_time_key(device, 0), false)],
+        fallback_key: Some(prekey(device, fallback_key(device), true)),
+    })
 }
 
 #[tokio::test]
@@ -846,7 +887,23 @@ fn message(
         send_id: vec![send_id; 16],
         ciphertexts,
         slip,
+        withheld: Vec::new(),
     })
+}
+
+/// `message` with these (user id, device) left out on purpose.
+fn withholding(request: Kind, withheld: &[(i64, u8)]) -> Kind {
+    let Kind::SendPrivateMessage(mut send) = request else {
+        unreachable!("only messages withhold devices");
+    };
+    send.withheld = withheld
+        .iter()
+        .map(|&(user_id, device)| proto::DeviceRef {
+            user_id,
+            device_id: TestDevice::new(device).id.to_vec(),
+        })
+        .collect();
+    Kind::SendPrivateMessage(send)
 }
 
 /// Sends a message that must be accepted; returns its `sent_at_ms`.
@@ -993,6 +1050,58 @@ async fn a_stale_device_set_is_refused() {
 }
 
 #[tokio::test]
+async fn withheld_devices_count_as_covered() {
+    let server = TestServer::start().await;
+    let (mut a1, a, _b1, b) = people(&server).await;
+    let mut b2 = member_again(&server, 2).await;
+    b2.register_device(&key(2), &TestDevice::new(B2), 0).await;
+
+    send(
+        &mut a1,
+        withholding(
+            message(b, 1, vec![copy(b, B1, vec![1])], Vec::new()),
+            &[(b, B2)],
+        ),
+    )
+    .await;
+
+    let to = |device| {
+        server
+            .handle
+            .private_pending_for(b, TestDevice::new(device).id)
+    };
+    assert_eq!(to(B1).await.len(), 1);
+    assert!(to(B2).await.is_empty());
+    assert_eq!(pending_total(&server, [a, b]).await, 1);
+}
+
+#[tokio::test]
+async fn a_device_both_sent_and_withheld_is_refused() {
+    let server = TestServer::start().await;
+    let (mut a1, a, _b1, b) = people(&server).await;
+    let mut b2 = member_again(&server, 2).await;
+    b2.register_device(&key(2), &TestDevice::new(B2), 0).await;
+
+    let error = a1
+        .error(withholding(
+            message(b, 1, vec![copy(b, B1, vec![1])], Vec::new()),
+            &[(b, B1), (b, B2)],
+        ))
+        .await;
+
+    assert_code(&error, proto::ErrorCode::DeviceListChanged);
+    // Withholding a device nobody has is no better.
+    let error = a1
+        .error(withholding(
+            message(b, 1, vec![copy(b, B1, vec![1])], Vec::new()),
+            &[(b, B2), (b, C1)],
+        ))
+        .await;
+    assert_code(&error, proto::ErrorCode::DeviceListChanged);
+    assert_eq!(pending_total(&server, [a, b]).await, 0);
+}
+
+#[tokio::test]
 async fn a_repeated_send_id_stores_nothing() {
     let server = TestServer::start().await;
     let (mut a1, _, _b1, b) = people(&server).await;
@@ -1083,6 +1192,7 @@ async fn malformed_copies_are_refused() {
         send_id: vec![1; 15],
         ciphertexts: vec![copy(b, B1, vec![1])],
         slip: Vec::new(),
+        withheld: Vec::new(),
     });
 
     for request in [

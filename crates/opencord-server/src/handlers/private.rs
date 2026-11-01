@@ -57,24 +57,17 @@ pub async fn register_device(
             "this connection already registered another device",
         ));
     }
-    // 3. Signed by the caller's identity key.
-    let identity = {
-        let guild = ctx.state.guild();
-        guild
-            .members
-            .get(&ctx.user_id)
-            .map(|member| member.user.public_key.clone())
-            .ok_or_else(|| ApiError::not_found("member"))?
-    };
-    if !rules::verify_device(
-        &identity,
+    // 3. Signed by the chat key it names (design 2026-11-01 §6.2). Which
+    // chat keys to trust is the apps' business.
+    if !rules::verify_device_v2(
+        &keys.chat_key,
         &keys.device_id,
         &keys.curve25519,
         &keys.ed25519,
         &keys.signature,
     ) {
         return Err(ApiError::invalid_argument(
-            "the device's signature does not match your identity",
+            "the device's signature does not match its chat key",
         ));
     }
     // 4. Every prekey signed by the device.
@@ -90,6 +83,7 @@ pub async fn register_device(
         curve25519: keys.curve25519,
         ed25519: keys.ed25519,
         signature: keys.signature,
+        chat_key: keys.chat_key,
         fallback_key: fallback.key,
         fallback_signature: fallback.signature,
     };
@@ -362,6 +356,7 @@ pub async fn send_private_message(
     may_reach(ctx, recipient_id, &people, &request.slip)?;
     // 6.
     let targets = check_copies(&request)?;
+    let withheld = check_withheld(&request)?;
     // 7. A repeat stores nothing and answers the first time.
     let mut conn = ctx.state.db.acquire().await?;
     if let Some(sent_at_ms) =
@@ -370,7 +365,15 @@ pub async fn send_private_message(
         return Ok(sent(sent_at_ms));
     }
     // 8.
-    check_targets(&mut conn, ctx.user_id, recipient_id, &device_id, &targets).await?;
+    check_targets(
+        &mut conn,
+        ctx.user_id,
+        recipient_id,
+        &device_id,
+        &targets,
+        &withheld,
+    )
+    .await?;
     drop(conn);
     // 9. Recording the send id first takes the write lock, so a repeat
     // sent meanwhile is seen, and the devices checked again below can't
@@ -390,7 +393,15 @@ pub async fn send_private_message(
             .ok_or_else(ApiError::internal)?;
         return Ok(sent(sent_at_ms));
     }
-    check_targets(&mut tx, ctx.user_id, recipient_id, &device_id, &targets).await?;
+    check_targets(
+        &mut tx,
+        ctx.user_id,
+        recipient_id,
+        &device_id,
+        &targets,
+        &withheld,
+    )
+    .await?;
     let pushed = match insert_pending(&mut tx, ctx.state, items, now).await {
         Ok(pushed) => pushed,
         Err(sqlx::Error::Database(error)) if error.is_foreign_key_violation() => {
@@ -505,14 +516,34 @@ fn check_copies(request: &proto::SendPrivateMessage) -> Result<Vec<(i64, [u8; 16
     Ok(targets)
 }
 
-/// The copies go to exactly the recipient's devices and the caller's
-/// other ones.
+/// The devices the app chose not to encrypt for (design 2026-11-01 §10).
+fn check_withheld(request: &proto::SendPrivateMessage) -> Result<Vec<(i64, [u8; 16])>, ApiError> {
+    if request.withheld.len() > MAX_CIPHERTEXTS {
+        return Err(ApiError::invalid_argument(format!(
+            "at most {MAX_CIPHERTEXTS} devices can be withheld"
+        )));
+    }
+    request
+        .withheld
+        .iter()
+        .map(|device| {
+            let id: [u8; 16] = device.device_id.as_slice().try_into().map_err(|_| {
+                ApiError::invalid_argument(format!("a device id must be {DEVICE_ID_LEN} bytes"))
+            })?;
+            Ok((device.user_id, id))
+        })
+        .collect()
+}
+
+/// The copies and the withheld devices together are exactly the
+/// recipient's devices and the caller's other ones, none in both.
 async fn check_targets(
     conn: &mut SqliteConnection,
     caller: i64,
     recipient: i64,
     device_id: &[u8; 16],
     targets: &[(i64, [u8; 16])],
+    withheld: &[(i64, [u8; 16])],
 ) -> Result<(), ApiError> {
     let recipient_devices = devices_of(conn, recipient).await?;
     if recipient_devices.is_empty() {
@@ -532,7 +563,9 @@ async fn check_targets(
         )
         .collect();
     let given: HashSet<(i64, [u8; 16])> = targets.iter().copied().collect();
-    if given == expected {
+    let left_out: HashSet<(i64, [u8; 16])> = withheld.iter().copied().collect();
+    let covered: HashSet<(i64, [u8; 16])> = given.union(&left_out).copied().collect();
+    if given.is_disjoint(&left_out) && left_out.len() == withheld.len() && covered == expected {
         Ok(())
     } else {
         Err(ApiError::device_list_changed())
@@ -720,6 +753,7 @@ fn device_keys(device: DeviceRow) -> proto::DeviceKeys {
         curve25519: device.curve25519,
         ed25519: device.ed25519,
         signature: device.signature,
+        chat_key: device.chat_key,
     }
 }
 
@@ -728,6 +762,7 @@ fn check_device_keys(keys: &proto::DeviceKeys) -> Result<[u8; 16], ApiError> {
     check_len(&keys.curve25519, KEY_LEN, "a device's Curve25519 key")?;
     check_len(&keys.ed25519, KEY_LEN, "a device's Ed25519 key")?;
     check_len(&keys.signature, SIGNATURE_LEN, "a device's signature")?;
+    check_len(&keys.chat_key, KEY_LEN, "a device's chat key")?;
     keys.device_id.as_slice().try_into().map_err(|_| {
         ApiError::invalid_argument(format!("a device id must be {DEVICE_ID_LEN} bytes"))
     })

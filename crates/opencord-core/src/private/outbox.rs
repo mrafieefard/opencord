@@ -625,6 +625,7 @@ async fn encrypt(
             .their_slip
             .map(|slip| slip.to_vec())
             .unwrap_or_default(),
+        withheld: Vec::new(),
     };
     let mut tx = open
         .store()

@@ -7,16 +7,20 @@ import "opencord/v1/models.proto";
 
 // Private messages, friends and offline delivery (design 2026-10-22).
 
-// A device's long-term keys, signed by its owner's identity key over
-// "opencord-device-v1" || device_id || curve25519 || ed25519.
+// A device's long-term keys, signed by its owner's chat key over
+// "opencord-device-v2" || device_id || curve25519 || ed25519 (design
+// 2026-11-01 §6.2).
 message DeviceKeys {
   // 16 random bytes, chosen by the device.
   bytes device_id = 1;
   // 32 bytes each.
   bytes curve25519 = 2;
   bytes ed25519 = 3;
-  // 64 bytes, by the user's identity key.
+  // 64 bytes, by chat_key.
   bytes signature = 4;
+  // The public half of the owner's chat key (32 bytes). It has nothing to
+  // do with the identity key; apps decide whose chat keys they trust.
+  bytes chat_key = 5;
 }
 
 // A one-time key or a fallback key (32 bytes), signed by the device's
@@ -120,6 +124,10 @@ message SendPrivateMessage {
   repeated DeviceCiphertext ciphertexts = 3;
   // The recipient's permission slip for the caller, when held.
   bytes slip = 4;
+  // Devices of either person the app deliberately doesn't encrypt for
+  // (design 2026-11-01 §8). With the copies they must be exactly the
+  // devices listed, none in both.
+  repeated DeviceRef withheld = 5;
 }
 
 message PrivateMessageSent {
@@ -276,6 +284,7 @@ message PrivatePayload {
     RelayMoved relay_moved = 13;
     RequestAccepted request_accepted = 14;
     SessionReset session_reset = 15;
+    ChatKeyShare chat_key_share = 16;
   }
 }
 
@@ -304,3 +313,9 @@ message RelayMoved {
 message RequestAccepted {}
 
 message SessionReset {}
+
+// From one of a person's devices to another, after they compared words
+// (design 2026-11-01 §7.2): the chat key's private half (32 bytes).
+message ChatKeyShare {
+  bytes secret = 1;
+}

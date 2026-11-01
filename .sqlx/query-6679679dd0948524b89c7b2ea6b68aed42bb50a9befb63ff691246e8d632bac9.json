@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT device_id, curve25519, ed25519, signature, fallback_key, fallback_signature\n         FROM private_devices WHERE user_id = $1 AND device_id = $2",
+  "query": "SELECT device_id, curve25519, ed25519, signature, chat_key, fallback_key,\n                fallback_signature\n         FROM private_devices WHERE user_id = $1 AND device_id = $2",
   "describe": {
     "columns": [
       {
@@ -48,8 +48,19 @@
         }
       },
       {
-        "name": "fallback_key",
+        "name": "chat_key",
         "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "private_devices",
+            "name": "chat_key"
+          }
+        }
+      },
+      {
+        "name": "fallback_key",
+        "ordinal": 5,
         "type_info": "Blob",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "fallback_signature",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Blob",
         "origin": {
           "Table": {
@@ -79,8 +90,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "440896b39114d2916dbc126c8bc8359a0cad4ffe0fd88220589ac31ae0b4c9dc"
+  "hash": "6679679dd0948524b89c7b2ea6b68aed42bb50a9befb63ff691246e8d632bac9"
 }

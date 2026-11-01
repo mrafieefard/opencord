@@ -117,6 +117,7 @@ impl Device {
             signature: identity
                 .sign_device(&self.id, &curve25519, &ed25519)
                 .to_vec(),
+            chat_key: Vec::new(),
         }
     }
 
