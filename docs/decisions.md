@@ -1611,6 +1611,7 @@ The owner asked for a log a user can export after an error and send them, so Cla
   - talking: a filled circle;
   - muted or deafened: the ring with a slash (my call).
   The unread dot stays. Each look is drawn once and reused, since talking flips it many times a second.
+- **Why closing quit on Linux even with the tray up.** The Flutter Linux embedder connects its own `delete-event` handler to the window when the view is realized. That handler asks the framework through `System.requestAppExit`, which says yes, and it ends the signal there. The runner's handler was connected after it, so it never ran: no `closeRequested` ever reached the app, and the app exited cleanly (code 0, after leaving voice). The runner now connects its handler right after creating the window (`window_channel_watch_close`), before the view, and lets Flutter's run only when it isn't intercepting, as when quitting. Checked on this KDE session through KWin's scripting: closing left the process running with no window, a tray click brought the window back active, and Quit from the tray menu exited with code 0.
 - **Closing** hides the window everywhere unless "Close button minimizes to the tray" is off; Windows now shows that switch too. With no tray it still keeps running: launching Opencord again brings the window back (D21's single instance), so it's never out of reach.
 - **The binding is listened to, not read.** A Riverpod 3 provider nobody listens to is paused, so the tray didn't follow the app. All of the tray's state now comes from one `trayStateProvider`.
 - **Checked:**

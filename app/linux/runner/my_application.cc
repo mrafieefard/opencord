@@ -33,6 +33,8 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->window = window;
   gtk_window_set_title(window, "Opencord");
+  // Before the view: its close handler would otherwise run first and quit.
+  window_channel_watch_close(window);
 
   // Decorations and the RGBA visual (for the custom frame's rounded corners
   // and shadow) have to be set before the window is realized
