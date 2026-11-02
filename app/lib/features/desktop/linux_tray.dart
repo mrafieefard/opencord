@@ -26,8 +26,10 @@ class LinuxTray implements TrayService {
   final _actions = StreamController<TrayAction>.broadcast();
   late final _menu = DBusMenu(onAction: _actions.add);
   late final _item = StatusNotifierItem(
-    onActivate: () => _actions.add(const OpenWindow()),
+    onActivate: (token) => _actions.add(OpenWindow(activationToken: token)),
   );
+  // Talking flips the icon many times a second: each look is drawn once.
+  final _drawn = <(bool, bool, TrayVoice), Map<int, Uint8List>>{};
   final _name = 'org.kde.StatusNotifierItem-$pid-1';
   StreamSubscription<DBusNameOwnerChangedEvent>? _watching;
   var _available = false;
@@ -134,10 +136,17 @@ class LinuxTray implements TrayService {
     final dot = state.unread > 0;
     if (previous == null ||
         previous.dark != state.dark ||
-        (previous.unread > 0) != dot) {
-      _item.icons = <int, Uint8List>{
+        (previous.unread > 0) != dot ||
+        previous.voice != state.voice) {
+      final look = (state.dark, dot, state.voice);
+      _item.icons = _drawn[look] ??= <int, Uint8List>{
         for (final size in trayIconSizes)
-          size: await renderTrayIcon(size, dark: state.dark, dot: dot),
+          size: await renderTrayIcon(
+            size,
+            dark: state.dark,
+            dot: dot,
+            voice: state.voice,
+          ),
       };
     }
     _item.tooltip = state.tooltip;

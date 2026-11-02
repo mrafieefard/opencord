@@ -135,9 +135,11 @@ gboolean on_configure(GtkWidget*, GdkEventConfigure* event, gpointer data) {
   return FALSE;
 }
 
-gboolean on_delete(GtkWidget*, GdkEvent*, gpointer data) {
-  auto* self = static_cast<WindowChannel*>(data);
-  if (!self->intercept_close) return FALSE;
+gboolean on_delete(GtkWidget*, GdkEvent*, gpointer) {
+  // Not intercepting (quitting, or before the app configured the window):
+  // Flutter's own handler asks the app to exit.
+  WindowChannel* self = channel_state;
+  if (self == nullptr || !self->intercept_close) return FALSE;
   send(self, "closeRequested", nullptr);
   return TRUE;
 }
@@ -339,6 +341,13 @@ void method_call_cb(FlMethodChannel*, FlMethodCall* call, gpointer data) {
   } else if (strcmp(method, "hide") == 0) {
     gtk_widget_hide(GTK_WIDGET(self->window));
   } else if (strcmp(method, "show") == 0) {
+    // A tray click on Wayland comes with an xdg-activation token (KDE sends
+    // it through ProvideXdgActivationToken); without it the compositor
+    // won't bring the window forward.
+    if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_STRING) {
+      gtk_window_set_startup_id(self->window, fl_value_get_string(args));
+    }
+    gtk_widget_show(GTK_WIDGET(self->window));
     gtk_window_present(self->window);
   } else if (strcmp(method, "setUrgent") == 0 &&
              fl_value_get_type(args) == FL_VALUE_TYPE_BOOL) {
@@ -407,9 +416,12 @@ void window_channel_register(GtkWindow* window, FlView* view,
   gtk_widget_add_events(GTK_WIDGET(window), GDK_STRUCTURE_MASK);
   g_signal_connect(window, "window-state-event", G_CALLBACK(on_state), self);
   g_signal_connect(window, "configure-event", G_CALLBACK(on_configure), self);
-  g_signal_connect(window, "delete-event", G_CALLBACK(on_delete), self);
   g_signal_connect(gtk_settings_get_default(), "notify::gtk-decoration-layout",
                    G_CALLBACK(on_layout_changed), self);
+}
+
+void window_channel_watch_close(GtkWindow* window) {
+  g_signal_connect(window, "delete-event", G_CALLBACK(on_delete), nullptr);
 }
 
 void window_channel_present(const gchar* link) {

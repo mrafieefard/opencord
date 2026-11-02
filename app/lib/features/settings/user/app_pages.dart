@@ -34,9 +34,11 @@ class BehaviorPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(shownAppSettingsProvider);
     final update = ref.read(clientSettingsDraftProvider.notifier).updateApp;
-    // Only Linux has a tray yet (D21); on a Mac, closing the window keeps
-    // Opencord in the Dock anyway.
-    final tray = Theme.of(context).platform == TargetPlatform.linux;
+    // On a Mac, closing the window keeps Opencord in the Dock anyway.
+    final tray = switch (Theme.of(context).platform) {
+      TargetPlatform.linux || TargetPlatform.windows => true,
+      _ => false,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

@@ -11,7 +11,7 @@ class _Window extends NullNativeWindow {
   final calls = <String>[];
 
   @override
-  Future<void> show() async => calls.add('show');
+  Future<void> show({String? activationToken}) async => calls.add('show');
 
   @override
   Future<void> quit() async => calls.add('quit');
