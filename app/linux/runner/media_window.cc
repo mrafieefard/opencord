@@ -210,15 +210,9 @@ FlValue* open(MediaWindow* self, FlValue* args) {
   g_signal_connect(window, "window-state-event", G_CALLBACK(on_state), self);
   g_signal_connect(window, "configure-event", G_CALLBACK(on_configure), self);
 
-  // Undecorated is not enough on Wayland: GTK tells KWin to draw its own
-  // frame unless the window says it draws one itself.
+  // Undecorated is not enough on Wayland: KWin would add its own frame.
   gtk_widget_realize(GTK_WIDGET(window));
-#ifdef GDK_WINDOWING_WAYLAND
-  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
-  if (is_wayland(window) && gdk_window != nullptr) {
-    gdk_wayland_window_announce_csd(gdk_window);
-  }
-#endif
+  window_channel_draw_own_frame(window);
 
   self->fullscreen = fullscreen;
   if (fullscreen) {

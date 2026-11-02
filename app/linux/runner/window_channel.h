@@ -28,6 +28,12 @@ GdkEvent* window_channel_last_press();
 // The GDK edge for a resize edge's name from the app ("top", "bottomLeft").
 GdkWindowEdge window_channel_edge(const gchar* name);
 
+// Tells the compositor the app draws `window`'s frame itself. On Wayland an
+// undecorated GTK window is not enough: GTK asks KWin for a server-side
+// frame, so KDE showed its own title bar above the app's. Call it once
+// the window is realized.
+void window_channel_draw_own_frame(GtkWindow* window);
+
 // Whether the app asked to start minimized to the tray, so the first frame
 // should not show the window.
 bool window_channel_starts_hidden();
