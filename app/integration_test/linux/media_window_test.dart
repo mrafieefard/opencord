@@ -20,8 +20,7 @@ import 'package:opencord/features/media_window/media_window_service.dart';
 //
 //   flutter test integration_test/linux/media_window_test.dart -d linux
 //
-// It needs a desktop session. Keep the mouse off the screen's top left:
-// the test binding fails on a real pointer over a view it doesn't know.
+// It needs a desktop session.
 // --dart-define=OPENCORD_HOLD=<seconds> keeps each mode open that long,
 // to look at the window or ask KWin about it.
 
@@ -52,6 +51,13 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('the_viewer_opens_its_own_window_and_closes_it', (tester) async {
+    // The live test binding knows only its own view: a real pointer over
+    // the viewer's window makes it throw. That says nothing about the app.
+    final reportError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      if (details.library == 'gestures library') return;
+      reportError?.call(details);
+    };
     final window = ChannelMediaWindow();
     final container = ProviderContainer(
       overrides: [
@@ -106,5 +112,6 @@ void main() {
     await _until(tester, () => PlatformDispatcher.instance.views.length == 1);
     await closed;
     expect(find.text('The app'), findsOneWidget);
+    FlutterError.onError = reportError;
   });
 }
