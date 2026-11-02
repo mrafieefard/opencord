@@ -20,6 +20,14 @@ void window_channel_present(const gchar* link);
 // runs and closing quits instead of hiding to the tray.
 void window_channel_watch_close(GtkWindow* window);
 
+// The latest button press in any of the app's windows: moving and resizing
+// need it (on Wayland the compositor checks it belongs to a real click).
+// Null before the first press.
+GdkEvent* window_channel_last_press();
+
+// The GDK edge for a resize edge's name from the app ("top", "bottomLeft").
+GdkWindowEdge window_channel_edge(const gchar* name);
+
 // Whether the app asked to start minimized to the tray, so the first frame
 // should not show the window.
 bool window_channel_starts_hidden();

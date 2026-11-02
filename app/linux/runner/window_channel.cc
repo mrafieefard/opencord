@@ -388,6 +388,12 @@ void window_channel_present(const gchar* link) {
   send(self, "openLink", value);
 }
 
+GdkEvent* window_channel_last_press() {
+  return channel_state != nullptr ? channel_state->last_press : nullptr;
+}
+
+GdkWindowEdge window_channel_edge(const gchar* name) { return edge_from(name); }
+
 bool window_channel_starts_hidden() {
   return channel_state != nullptr && channel_state->start_hidden;
 }

@@ -16,6 +16,7 @@ import 'package:opencord/features/media_window/media_viewer_session.dart';
 import 'package:opencord/features/media_window/media_window_buttons.dart';
 import 'package:opencord/features/media_window/media_window_service.dart';
 import 'package:opencord/features/window/window_buttons.dart';
+import 'package:opencord/features/window/window_frame.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_media_colors.dart';
@@ -350,6 +351,17 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                       ),
                     ),
                     if (_note case final note?) _buildNote(context, note),
+                    // The window has no frame on Linux: it resizes from
+                    // its edges.
+                    if (_normalWindow &&
+                        Theme.of(context).platform == TargetPlatform.linux)
+                      ...windowResizeHandles(
+                        onResize: ref
+                            .read(mediaWindowServiceProvider)
+                            .startResize,
+                        outside: 0,
+                        band: windowResizeBand,
+                      ),
                   ],
                 ),
               ),

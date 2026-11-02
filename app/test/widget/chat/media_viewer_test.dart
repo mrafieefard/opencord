@@ -353,4 +353,28 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+
+  testWidgets('a_normal_window_on_linux_resizes_from_its_edges', (
+    tester,
+  ) async {
+    final (window, _) = await _pumpWindow(
+      tester,
+      mode: MediaWindowMode.normal,
+    );
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final press = await tester.startGesture(Offset(2, size.height / 2));
+    await press.up();
+    await tester.pump();
+    expect(window.calls, contains('startResize:left'));
+  }, variant: _linux);
+
+  testWidgets('full_screen_has_no_resize_edges', (tester) async {
+    final (window, _) = await _pumpWindow(tester);
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final press = await tester.startGesture(Offset(2, size.height / 2));
+    await press.up();
+    await tester.pump();
+    expect(window.calls.where((call) => call.startsWith('startResize')),
+        isEmpty);
+  }, variant: _linux);
 }
