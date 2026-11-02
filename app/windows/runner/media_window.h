@@ -15,8 +15,9 @@
 // own window, a second Flutter view on the app's engine in a see-through
 // top-level window with a taskbar button of its own. It covers the main
 // window's monitor, taskbar included, or is a normal window with the app's
-// own frame (side and bottom borders, DWM shadow). The app draws its title
-// buttons.
+// own frame (side and bottom borders, DWM shadow), or picture-in-picture
+// (D87): a small popup with the video's shape, above other windows. The app
+// draws its title buttons.
 class MediaWindowChannel {
  public:
   MediaWindowChannel(HWND main, flutter::BinaryMessenger* messenger);
@@ -43,6 +44,10 @@ class MediaWindowChannel {
   std::optional<int64_t> Open(const flutter::EncodableMap& args);
   void Close();
   void SetFullscreen(bool fullscreen);
+  void EnterPip(const flutter::EncodableMap& args);
+  void LeavePip();
+  // Keeps picture-in-picture's shape while an edge is dragged.
+  void KeepPipShape(WPARAM edge, RECT* rect) const;
   void LayoutView();
   LRESULT HitTest(POINT screen_point) const;
   double Scale() const;
@@ -58,6 +63,9 @@ class MediaWindowChannel {
   FlutterDesktopViewControllerRef controller_ = nullptr;
   HWND view_ = nullptr;
   bool fullscreen_ = true;
+  bool pip_ = false;
+  // Picture-in-picture's width over height.
+  double pip_aspect_ = 16.0 / 9.0;
   // The normal window's place, in physical pixels.
   RECT normal_ = {};
 };
