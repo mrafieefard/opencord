@@ -37,6 +37,9 @@ bool FlutterWindow::OnCreate() {
         if (window_channel_) window_channel_->Present(L"");
       });
 
+  media_window_ = std::make_unique<MediaWindowChannel>(
+      GetHandle(), flutter_controller_->engine()->messenger());
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     // Started minimized to the tray (desktop UI plan §15).
     if (window_channel_ && window_channel_->StartsHidden()) {
@@ -57,6 +60,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  // Its view first, while the engine still runs.
+  media_window_ = nullptr;
   tray_channel_ = nullptr;
   window_channel_ = nullptr;
   if (flutter_controller_) {
