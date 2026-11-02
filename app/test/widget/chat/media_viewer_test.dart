@@ -650,4 +650,67 @@ void main() {
       await closeViewer(tester);
     });
   });
+
+  group("the video's full screen", () {
+    Future<(FakeMediaWindow, List<int>)> pumpVideo(
+      WidgetTester tester, {
+      MediaWindowMode mode = MediaWindowMode.fullscreen,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final result = await _pumpWindow(
+        tester,
+        media: const [_video],
+        mode: mode,
+      );
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    testWidgets('full_screen_fills_the_window_with_the_video', (tester) async {
+      await pumpVideo(tester);
+      final before = tester.getRect(find.byType(Texture));
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      final picture = tester.getRect(find.byType(Texture));
+      expect(picture.height, 700);
+      expect(
+        picture.width / picture.height,
+        closeTo(before.width / before.height, 0.01),
+      );
+      // Only the bar and the window's buttons are left.
+      expect(find.text('clip.mp4'), findsNothing);
+      expect(find.byTooltip('Download'), findsNothing);
+      expect(find.byTooltip('Rotate'), findsNothing);
+      expect(find.byType(MediaWindowButtons), findsWidgets);
+      await closeViewer(tester);
+    });
+
+    testWidgets('esc_ends_full_screen_before_closing', (tester) async {
+      final (_, closes) = await pumpVideo(tester);
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(closes, isEmpty);
+      expect(find.text('clip.mp4'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(closes, [1]);
+      await closeViewer(tester);
+    });
+
+    testWidgets('full_screen_from_a_normal_window_comes_back_normal', (
+      tester,
+    ) async {
+      final (window, _) = await pumpVideo(tester, mode: MediaWindowMode.normal);
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      expect(window.calls, contains('setMode:fullscreen'));
+      await tester.tap(find.byTooltip('Exit full screen'));
+      await tester.pumpAndSettle();
+      expect(window.calls.last, 'setMode:normal');
+      await closeViewer(tester);
+    });
+  });
 }

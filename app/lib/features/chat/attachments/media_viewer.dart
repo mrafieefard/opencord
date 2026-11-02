@@ -145,6 +145,11 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   /// What the zoom scales: the whole viewer, the picture in its middle.
   final _zoomedKey = GlobalKey();
 
+  /// A video filling the window, under its bar alone; and whether the
+  /// window was a normal one before, to go back to.
+  bool _videoFullScreen = false;
+  bool _fullScreenFromNormal = false;
+
   /// Quarter turns of the picture, counter-clockwise ones as three.
   int _quarterTurns = 0;
 
@@ -161,6 +166,32 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       widget.inWindow && widget.mode == MediaWindowMode.normal;
 
   void _close() => widget.onClose();
+
+  /// Esc ends a video's full screen first.
+  void _escape() {
+    if (_videoFullScreen) {
+      _setVideoFullScreen(false);
+    } else {
+      _close();
+    }
+  }
+
+  void _setVideoFullScreen(bool on) {
+    if (on == _videoFullScreen) return;
+    setState(() {
+      _videoFullScreen = on;
+      _transformController.value = Matrix4.identity();
+    });
+    if (!widget.inWindow) return;
+    final viewer = ref.read(mediaViewerProvider.notifier);
+    if (on && _normalWindow) {
+      _fullScreenFromNormal = true;
+      viewer.setMode(MediaWindowMode.fullscreen, remember: false);
+    } else if (!on && _fullScreenFromNormal) {
+      _fullScreenFromNormal = false;
+      viewer.setMode(MediaWindowMode.normal, remember: false);
+    }
+  }
 
   /// Whether [global] falls on the picture, as zoomed and moved.
   bool _onPicture(Offset global) {
@@ -286,6 +317,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
 
   void _previous() {
     if (_currentIndex > 0) {
+      _setVideoFullScreen(false);
       ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex--;
@@ -297,6 +329,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
 
   void _next() {
     if (_currentIndex < widget.media.length - 1) {
+      _setVideoFullScreen(false);
       ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex++;
@@ -349,7 +382,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
 
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): _close,
+        const SingleActivator(LogicalKeyboardKey.escape): _escape,
         const SingleActivator(LogicalKeyboardKey.arrowLeft): _previous,
         const SingleActivator(LogicalKeyboardKey.arrowRight): _next,
         const SingleActivator(LogicalKeyboardKey.enter, alt: true): _toggleMode,
@@ -455,10 +488,12 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
     final textRight = current.kind == AttachmentKind.video
         ? max(2 * _navWidth, (width + min(VideoBar.width, width - 16)) / 2 + 8)
         : 2 * _navWidth;
-    final showsText = width - _textLeft - textRight >= _textLeast;
+    final showsText =
+        !_videoFullScreen && width - _textLeft - textRight >= _textLeast;
+    final steps = !_videoFullScreen;
     return Stack(
       children: [
-        if (_currentIndex > 0)
+        if (steps && _currentIndex > 0)
           Positioned(
             left: 0,
             top: _navInset,
@@ -472,7 +507,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
               ),
             ),
           ),
-        if (_currentIndex < widget.media.length - 1)
+        if (steps && _currentIndex < widget.media.length - 1)
           Positioned(
             right: 0,
             top: _navInset,
@@ -515,23 +550,24 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
               ),
             ),
           ),
-        Positioned(
-          right: 0,
-          bottom: 0,
-          child: _control(
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _bottomButton(
-                  OcIcons.download,
-                  'Download',
-                  () => _download(current),
-                ),
-                _bottomButton(OcIcons.rotateLeft, 'Rotate', _rotate),
-              ],
+        if (!_videoFullScreen)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: _control(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _bottomButton(
+                    OcIcons.download,
+                    'Download',
+                    () => _download(current),
+                  ),
+                  _bottomButton(OcIcons.rotateLeft, 'Rotate', _rotate),
+                ],
+              ),
             ),
           ),
-        ),
         if (widget.inWindow) ...[
           Positioned(
             top: 0,
@@ -605,9 +641,13 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
         attachment: attachment,
         pictureKey: _pictureKey,
         // The video keeps clear of its bar, as Telegram's does.
-        framePicture: (picture) =>
-            _zoom(picture, clearance: VideoBar.clearance),
+        framePicture: (picture) => _zoom(
+          picture,
+          clearance: _videoFullScreen ? 0 : VideoBar.clearance,
+        ),
         frameControls: (bar) => _fading(_control(bar)),
+        fullScreen: _videoFullScreen,
+        onFullScreen: () => _setVideoFullScreen(!_videoFullScreen),
       );
     }
 

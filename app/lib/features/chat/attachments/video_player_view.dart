@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -21,6 +20,8 @@ class VideoPlayerView extends ConsumerStatefulWidget {
     this.pictureKey,
     this.framePicture = _unframed,
     this.frameControls = _unframed,
+    this.fullScreen = false,
+    this.onFullScreen,
   });
 
   final String serverKey;
@@ -35,6 +36,11 @@ class VideoPlayerView extends ConsumerStatefulWidget {
 
   /// Wraps the controls, as the viewer's fade does.
   final Widget Function(Widget bar) frameControls;
+
+  /// The bar's full screen button: whether the video fills the window,
+  /// and what switches it.
+  final bool fullScreen;
+  final VoidCallback? onFullScreen;
 
   static Widget _unframed(Widget child) => child;
 
@@ -298,6 +304,8 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
                     muted: _muted,
                     onTogglePlay: _togglePlay,
                     onToggleMute: _toggleMute,
+                    fullScreen: widget.fullScreen,
+                    onFullScreen: widget.onFullScreen,
                     onVolume: _onVolumeChanged,
                     onSeekStart: (v) => setState(() {
                       _draggingSeek = true;

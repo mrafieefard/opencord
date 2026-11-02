@@ -35,6 +35,8 @@ class VideoBar extends StatelessWidget {
     required this.onSeekStart,
     required this.onSeek,
     required this.onSeekEnd,
+    this.fullScreen = false,
+    this.onFullScreen,
   });
 
   /// Telegram's measures.
@@ -56,6 +58,11 @@ class VideoBar extends StatelessWidget {
   final ValueChanged<double> onSeekStart;
   final ValueChanged<double> onSeek;
   final ValueChanged<double> onSeekEnd;
+
+  /// Whether the video fills the window; [onFullScreen] switches it, and
+  /// without it there's no button.
+  final bool fullScreen;
+  final VoidCallback? onFullScreen;
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +125,24 @@ class VideoBar extends StatelessWidget {
                     onTogglePlay,
                     size: 28,
                   ),
+                ),
+              ),
+              Positioned(
+                right: 6,
+                top: 6,
+                height: 32,
+                child: Row(
+                  children: [
+                    if (onFullScreen case final onFullScreen?)
+                      _button(
+                        context,
+                        fullScreen
+                            ? OcIcons.fullscreenExit
+                            : OcIcons.fullscreen,
+                        fullScreen ? 'Exit full screen' : 'Full screen',
+                        onFullScreen,
+                      ),
+                  ],
                 ),
               ),
               Positioned(

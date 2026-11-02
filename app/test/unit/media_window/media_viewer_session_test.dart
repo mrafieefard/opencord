@@ -131,6 +131,18 @@ void main() {
     expect(jsonDecode(store.read(mediaViewerPlacementKey)!)['width'], 900);
   });
 
+  test('a_passing_full_screen_is_not_remembered', () async {
+    store.write(mediaViewerPlacementKey, '{"mode":"normal"}');
+    await viewer().open(_request);
+    await viewer().setMode(MediaWindowMode.fullscreen, remember: false);
+    expect(window.calls.last, 'setMode:fullscreen');
+    window.sendStatus(const MediaWindowStatus());
+    await Future<void>.delayed(quiet);
+    await viewer().close();
+    await viewer().open(_request);
+    expect(window.calls.last, 'open:normal');
+  });
+
   test('a_broken_placement_opens_full_screen', () async {
     store.write(mediaViewerPlacementKey, '{');
     await viewer().open(_request);
