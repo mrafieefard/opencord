@@ -65,6 +65,7 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
                            self);
   gtk_widget_realize(GTK_WIDGET(view));
+  window_channel_draw_own_frame(window);
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
   window_channel_register(window, view);

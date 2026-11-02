@@ -376,6 +376,17 @@ void window_channel_present(const gchar* link) {
   send(self, "openLink", value);
 }
 
+void window_channel_draw_own_frame(GtkWindow* window) {
+#ifdef GDK_WINDOWING_WAYLAND
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (is_wayland(window) && gdk_window != nullptr) {
+    gdk_wayland_window_announce_csd(gdk_window);
+  }
+#else
+  (void)window;
+#endif
+}
+
 bool window_channel_starts_hidden() {
   return channel_state != nullptr && channel_state->start_hidden;
 }
