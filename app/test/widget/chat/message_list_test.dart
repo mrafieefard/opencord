@@ -7,6 +7,7 @@ import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/list_overlays.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/ui/theme/oc_metrics.dart';
 
 import '../../support/app.dart';
 
@@ -97,6 +98,41 @@ void main() {
 
     expect(find.byType(CompactMessage), findsWidgets);
     expect(find.byType(MessageBubble), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('compact lines use the whole width, as in private chats', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(
+      tester,
+      size: const Size(1800, 900),
+      settings: (settings) =>
+          settings.copyWith(density: MessageDensity.compact),
+    );
+    await _open(tester, app, 'general');
+
+    final list = _listRect(tester);
+    expect(list.width, greaterThan(OcSize.messageColumn + 2 * OcSpace.s16));
+    final line = tester.getRect(find.byType(CompactMessage).first);
+    expect(line.left, closeTo(list.left + OcSpace.s16, 1));
+    expect(line.right, closeTo(list.right - OcSpace.s16, 1));
+    await app.dispose(tester);
+  });
+
+  testWidgets('bubbles keep to a readable column on a wide window', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1800, 900));
+    await _open(tester, app, 'general');
+
+    final list = _listRect(tester);
+    final side = (list.width - OcSize.messageColumn) / 2;
+    for (final bubble in find.byType(MessageBubble).evaluate().take(5)) {
+      final rect = tester.getRect(find.byWidget(bubble.widget));
+      expect(rect.left, greaterThanOrEqualTo(list.left + side - 1));
+      expect(rect.right, lessThanOrEqualTo(list.right - side + 1));
+    }
     await app.dispose(tester);
   });
 
