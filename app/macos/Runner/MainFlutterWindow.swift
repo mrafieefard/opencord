@@ -5,6 +5,7 @@ import ServiceManagement
 class MainFlutterWindow: NSWindow {
   private var windowChannel: WindowChannel?
   private var trayChannel: TrayChannel?
+  private var mediaWindow: MediaWindowChannel?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -17,6 +18,7 @@ class MainFlutterWindow: NSWindow {
       window: self, messenger: flutterViewController.engine.binaryMessenger)
     trayChannel = TrayChannel(
       window: self, messenger: flutterViewController.engine.binaryMessenger)
+    mediaWindow = MediaWindowChannel(main: self, engine: flutterViewController.engine)
 
     super.awakeFromNib()
   }
@@ -440,5 +442,225 @@ final class TrayChannel: NSObject {
     }
     image.isTemplate = template
     return image.representations.isEmpty ? nil : image
+  }
+}
+
+/// The media viewer's window (D86): a titled window with the real traffic
+/// lights that, full screen, covers the menu bar and the Dock.
+final class MediaViewerNSWindow: NSWindow {
+  /// Full screen: the frame may cover the menu bar.
+  var coversScreen = false
+
+  override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+    coversScreen ? frameRect : super.constrainFrameRect(frameRect, to: screen)
+  }
+
+  override var canBecomeKey: Bool { true }
+  override var canBecomeMain: Bool { true }
+}
+
+/// The "dev.opencord/media_window" method channel (D86): the media
+/// viewer's own window, a second Flutter view on the app's engine in a
+/// see-through window. Full screen, as Telegram's: above the menu bar and
+/// the Dock on the active Space, not macOS's own full screen. Green
+/// switches between that and a normal window; the app draws the rest.
+final class MediaWindowChannel: NSObject, NSWindowDelegate {
+  private static let minSize = NSSize(width: 480, height: 360)
+  private static let defaultSize = NSSize(width: 800, height: 600)
+
+  private weak var main: NSWindow?
+  private let engine: FlutterEngine
+  private let channel: FlutterMethodChannel
+  private var window: MediaViewerNSWindow?
+  private var controller: FlutterViewController?
+  private var fullscreen = true
+  private var normalFrame: NSRect?
+  private var multiView = false
+
+  init(main: NSWindow, engine: FlutterEngine) {
+    self.main = main
+    self.engine = engine
+    channel = FlutterMethodChannel(
+      name: "dev.opencord/media_window", binaryMessenger: engine.binaryMessenger)
+    super.init()
+    channel.setMethodCallHandler { [weak self] call, result in
+      self?.handle(call, result: result)
+    }
+  }
+
+  /// A second view needs the engine's multi-view mode. Its own switch
+  /// (`enableMultiView`) refuses once the main window's view is attached,
+  /// so the flag is set directly; without that flag the viewer stays inside
+  /// the app.
+  private func enableMultiView() -> Bool {
+    if multiView { return true }
+    guard class_getInstanceVariable(type(of: engine), "_multiViewEnabled") != nil else {
+      NSLog("Opencord: this Flutter engine has no multi-view flag; the viewer stays in the app")
+      return false
+    }
+    engine.setValue(true, forKey: "multiViewEnabled")
+    multiView = true
+    return true
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: FlutterResult) {
+    switch call.method {
+    case "open":
+      result(open(call.arguments as? [String: Any] ?? [:]))
+      return
+    case "close":
+      close()
+    case "setMode":
+      fullscreen = (call.arguments as? String) == "fullscreen"
+      apply()
+    case "minimize":
+      window?.miniaturize(nil)
+    case "focus":
+      window?.makeKeyAndOrderFront(nil)
+      NSApp.activate(ignoringOtherApps: true)
+    case "startDrag":
+      if let window, !fullscreen, let event = NSApp.currentEvent {
+        window.performDrag(with: event)
+      }
+    case "startResize":
+      // macOS resizes from the window's own edges.
+      break
+    default:
+      result(FlutterMethodNotImplemented)
+      return
+    }
+    result(nil)
+  }
+
+  private func open(_ args: [String: Any]) -> Int? {
+    if let window, let controller {
+      window.makeKeyAndOrderFront(nil)
+      NSApp.activate(ignoringOtherApps: true)
+      return Int(controller.viewIdentifier)
+    }
+    guard enableMultiView() else { return nil }
+    let controller = FlutterViewController(engine: engine, nibName: nil, bundle: nil)
+    controller.backgroundColor = .clear
+    let window = MediaViewerNSWindow(
+      contentRect: NSRect(origin: .zero, size: Self.defaultSize),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.title = "Opencord media viewer"
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    window.contentMinSize = Self.minSize
+    window.contentViewController = controller
+    window.delegate = self
+    self.window = window
+    self.controller = controller
+
+    // The normal window's frame: the remembered one if it is still on a
+    // screen, else the first size, centred on the main window's screen.
+    let width = CGFloat(max(args["width"] as? Int ?? 800, Int(Self.minSize.width)))
+    let height = CGFloat(max(args["height"] as? Int ?? 600, Int(Self.minSize.height)))
+    var frame = NSRect(x: 0, y: 0, width: width, height: height)
+    if let x = args["x"] as? Int, let y = args["y"] as? Int {
+      frame.origin = NSPoint(x: x, y: y)
+    }
+    if args["x"] == nil || !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) }) {
+      let area = (main?.screen ?? NSScreen.main)?.visibleFrame ?? .zero
+      frame.origin = NSPoint(x: area.midX - width / 2, y: area.midY - height / 2)
+    }
+    normalFrame = frame
+    fullscreen = (args["mode"] as? String) != "normal"
+    apply()
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    return Int(controller.viewIdentifier)
+  }
+
+  /// Never `close()`: the app quits when its last window closes, and the
+  /// main window may be hidden in the menu bar. Letting go of the view
+  /// controller takes its view off the engine.
+  private func close() {
+    guard let window else { return }
+    window.delegate = nil
+    window.orderOut(nil)
+    window.contentViewController = nil
+    self.window = nil
+    controller = nil
+  }
+
+  private func apply() {
+    guard let window else { return }
+    if fullscreen {
+      window.coversScreen = true
+      window.level = .popUpMenu
+      window.hasShadow = false
+      window.hidesOnDeactivate = true
+      window.collectionBehavior = [.moveToActiveSpace, .fullScreenNone]
+      if let screen = main?.screen ?? NSScreen.main {
+        window.setFrame(screen.frame, display: true)
+      }
+    } else {
+      window.coversScreen = false
+      window.level = .normal
+      window.hasShadow = true
+      window.hidesOnDeactivate = false
+      window.collectionBehavior = [.fullScreenNone]
+      if let normalFrame { window.setFrame(normalFrame, display: true) }
+    }
+    sendStatus()
+  }
+
+  private func sendStatus() {
+    guard let window else { return }
+    let status: [String: Any] = [
+      "mode": fullscreen ? "fullscreen" : "normal",
+      "focused": window.isKeyWindow,
+    ]
+    channel.invokeMethod("status", arguments: status)
+  }
+
+  private func sendGeometry() {
+    guard let window, !fullscreen else { return }
+    let frame = window.frame
+    normalFrame = frame
+    channel.invokeMethod(
+      "geometry",
+      arguments: [
+        "width": Int(frame.width), "height": Int(frame.height),
+        "x": Int(frame.minX), "y": Int(frame.minY),
+      ])
+  }
+
+  // NSWindowDelegate
+
+  /// The red light and Cmd+W close the viewer, never the app: the app
+  /// decides.
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    channel.invokeMethod("closeRequested", arguments: nil)
+    return false
+  }
+
+  /// Green switches between full screen and the normal window.
+  func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
+    fullscreen.toggle()
+    apply()
+    return false
+  }
+
+  func windowDidBecomeKey(_ notification: Notification) {
+    sendStatus()
+  }
+
+  func windowDidResignKey(_ notification: Notification) {
+    sendStatus()
+  }
+
+  func windowDidMove(_ notification: Notification) {
+    sendGeometry()
+  }
+
+  func windowDidResize(_ notification: Notification) {
+    sendGeometry()
   }
 }
