@@ -585,7 +585,8 @@ class MockPrivateWorld {
       outgoing: false,
       kind: PrivateMessageKind.text,
       content: content,
-      sentAt: at ?? list.lastOrNull?.sentAt.add(const Duration(minutes: 1)) ?? _now,
+      sentAt:
+          at ?? list.lastOrNull?.sentAt.add(const Duration(minutes: 1)) ?? _now,
       state: PrivateSendState.sent,
     );
     list.add(message);

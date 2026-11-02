@@ -80,6 +80,15 @@ class _MessageListState extends ConsumerState<MessageList>
   SavedScroll? _restoring;
   SavedScroll? _saved;
 
+  /// Whether [_saved] says where the reader is: false until the list has
+  /// opened and been looked at, so leaving before then forgets nothing.
+  bool _tracking = false;
+
+  /// Older pages loaded to reach where the reader left off, at most
+  /// [_pagesToRestore].
+  int _pagesLoaded = 0;
+  static const _pagesToRestore = 10;
+
   final _onScreen = <Object, TrackedRowState>{};
   final _knownKeys = <Object>{};
   final _vanishing = <int, Message>{};
@@ -134,7 +143,7 @@ class _MessageListState extends ConsumerState<MessageList>
   @override
   void dispose() {
     widget.controller.detach(this);
-    _memory.save(_channel, _saved);
+    if (_tracking) _memory.save(_channel, _saved);
     final activity = _activity;
     final channel = _channel.channel;
     final history = _history;
@@ -195,6 +204,23 @@ class _MessageListState extends ConsumerState<MessageList>
     }
     _splitId = newest + 1;
     return ChatScrollController();
+  }
+
+  /// Whether older pages are loading to reach where the reader left off,
+  /// further back than the newest page (after a restart, say).
+  bool _reachingSaved(ChannelMessages state) {
+    final saved = _memory.read(_channel);
+    final oldest = state.messages.firstOrNull;
+    if (saved == null || oldest == null || !state.hasOlder) return false;
+    // One page past it, so the messages around it are there: grouped with
+    // the one before, it looks as it did when the reader left.
+    if (oldest.id < saved.messageId) return false;
+    if (state.loadingOlder) return true;
+    if (_pagesLoaded == _pagesToRestore) return false;
+    _pagesLoaded++;
+    // Not during this build.
+    scheduleMicrotask(_messages.loadOlder);
+    return true;
   }
 
   // Building ---------------------------------------------------------------
@@ -279,6 +305,12 @@ class _MessageListState extends ConsumerState<MessageList>
           onRetry: () => _messages.reloadLatest(),
         );
       }
+      return const Align(
+        alignment: Alignment.bottomCenter,
+        child: ChatSkeleton(),
+      );
+    }
+    if (_scroll == null && _reachingSaved(state)) {
       return const Align(
         alignment: Alignment.bottomCenter,
         child: ChatSkeleton(),
@@ -500,6 +532,7 @@ class _MessageListState extends ConsumerState<MessageList>
       });
     }
     _saved = atEnd ? null : _topPosition();
+    _tracking = true;
     _memory.save(_channel, _saved);
     if (_scrolling) {
       final label = _topDayLabel();

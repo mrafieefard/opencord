@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/chat_scroll.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/chat/message_list.dart';
@@ -44,4 +46,72 @@ void main() {
     expect(app.read(scrollMemoryProvider).read(general), left);
     await app.dispose(tester);
   });
+
+  testWidgets('a place left further back than the newest page is reached', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final stress = await _stress(tester, app);
+    // As after a restart: only the newest page will load.
+    final far = app.repository.debugMessages(_dev, stress.channel)[9800];
+    app
+        .read(scrollMemoryProvider)
+        .save(stress, SavedScroll(messageId: far.id, fromTop: 120));
+
+    app.read(navigationProvider.notifier).openChannel(_dev, stress.channel);
+    await _pumpFor(tester, const Duration(seconds: 2));
+
+    final bubble = find.byWidgetPredicate(
+      (widget) => widget is MessageBubble && widget.message.id == far.id,
+    );
+    expect(bubble, findsOneWidget);
+    final list = tester.getRect(find.byType(MessageList));
+    // The row starts at 120; its bubble sits a little lower.
+    expect(tester.getTopLeft(bubble).dy - list.top, inInclusiveRange(120, 140));
+    await app.dispose(tester);
+  });
+
+  testWidgets('leaving a channel before it opens keeps where it was left', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final stress = await _stress(tester, app);
+    final far = app.repository.debugMessages(_dev, stress.channel)[9800];
+    final left = SavedScroll(messageId: far.id, fromTop: 120);
+    app.read(scrollMemoryProvider).save(stress, left);
+
+    app.read(navigationProvider.notifier).openChannel(_dev, stress.channel);
+    await tester.pump();
+    app.read(navigationProvider.notifier).openChannel(_dev, _general(app));
+    await _pumpFor(tester, const Duration(seconds: 1));
+
+    expect(app.read(scrollMemoryProvider).read(stress), left);
+    await app.dispose(tester);
+  });
 }
+
+/// Adds `#scroll-test` (10 000 messages), then goes to `#general`.
+Future<ChannelRef> _stress(WidgetTester tester, MockApp app) async {
+  app.repository.debugStressChannel(_dev);
+  await _pumpFor(tester, const Duration(milliseconds: 200));
+  app.read(navigationProvider.notifier).openChannel(_dev, _general(app));
+  await _pumpFor(tester, const Duration(milliseconds: 200));
+  return (
+    server: _dev,
+    channel: app
+        .read(serverProvider(_dev))
+        .data!
+        .channels
+        .values
+        .firstWhere((channel) => channel.name == 'scroll-test')
+        .id,
+  );
+}
+
+int _general(MockApp app) => app
+    .read(serverProvider(_dev))
+    .data!
+    .channels
+    .values
+    .firstWhere((channel) => channel.name == 'general')
+    .id;
