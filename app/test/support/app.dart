@@ -77,7 +77,9 @@ class MockApp {
       container.read(appSettingsProvider.notifier).update(settings);
     }
     container.read(eventPumpProvider);
-    container.read(trayBindingProvider);
+    // Listened, not read: a provider nobody listens to is paused, and the
+    // tray would stop following the app.
+    container.listen(trayBindingProvider, (_, _) {});
     container.read(hotkeyBindingProvider);
     container.read(notificationBindingProvider);
     container.read(loginItemBindingProvider);
