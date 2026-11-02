@@ -9632,18 +9632,26 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                 return crate::api::types::CoreEventPayload::VoiceStateUpdate(var_field0);
             }
             19 => {
+                let mut var_channelId = <i64>::sse_decode(deserializer);
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::VoiceRejoinFailed {
+                    channel_id: var_channelId,
+                    message: var_message,
+                };
+            }
+            20 => {
                 let mut var_field0 = <crate::api::types::VoiceSettings>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::VoiceSettingsUpdate(var_field0);
             }
-            20 => {
+            21 => {
                 let mut var_field0 = <crate::api::types::ScreenStream>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::StreamCreate(var_field0);
             }
-            21 => {
+            22 => {
                 let mut var_field0 = <crate::api::types::ScreenStream>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::StreamUpdate(var_field0);
             }
-            22 => {
+            23 => {
                 let mut var_streamKey = <String>::sse_decode(deserializer);
                 let mut var_channelId = <i64>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::StreamDelete {
@@ -9651,7 +9659,7 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     channel_id: var_channelId,
                 };
             }
-            23 => {
+            24 => {
                 let mut var_streamKey = <String>::sse_decode(deserializer);
                 let mut var_viewerIds = <Vec<i64>>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::StreamViewersUpdate {
@@ -9659,37 +9667,37 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     viewer_ids: var_viewerIds,
                 };
             }
-            24 => {
+            25 => {
                 let mut var_field0 = <crate::api::types::SoundboardSound>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::SoundboardSoundCreate(var_field0);
             }
-            25 => {
+            26 => {
                 let mut var_field0 = <crate::api::types::SoundboardSound>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::SoundboardSoundUpdate(var_field0);
             }
-            26 => {
+            27 => {
                 let mut var_soundId = <i64>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::SoundboardSoundDelete {
                     sound_id: var_soundId,
                 };
             }
-            27 => {
+            28 => {
                 let mut var_field0 = <crate::api::types::SoundEffect>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::VoiceChannelEffect(var_field0);
             }
-            28 => {
+            29 => {
                 let mut var_field0 = <crate::api::types::ServerAddresses>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::ServerAddressesUpdate(var_field0);
             }
-            29 => {
+            30 => {
                 let mut var_field0 = <crate::api::types::NetworkInfo>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::NetworkStatus(var_field0);
             }
-            30 => {
+            31 => {
                 let mut var_field0 = <crate::api::types::ServerNotice>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::ServerNotice(var_field0);
             }
-            31 => {
+            32 => {
                 let mut var_node = <crate::api::types::LavalinkNode>::sse_decode(deserializer);
                 let mut var_channelsPlaying = <u32>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::LavalinkNodeStatus {
@@ -9697,7 +9705,7 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     channels_playing: var_channelsPlaying,
                 };
             }
-            32 => {
+            33 => {
                 let mut var_nodeId = <i64>::sse_decode(deserializer);
                 let mut var_channelsPlaying = <u32>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::LavalinkNodeRemoved {
@@ -9705,54 +9713,54 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     channels_playing: var_channelsPlaying,
                 };
             }
-            33 => {
+            34 => {
                 let mut var_field0 =
                     <crate::api::types::LavalinkNodeEvent>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::LavalinkNodeEvent(var_field0);
             }
-            34 => {
+            35 => {
                 let mut var_field0 =
                     <crate::api::types::LavalinkTestProgress>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::LavalinkTestProgress(var_field0);
             }
-            35 => {
+            36 => {
                 let mut var_field0 = <crate::api::types::MusicSettings>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::MusicSettingsUpdate(var_field0);
             }
-            36 => {
+            37 => {
                 let mut var_field0 = <crate::api::types::MusicSession>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::MusicSession(var_field0);
             }
-            37 => {
+            38 => {
                 let mut var_field0 = <crate::api::types::MusicNowPlaying>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::MusicNowPlaying(var_field0);
             }
-            38 => {
+            39 => {
                 let mut var_field0 = <crate::api::types::MusicNotice>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::MusicNotice(var_field0);
             }
-            39 => {
+            40 => {
                 let mut var_field0 = <crate::api::types::CommandList>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::CommandsUpdate(var_field0);
             }
-            40 => {
+            41 => {
                 let mut var_field0 =
                     <crate::api::types::EphemeralMessage>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::EphemeralMessage(var_field0);
             }
-            41 => {
+            42 => {
                 let mut var_field0 = <crate::api::types::UploadSettings>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::UploadSettingsUpdate(var_field0);
             }
-            42 => {
+            43 => {
                 let mut var_field0 = <crate::api::types::PrivateSettings>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::PrivateSettingsUpdate(var_field0);
             }
-            43 => {
+            44 => {
                 let mut var_field0 = <crate::api::types::StorageInfo>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::StorageUpdate(var_field0);
             }
-            44 => {
+            45 => {
                 let mut var_channelId = <i64>::sse_decode(deserializer);
                 let mut var_stagedId = <String>::sse_decode(deserializer);
                 let mut var_sentBytes = <u64>::sse_decode(deserializer);
@@ -9766,7 +9774,7 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     phase: var_phase,
                 };
             }
-            45 => {
+            46 => {
                 let mut var_channelId = <i64>::sse_decode(deserializer);
                 let mut var_uploadId = <String>::sse_decode(deserializer);
                 let mut var_filename = <String>::sse_decode(deserializer);
@@ -9782,7 +9790,7 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     phase: var_phase,
                 };
             }
-            46 => {
+            47 => {
                 let mut var_channelId = <i64>::sse_decode(deserializer);
                 let mut var_nonce = <String>::sse_decode(deserializer);
                 let mut var_fileIndex = <u32>::sse_decode(deserializer);
@@ -9798,7 +9806,7 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     phase: var_phase,
                 };
             }
-            47 => {
+            48 => {
                 let mut var_attachmentId = <i64>::sse_decode(deserializer);
                 let mut var_receivedBytes = <u64>::sse_decode(deserializer);
                 let mut var_totalBytes = <u64>::sse_decode(deserializer);
@@ -14874,20 +14882,29 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
             crate::api::types::CoreEventPayload::VoiceStateUpdate(field0) => {
                 [18.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::CoreEventPayload::VoiceRejoinFailed {
+                channel_id,
+                message,
+            } => [
+                19.into_dart(),
+                channel_id.into_into_dart().into_dart(),
+                message.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::api::types::CoreEventPayload::VoiceSettingsUpdate(field0) => {
-                [19.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
-            crate::api::types::CoreEventPayload::StreamCreate(field0) => {
                 [20.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::StreamUpdate(field0) => {
+            crate::api::types::CoreEventPayload::StreamCreate(field0) => {
                 [21.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::StreamUpdate(field0) => {
+                [22.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::CoreEventPayload::StreamDelete {
                 stream_key,
                 channel_id,
             } => [
-                22.into_dart(),
+                23.into_dart(),
                 stream_key.into_into_dart().into_dart(),
                 channel_id.into_into_dart().into_dart(),
             ]
@@ -14896,37 +14913,37 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
                 stream_key,
                 viewer_ids,
             } => [
-                23.into_dart(),
+                24.into_dart(),
                 stream_key.into_into_dart().into_dart(),
                 viewer_ids.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::CoreEventPayload::SoundboardSoundCreate(field0) => {
-                [24.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
-            crate::api::types::CoreEventPayload::SoundboardSoundUpdate(field0) => {
                 [25.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::CoreEventPayload::SoundboardSoundUpdate(field0) => {
+                [26.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             crate::api::types::CoreEventPayload::SoundboardSoundDelete { sound_id } => {
-                [26.into_dart(), sound_id.into_into_dart().into_dart()].into_dart()
+                [27.into_dart(), sound_id.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::CoreEventPayload::VoiceChannelEffect(field0) => {
-                [27.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
-            crate::api::types::CoreEventPayload::ServerAddressesUpdate(field0) => {
                 [28.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
+            crate::api::types::CoreEventPayload::ServerAddressesUpdate(field0) => {
                 [29.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::ServerNotice(field0) => {
+            crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
                 [30.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::ServerNotice(field0) => {
+                [31.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::CoreEventPayload::LavalinkNodeStatus {
                 node,
                 channels_playing,
             } => [
-                31.into_dart(),
+                32.into_dart(),
                 node.into_into_dart().into_dart(),
                 channels_playing.into_into_dart().into_dart(),
             ]
@@ -14935,43 +14952,43 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
                 node_id,
                 channels_playing,
             } => [
-                32.into_dart(),
+                33.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 channels_playing.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::CoreEventPayload::LavalinkNodeEvent(field0) => {
-                [33.into_dart(), field0.into_into_dart().into_dart()].into_dart()
-            }
-            crate::api::types::CoreEventPayload::LavalinkTestProgress(field0) => {
                 [34.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::MusicSettingsUpdate(field0) => {
+            crate::api::types::CoreEventPayload::LavalinkTestProgress(field0) => {
                 [35.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::MusicSession(field0) => {
+            crate::api::types::CoreEventPayload::MusicSettingsUpdate(field0) => {
                 [36.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::MusicNowPlaying(field0) => {
+            crate::api::types::CoreEventPayload::MusicSession(field0) => {
                 [37.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::MusicNotice(field0) => {
+            crate::api::types::CoreEventPayload::MusicNowPlaying(field0) => {
                 [38.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::CommandsUpdate(field0) => {
+            crate::api::types::CoreEventPayload::MusicNotice(field0) => {
                 [39.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::EphemeralMessage(field0) => {
+            crate::api::types::CoreEventPayload::CommandsUpdate(field0) => {
                 [40.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::UploadSettingsUpdate(field0) => {
+            crate::api::types::CoreEventPayload::EphemeralMessage(field0) => {
                 [41.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::PrivateSettingsUpdate(field0) => {
+            crate::api::types::CoreEventPayload::UploadSettingsUpdate(field0) => {
                 [42.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::CoreEventPayload::StorageUpdate(field0) => {
+            crate::api::types::CoreEventPayload::PrivateSettingsUpdate(field0) => {
                 [43.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::StorageUpdate(field0) => {
+                [44.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::CoreEventPayload::StagedUploadProgress {
                 channel_id,
@@ -14980,7 +14997,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
                 total_bytes,
                 phase,
             } => [
-                44.into_dart(),
+                45.into_dart(),
                 channel_id.into_into_dart().into_dart(),
                 staged_id.into_into_dart().into_dart(),
                 sent_bytes.into_into_dart().into_dart(),
@@ -14996,7 +15013,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
                 total_bytes,
                 phase,
             } => [
-                45.into_dart(),
+                46.into_dart(),
                 channel_id.into_into_dart().into_dart(),
                 upload_id.into_into_dart().into_dart(),
                 filename.into_into_dart().into_dart(),
@@ -15013,7 +15030,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
                 total_bytes,
                 phase,
             } => [
-                46.into_dart(),
+                47.into_dart(),
                 channel_id.into_into_dart().into_dart(),
                 nonce.into_into_dart().into_dart(),
                 file_index.into_into_dart().into_dart(),
@@ -15029,7 +15046,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
                 done,
                 error,
             } => [
-                47.into_dart(),
+                48.into_dart(),
                 attachment_id.into_into_dart().into_dart(),
                 received_bytes.into_into_dart().into_dart(),
                 total_bytes.into_into_dart().into_dart(),
@@ -19049,23 +19066,31 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 <i32>::sse_encode(18, serializer);
                 <crate::api::types::VoiceState>::sse_encode(field0, serializer);
             }
-            crate::api::types::CoreEventPayload::VoiceSettingsUpdate(field0) => {
+            crate::api::types::CoreEventPayload::VoiceRejoinFailed {
+                channel_id,
+                message,
+            } => {
                 <i32>::sse_encode(19, serializer);
+                <i64>::sse_encode(channel_id, serializer);
+                <String>::sse_encode(message, serializer);
+            }
+            crate::api::types::CoreEventPayload::VoiceSettingsUpdate(field0) => {
+                <i32>::sse_encode(20, serializer);
                 <crate::api::types::VoiceSettings>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::StreamCreate(field0) => {
-                <i32>::sse_encode(20, serializer);
+                <i32>::sse_encode(21, serializer);
                 <crate::api::types::ScreenStream>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::StreamUpdate(field0) => {
-                <i32>::sse_encode(21, serializer);
+                <i32>::sse_encode(22, serializer);
                 <crate::api::types::ScreenStream>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::StreamDelete {
                 stream_key,
                 channel_id,
             } => {
-                <i32>::sse_encode(22, serializer);
+                <i32>::sse_encode(23, serializer);
                 <String>::sse_encode(stream_key, serializer);
                 <i64>::sse_encode(channel_id, serializer);
             }
@@ -19073,43 +19098,43 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 stream_key,
                 viewer_ids,
             } => {
-                <i32>::sse_encode(23, serializer);
+                <i32>::sse_encode(24, serializer);
                 <String>::sse_encode(stream_key, serializer);
                 <Vec<i64>>::sse_encode(viewer_ids, serializer);
             }
             crate::api::types::CoreEventPayload::SoundboardSoundCreate(field0) => {
-                <i32>::sse_encode(24, serializer);
-                <crate::api::types::SoundboardSound>::sse_encode(field0, serializer);
-            }
-            crate::api::types::CoreEventPayload::SoundboardSoundUpdate(field0) => {
                 <i32>::sse_encode(25, serializer);
                 <crate::api::types::SoundboardSound>::sse_encode(field0, serializer);
             }
-            crate::api::types::CoreEventPayload::SoundboardSoundDelete { sound_id } => {
+            crate::api::types::CoreEventPayload::SoundboardSoundUpdate(field0) => {
                 <i32>::sse_encode(26, serializer);
+                <crate::api::types::SoundboardSound>::sse_encode(field0, serializer);
+            }
+            crate::api::types::CoreEventPayload::SoundboardSoundDelete { sound_id } => {
+                <i32>::sse_encode(27, serializer);
                 <i64>::sse_encode(sound_id, serializer);
             }
             crate::api::types::CoreEventPayload::VoiceChannelEffect(field0) => {
-                <i32>::sse_encode(27, serializer);
+                <i32>::sse_encode(28, serializer);
                 <crate::api::types::SoundEffect>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::ServerAddressesUpdate(field0) => {
-                <i32>::sse_encode(28, serializer);
+                <i32>::sse_encode(29, serializer);
                 <crate::api::types::ServerAddresses>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::NetworkStatus(field0) => {
-                <i32>::sse_encode(29, serializer);
+                <i32>::sse_encode(30, serializer);
                 <crate::api::types::NetworkInfo>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::ServerNotice(field0) => {
-                <i32>::sse_encode(30, serializer);
+                <i32>::sse_encode(31, serializer);
                 <crate::api::types::ServerNotice>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::LavalinkNodeStatus {
                 node,
                 channels_playing,
             } => {
-                <i32>::sse_encode(31, serializer);
+                <i32>::sse_encode(32, serializer);
                 <crate::api::types::LavalinkNode>::sse_encode(node, serializer);
                 <u32>::sse_encode(channels_playing, serializer);
             }
@@ -19117,52 +19142,52 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 node_id,
                 channels_playing,
             } => {
-                <i32>::sse_encode(32, serializer);
+                <i32>::sse_encode(33, serializer);
                 <i64>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(channels_playing, serializer);
             }
             crate::api::types::CoreEventPayload::LavalinkNodeEvent(field0) => {
-                <i32>::sse_encode(33, serializer);
+                <i32>::sse_encode(34, serializer);
                 <crate::api::types::LavalinkNodeEvent>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::LavalinkTestProgress(field0) => {
-                <i32>::sse_encode(34, serializer);
+                <i32>::sse_encode(35, serializer);
                 <crate::api::types::LavalinkTestProgress>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::MusicSettingsUpdate(field0) => {
-                <i32>::sse_encode(35, serializer);
+                <i32>::sse_encode(36, serializer);
                 <crate::api::types::MusicSettings>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::MusicSession(field0) => {
-                <i32>::sse_encode(36, serializer);
+                <i32>::sse_encode(37, serializer);
                 <crate::api::types::MusicSession>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::MusicNowPlaying(field0) => {
-                <i32>::sse_encode(37, serializer);
+                <i32>::sse_encode(38, serializer);
                 <crate::api::types::MusicNowPlaying>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::MusicNotice(field0) => {
-                <i32>::sse_encode(38, serializer);
+                <i32>::sse_encode(39, serializer);
                 <crate::api::types::MusicNotice>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::CommandsUpdate(field0) => {
-                <i32>::sse_encode(39, serializer);
+                <i32>::sse_encode(40, serializer);
                 <crate::api::types::CommandList>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::EphemeralMessage(field0) => {
-                <i32>::sse_encode(40, serializer);
+                <i32>::sse_encode(41, serializer);
                 <crate::api::types::EphemeralMessage>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::UploadSettingsUpdate(field0) => {
-                <i32>::sse_encode(41, serializer);
+                <i32>::sse_encode(42, serializer);
                 <crate::api::types::UploadSettings>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::PrivateSettingsUpdate(field0) => {
-                <i32>::sse_encode(42, serializer);
+                <i32>::sse_encode(43, serializer);
                 <crate::api::types::PrivateSettings>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::StorageUpdate(field0) => {
-                <i32>::sse_encode(43, serializer);
+                <i32>::sse_encode(44, serializer);
                 <crate::api::types::StorageInfo>::sse_encode(field0, serializer);
             }
             crate::api::types::CoreEventPayload::StagedUploadProgress {
@@ -19172,7 +19197,7 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 total_bytes,
                 phase,
             } => {
-                <i32>::sse_encode(44, serializer);
+                <i32>::sse_encode(45, serializer);
                 <i64>::sse_encode(channel_id, serializer);
                 <String>::sse_encode(staged_id, serializer);
                 <u64>::sse_encode(sent_bytes, serializer);
@@ -19187,7 +19212,7 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 total_bytes,
                 phase,
             } => {
-                <i32>::sse_encode(45, serializer);
+                <i32>::sse_encode(46, serializer);
                 <i64>::sse_encode(channel_id, serializer);
                 <String>::sse_encode(upload_id, serializer);
                 <String>::sse_encode(filename, serializer);
@@ -19203,7 +19228,7 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 total_bytes,
                 phase,
             } => {
-                <i32>::sse_encode(46, serializer);
+                <i32>::sse_encode(47, serializer);
                 <i64>::sse_encode(channel_id, serializer);
                 <String>::sse_encode(nonce, serializer);
                 <u32>::sse_encode(file_index, serializer);
@@ -19218,7 +19243,7 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 done,
                 error,
             } => {
-                <i32>::sse_encode(47, serializer);
+                <i32>::sse_encode(48, serializer);
                 <i64>::sse_encode(attachment_id, serializer);
                 <u64>::sse_encode(received_bytes, serializer);
                 <u64>::sse_encode(total_bytes, serializer);

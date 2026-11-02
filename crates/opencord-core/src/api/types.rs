@@ -554,6 +554,13 @@ pub enum CoreEventPayload {
     /// Someone joined, left, moved or changed their voice flags. A voice
     /// channel that becomes visible is followed by its participants.
     VoiceStateUpdate(VoiceState),
+    /// Getting back into `channel_id` after a fresh session was refused,
+    /// for the server's reason; the `VoiceStateUpdate` saying this device
+    /// left follows.
+    VoiceRejoinFailed {
+        channel_id: i64,
+        message: String,
+    },
     VoiceSettingsUpdate(VoiceSettings),
     /// Someone went live, in a voice channel this user can view.
     StreamCreate(ScreenStream),

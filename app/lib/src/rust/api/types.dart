@@ -1036,6 +1036,14 @@ sealed class CoreEventPayload with _$CoreEventPayload {
   /// channel that becomes visible is followed by its participants.
   const factory CoreEventPayload.voiceStateUpdate(VoiceState field0) =
       CoreEventPayload_VoiceStateUpdate;
+
+  /// Getting back into `channel_id` after a fresh session was refused,
+  /// for the server's reason; the `VoiceStateUpdate` saying this device
+  /// left follows.
+  const factory CoreEventPayload.voiceRejoinFailed({
+    required PlatformInt64 channelId,
+    required String message,
+  }) = CoreEventPayload_VoiceRejoinFailed;
   const factory CoreEventPayload.voiceSettingsUpdate(VoiceSettings field0) =
       CoreEventPayload_VoiceSettingsUpdate;
 

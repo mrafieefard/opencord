@@ -1955,19 +1955,19 @@ impl Client {
     /// channel.
     async fn rejoin(&self, key: &str, channel_id: i64) {
         let mut tries = 0;
-        let code = loop {
+        let (code, message) = loop {
             let request = self.voice_update(channel_id);
             let Err(CoreError::Server {
                 code,
+                message,
                 retry_after_ms,
-                ..
             }) = self.request(key, request).await
             else {
                 return;
             };
             tries += 1;
             if code != ErrorCode::RateLimited || tries == REJOIN_TRIES {
-                break code;
+                break (code, message);
             }
             let wait = retry_after_ms.map_or(REJOIN_WAIT, |ms| {
                 Duration::from_millis(u64::from(ms)).max(REJOIN_WAIT)
@@ -1990,6 +1990,13 @@ impl Client {
             voice.self_ids.get(key).copied()
         };
         self.sync_media();
+        let _ = self.inner.outward.send(CoreEvent {
+            server_key: key.to_owned(),
+            payload: CoreEventPayload::VoiceRejoinFailed {
+                channel_id,
+                message,
+            },
+        });
         if let Some(user_id) = self_id {
             let _ = self.inner.outward.send(CoreEvent {
                 server_key: key.to_owned(),

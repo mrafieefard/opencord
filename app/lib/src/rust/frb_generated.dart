@@ -9753,110 +9753,115 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_box_autoadd_voice_state(raw[1]),
         );
       case 19:
+        return CoreEventPayload_VoiceRejoinFailed(
+          channelId: dco_decode_i_64(raw[1]),
+          message: dco_decode_String(raw[2]),
+        );
+      case 20:
         return CoreEventPayload_VoiceSettingsUpdate(
           dco_decode_box_autoadd_voice_settings(raw[1]),
         );
-      case 20:
+      case 21:
         return CoreEventPayload_StreamCreate(
           dco_decode_box_autoadd_screen_stream(raw[1]),
         );
-      case 21:
+      case 22:
         return CoreEventPayload_StreamUpdate(
           dco_decode_box_autoadd_screen_stream(raw[1]),
         );
-      case 22:
+      case 23:
         return CoreEventPayload_StreamDelete(
           streamKey: dco_decode_String(raw[1]),
           channelId: dco_decode_i_64(raw[2]),
         );
-      case 23:
+      case 24:
         return CoreEventPayload_StreamViewersUpdate(
           streamKey: dco_decode_String(raw[1]),
           viewerIds: dco_decode_list_prim_i_64_strict(raw[2]),
         );
-      case 24:
+      case 25:
         return CoreEventPayload_SoundboardSoundCreate(
           dco_decode_box_autoadd_soundboard_sound(raw[1]),
         );
-      case 25:
+      case 26:
         return CoreEventPayload_SoundboardSoundUpdate(
           dco_decode_box_autoadd_soundboard_sound(raw[1]),
         );
-      case 26:
+      case 27:
         return CoreEventPayload_SoundboardSoundDelete(
           soundId: dco_decode_i_64(raw[1]),
         );
-      case 27:
+      case 28:
         return CoreEventPayload_VoiceChannelEffect(
           dco_decode_box_autoadd_sound_effect(raw[1]),
         );
-      case 28:
+      case 29:
         return CoreEventPayload_ServerAddressesUpdate(
           dco_decode_box_autoadd_server_addresses(raw[1]),
         );
-      case 29:
+      case 30:
         return CoreEventPayload_NetworkStatus(
           dco_decode_box_autoadd_network_info(raw[1]),
         );
-      case 30:
+      case 31:
         return CoreEventPayload_ServerNotice(
           dco_decode_box_autoadd_server_notice(raw[1]),
         );
-      case 31:
+      case 32:
         return CoreEventPayload_LavalinkNodeStatus(
           node: dco_decode_box_autoadd_lavalink_node(raw[1]),
           channelsPlaying: dco_decode_u_32(raw[2]),
         );
-      case 32:
+      case 33:
         return CoreEventPayload_LavalinkNodeRemoved(
           nodeId: dco_decode_i_64(raw[1]),
           channelsPlaying: dco_decode_u_32(raw[2]),
         );
-      case 33:
+      case 34:
         return CoreEventPayload_LavalinkNodeEvent(
           dco_decode_box_autoadd_lavalink_node_event(raw[1]),
         );
-      case 34:
+      case 35:
         return CoreEventPayload_LavalinkTestProgress(
           dco_decode_box_autoadd_lavalink_test_progress(raw[1]),
         );
-      case 35:
+      case 36:
         return CoreEventPayload_MusicSettingsUpdate(
           dco_decode_box_autoadd_music_settings(raw[1]),
         );
-      case 36:
+      case 37:
         return CoreEventPayload_MusicSession(
           dco_decode_box_autoadd_music_session(raw[1]),
         );
-      case 37:
+      case 38:
         return CoreEventPayload_MusicNowPlaying(
           dco_decode_box_autoadd_music_now_playing(raw[1]),
         );
-      case 38:
+      case 39:
         return CoreEventPayload_MusicNotice(
           dco_decode_box_autoadd_music_notice(raw[1]),
         );
-      case 39:
+      case 40:
         return CoreEventPayload_CommandsUpdate(
           dco_decode_box_autoadd_command_list(raw[1]),
         );
-      case 40:
+      case 41:
         return CoreEventPayload_EphemeralMessage(
           dco_decode_box_autoadd_ephemeral_message(raw[1]),
         );
-      case 41:
+      case 42:
         return CoreEventPayload_UploadSettingsUpdate(
           dco_decode_box_autoadd_upload_settings(raw[1]),
         );
-      case 42:
+      case 43:
         return CoreEventPayload_PrivateSettingsUpdate(
           dco_decode_box_autoadd_private_settings(raw[1]),
         );
-      case 43:
+      case 44:
         return CoreEventPayload_StorageUpdate(
           dco_decode_box_autoadd_storage_info(raw[1]),
         );
-      case 44:
+      case 45:
         return CoreEventPayload_StagedUploadProgress(
           channelId: dco_decode_i_64(raw[1]),
           stagedId: dco_decode_String(raw[2]),
@@ -9864,7 +9869,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           totalBytes: dco_decode_u_64(raw[4]),
           phase: dco_decode_box_autoadd_upload_phase(raw[5]),
         );
-      case 45:
+      case 46:
         return CoreEventPayload_MusicUploadProgress(
           channelId: dco_decode_i_64(raw[1]),
           uploadId: dco_decode_String(raw[2]),
@@ -9873,7 +9878,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           totalBytes: dco_decode_u_64(raw[5]),
           phase: dco_decode_box_autoadd_upload_phase(raw[6]),
         );
-      case 46:
+      case 47:
         return CoreEventPayload_UploadProgress(
           channelId: dco_decode_i_64(raw[1]),
           nonce: dco_decode_String(raw[2]),
@@ -9882,7 +9887,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           totalBytes: dco_decode_u_64(raw[5]),
           phase: dco_decode_box_autoadd_upload_phase(raw[6]),
         );
-      case 47:
+      case 48:
         return CoreEventPayload_DownloadProgress(
           attachmentId: dco_decode_i_64(raw[1]),
           receivedBytes: dco_decode_u_64(raw[2]),
@@ -13451,101 +13456,108 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_box_autoadd_voice_state(deserializer);
         return CoreEventPayload_VoiceStateUpdate(var_field0);
       case 19:
+        var var_channelId = sse_decode_i_64(deserializer);
+        var var_message = sse_decode_String(deserializer);
+        return CoreEventPayload_VoiceRejoinFailed(
+          channelId: var_channelId,
+          message: var_message,
+        );
+      case 20:
         var var_field0 = sse_decode_box_autoadd_voice_settings(deserializer);
         return CoreEventPayload_VoiceSettingsUpdate(var_field0);
-      case 20:
-        var var_field0 = sse_decode_box_autoadd_screen_stream(deserializer);
-        return CoreEventPayload_StreamCreate(var_field0);
       case 21:
         var var_field0 = sse_decode_box_autoadd_screen_stream(deserializer);
-        return CoreEventPayload_StreamUpdate(var_field0);
+        return CoreEventPayload_StreamCreate(var_field0);
       case 22:
+        var var_field0 = sse_decode_box_autoadd_screen_stream(deserializer);
+        return CoreEventPayload_StreamUpdate(var_field0);
+      case 23:
         var var_streamKey = sse_decode_String(deserializer);
         var var_channelId = sse_decode_i_64(deserializer);
         return CoreEventPayload_StreamDelete(
           streamKey: var_streamKey,
           channelId: var_channelId,
         );
-      case 23:
+      case 24:
         var var_streamKey = sse_decode_String(deserializer);
         var var_viewerIds = sse_decode_list_prim_i_64_strict(deserializer);
         return CoreEventPayload_StreamViewersUpdate(
           streamKey: var_streamKey,
           viewerIds: var_viewerIds,
         );
-      case 24:
-        var var_field0 = sse_decode_box_autoadd_soundboard_sound(deserializer);
-        return CoreEventPayload_SoundboardSoundCreate(var_field0);
       case 25:
         var var_field0 = sse_decode_box_autoadd_soundboard_sound(deserializer);
-        return CoreEventPayload_SoundboardSoundUpdate(var_field0);
+        return CoreEventPayload_SoundboardSoundCreate(var_field0);
       case 26:
+        var var_field0 = sse_decode_box_autoadd_soundboard_sound(deserializer);
+        return CoreEventPayload_SoundboardSoundUpdate(var_field0);
+      case 27:
         var var_soundId = sse_decode_i_64(deserializer);
         return CoreEventPayload_SoundboardSoundDelete(soundId: var_soundId);
-      case 27:
+      case 28:
         var var_field0 = sse_decode_box_autoadd_sound_effect(deserializer);
         return CoreEventPayload_VoiceChannelEffect(var_field0);
-      case 28:
+      case 29:
         var var_field0 = sse_decode_box_autoadd_server_addresses(deserializer);
         return CoreEventPayload_ServerAddressesUpdate(var_field0);
-      case 29:
+      case 30:
         var var_field0 = sse_decode_box_autoadd_network_info(deserializer);
         return CoreEventPayload_NetworkStatus(var_field0);
-      case 30:
+      case 31:
         var var_field0 = sse_decode_box_autoadd_server_notice(deserializer);
         return CoreEventPayload_ServerNotice(var_field0);
-      case 31:
+      case 32:
         var var_node = sse_decode_box_autoadd_lavalink_node(deserializer);
         var var_channelsPlaying = sse_decode_u_32(deserializer);
         return CoreEventPayload_LavalinkNodeStatus(
           node: var_node,
           channelsPlaying: var_channelsPlaying,
         );
-      case 32:
+      case 33:
         var var_nodeId = sse_decode_i_64(deserializer);
         var var_channelsPlaying = sse_decode_u_32(deserializer);
         return CoreEventPayload_LavalinkNodeRemoved(
           nodeId: var_nodeId,
           channelsPlaying: var_channelsPlaying,
         );
-      case 33:
+      case 34:
         var var_field0 = sse_decode_box_autoadd_lavalink_node_event(
           deserializer,
         );
         return CoreEventPayload_LavalinkNodeEvent(var_field0);
-      case 34:
+      case 35:
         var var_field0 = sse_decode_box_autoadd_lavalink_test_progress(
           deserializer,
         );
         return CoreEventPayload_LavalinkTestProgress(var_field0);
-      case 35:
+      case 36:
         var var_field0 = sse_decode_box_autoadd_music_settings(deserializer);
         return CoreEventPayload_MusicSettingsUpdate(var_field0);
-      case 36:
+      case 37:
         var var_field0 = sse_decode_box_autoadd_music_session(deserializer);
         return CoreEventPayload_MusicSession(var_field0);
-      case 37:
+      case 38:
         var var_field0 = sse_decode_box_autoadd_music_now_playing(deserializer);
         return CoreEventPayload_MusicNowPlaying(var_field0);
-      case 38:
+      case 39:
         var var_field0 = sse_decode_box_autoadd_music_notice(deserializer);
         return CoreEventPayload_MusicNotice(var_field0);
-      case 39:
+      case 40:
         var var_field0 = sse_decode_box_autoadd_command_list(deserializer);
         return CoreEventPayload_CommandsUpdate(var_field0);
-      case 40:
+      case 41:
         var var_field0 = sse_decode_box_autoadd_ephemeral_message(deserializer);
         return CoreEventPayload_EphemeralMessage(var_field0);
-      case 41:
+      case 42:
         var var_field0 = sse_decode_box_autoadd_upload_settings(deserializer);
         return CoreEventPayload_UploadSettingsUpdate(var_field0);
-      case 42:
+      case 43:
         var var_field0 = sse_decode_box_autoadd_private_settings(deserializer);
         return CoreEventPayload_PrivateSettingsUpdate(var_field0);
-      case 43:
+      case 44:
         var var_field0 = sse_decode_box_autoadd_storage_info(deserializer);
         return CoreEventPayload_StorageUpdate(var_field0);
-      case 44:
+      case 45:
         var var_channelId = sse_decode_i_64(deserializer);
         var var_stagedId = sse_decode_String(deserializer);
         var var_sentBytes = sse_decode_u_64(deserializer);
@@ -13558,7 +13570,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           totalBytes: var_totalBytes,
           phase: var_phase,
         );
-      case 45:
+      case 46:
         var var_channelId = sse_decode_i_64(deserializer);
         var var_uploadId = sse_decode_String(deserializer);
         var var_filename = sse_decode_String(deserializer);
@@ -13573,7 +13585,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           totalBytes: var_totalBytes,
           phase: var_phase,
         );
-      case 46:
+      case 47:
         var var_channelId = sse_decode_i_64(deserializer);
         var var_nonce = sse_decode_String(deserializer);
         var var_fileIndex = sse_decode_u_32(deserializer);
@@ -13588,7 +13600,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           totalBytes: var_totalBytes,
           phase: var_phase,
         );
-      case 47:
+      case 48:
         var var_attachmentId = sse_decode_i_64(deserializer);
         var var_receivedBytes = sse_decode_u_64(deserializer);
         var var_totalBytes = sse_decode_u_64(deserializer);
@@ -17992,96 +18004,103 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case CoreEventPayload_VoiceStateUpdate(field0: final field0):
         sse_encode_i_32(18, serializer);
         sse_encode_box_autoadd_voice_state(field0, serializer);
-      case CoreEventPayload_VoiceSettingsUpdate(field0: final field0):
+      case CoreEventPayload_VoiceRejoinFailed(
+        channelId: final channelId,
+        message: final message,
+      ):
         sse_encode_i_32(19, serializer);
+        sse_encode_i_64(channelId, serializer);
+        sse_encode_String(message, serializer);
+      case CoreEventPayload_VoiceSettingsUpdate(field0: final field0):
+        sse_encode_i_32(20, serializer);
         sse_encode_box_autoadd_voice_settings(field0, serializer);
       case CoreEventPayload_StreamCreate(field0: final field0):
-        sse_encode_i_32(20, serializer);
+        sse_encode_i_32(21, serializer);
         sse_encode_box_autoadd_screen_stream(field0, serializer);
       case CoreEventPayload_StreamUpdate(field0: final field0):
-        sse_encode_i_32(21, serializer);
+        sse_encode_i_32(22, serializer);
         sse_encode_box_autoadd_screen_stream(field0, serializer);
       case CoreEventPayload_StreamDelete(
         streamKey: final streamKey,
         channelId: final channelId,
       ):
-        sse_encode_i_32(22, serializer);
+        sse_encode_i_32(23, serializer);
         sse_encode_String(streamKey, serializer);
         sse_encode_i_64(channelId, serializer);
       case CoreEventPayload_StreamViewersUpdate(
         streamKey: final streamKey,
         viewerIds: final viewerIds,
       ):
-        sse_encode_i_32(23, serializer);
+        sse_encode_i_32(24, serializer);
         sse_encode_String(streamKey, serializer);
         sse_encode_list_prim_i_64_strict(viewerIds, serializer);
       case CoreEventPayload_SoundboardSoundCreate(field0: final field0):
-        sse_encode_i_32(24, serializer);
-        sse_encode_box_autoadd_soundboard_sound(field0, serializer);
-      case CoreEventPayload_SoundboardSoundUpdate(field0: final field0):
         sse_encode_i_32(25, serializer);
         sse_encode_box_autoadd_soundboard_sound(field0, serializer);
-      case CoreEventPayload_SoundboardSoundDelete(soundId: final soundId):
+      case CoreEventPayload_SoundboardSoundUpdate(field0: final field0):
         sse_encode_i_32(26, serializer);
+        sse_encode_box_autoadd_soundboard_sound(field0, serializer);
+      case CoreEventPayload_SoundboardSoundDelete(soundId: final soundId):
+        sse_encode_i_32(27, serializer);
         sse_encode_i_64(soundId, serializer);
       case CoreEventPayload_VoiceChannelEffect(field0: final field0):
-        sse_encode_i_32(27, serializer);
+        sse_encode_i_32(28, serializer);
         sse_encode_box_autoadd_sound_effect(field0, serializer);
       case CoreEventPayload_ServerAddressesUpdate(field0: final field0):
-        sse_encode_i_32(28, serializer);
+        sse_encode_i_32(29, serializer);
         sse_encode_box_autoadd_server_addresses(field0, serializer);
       case CoreEventPayload_NetworkStatus(field0: final field0):
-        sse_encode_i_32(29, serializer);
+        sse_encode_i_32(30, serializer);
         sse_encode_box_autoadd_network_info(field0, serializer);
       case CoreEventPayload_ServerNotice(field0: final field0):
-        sse_encode_i_32(30, serializer);
+        sse_encode_i_32(31, serializer);
         sse_encode_box_autoadd_server_notice(field0, serializer);
       case CoreEventPayload_LavalinkNodeStatus(
         node: final node,
         channelsPlaying: final channelsPlaying,
       ):
-        sse_encode_i_32(31, serializer);
+        sse_encode_i_32(32, serializer);
         sse_encode_box_autoadd_lavalink_node(node, serializer);
         sse_encode_u_32(channelsPlaying, serializer);
       case CoreEventPayload_LavalinkNodeRemoved(
         nodeId: final nodeId,
         channelsPlaying: final channelsPlaying,
       ):
-        sse_encode_i_32(32, serializer);
+        sse_encode_i_32(33, serializer);
         sse_encode_i_64(nodeId, serializer);
         sse_encode_u_32(channelsPlaying, serializer);
       case CoreEventPayload_LavalinkNodeEvent(field0: final field0):
-        sse_encode_i_32(33, serializer);
+        sse_encode_i_32(34, serializer);
         sse_encode_box_autoadd_lavalink_node_event(field0, serializer);
       case CoreEventPayload_LavalinkTestProgress(field0: final field0):
-        sse_encode_i_32(34, serializer);
+        sse_encode_i_32(35, serializer);
         sse_encode_box_autoadd_lavalink_test_progress(field0, serializer);
       case CoreEventPayload_MusicSettingsUpdate(field0: final field0):
-        sse_encode_i_32(35, serializer);
+        sse_encode_i_32(36, serializer);
         sse_encode_box_autoadd_music_settings(field0, serializer);
       case CoreEventPayload_MusicSession(field0: final field0):
-        sse_encode_i_32(36, serializer);
+        sse_encode_i_32(37, serializer);
         sse_encode_box_autoadd_music_session(field0, serializer);
       case CoreEventPayload_MusicNowPlaying(field0: final field0):
-        sse_encode_i_32(37, serializer);
+        sse_encode_i_32(38, serializer);
         sse_encode_box_autoadd_music_now_playing(field0, serializer);
       case CoreEventPayload_MusicNotice(field0: final field0):
-        sse_encode_i_32(38, serializer);
+        sse_encode_i_32(39, serializer);
         sse_encode_box_autoadd_music_notice(field0, serializer);
       case CoreEventPayload_CommandsUpdate(field0: final field0):
-        sse_encode_i_32(39, serializer);
+        sse_encode_i_32(40, serializer);
         sse_encode_box_autoadd_command_list(field0, serializer);
       case CoreEventPayload_EphemeralMessage(field0: final field0):
-        sse_encode_i_32(40, serializer);
+        sse_encode_i_32(41, serializer);
         sse_encode_box_autoadd_ephemeral_message(field0, serializer);
       case CoreEventPayload_UploadSettingsUpdate(field0: final field0):
-        sse_encode_i_32(41, serializer);
+        sse_encode_i_32(42, serializer);
         sse_encode_box_autoadd_upload_settings(field0, serializer);
       case CoreEventPayload_PrivateSettingsUpdate(field0: final field0):
-        sse_encode_i_32(42, serializer);
+        sse_encode_i_32(43, serializer);
         sse_encode_box_autoadd_private_settings(field0, serializer);
       case CoreEventPayload_StorageUpdate(field0: final field0):
-        sse_encode_i_32(43, serializer);
+        sse_encode_i_32(44, serializer);
         sse_encode_box_autoadd_storage_info(field0, serializer);
       case CoreEventPayload_StagedUploadProgress(
         channelId: final channelId,
@@ -18090,7 +18109,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         totalBytes: final totalBytes,
         phase: final phase,
       ):
-        sse_encode_i_32(44, serializer);
+        sse_encode_i_32(45, serializer);
         sse_encode_i_64(channelId, serializer);
         sse_encode_String(stagedId, serializer);
         sse_encode_u_64(sentBytes, serializer);
@@ -18104,7 +18123,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         totalBytes: final totalBytes,
         phase: final phase,
       ):
-        sse_encode_i_32(45, serializer);
+        sse_encode_i_32(46, serializer);
         sse_encode_i_64(channelId, serializer);
         sse_encode_String(uploadId, serializer);
         sse_encode_String(filename, serializer);
@@ -18119,7 +18138,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         totalBytes: final totalBytes,
         phase: final phase,
       ):
-        sse_encode_i_32(46, serializer);
+        sse_encode_i_32(47, serializer);
         sse_encode_i_64(channelId, serializer);
         sse_encode_String(nonce, serializer);
         sse_encode_u_32(fileIndex, serializer);
@@ -18133,7 +18152,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         done: final done,
         error: final error,
       ):
-        sse_encode_i_32(47, serializer);
+        sse_encode_i_32(48, serializer);
         sse_encode_i_64(attachmentId, serializer);
         sse_encode_u_64(receivedBytes, serializer);
         sse_encode_u_64(totalBytes, serializer);
