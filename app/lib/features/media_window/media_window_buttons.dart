@@ -90,8 +90,8 @@ class MediaWindowButtons extends ConsumerWidget {
 }
 
 /// A Windows caption button, 46 × 32, white for the viewer's dark
-/// background with a soft shadow for bright photos; close hovers red, as
-/// Windows' own does.
+/// background with a soft shadow for bright photos; close hovers inverted,
+/// as the main window's does.
 class _CaptionButton extends StatelessWidget {
   const _CaptionButton({
     required this.glyph,
@@ -113,6 +113,7 @@ class _CaptionButton extends StatelessWidget {
       cursor: SystemMouseCursors.basic,
       focusRadius: BorderRadius.zero,
       builder: (context, state) {
+        final inverted = close && (state.pressed || state.hovered);
         final background = switch ((state.pressed, state.hovered)) {
           (true, _) =>
             close
@@ -132,14 +133,21 @@ class _CaptionButton extends StatelessWidget {
           child: ExcludeSemantics(
             child: Text(
               glyph,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Segoe Fluent Icons',
-                fontFamilyFallback: ['Segoe MDL2 Assets'],
+                fontFamilyFallback: const ['Segoe MDL2 Assets'],
                 fontSize: 10,
-                color: OcMediaColors.captionGlyph,
-                shadows: [
-                  Shadow(color: OcMediaColors.captionShadow, blurRadius: 4),
-                ],
+                color: inverted
+                    ? OcMediaColors.captionCloseGlyph
+                    : OcMediaColors.captionGlyph,
+                shadows: inverted
+                    ? null
+                    : const [
+                        Shadow(
+                          color: OcMediaColors.captionShadow,
+                          blurRadius: 4,
+                        ),
+                      ],
               ),
             ),
           ),

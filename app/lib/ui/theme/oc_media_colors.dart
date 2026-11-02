@@ -19,7 +19,9 @@ abstract final class OcMediaColors {
   static const captionHover = Color(0x1AFFFFFF);
   static const captionPress = Color(0x0FFFFFFF);
 
-  /// Close hovers red, as Windows' own does.
-  static const captionCloseHover = Color(0xFFC42B1C);
-  static const captionClosePress = Color(0xFFB0281A);
+  /// Close hovers inverted, as the main window's does: the app has no hues
+  /// (desktop UI plan §1), so not Windows' red.
+  static const captionCloseHover = Color(0xFFFFFFFF);
+  static const captionClosePress = Color(0xE6FFFFFF);
+  static const captionCloseGlyph = Color(0xFF000000);
 }

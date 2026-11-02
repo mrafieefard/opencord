@@ -38,7 +38,7 @@ Telegram Desktop is GPL. Opencord copies how it behaves, never its code.
 1. A photo or video opens in a new OS window, separate from the main window, with its own taskbar or Dock entry.
 2. The window is see-through: the chat and desktop show behind the media, dimmed by the dark background.
 3. It opens full screen by default and behaves like Telegram's: the three modes, how they switch, remembering them, clicks, fading controls and keyboard.
-4. **Title buttons on Windows.** The app draws Windows' own caption buttons (minimize, maximize/restore, close) in Windows' shapes, sizes and hovers, with a red hover on close. They're drawn white for the dark background, with a soft shadow so they show over a bright photo.
+4. **Title buttons on Windows.** The app draws Windows' own caption buttons (minimize, maximize/restore, close) in Windows' shapes, sizes and hovers, with a red hover on close. They're drawn white for the dark background, with a soft shadow so they show over a bright photo. (Built with the main window's inverted close hover instead of red: the app has no hues, desktop UI plan §1; see D86.)
 5. **Title buttons on Linux.** The same buttons the main window draws (`LinuxWindowButtons`), in the desktop's button layout, side and order.
 6. **Title buttons on macOS.** The system's real traffic lights, which is the owner's exception. Green switches between full screen and the normal window.
 7. Everything the viewer does now keeps working in the window: zoom with the wheel, previous and next, video playback with its controls, Download, and the error and retry state.
@@ -210,7 +210,6 @@ Each runner gets a `dev.opencord/media_window` method channel next to `dev.openc
   - transparency;
   - covering the taskbar or the menu bar and Dock;
   - Snap and Win+Up turning into full screen;
-  - Snap Layouts on the maximize button;
   - the traffic lights and green;
   - Download saving to the download folder and the note opening it;
   - DPI and several monitors.
@@ -232,7 +231,7 @@ My calls:
 - Only today's actions at the bottom right.
 - The fallback to today's overlay.
 - On Linux, maximized stays maximized; on Windows it becomes full screen. This follows Telegram.
-- Windows' buttons get a red hover on close: Windows' own look, where Telegram's doesn't.
+- ~~Windows' buttons get a red hover on close.~~ Built inverted, as the main window's: the app has no hues (D86).
 
 ## Left to the builder
 

@@ -1631,3 +1631,32 @@ The owner asked for the custom title bar on every platform, with the system or c
   - GNOME with AppIndicator, Waybar on Hyprland;
   - Windows 10 and 11: the icon, its menu, a click, close and come back, Explorer restarting;
   - macOS: the menu bar icon, a right click, and dark and light menu bars.
+
+## D86: The media viewer in its own window (2026-11-02)
+
+(D83 to D85 are taken by pull requests #22 to #24 in the same batch. This one is built on #22 and #24.)
+
+- **Why.** The owner asked for the viewer in a window of its own, as Telegram Desktop's: a new, see-through window, full screen by default, with the system's own title buttons except on macOS, which keeps its real traffic lights. The overlay inside the main window wasn't that, and on Windows it showed GNOME-style buttons. Spec and plan: `docs/superpowers/specs/2026-11-02-media-viewer-window-design.md`, `docs/superpowers/plans/2026-11-02-media-viewer-window.md`.
+- **Telegram's behaviour, copied, not its code** (it's GPL):
+  - **Two modes.** Full screen covers the monitor: Windows' taskbar, or macOS's menu bar and Dock. The normal window is at least 480×360 and starts at 800×600. Maximize, green, a double click on the top 32 px, Alt+Enter and Ctrl+Enter switch between them. On Windows, Aero Snap and Win+Up turn into full screen. The mode and the normal size are kept under `ui.mediaViewer`.
+  - **Background.** `#222222` at 92 %.
+  - **Layout.** Previous and next along the sides. "Photo 3 of 7" and "sender · time" at the bottom left, and Download at the bottom right. The controls fade after 1.1 s without movement.
+  - **Closing.** In full screen, a click beside the picture closes the viewer. In the normal window it doesn't: a drag there moves the window. Esc closes in both.
+  - **Download.** It saves straight into the downloads folder, beside a file of the same name. It can't open a dialog: every save dialog attaches to the main window, which is under the viewer or hidden in the tray.
+- **One engine, a second view.** The viewer shares the running app: its providers, the repository, and video textures. `main.dart` uses `runWidget` with `AppViews`: the implicit view, and the viewer's view while it's open. Flutter 3.44's multi-window API is `@internal` and master-only, so each runner adds the view itself:
+  - **Linux:** `fl_view_new_for_engine`. Its close handler is connected before the view's, which would quit the app. The window announces it draws its own frame (`gdk_wayland_window_announce_csd`); without that, KWin added a title bar (frame 808×634 around an 800×600 client).
+  - **Windows:** `FlutterDesktopEngineCreateViewController` with `FlutterDesktopEngineForId(PlatformDispatcher.engineId)`. Both are exported by `flutter_windows.dll` but declared only in the engine's internal header, so a Flutter upgrade may move them, and CI's Windows build would say so. The window is see-through through the accent policy flutter_acrylic uses.
+  - **macOS:** `FlutterViewController(engine:)`. The engine allows a second view only in multi-view mode, and its own switch asserts once the main view exists. So the runner sets the `_multiViewEnabled` flag directly, after checking it's there. Without it, the viewer opens in the app.
+- **Fallback.** Wherever the runner has no window, the viewer is today's overlay in the main window.
+- **The close button on Windows** hovers inverted, as the main window's does. The spec said Windows' red, but the app has no hues (desktop UI plan §1).
+- **Checked:**
+  - Dart tests for the channel, the session (reused window, the system's close, the view removed before the window, the remembered mode and size), the layout, fading, the mode rules, keys, each platform's buttons and Download.
+  - On KDE Plasma 6 Wayland, `integration_test/linux/media_window_test.dart` and KWin scripting:
+    - a second window of the same process with its own taskbar entry;
+    - 1920×1080 at 0,0 full screen, over the panel;
+    - 800×600 normal, with no KWin frame;
+    - KWin's close reaching the app, which kept running;
+    - the second view gone on close.
+- **Owed by hand:**
+  - the see-through background on Linux (the screen was locked);
+  - everything on Windows and macOS: `docs/plans/media-check-windows.md`, `docs/plans/media-check-macos.md`.
