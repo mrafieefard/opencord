@@ -406,4 +406,113 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+
+  group('zoom, as Telegram\'s, across the whole screen', () {
+    // The 16:9 video fits 1052×592 between the top and bottom rows.
+    Future<(FakeMediaWindow, List<int>)> pumpVideo(
+      WidgetTester tester, {
+      MediaWindowMode mode = MediaWindowMode.fullscreen,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final result = await _pumpWindow(
+        tester,
+        mode: mode,
+        media: const [_video],
+      );
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    /// Turns the mouse wheel at [at]: up zooms in.
+    Future<void> wheel(WidgetTester tester, Offset at, double dy) async {
+      final mouse = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(mouse.hover(at));
+      await tester.sendEventToBinding(mouse.scroll(Offset(0, dy)));
+      await tester.sendEventToBinding(mouse.removePointer());
+      await tester.pumpAndSettle();
+    }
+
+    Rect picture(WidgetTester tester) => tester.getRect(find.byType(Texture));
+
+    testWidgets('the_zoom_has_the_whole_screen_not_the_media_box', (
+      tester,
+    ) async {
+      await pumpVideo(tester);
+      expect(
+        tester.getSize(find.byType(InteractiveViewer)),
+        const Size(1600, 700),
+      );
+      await closeViewer(tester);
+    });
+
+    testWidgets('a_zoomed_picture_narrower_than_the_screen_stays_centred', (
+      tester,
+    ) async {
+      await pumpVideo(tester);
+      final before = picture(tester);
+      // Near its left edge: the zoom would grow it to the right.
+      await wheel(tester, Offset(before.left + 20, before.center.dy), -40);
+
+      final after = picture(tester);
+      expect(after.width, greaterThan(before.width));
+      expect(after.width, lessThan(1600));
+      expect(after.center.dx, closeTo(800, 0.5));
+      // Taller than the screen: no gap above or below.
+      expect(after.top, lessThanOrEqualTo(0.5));
+      expect(after.bottom, greaterThanOrEqualTo(699.5));
+      await closeViewer(tester);
+    });
+
+    testWidgets('a_zoomed_picture_pans_until_its_edge_meets_the_screens', (
+      tester,
+    ) async {
+      await pumpVideo(tester);
+      await wheel(tester, const Offset(800, 350), -200);
+      expect(picture(tester).width, greaterThan(1600));
+
+      await tester.dragFrom(const Offset(800, 350), const Offset(3000, 0));
+      await tester.pumpAndSettle();
+      expect(picture(tester).left, closeTo(0, 0.5));
+
+      await tester.dragFrom(const Offset(800, 350), const Offset(-6000, 0));
+      await tester.pumpAndSettle();
+      expect(picture(tester).right, closeTo(1600, 0.5));
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_videos_controls_stay_put_while_its_picture_zooms', (
+      tester,
+    ) async {
+      await pumpVideo(tester);
+      final bar = tester.getRect(find.byType(Slider).first);
+      await wheel(tester, const Offset(800, 350), -200);
+      expect(tester.getRect(find.byType(Slider).first), bar);
+      await closeViewer(tester);
+    });
+
+    testWidgets('a_click_where_the_zoomed_picture_now_is_does_not_close', (
+      tester,
+    ) async {
+      final (_, closes) = await pumpVideo(tester);
+      final before = picture(tester);
+      await wheel(tester, const Offset(800, 350), -200);
+      // Beside the picture before the zoom, on it after.
+      await tester.tapAt(Offset(before.left / 2, 350));
+      await tester.pump();
+      expect(closes, isEmpty);
+      await closeViewer(tester);
+    });
+
+    testWidgets('beside_the_picture_a_normal_window_still_drags', (
+      tester,
+    ) async {
+      final (window, _) = await pumpVideo(tester, mode: MediaWindowMode.normal);
+      final at = Offset(picture(tester).left / 2, 350);
+      await tester.dragFrom(at, const Offset(60, 0));
+      await tester.pump();
+      expect(window.calls, contains('startDrag'));
+      await closeViewer(tester);
+    });
+  });
 }

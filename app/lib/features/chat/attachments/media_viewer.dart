@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/format.dart';
@@ -136,6 +137,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   /// The picture shown now: a click beside it closes the viewer.
   final _pictureKey = GlobalKey();
 
+  /// What the zoom scales: the whole viewer, the picture in its middle.
+  final _zoomedKey = GlobalKey();
+
   bool _controlsShown = true;
   Timer? _fadeTimer;
   bool _pointerHeld = false;
@@ -161,10 +165,60 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
     return rect.contains(global);
   }
 
+  /// [picture] zoomable across the whole viewer, as Telegram's: the wheel,
+  /// a pinch or a drag on the picture zoom and move it, and anywhere else
+  /// stays the viewer's (a click beside it, a drag that moves the window).
+  /// Unzoomed, the picture keeps clear of the bottom row, so a video's
+  /// controls are never over it, and the same at the top keeps it centred.
+  Widget _zoom(Widget picture) => _PictureHits(
+    hits: _onPicture,
+    child: InteractiveViewer(
+      transformationController: _transformController,
+      minScale: 1.0,
+      maxScale: 8.0,
+      // The picture's own edges bound it, in _keepOnScreen.
+      boundaryMargin: const EdgeInsets.all(double.infinity),
+      child: Padding(
+        key: _zoomedKey,
+        padding: const EdgeInsets.symmetric(vertical: _bottomRow),
+        child: Center(child: picture),
+      ),
+    ),
+  );
+
+  /// After each zoom or move: along each side, a picture smaller than the
+  /// viewer is centred, and a bigger one leaves no gap at its edges.
+  void _keepOnScreen() {
+    final picture = _pictureKey.currentContext?.findRenderObject();
+    final zoomed = _zoomedKey.currentContext?.findRenderObject();
+    if (picture is! RenderBox || zoomed is! RenderBox) return;
+    if (!picture.hasSize || !zoomed.hasSize) return;
+    final rect = MatrixUtils.transformRect(
+      picture.getTransformTo(zoomed),
+      Offset.zero & picture.size,
+    );
+    final matrix = _transformController.value;
+    final scale = matrix.getMaxScaleOnAxis();
+    final moved = matrix.getTranslation();
+
+    double place(double start, double end, double viewer, double now) {
+      final length = (end - start) * scale;
+      if (length <= viewer) return (viewer - length) / 2 - start * scale;
+      return now.clamp(viewer - end * scale, -start * scale);
+    }
+
+    final x = place(rect.left, rect.right, zoomed.size.width, moved.x);
+    final y = place(rect.top, rect.bottom, zoomed.size.height, moved.y);
+    if ((x - moved.x).abs() < 0.01 && (y - moved.y).abs() < 0.01) return;
+    _transformController.value = matrix.clone()
+      ..setTranslationRaw(x, y, moved.z);
+  }
+
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, widget.media.length - 1);
+    _transformController.addListener(_keepOnScreen);
     _restartFade();
   }
 
@@ -316,22 +370,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // InteractiveViewer zooms on the mouse wheel itself.
-                    // The media keeps clear of the bottom row, as
-                    // Telegram's does, so a video's own controls are
-                    // never under it; the same at the top keeps it
-                    // centred.
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: _bottomRow),
-                      child: Center(
-                        child: InteractiveViewer(
-                          transformationController: _transformController,
-                          minScale: 1.0,
-                          maxScale: 8.0,
-                          child: _buildMediaContent(context, current),
-                        ),
-                      ),
-                    ),
+                    Center(child: _buildMediaContent(context, current)),
                     if (widget.inWindow)
                       Positioned(
                         top: 0,
@@ -523,6 +562,8 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
         serverKey: widget.serverKey,
         attachment: attachment,
         pictureKey: _pictureKey,
+        framePicture: _zoom,
+        controlsInset: _bottomRow,
       );
     }
 
@@ -569,13 +610,15 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
         if (bytes.isEmpty) {
           return const SizedBox.shrink();
         }
-        return Image.memory(
-          key: _pictureKey,
-          bytes,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => Container(
-            padding: const EdgeInsets.all(OcSpace.s16),
-            child: Icon(OcIcons.image, size: 48, color: colors.textSecondary),
+        return _zoom(
+          Image.memory(
+            key: _pictureKey,
+            bytes,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => Container(
+              padding: const EdgeInsets.all(OcSpace.s16),
+              child: Icon(OcIcons.image, size: 48, color: colors.textSecondary),
+            ),
           ),
         );
       },
@@ -634,4 +677,33 @@ class _NavStripState extends State<_NavStrip> {
       ),
     );
   }
+}
+
+/// Lets hits through only where [hits] says, in global coordinates: the
+/// zoom takes the picture's clicks and leaves the rest to the viewer.
+class _PictureHits extends SingleChildRenderObjectWidget {
+  const _PictureHits({required this.hits, required super.child});
+
+  final bool Function(Offset global) hits;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderPictureHits(hits);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderPictureHits renderObject,
+  ) => renderObject.hits = hits;
+}
+
+class _RenderPictureHits extends RenderProxyBox {
+  _RenderPictureHits(this.hits);
+
+  bool Function(Offset global) hits;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      hits(localToGlobal(position)) &&
+      super.hitTest(result, position: position);
 }
