@@ -11,6 +11,9 @@ class FakeMediaWindow implements MediaWindowService {
   /// What the next [open] answers; null means there is no window.
   int? nextViewId = 7;
 
+  /// Runs when the app closes the window, before it is recorded.
+  void Function()? onClose;
+
   final _close = StreamController<void>.broadcast();
   final _status = StreamController<MediaWindowStatus>.broadcast();
   final _geometry = StreamController<WindowGeometry>.broadcast();
@@ -28,7 +31,10 @@ class FakeMediaWindow implements MediaWindowService {
   }
 
   @override
-  Future<void> close() async => calls.add('close');
+  Future<void> close() async {
+    onClose?.call();
+    calls.add('close');
+  }
 
   @override
   Future<void> setMode(MediaWindowMode mode) async =>
