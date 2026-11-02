@@ -9,6 +9,9 @@ abstract final class OcMediaColors {
   /// Previous and next's round hover.
   static const navHover = Color(0x47FFFFFF);
 
+  /// The video's bar, Telegram's: black at half, the video showing through.
+  static const playerBar = Color(0x80000000);
+
   /// The "Saved to Downloads" note.
   static const note = Color(0xE6000000);
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/video_bar.dart';
 import 'package:opencord/features/chat/attachments/video_player_view.dart';
 import 'package:opencord/features/media_window/media_viewer_session.dart';
 import 'package:opencord/features/media_window/media_window_buttons.dart';
@@ -128,6 +130,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   static const double _titleHeight = 32;
   static const double _bottomRow = 54;
 
+  /// The bottom-left text needs this much room, or it goes.
+  static const double _textLeast = 120;
+
   late int _currentIndex;
   final TransformationController _transformController =
       TransformationController();
@@ -173,7 +178,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   /// stays the viewer's (a click beside it, a drag that moves the window).
   /// Unzoomed, the picture keeps clear of the bottom row, so a video's
   /// controls are never over it, and the same at the top keeps it centred.
-  Widget _zoom(Widget picture) => _PictureHits(
+  Widget _zoom(Widget picture, {double clearance = _bottomRow}) => _PictureHits(
     hits: _onPicture,
     child: InteractiveViewer(
       transformationController: _transformController,
@@ -183,7 +188,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       boundaryMargin: const EdgeInsets.all(double.infinity),
       child: Padding(
         key: _zoomedKey,
-        padding: const EdgeInsets.symmetric(vertical: _bottomRow),
+        padding: EdgeInsets.symmetric(vertical: clearance),
         child: Center(
           child: RotatedBox(quarterTurns: _quarterTurns, child: picture),
         ),
@@ -256,6 +261,13 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       setState(() => _controlsShown = false);
     });
   }
+
+  /// Shown while the controls are, fading as they do.
+  Widget _fading(Widget child) => AnimatedOpacity(
+    opacity: _controlsShown ? 1 : 0,
+    duration: _controlsShown ? _fadeIn : _fadeOut,
+    child: child,
+  );
 
   /// A control the pointer is over keeps the controls up.
   Widget _control(Widget child) => MouseRegion(
@@ -406,11 +418,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                         ),
                       ),
                     Positioned.fill(
-                      child: AnimatedOpacity(
-                        opacity: _controlsShown ? 1 : 0,
-                        duration: _controlsShown ? _fadeIn : _fadeOut,
-                        child: _buildControls(context, current),
-                      ),
+                      child: _fading(_buildControls(context, current)),
                     ),
                     if (_note case final note?) _buildNote(context, note),
                     // The window has no frame on Linux: it resizes from
@@ -442,6 +450,12 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       ?widget.senderName,
       if (sentAt != null) '${shortDate(sentAt, now)} at ${clockTime(sentAt)}',
     ].join(' · ');
+    // Beside a video's bar the text keeps to its left, or goes.
+    final width = MediaQuery.sizeOf(context).width;
+    final textRight = current.kind == AttachmentKind.video
+        ? max(2 * _navWidth, (width + min(VideoBar.width, width - 16)) / 2 + 8)
+        : 2 * _navWidth;
+    final showsText = width - _textLeft - textRight >= _textLeast;
     return Stack(
       children: [
         if (_currentIndex > 0)
@@ -472,34 +486,35 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
               ),
             ),
           ),
-        Positioned(
-          left: _textLeft,
-          bottom: 14,
-          right: 2 * _navWidth,
-          child: IgnorePointer(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  mediaHeader(current, _currentIndex, widget.media.length),
-                  style: OcText.bodyStrong.copyWith(color: colors.text),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (from.isNotEmpty) ...[
-                  const SizedBox(height: OcSpace.s4),
+        if (showsText)
+          Positioned(
+            left: _textLeft,
+            bottom: 14,
+            right: textRight,
+            child: IgnorePointer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    from,
-                    style: OcText.small.copyWith(color: colors.textSecondary),
+                    mediaHeader(current, _currentIndex, widget.media.length),
+                    style: OcText.bodyStrong.copyWith(color: colors.text),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (from.isNotEmpty) ...[
+                    const SizedBox(height: OcSpace.s4),
+                    Text(
+                      from,
+                      style: OcText.small.copyWith(color: colors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
         Positioned(
           right: 0,
           bottom: 0,
@@ -589,8 +604,10 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
         serverKey: widget.serverKey,
         attachment: attachment,
         pictureKey: _pictureKey,
-        framePicture: _zoom,
-        controlsInset: _bottomRow,
+        // The video keeps clear of its bar, as Telegram's does.
+        framePicture: (picture) =>
+            _zoom(picture, clearance: VideoBar.clearance),
+        frameControls: (bar) => _fading(_control(bar)),
       );
     }
 

@@ -452,7 +452,7 @@ void main() {
       await pumpVideo(tester);
       final before = picture(tester);
       // Near its left edge: the zoom would grow it to the right.
-      await wheel(tester, Offset(before.left + 20, before.center.dy), -40);
+      await wheel(tester, Offset(before.left + 20, before.center.dy), -60);
 
       final after = picture(tester);
       expect(after.width, greaterThan(before.width));
@@ -573,6 +573,80 @@ void main() {
       await tester.tapAt(Offset(350, (turned.bottom + 1546) / 2));
       await tester.pump();
       expect(closes, [1]);
+      await closeViewer(tester);
+    });
+  });
+
+  group("the video's bar, as Telegram's", () {
+    Future<(FakeMediaWindow, List<int>)> pumpVideo(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final result = await _pumpWindow(tester, media: const [_video]);
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    final bar = find.byKey(const ValueKey('video-bar'));
+
+    testWidgets('the_video_bar_is_telegrams_size', (tester) async {
+      await pumpVideo(tester);
+      final rect = tester.getRect(bar);
+      expect(rect.size, const Size(480, 70));
+      expect(rect.center.dx, 800);
+      expect(rect.bottom, 700 - 7);
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_video_keeps_clear_of_the_bar', (tester) async {
+      await pumpVideo(tester);
+      final picture = tester.getRect(find.byType(Texture));
+      expect(picture.bottom, lessThanOrEqualTo(tester.getRect(bar).top));
+      expect(picture.center.dy, 350, reason: 'still centred');
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_video_bar_fades_with_the_controls', (tester) async {
+      await pumpVideo(tester);
+      double opacity() => tester
+          .widget<AnimatedOpacity>(
+            find.ancestor(of: bar, matching: find.byType(AnimatedOpacity)),
+          )
+          .opacity;
+      expect(opacity(), 1);
+      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(opacity(), 0);
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_bar_shows_the_time_played_and_left', (tester) async {
+      await pumpVideo(tester);
+      final texts = tester
+          .widgetList<Text>(
+            find.descendant(of: bar, matching: find.byType(Text)),
+          )
+          .map((text) => text.data ?? '')
+          .toList();
+      int seconds(String clock) {
+        final parts = clock.replaceFirst('-', '').split(':');
+        return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+      }
+
+      final played = texts.singleWhere(
+        (t) => RegExp(r'^\d\d:\d\d$').hasMatch(t),
+      );
+      final left = texts.singleWhere(
+        (t) => RegExp(r'^-\d\d:\d\d$').hasMatch(t),
+      );
+      // The mock plays a video it doesn't know for 10 s.
+      expect(seconds(played) + seconds(left), inInclusiveRange(9, 10));
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_bottom_left_text_keeps_left_of_the_bar', (tester) async {
+      await pumpVideo(tester);
+      final text = tester.getRect(find.text('clip.mp4'));
+      expect(text.right, lessThanOrEqualTo(tester.getRect(bar).left));
       await closeViewer(tester);
     });
   });
