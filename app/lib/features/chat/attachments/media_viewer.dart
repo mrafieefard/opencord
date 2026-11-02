@@ -140,6 +140,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   /// What the zoom scales: the whole viewer, the picture in its middle.
   final _zoomedKey = GlobalKey();
 
+  /// Quarter turns of the picture, counter-clockwise ones as three.
+  int _quarterTurns = 0;
+
   bool _controlsShown = true;
   Timer? _fadeTimer;
   bool _pointerHeld = false;
@@ -181,7 +184,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       child: Padding(
         key: _zoomedKey,
         padding: const EdgeInsets.symmetric(vertical: _bottomRow),
-        child: Center(child: picture),
+        child: Center(
+          child: RotatedBox(quarterTurns: _quarterTurns, child: picture),
+        ),
       ),
     ),
   );
@@ -272,6 +277,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex--;
+        _quarterTurns = 0;
         _transformController.value = Matrix4.identity();
       });
     }
@@ -282,10 +288,17 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex++;
+        _quarterTurns = 0;
         _transformController.value = Matrix4.identity();
       });
     }
   }
+
+  /// A quarter turn left, as Telegram's: the zoom starts again.
+  void _rotate() => setState(() {
+    _quarterTurns = (_quarterTurns + 3) % 4;
+    _transformController.value = Matrix4.identity();
+  });
 
   Future<void> _download(Attachment attachment) async {
     final repository = ref.read(repositoryProvider);
@@ -491,15 +504,16 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
           right: 0,
           bottom: 0,
           child: _control(
-            SizedBox(
-              width: 46,
-              height: _bottomRow,
-              child: IconButton(
-                icon: const Icon(OcIcons.download),
-                color: colors.text,
-                tooltip: 'Download',
-                onPressed: () => _download(current),
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _bottomButton(
+                  OcIcons.download,
+                  'Download',
+                  () => _download(current),
+                ),
+                _bottomButton(OcIcons.rotateLeft, 'Rotate', _rotate),
+              ],
             ),
           ),
         ),
@@ -527,6 +541,19 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       ],
     );
   }
+
+  /// One of the media's own buttons at the bottom right, Telegram's size.
+  Widget _bottomButton(IconData icon, String tooltip, VoidCallback onPressed) =>
+      SizedBox(
+        width: 46,
+        height: _bottomRow,
+        child: IconButton(
+          icon: Icon(icon),
+          color: context.oc.text,
+          tooltip: tooltip,
+          onPressed: onPressed,
+        ),
+      );
 
   Widget _buildNote(BuildContext context, String note) {
     final colors = context.oc;

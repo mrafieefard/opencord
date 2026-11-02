@@ -515,4 +515,65 @@ void main() {
       await closeViewer(tester);
     });
   });
+
+  group('rotate, beside Download', () {
+    Future<(FakeMediaWindow, List<int>)> pumpVideo(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final result = await _pumpWindow(tester, media: const [_video]);
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    int turns(WidgetTester tester) =>
+        tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns;
+
+    testWidgets('rotate_turns_the_picture_a_quarter_left', (tester) async {
+      await pumpVideo(tester);
+      expect(
+        tester.getTopLeft(find.byTooltip('Rotate')).dx,
+        greaterThan(tester.getTopLeft(find.byTooltip('Download')).dx),
+      );
+      await tester.tap(find.byTooltip('Rotate'));
+      await tester.pumpAndSettle();
+      final picture = tester.getRect(find.byType(Texture));
+      expect(picture.height, greaterThan(picture.width));
+      expect(turns(tester), 3, reason: 'counter-clockwise, as Telegram\'s');
+      await closeViewer(tester);
+    });
+
+    testWidgets('rotate_resets_with_the_next_item', (tester) async {
+      await _pumpWindow(tester);
+      await tester.tap(find.byTooltip('Rotate'));
+      await tester.pump();
+      expect(turns(tester), 3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(turns(tester), 0);
+      await closeViewer(tester);
+    });
+
+    testWidgets('clicks_beside_follow_the_turned_picture', (tester) async {
+      // Tall: the turned video reaches where the unturned one wasn't.
+      await tester.binding.setSurfaceSize(const Size(700, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final (_, closes) = await _pumpWindow(tester, media: const [_video]);
+      await tester.pumpAndSettle();
+      final before = tester.getRect(find.byType(Texture));
+      await tester.tap(find.byTooltip('Rotate'));
+      await tester.pumpAndSettle();
+      final turned = tester.getRect(find.byType(Texture));
+      expect(turned.top, lessThan(before.top));
+
+      // On the turned picture, above where the unturned one was.
+      await tester.tapAt(Offset(350, (turned.top + before.top) / 2));
+      await tester.pump();
+      expect(closes, isEmpty);
+      // Below the turned picture.
+      await tester.tapAt(Offset(350, (turned.bottom + 1546) / 2));
+      await tester.pump();
+      expect(closes, [1]);
+      await closeViewer(tester);
+    });
+  });
 }
