@@ -244,6 +244,7 @@
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
+				5A1D0F0E2EB7C0DE00F0F0F0 /* Bundle FFmpeg */,
 				CBF82F27B0D2A6F36B98B01B /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
@@ -431,6 +432,25 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		5A1D0F0E2EB7C0DE00F0F0F0 /* Bundle FFmpeg */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle FFmpeg";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n# The media player's FFmpeg (app/tool/macos/build_ffmpeg.sh, D89): its dylibs are named @rpath/libavcodec.N.dylib, so only those names are copied, not the unversioned and full-version links.\ndest=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nmkdir -p \"$dest\"\nfor lib in \"${FFMPEG_DIR:?FFMPEG_DIR names the FFmpeg app/tool/macos/build_ffmpeg.sh built}\"/lib/lib*.dylib; do\n  name=$(basename \"$lib\")\n  case \"$name\" in lib*.[0-9]*.[0-9]*.dylib|lib*[!0-9].dylib) continue ;; esac\n  cp -fL \"$lib\" \"$dest/$name\"\n  if [ \"${CODE_SIGNING_ALLOWED}\" = YES ]; then\n    codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \"$dest/$name\"\n  fi\ndone\ncp -f \"$FFMPEG_DIR/LICENSE.txt\" \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FFMPEG-LICENSE.txt\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

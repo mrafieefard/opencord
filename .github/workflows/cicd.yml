@@ -607,6 +607,29 @@ jobs:
         with:
           version: ${{ needs.version.outputs.version }}
 
+      # FFmpeg for the media player (D89), built from source as on Linux
+      # and Windows (app/tool/macos/build_ffmpeg.sh), universal, and cached
+      # by its script. The app carries its dylibs.
+      - name: Cache FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/ffmpeg
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/tool/macos/build_ffmpeg.sh') }}
+
+      - name: Build FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          brew install nasm meson ninja
+          app/tool/macos/build_ffmpeg.sh ~/ffmpeg
+
+      # The dylibs are named @rpath/…: the tests find them through
+      # DYLD_LIBRARY_PATH, the app in its Frameworks folder.
+      - name: Use FFmpeg
+        run: |
+          echo "FFMPEG_DIR=$HOME/ffmpeg" >> "$GITHUB_ENV"
+          echo "DYLD_LIBRARY_PATH=$HOME/ffmpeg/lib" >> "$GITHUB_ENV"
+
       # The release is universal: Rust builds for both architectures.
       - uses: dtolnay/rust-toolchain@stable
         with:
