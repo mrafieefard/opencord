@@ -94,7 +94,9 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
     final messages = state.messages;
     final saved = _memory.readPrivate(widget.peer);
     if (saved != null) {
-      if (messages.any((m) => m.id == saved.messageId)) {
+      final at = messages.indexWhere((m) => m.id == saved.messageId);
+      // A page past it, if there is one, so it is grouped as it was.
+      if (at > 0 || (at == 0 && !state.hasMore)) {
         _splitId = saved.messageId;
         _restoring = saved;
         return ChatScrollController(start: StartAtAnchor(saved.fromTop))

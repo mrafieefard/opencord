@@ -179,6 +179,28 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('each_chat_keeps_its_own_place', (tester) async {
+    final app = await MockApp.pump(tester);
+    final kai = _kai(app);
+    final mira = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Mira Okafor')
+        .peer;
+    app.repository.privateWorld
+      ..debugLongHistory(kai, 120)
+      ..debugLongHistory(mira, 120);
+    await _pumpChat(tester, app, kai);
+    await _scrollUp(tester, 900);
+    final left = _firstInView(tester);
+
+    await _pumpChat(tester, app, mira);
+    final miraNewest = app.repository.privateWorld.messages[mira]!.last;
+    expect(_inView(tester, miraNewest.content), isTrue);
+
+    await _pumpChat(tester, app, kai);
+    expect(_firstInView(tester), left);
+    await app.dispose(tester);
+  });
+
   testWidgets('a_restart_returns_there_even_past_the_newest_page', (
     tester,
   ) async {
