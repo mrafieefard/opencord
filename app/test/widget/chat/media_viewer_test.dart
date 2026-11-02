@@ -357,10 +357,7 @@ void main() {
   testWidgets('a_normal_window_on_linux_resizes_from_its_edges', (
     tester,
   ) async {
-    final (window, _) = await _pumpWindow(
-      tester,
-      mode: MediaWindowMode.normal,
-    );
+    final (window, _) = await _pumpWindow(tester, mode: MediaWindowMode.normal);
     final size = tester.view.physicalSize / tester.view.devicePixelRatio;
     final press = await tester.startGesture(Offset(2, size.height / 2));
     await press.up();
@@ -374,7 +371,39 @@ void main() {
     final press = await tester.startGesture(Offset(2, size.height / 2));
     await press.up();
     await tester.pump();
-    expect(window.calls.where((call) => call.startsWith('startResize')),
-        isEmpty);
+    expect(
+      window.calls.where((call) => call.startsWith('startResize')),
+      isEmpty,
+    );
   }, variant: _linux);
+
+  testWidgets('a_cancelled_press_lets_the_controls_fade', (tester) async {
+    await _pumpWindow(tester);
+    final press = await tester.startGesture(const Offset(400, 300));
+    await press.cancel();
+    await tester.pump(const Duration(milliseconds: 1100));
+    await tester.pump(const Duration(milliseconds: 600));
+    final opacity = tester
+        .widget<AnimatedOpacity>(
+          find.ancestor(
+            of: find.byTooltip('Download'),
+            matching: find.byType(AnimatedOpacity),
+          ),
+        )
+        .opacity;
+    expect(opacity, 0);
+  });
+
+  testWidgets(
+    'macos_leaves_the_title_strips_double_click_to_the_system',
+    (tester) async {
+      final (window, _) = await _pumpWindow(tester);
+      await tester.tapAt(const Offset(400, 10));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(const Offset(400, 10));
+      await tester.pump(const Duration(seconds: 1));
+      expect(window.calls, isNot(contains('setMode:normal')));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 }

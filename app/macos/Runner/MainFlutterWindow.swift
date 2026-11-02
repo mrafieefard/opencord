@@ -539,23 +539,23 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
       return Int(controller.viewIdentifier)
     }
     guard enableMultiView() else { return nil }
-    let controller = FlutterViewController(engine: engine, nibName: nil, bundle: nil)
-    controller.backgroundColor = .clear
-    let window = MediaViewerNSWindow(
+    let viewController = FlutterViewController(engine: engine, nibName: nil, bundle: nil)
+    viewController.backgroundColor = .clear
+    let viewer = MediaViewerNSWindow(
       contentRect: NSRect(origin: .zero, size: Self.defaultSize),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered, defer: false)
-    window.isReleasedWhenClosed = false
-    window.title = "Opencord media viewer"
-    window.titleVisibility = .hidden
-    window.titlebarAppearsTransparent = true
-    window.isOpaque = false
-    window.backgroundColor = .clear
-    window.contentMinSize = Self.minSize
-    window.contentViewController = controller
-    window.delegate = self
-    self.window = window
-    self.controller = controller
+    viewer.isReleasedWhenClosed = false
+    viewer.title = "Opencord media viewer"
+    viewer.titleVisibility = .hidden
+    viewer.titlebarAppearsTransparent = true
+    viewer.isOpaque = false
+    viewer.backgroundColor = .clear
+    viewer.contentMinSize = Self.minSize
+    viewer.contentViewController = viewController
+    viewer.delegate = self
+    window = viewer
+    controller = viewController
 
     // The normal window's frame: the remembered one if it is still on a
     // screen, else the first size, centred on the main window's screen.
@@ -572,9 +572,9 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
     normalFrame = frame
     fullscreen = (args["mode"] as? String) != "normal"
     apply()
-    window.makeKeyAndOrderFront(nil)
+    viewer.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
-    return Int(controller.viewIdentifier)
+    return Int(viewController.viewIdentifier)
   }
 
   /// Never `close()`: the app quits when its last window closes, and the

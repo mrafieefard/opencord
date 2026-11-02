@@ -68,14 +68,24 @@ Future<String?> saveToDownloads(
 }) async {
   final folder = await downloads();
   if (folder == null) return null;
+  // A save still on its way has no file yet: it counts as taken, or two
+  // files of one name would stream into the same place.
   final path = freePathIn(
     folder.path,
     attachment.filename,
-    exists: (path) => File(path).existsSync(),
+    exists: (path) => _saving.contains(path) || File(path).existsSync(),
   );
-  await repository.downloadAttachment(serverKey, attachment.id, path);
+  _saving.add(path);
+  try {
+    await repository.downloadAttachment(serverKey, attachment.id, path);
+  } finally {
+    _saving.remove(path);
+  }
   return path;
 }
+
+/// The downloads folder's files still being saved.
+final _saving = <String>{};
 
 /// Saves each of [attachments] into a folder the person picks, beside
 /// what is there already rather than over it.

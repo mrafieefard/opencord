@@ -93,6 +93,10 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   MediaWindowPlacement _placement = const MediaWindowPlacement();
   Timer? _save;
 
+  /// A close the runner hasn't been told about yet. An open waits for it,
+  /// or the runner would answer the window it is about to destroy.
+  Future<void>? _closing;
+
   @override
   MediaViewerSession? build() {
     _window = ref.watch(mediaWindowServiceProvider);
@@ -114,6 +118,7 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   /// Shows [request] in the window, opening it if needed. False when there
   /// is no window to open: the caller shows the viewer in the app instead.
   Future<bool> open(MediaViewerRequest request) async {
+    if (_closing case final closing?) await closing;
     final current = state;
     if (current != null) {
       state = current.copyWith(
@@ -138,6 +143,13 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   Future<void> close() async {
     if (state == null) return;
     state = null;
+    final closing = _closeWindow();
+    _closing = closing;
+    await closing;
+    if (identical(_closing, closing)) _closing = null;
+  }
+
+  Future<void> _closeWindow() async {
     // The view goes first; destroying it under a View widget is an error.
     await ref.read(mediaViewerFrameProvider)();
     await _window.close();

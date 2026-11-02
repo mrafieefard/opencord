@@ -291,6 +291,11 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
             _pointerHeld = false;
             _restartFade();
           },
+          // A move or resize the system took over may end this way.
+          onPointerCancel: (_) {
+            _pointerHeld = false;
+            _restartFade();
+          },
           child: MouseRegion(
             onHover: (_) => _activity(),
             child: Material(
@@ -335,7 +340,12 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                         height: _titleHeight,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onDoubleTap: _toggleMode,
+                          // macOS's own title bar zooms on a double click,
+                          // which the runner turns into the switch.
+                          onDoubleTap:
+                              Theme.of(context).platform == TargetPlatform.macOS
+                              ? null
+                              : _toggleMode,
                           onPanStart: _normalWindow
                               ? (_) => ref
                                     .read(mediaWindowServiceProvider)

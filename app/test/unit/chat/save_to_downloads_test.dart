@@ -43,4 +43,34 @@ void main() {
     );
     expect(saved, isNull);
   });
+
+  test('two_saves_of_the_same_name_at_once_get_two_files', () async {
+    final folder = await Directory.systemTemp.createTemp('downloads');
+    addTearDown(() => folder.delete(recursive: true));
+    final repository = MockRepository(random: Random(1), simulateLife: false);
+    const other = Attachment(
+      id: 702,
+      filename: 'clip.mp4',
+      contentType: 'video/mp4',
+      sizeBytes: 1000,
+      kind: AttachmentKind.video,
+    );
+
+    final saved = await Future.wait([
+      saveToDownloads(
+        repository,
+        'server.example:7710',
+        _clip,
+        downloads: () async => folder,
+      ),
+      saveToDownloads(
+        repository,
+        'server.example:7710',
+        other,
+        downloads: () async => folder,
+      ),
+    ]);
+
+    expect(saved.toSet(), hasLength(2));
+  });
 }

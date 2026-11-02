@@ -136,4 +136,14 @@ void main() {
     await viewer().open(_request);
     expect(window.calls, ['open:fullscreen']);
   });
+
+  test('opening_while_a_close_is_on_its_way_opens_a_new_window', () async {
+    await viewer().open(_request);
+    final closing = viewer().close();
+    final opened = viewer().open(_request);
+    await closing;
+    expect(await opened, isTrue);
+    expect(window.calls, ['open:fullscreen', 'close', 'open:fullscreen']);
+    expect(container.read(mediaViewerProvider), isNotNull);
+  });
 }
