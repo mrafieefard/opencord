@@ -25,9 +25,9 @@ import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Shows [media] from [index] as a see-through layer over the whole window,
-/// title bar included, that appears and goes at once: where the viewer has
-/// no window of its own.
+/// Shows [media] from [index] in the viewer's own window (D86), or, where
+/// there is no such window, as a see-through layer over the whole app
+/// window, title bar included, that appears and goes at once.
 Future<void> showMediaViewer(
   BuildContext context, {
   required String serverKey,
@@ -35,13 +35,30 @@ Future<void> showMediaViewer(
   required int index,
   String? senderName,
   DateTime? sentAt,
-}) {
+}) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  // No window to open (tests, a runner without one): nothing to ask.
+  if (container.read(mediaWindowServiceProvider) is! NullMediaWindow) {
+    final opened = await container
+        .read(mediaViewerProvider.notifier)
+        .open(
+          MediaViewerRequest(
+            serverKey: serverKey,
+            media: media,
+            index: index,
+            senderName: senderName,
+            sentAt: sentAt,
+          ),
+        );
+    if (opened) return;
+  }
+  if (!context.mounted) return;
   return Navigator.of(context, rootNavigator: true).push<void>(
     PageRouteBuilder<void>(
       opaque: false,
       transitionDuration: Duration.zero,
       reverseTransitionDuration: Duration.zero,
-      // Dark in either theme: everything here sits on the dark scrim.
+      // Dark in either theme: everything here sits on the dark background.
       pageBuilder: (context, animation, secondaryAnimation) => Theme(
         data: buildTheme(OcColors.dark),
         child: MediaViewer(
@@ -107,6 +124,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   static const double _navInset = 47;
   static const double _textLeft = 14;
   static const double _titleHeight = 32;
+  static const double _bottomRow = 54;
 
   late int _currentIndex;
   final TransformationController _transformController =
@@ -293,12 +311,19 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                   fit: StackFit.expand,
                   children: [
                     // InteractiveViewer zooms on the mouse wheel itself.
-                    Center(
-                      child: InteractiveViewer(
-                        transformationController: _transformController,
-                        minScale: 1.0,
-                        maxScale: 8.0,
-                        child: _buildMediaContent(context, current),
+                    // The media keeps clear of the bottom row, as
+                    // Telegram's does, so a video's own controls are
+                    // never under it; the same at the top keeps it
+                    // centred.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: _bottomRow),
+                      child: Center(
+                        child: InteractiveViewer(
+                          transformationController: _transformController,
+                          minScale: 1.0,
+                          maxScale: 8.0,
+                          child: _buildMediaContent(context, current),
+                        ),
                       ),
                     ),
                     if (widget.inWindow)
@@ -377,26 +402,28 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
           left: _textLeft,
           bottom: 14,
           right: 2 * _navWidth,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                mediaHeader(current, _currentIndex, widget.media.length),
-                style: OcText.bodyStrong.copyWith(color: colors.text),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (from.isNotEmpty) ...[
-                const SizedBox(height: OcSpace.s4),
+          child: IgnorePointer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  from,
-                  style: OcText.small.copyWith(color: colors.textSecondary),
+                  mediaHeader(current, _currentIndex, widget.media.length),
+                  style: OcText.bodyStrong.copyWith(color: colors.text),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (from.isNotEmpty) ...[
+                  const SizedBox(height: OcSpace.s4),
+                  Text(
+                    from,
+                    style: OcText.small.copyWith(color: colors.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         Positioned(
@@ -405,7 +432,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
           child: _control(
             SizedBox(
               width: 46,
-              height: 54,
+              height: _bottomRow,
               child: IconButton(
                 icon: const Icon(OcIcons.download),
                 color: colors.text,

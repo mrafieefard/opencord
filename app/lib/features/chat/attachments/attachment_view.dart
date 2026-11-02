@@ -15,10 +15,14 @@ class AttachmentsView extends StatelessWidget {
     super.key,
     required this.serverKey,
     required this.message,
+    this.senderName,
   });
 
   final String serverKey;
   final Message message;
+
+  /// Who sent [message], for the media viewer's bottom line.
+  final String? senderName;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +46,8 @@ class AttachmentsView extends StatelessWidget {
       serverKey: serverKey,
       media: viewable,
       index: viewable.indexOf(attachment),
+      senderName: senderName,
+      sentAt: message.createdAt,
     );
 
     return Column(

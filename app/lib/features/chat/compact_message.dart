@@ -177,6 +177,7 @@ class CompactMessage extends StatelessWidget {
                         child: AttachmentsView(
                           serverKey: serverKey,
                           message: message,
+                          senderName: author,
                         ),
                       ),
                     if (failed) _Retry(onRetry: onRetry),
