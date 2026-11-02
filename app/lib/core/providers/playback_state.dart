@@ -315,6 +315,16 @@ class PlaybackNotifier extends Notifier<PlaybackState> {
     }
   }
 
+  /// The open media's speed: apart from [PlaybackState.speed], a voice
+  /// message's, as a video starts at 1× each time (D87).
+  void mediaSetSpeed(double speed) {
+    try {
+      _repository.mediaSetSpeed(speed);
+    } on RepoException catch (error) {
+      state = state.copyWith(error: () => error.message);
+    }
+  }
+
   void mediaSetVolume(double volume, bool muted) {
     try {
       _repository.mediaSetVolume(volume, muted);

@@ -5041,6 +5041,14 @@ class MockRepository implements OpencordRepository {
     if (_media != null) lastMediaVolume = (volume, muted);
   }
 
+  /// Every speed asked for, in order.
+  final mediaSpeeds = <double>[];
+
+  @override
+  void mediaSetSpeed(double speed) {
+    if (_media != null) mediaSpeeds.add(speed);
+  }
+
   @override
   void mediaClose() {
     if (_media == null) return;

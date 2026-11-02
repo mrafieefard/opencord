@@ -17,6 +17,7 @@ use ffmpeg_next::{Packet, Rational, frame};
 
 use super::decode::{StereoResampler, convert_audio_frame, rotate, target_video_size};
 use super::sync::{FrameAction, MediaClock};
+use super::tempo::Tempo;
 use super::{AudioOut, MediaSource, PlayerError, PlayerEvent, Probe, VideoOut};
 
 /// How far ahead of the listener the sound is written: 60 ms at 48 kHz.
@@ -34,6 +35,9 @@ const POSITION_EVERY: Duration = Duration::from_millis(50);
 /// How long the thread waits for a command when it has nothing to do.
 const IDLE_PLAYING: Duration = Duration::from_millis(5);
 const IDLE_PAUSED: Duration = Duration::from_millis(100);
+/// The speeds the player takes; the stretcher's own range.
+const MIN_SPEED: f32 = 0.25;
+const MAX_SPEED: f32 = 4.0;
 
 fn init() {
     static INIT: Once = Once::new();
@@ -54,6 +58,7 @@ enum Command {
     Pause,
     Seek(u32),
     SetVolume(f32, bool),
+    SetSpeed(f32),
     Close,
 }
 
@@ -99,6 +104,11 @@ impl MediaPlayer {
 
     pub fn set_volume(&self, volume: f32, muted: bool) {
         let _ = self.commands.send(Command::SetVolume(volume, muted));
+    }
+
+    /// Plays at `speed` (1 is as recorded), the sound's pitch kept (D87).
+    pub fn set_speed(&self, speed: f32) {
+        let _ = self.commands.send(Command::SetSpeed(speed));
     }
 
     pub fn close(mut self) {
@@ -198,6 +208,8 @@ struct AudioTrack {
     resampler: StereoResampler,
     /// Interleaved stereo at 48 kHz, decoded and not yet written.
     pending: VecDeque<f32>,
+    /// `pending` on its way out, at the speed set.
+    tempo: Tempo,
     drained: bool,
 }
 
@@ -317,7 +329,14 @@ impl Player {
             Command::SetVolume(volume, muted) => {
                 self.gain = if muted { 0.0 } else { volume.clamp(0.0, 1.0) };
             }
-            Command::Play | Command::Pause | Command::Close => {}
+            Command::SetSpeed(speed) if speed.is_finite() => {
+                let speed = speed.clamp(MIN_SPEED, MAX_SPEED);
+                self.clock.set_speed(speed, self.audio_out.queued_frames());
+                if let Some(audio) = &mut self.audio {
+                    audio.tempo.set_speed(speed);
+                }
+            }
+            Command::Play | Command::Pause | Command::SetSpeed(_) | Command::Close => {}
         }
         Ok(true)
     }
@@ -341,6 +360,7 @@ impl Player {
             audio.decoder.flush();
             audio.resampler.reset();
             audio.pending.clear();
+            audio.tempo.reset();
             audio.drained = false;
         }
         self.eof = false;
@@ -405,27 +425,32 @@ impl Player {
     }
 
     /// Writes decoded sound up to 60 ms ahead of the listener, at the volume
-    /// set now.
+    /// and speed set now.
     fn write_audio(&mut self) -> bool {
         let Some(audio) = &mut self.audio else {
             return false;
         };
-        let queued = self.audio_out.queued_frames();
-        let frames = AHEAD_FRAMES
-            .saturating_sub(queued)
-            .min(audio.pending.len() / 2);
+        let room = AHEAD_FRAMES.saturating_sub(self.audio_out.queued_frames());
+        if room == 0 {
+            return false;
+        }
+        audio
+            .tempo
+            .fill(&mut audio.pending, room * 2, audio.drained);
+        let frames = room.min(audio.tempo.ready().len() / 2);
         if frames == 0 {
             return false;
         }
         let gain = self.gain;
         let chunk: Vec<f32> = audio
-            .pending
+            .tempo
+            .ready()
             .iter()
             .take(frames * 2)
             .map(|s| s * gain)
             .collect();
         let written = self.audio_out.write(&chunk) / 2 * 2;
-        audio.pending.drain(..written);
+        audio.tempo.consume(written);
         self.clock.on_audio_written(written / 2);
         written > 0
     }
@@ -469,7 +494,7 @@ impl Player {
     fn audio_finished(&self) -> bool {
         self.audio
             .as_ref()
-            .is_some_and(|a| a.drained && a.pending.is_empty())
+            .is_some_and(|a| a.drained && a.pending.is_empty() && a.tempo.is_empty())
             && self.audio_out.queued_frames() <= END_SLACK_FRAMES
     }
 
@@ -657,6 +682,7 @@ fn open_audio(stream: &ffmpeg::format::stream::Stream) -> Result<AudioTrack, Str
         time_base: stream.time_base(),
         resampler,
         pending: VecDeque::new(),
+        tempo: Tempo::new()?,
         drained: false,
     })
 }

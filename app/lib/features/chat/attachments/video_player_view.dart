@@ -54,6 +54,10 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
   String? _error;
   bool _unsupported = false;
   double _volume = 1.0;
+
+  /// The speeds the bar's button goes through, Telegram's.
+  static const _speeds = [1.0, 1.5, 2.0, 3.0];
+  double _speed = 1.0;
   bool _muted = false;
   bool _draggingSeek = false;
   double _dragPositionMs = 0;
@@ -81,6 +85,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.attachment.id != widget.attachment.id ||
         oldWidget.serverKey != widget.serverKey) {
+      _speed = 1.0;
       _playbackNotifier?.mediaClose();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _initPlayer();
@@ -139,6 +144,12 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
     } else {
       notifier.mediaPlay(_item);
     }
+  }
+
+  void _nextSpeed() {
+    final next = _speeds[(_speeds.indexOf(_speed) + 1) % _speeds.length];
+    setState(() => _speed = next);
+    ref.read(playbackProvider.notifier).mediaSetSpeed(next);
   }
 
   void _toggleMute() {
@@ -306,6 +317,8 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
                     onToggleMute: _toggleMute,
                     fullScreen: widget.fullScreen,
                     onFullScreen: widget.onFullScreen,
+                    speed: _speed,
+                    onSpeed: _nextSpeed,
                     onVolume: _onVolumeChanged,
                     onSeekStart: (v) => setState(() {
                       _draggingSeek = true;

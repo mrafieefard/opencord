@@ -202,6 +202,10 @@ void mediaSetVolume({required double volume, required bool muted}) => RustLib
     .api
     .crateApiAttachmentsMediaSetVolume(volume: volume, muted: muted);
 
+/// Plays the open media at `speed`, its sound's pitch kept (D87).
+void mediaSetSpeed({required double speed}) =>
+    RustLib.instance.api.crateApiAttachmentsMediaSetSpeed(speed: speed);
+
 void mediaClose() => RustLib.instance.api.crateApiAttachmentsMediaClose();
 
 bool mediaSupported() =>

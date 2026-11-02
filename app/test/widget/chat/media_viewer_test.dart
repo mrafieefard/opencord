@@ -643,6 +643,23 @@ void main() {
       await closeViewer(tester);
     });
 
+    testWidgets('speed_cycles_one_to_three_and_back', (tester) async {
+      await pumpVideo(tester);
+      final repository =
+          ProviderScope.containerOf(
+                tester.element(find.byType(MediaViewer)),
+              ).read(repositoryProvider)
+              as MockRepository;
+      expect(find.descendant(of: bar, matching: find.text('1x')), findsOne);
+      for (final label in ['1.5x', '2x', '3x', '1x']) {
+        await tester.tap(find.byTooltip('Speed'));
+        await tester.pump();
+        expect(find.descendant(of: bar, matching: find.text(label)), findsOne);
+      }
+      expect(repository.mediaSpeeds, [1.5, 2, 3, 1]);
+      await closeViewer(tester);
+    });
+
     testWidgets('the_bottom_left_text_keeps_left_of_the_bar', (tester) async {
       await pumpVideo(tester);
       final text = tester.getRect(find.text('clip.mp4'));

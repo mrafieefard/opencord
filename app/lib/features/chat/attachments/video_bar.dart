@@ -18,6 +18,10 @@ String playerClock(int ms) {
       : '${two(minutes)}:${two(seconds)}';
 }
 
+/// `1x`, `1.5x`.
+String speedLabel(double speed) =>
+    speed == speed.roundToDouble() ? '${speed.toInt()}x' : '${speed}x';
+
 /// A video's controls, as Telegram's player (D87): a narrow, see-through
 /// bar with the volume, play and the window's choices on its first row,
 /// and the time played, the seek bar and the time left on its second.
@@ -37,6 +41,8 @@ class VideoBar extends StatelessWidget {
     required this.onSeekEnd,
     this.fullScreen = false,
     this.onFullScreen,
+    this.speed = 1,
+    this.onSpeed,
   });
 
   /// Telegram's measures.
@@ -63,6 +69,10 @@ class VideoBar extends StatelessWidget {
   /// without it there's no button.
   final bool fullScreen;
   final VoidCallback? onFullScreen;
+
+  /// The speed playing, which [onSpeed] moves on to the next one.
+  final double speed;
+  final VoidCallback? onSpeed;
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +151,27 @@ class VideoBar extends StatelessWidget {
                             : OcIcons.fullscreen,
                         fullScreen ? 'Exit full screen' : 'Full screen',
                         onFullScreen,
+                      ),
+                    if (onSpeed case final onSpeed?)
+                      SizedBox(
+                        width: 36,
+                        height: 32,
+                        child: Tooltip(
+                          message: 'Speed',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: onSpeed,
+                            child: Center(
+                              child: Text(
+                                speedLabel(speed),
+                                style: OcText.small.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: context.oc.text,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                   ],
                 ),
