@@ -120,7 +120,7 @@ Zlib and LGPL. The `windows` crate (0.62, MIT/Apache-2.0) is **already** an
 `opencord-core` Windows dependency for the session log, so the Win32 route adds
 no new licence at all.
 
-Written as the branch `fix/windows-clipboard` (commit `a2bfdc6`). Until it merges, Windows answers
+Written as the branch `fix/windows-clipboard` (pull request #31). Until it merges, Windows answers
 "this system's clipboard isn't supported" and §5's clipboard box stays open.
 The two hand checks it needs are listed in §5 below.
 
@@ -191,7 +191,8 @@ needs.
 
 Each pull request is `MERGEABLE`/`CLEAN` against `beta` **on its own**, but they
 collide with each other. Merging all nine in the order #21 → #29 hit conflicts
-in nine files. Most are trivial, two are not:
+in nine files: three are trivial, four are real code, and two are generated
+files that must not be hand-merged at all.
 
 | File | Between | What it is |
 |---|---|---|
@@ -313,7 +314,7 @@ is the Linux session's to make and its resolutions are the ones that ship.
 - [ ] **Saving:**
   - Download on a file card asks where to save, and saves there;
   - **Save all** puts several files in one folder, beside the files already there.
-- [ ] **The clipboard** (upload plan Task 21). — **the owner's decision is made: the Win32 route, no BSL-1.0** (see A3). Written as the branch `fix/windows-clipboard` (commit `a2bfdc6`); until it merges Windows says "this system's clipboard isn't supported". Once it is in, check both halves by hand:
+- [ ] **The clipboard** (upload plan Task 21). — **the owner's decision is made: the Win32 route, no BSL-1.0** (see A3). Written as the branch `fix/windows-clipboard` (pull request #31); until it merges Windows says "this system's clipboard isn't supported". Once it is in, check both halves by hand:
   - paste a screenshot: Win+Shift+S, then Ctrl+V in the composer;
   - **Copy image** on a photo, then paste it into Paint and into a browser.
 ## 6. The media viewer's window (#25, D86)
