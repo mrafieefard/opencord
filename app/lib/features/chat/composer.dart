@@ -482,6 +482,11 @@ class _ComposerState extends ConsumerState<Composer> {
     }
     if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
     final focused = FocusManager.instance.primaryFocus?.context;
+    // A key typed in another of the app's windows, the media viewer's,
+    // is that window's: taking it would leave the viewer without Esc.
+    if (focused != null && View.maybeOf(focused) != View.maybeOf(context)) {
+      return false;
+    }
     if (focused != null &&
         (focused.widget is EditableText ||
             focused.findAncestorWidgetOfExactType<EditableText>() != null)) {

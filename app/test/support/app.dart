@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' show FlutterView;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -46,6 +47,9 @@ class MockApp {
     bool withIdentity = true,
     RepoCapabilities capabilities = RepoCapabilities.everything,
     RepoException? identityUnavailable,
+    // Another window of the app's, as the media viewer's, beside its main
+    // one.
+    (FlutterView, Widget)? otherView,
   }) async {
     debugDefaultTargetPlatformOverride = platform;
     tester.view.physicalSize = size;
@@ -87,15 +91,32 @@ class MockApp {
       container.read(appLinkInboxProvider.notifier).add(link);
     }
     repository.start();
-    await tester.pumpWidget(
-      RepaintBoundary(
-        key: boundaryKey,
-        child: UncontrolledProviderScope(
-          container: container,
-          child: const OpencordApp(),
-        ),
+    final app = RepaintBoundary(
+      key: boundaryKey,
+      child: UncontrolledProviderScope(
+        container: container,
+        child: const OpencordApp(),
       ),
     );
+    if (otherView case (final view, final child)?) {
+      await tester.pumpWidget(
+        wrapWithView: false,
+        ViewCollection(
+          views: [
+            View(view: tester.view, child: app),
+            View(
+              view: view,
+              child: UncontrolledProviderScope(
+                container: container,
+                child: child,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      await tester.pumpWidget(app);
+    }
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     return MockApp._(container, repository, keyValues);

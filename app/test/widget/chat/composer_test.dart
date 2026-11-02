@@ -12,6 +12,7 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import '../../support/app.dart';
+import '../../support/fake_view.dart';
 
 const _server = 'opencord.example:7710';
 const _priya = 1005;
@@ -338,6 +339,35 @@ void main() {
     expect(_text(tester), 'h');
     final field = tester.widget<TextField>(_input);
     expect(field.focusNode!.hasFocus, isTrue);
+    await app.dispose(tester);
+  });
+
+  // The media viewer's window types into itself: its Esc still closes it.
+  testWidgets('typing_in_another_window_stays_there', (tester) async {
+    final otherFocus = FocusNode();
+    addTearDown(otherFocus.dispose);
+    final app = await MockApp.pump(
+      tester,
+      otherView: (
+        FakeFlutterView(
+          2,
+          display: tester.view.display,
+          platformDispatcher: tester.platformDispatcher,
+        ),
+        MaterialApp(
+          home: Focus(focusNode: otherFocus, child: const SizedBox()),
+        ),
+      ),
+    );
+    await _open(tester, app, 'general');
+    otherFocus.requestFocus();
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyH);
+    await tester.pump();
+
+    expect(_text(tester), '');
+    expect(otherFocus.hasPrimaryFocus, isTrue);
     await app.dispose(tester);
   });
 }
