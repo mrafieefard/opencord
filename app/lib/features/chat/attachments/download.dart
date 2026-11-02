@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/ui/widgets/toast.dart';
@@ -52,6 +53,28 @@ Future<void> saveAttachment(
     if (error.kind == RepoErrorKind.cancelled || !context.mounted) return;
     showOcToast(context, error.message);
   }
+}
+
+/// Saves [attachment] straight into the downloads folder, as Telegram's
+/// viewer does (D86), beside a file of the same name rather than over it.
+/// Answers the saved file's path, or null when there is no downloads
+/// folder. A dialog would open behind the viewer's window: every save
+/// dialog attaches to the main window.
+Future<String?> saveToDownloads(
+  OpencordRepository repository,
+  String serverKey,
+  Attachment attachment, {
+  Future<Directory?> Function() downloads = getDownloadsDirectory,
+}) async {
+  final folder = await downloads();
+  if (folder == null) return null;
+  final path = freePathIn(
+    folder.path,
+    attachment.filename,
+    exists: (path) => File(path).existsSync(),
+  );
+  await repository.downloadAttachment(serverKey, attachment.id, path);
+  return path;
 }
 
 /// Saves each of [attachments] into a folder the person picks, beside

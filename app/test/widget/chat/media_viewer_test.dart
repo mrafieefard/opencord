@@ -1,25 +1,35 @@
-// The media viewer, as Telegram's: a see-through layer over the whole
-// window, shown and gone without animation, that a click outside the media
-// closes, with the window's own minimize and maximize beside its close.
+// The media viewer, as Telegram's: in its own window (D86), or as a
+// see-through layer over the whole window where there is none, shown and
+// gone without animation, that a click outside the media closes.
 
 import 'dart:math';
 
+import 'package:clock/clock.dart';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/chat/attachments/attachment_view.dart';
 import 'package:opencord/features/chat/attachments/media_viewer.dart';
 import 'package:opencord/features/chat/attachments/video_tile.dart';
+import 'package:opencord/features/media_window/media_viewer_session.dart';
+import 'package:opencord/features/media_window/media_window_buttons.dart';
+import 'package:opencord/features/media_window/media_window_service.dart';
+import 'package:opencord/features/window/window_buttons.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_mode.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
 
+import '../../support/fake_media_window.dart';
 import '../../support/fake_window.dart';
 
 const _video = Attachment(
@@ -32,6 +42,75 @@ const _video = Attachment(
   height: 360,
   durationMs: 15000,
 );
+
+const _photo = Attachment(
+  id: 702,
+  filename: 'photo.png',
+  contentType: 'image/png',
+  sizeBytes: 1000,
+  kind: AttachmentKind.image,
+  width: 64,
+  height: 64,
+);
+
+/// The viewer in its own window, as the viewer's view shows it, with a
+/// session open so the window's controls have something to act on.
+Future<(FakeMediaWindow, List<int>)> _pumpWindow(
+  WidgetTester tester, {
+  MediaWindowMode mode = MediaWindowMode.fullscreen,
+  // A photo first: nothing plays, so nothing is left running.
+  List<Attachment> media = const [_photo, _video],
+  String? senderName,
+  DateTime? sentAt,
+  ButtonLayout layout = ButtonLayout.gnomeDefault,
+}) async {
+  final window = FakeMediaWindow();
+  final closes = <int>[];
+  final container = ProviderContainer(
+    overrides: [
+      repositoryProvider.overrideWithValue(
+        MockRepository(random: Random(1), simulateLife: false),
+      ),
+      mediaWindowServiceProvider.overrideWithValue(window),
+      keyValueStoreProvider.overrideWithValue(MemoryKeyValueStore()),
+      mediaViewerFrameProvider.overrideWithValue(() async {}),
+      windowInfoProvider.overrideWithValue(WindowInfo(buttonLayout: layout)),
+    ],
+  );
+  addTearDown(container.dispose);
+  container.listen(mediaViewerProvider, (_, _) {});
+  await container
+      .read(mediaViewerProvider.notifier)
+      .open(
+        MediaViewerRequest(
+          serverKey: 'server.example:7710',
+          media: media,
+          index: 0,
+        ),
+      );
+  window.calls.clear();
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: buildTheme(OcColors.dark),
+        home: MediaViewer(
+          serverKey: 'server.example:7710',
+          media: media,
+          initialIndex: 0,
+          senderName: senderName,
+          sentAt: sentAt,
+          inWindow: true,
+          mode: mode,
+          onClose: () => closes.add(1),
+        ),
+      ),
+    ),
+  );
+  // The photo's bytes come after the mock's latency.
+  await tester.pump(const Duration(milliseconds: 100));
+  return (window, closes);
+}
 
 /// The app draws the window's frame on Linux, so the viewer shows the
 /// window's buttons there.
@@ -129,4 +208,149 @@ void main() {
     expect(find.byType(MediaViewer), findsNothing);
     expect(window.calls, isNot(contains('close')), reason: 'the app stays');
   }, variant: _linux);
+
+  test('the_header_counts_the_items', () {
+    expect(mediaHeader(_video, 0, 2), 'Video 1 of 2');
+    expect(mediaHeader(_photo, 1, 2), 'Photo 2 of 2');
+    expect(mediaHeader(_video, 0, 1), 'clip.mp4');
+  });
+
+  testWidgets('the_bottom_line_shows_the_sender_and_time', (tester) async {
+    await withClock(Clock.fixed(DateTime(2026, 3, 1)), () async {
+      await _pumpWindow(
+        tester,
+        senderName: 'Ana',
+        sentAt: DateTime(2026, 1, 1, 9, 5),
+      );
+      expect(find.text('Photo 1 of 2'), findsOneWidget);
+      expect(find.text('Ana · 1 Jan at 09:05'), findsOneWidget);
+    });
+  });
+
+  testWidgets('controls_fade_after_a_second_without_movement', (tester) async {
+    await _pumpWindow(tester);
+    double opacity() => tester
+        .widget<AnimatedOpacity>(
+          find.ancestor(
+            of: find.byTooltip('Download'),
+            matching: find.byType(AnimatedOpacity),
+          ),
+        )
+        .opacity;
+    expect(opacity(), 1);
+
+    await tester.pump(const Duration(milliseconds: 1100));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(opacity(), 0);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: const Offset(400, 300));
+    await mouse.moveTo(const Offset(410, 300));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(opacity(), 1);
+  });
+
+  /// Taps beside the 16:9 video, on a surface wide enough to leave room.
+  Future<void> tapBeside(WidgetTester tester) async {
+    final picture = tester.getRect(find.byType(Texture));
+    await tester.tapAt(Offset(picture.left / 2, picture.center.dy));
+    await tester.pump();
+  }
+
+  /// Unmounts the viewer, which stops its video, and lets it stop.
+  Future<void> closeViewer(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  testWidgets('in_the_normal_window_a_click_beside_does_not_close', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final (_, closes) = await _pumpWindow(
+      tester,
+      mode: MediaWindowMode.normal,
+      media: const [_video],
+    );
+    await tester.pumpAndSettle();
+    await tapBeside(tester);
+    expect(closes, isEmpty);
+    await closeViewer(tester);
+  });
+
+  testWidgets('in_full_screen_a_click_beside_closes', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final (_, closes) = await _pumpWindow(tester, media: const [_video]);
+    await tester.pumpAndSettle();
+    await tapBeside(tester);
+    expect(closes, [1]);
+    await closeViewer(tester);
+  });
+
+  testWidgets('alt_enter_switches_the_window_mode', (tester) async {
+    final (window, _) = await _pumpWindow(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pump();
+    expect(window.calls.last, 'setMode:normal');
+    // The placement is saved after half a second of quiet.
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+    'windows_buttons_are_windows_caption_buttons',
+    (tester) async {
+      final (window, closes) = await _pumpWindow(tester);
+      expect(find.text(''), findsOneWidget);
+      // Full screen: maximize shows restore.
+      expect(find.text(''), findsOneWidget);
+      expect(find.text(''), findsOneWidget);
+      expect(find.byType(GnomeWindowButton), findsNothing);
+
+      await tester.tap(find.text(''));
+      await tester.tap(find.text(''));
+      await tester.pump();
+      // A normal window now: maximize shows maximize.
+      expect(find.text(''), findsOneWidget);
+      await tester.tap(find.text(''));
+      await tester.pump();
+      expect(window.calls, ['minimize', 'setMode:normal']);
+      expect(closes, [1]);
+      await tester.pump(const Duration(seconds: 1));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+
+  testWidgets('linux_buttons_follow_gnomes_layout', (tester) async {
+    await _pumpWindow(tester);
+    // GNOME's own layout: Close only, on the right.
+    expect(find.byType(GnomeWindowButton), findsOneWidget);
+    expect(find.text(''), findsNothing);
+  }, variant: _linux);
+
+  testWidgets('linux_buttons_follow_the_desktops_layout', (tester) async {
+    await _pumpWindow(
+      tester,
+      layout: ButtonLayout.parse('close,minimize,maximize:'),
+    );
+    final buttons = find.byType(GnomeWindowButton);
+    expect(buttons, findsNWidgets(3));
+    expect(tester.getTopLeft(buttons.first).dx, lessThan(100));
+  }, variant: _linux);
+
+  testWidgets(
+    'macos_draws_no_window_buttons',
+    (tester) async {
+      await _pumpWindow(tester);
+      // Both ends of the top edge, each drawing nothing.
+      expect(find.byType(MediaWindowButtons), findsNWidgets(2));
+      expect(find.byType(GnomeWindowButton), findsNothing);
+      expect(find.text(''), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 }
