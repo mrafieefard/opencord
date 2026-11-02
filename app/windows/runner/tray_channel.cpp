@@ -48,9 +48,9 @@ std::string StringOf(const flutter::EncodableMap& map, const char* key) {
 int IntOf(const flutter::EncodableMap& map, const char* key) {
   const auto* value = Find(map, key);
   if (value == nullptr) return 0;
-  if (const auto* small = std::get_if<int32_t>(value)) return *small;
-  if (const auto* large = std::get_if<int64_t>(value)) {
-    return static_cast<int>(*large);
+  if (const auto* narrow = std::get_if<int32_t>(value)) return *narrow;
+  if (const auto* wide = std::get_if<int64_t>(value)) {
+    return static_cast<int>(*wide);
   }
   return 0;
 }
