@@ -576,6 +576,43 @@ class MockPrivateWorld {
     );
   }
 
+  /// As [peer] would: a message arrives from them.
+  PrivateMessage debugReceive(String peer, String content, {DateTime? at}) {
+    final list = messages.putIfAbsent(peer, () => []);
+    final message = PrivateMessage(
+      id: _nextId(),
+      peer: peer,
+      outgoing: false,
+      kind: PrivateMessageKind.text,
+      content: content,
+      sentAt: at ?? list.lastOrNull?.sentAt.add(const Duration(minutes: 1)) ?? _now,
+      state: PrivateSendState.sent,
+    );
+    list.add(message);
+    _emit(PrivateMessageAdded(message));
+    return message;
+  }
+
+  /// Gives [peer]'s conversation [count] more messages before the ones it
+  /// has, a minute apart, alternating who sent them: `Old message 1` is
+  /// the oldest.
+  void debugLongHistory(String peer, int count) {
+    final list = messages.putIfAbsent(peer, () => []);
+    final first = list.firstOrNull?.sentAt ?? _now;
+    list.insertAll(0, [
+      for (var i = 1; i <= count; i++)
+        PrivateMessage(
+          id: _nextId(),
+          peer: peer,
+          outgoing: i.isEven,
+          kind: PrivateMessageKind.text,
+          content: 'Old message $i',
+          sentAt: first.subtract(Duration(minutes: count + 1 - i)),
+          state: PrivateSendState.sent,
+        ),
+    ]);
+  }
+
   Future<void> sendPrivateTyping(String peer) async {
     _emit(PrivateTypingStarted(peer));
   }
