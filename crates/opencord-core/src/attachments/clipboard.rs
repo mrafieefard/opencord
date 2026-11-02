@@ -5,7 +5,7 @@ use crate::api::types::CoreError;
 
 pub use system::{image, set_image};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 mod system {
     use std::borrow::Cow;
     use std::io::Cursor;
@@ -81,9 +81,8 @@ mod system {
     }
 }
 
-/// Systems without a clipboard backend yet: macOS gets one in P2, Windows
-/// in P1.
-#[cfg(not(target_os = "linux"))]
+/// Systems without a clipboard backend yet: Windows gets one in P1.
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 mod system {
     use super::CoreError;
 
