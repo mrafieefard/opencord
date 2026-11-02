@@ -151,8 +151,7 @@ $env:OPENCORD_PROFILE = "alice"; & C:\oc\<branch>\opencord\opencord.exe
 $env:OPENCORD_PROFILE = "bob";   & C:\oc\<branch>\opencord\opencord.exe
 ```
 
-**The server** (§0.3) — on the LAN machine for §3 and §4, so one machine's
-network can be cut:
+**The server** (§0.3) — on this PC, for every section:
 
 ```powershell
 C:\oc\server\opencord-server\opencord-server.exe --config C:\oc\test-server\opencord.toml
@@ -172,11 +171,44 @@ Only the claim token is printed at first start, not an invite link — the plan'
 §0.3 says both, so that line is slightly off; the invite comes from the app once
 there is an owner.
 
-For §3 and §4 run the server on the **LAN machine** instead, because those
-sections cut this PC's network. Start it with `OPENCORD_PUBLIC_HOST=<its LAN
-address>` (or `public_host` in its `opencord.toml`) so invite links and voice
-reach the other machines. This PC is `192.168.0.122` on the LAN
-(and `100.86.134.100` over Tailscale) if the server needs to point back at it.
+### Everything on this one PC
+
+The plan's §0.2 and §3 ask for a client on a second machine. **It is not
+needed:** two profiles on this PC each have their own data, keychain entries
+and single-instance lock, so `alice` and `bob` are two real clients. Sections
+1, 2, 5, 6, 7 and 8 need nothing else, and §4's scenarios 3 and 3b are
+profiles of one identity (`alice`, `alice-laptop`, `alice2`, `thief`), which
+were always meant to be profiles rather than machines.
+
+**The Mac goes last**, so §4's "the same two scenarios across machines" is the
+only step held back for it.
+
+**§3's network cut is the one step that needs thought on a single PC.** Its
+steps 3 to 7 need `alice` to lose the server while `bob` and the server keep
+running — and with everything on one PC, `Disable-NetAdapter` would either cut
+both clients or (over loopback) neither.
+
+Two live adapters make a way through: **Wi-Fi `192.168.0.122`** and
+**Tailscale `100.86.134.100`**, with the server bound to `0.0.0.0:7710` and so
+reachable on both. Add the server to `bob` as `192.168.0.122:7710` and to
+`alice` as `100.86.134.100:7710`; then
+
+```powershell
+Disable-NetAdapter -Name Tailscale    # as administrator: cuts only alice
+Enable-NetAdapter  -Name Tailscale
+```
+
+cuts `alice` alone, leaving `bob` and the server untouched — which is exactly
+what steps 3 to 7 and the volume bug want.
+
+**Unverified, and the thing to watch:** the server's TLS certificate is
+generated for `public_host` only (`cli.rs`'s `fingerprint`), so reaching it on
+a second address may be refused if the app checks the host name rather than
+pinning the fingerprint the invite carries. If `alice` cannot add the server on
+the Tailscale address, set `public_host` to that address and swap the two
+clients' roles, so the cut client is the one on Wi-Fi. If neither works, that is
+the single step that still wants a second machine — say so rather than skipping
+it.
 
 **Test material** (§0.4) is generated and waiting in `C:\oc\material\`, with a
 `README.txt` saying which file is for which step. It covers the photo, the
@@ -250,6 +282,11 @@ is the Linux session's to make and its resolutions are the ones that ship.
 - [ ] **Two profiles** each get their own icon, and each icon's clicks go to its own window.
 - [ ] **Start minimized** with **Launch at login**: after signing out and in, Opencord starts in the tray with no window.
 ## 3. The reconnect bar (#27), and the volume bug
+
+> Both clients are profiles on this PC. For the steps that cut the network
+> (the refused rejoin, and the volume bug), use the Wi-Fi/Tailscale split and
+> `Disable-NetAdapter -Name Tailscale` from §B — it cuts `alice` alone.
+
 - [ ] **The app closed in a call.**
   1. `alice` joins the voice channel.
   2. Kill her app: `Stop-Process -Name opencord` (with only `alice` running), or End task in Task Manager.
@@ -295,7 +332,7 @@ is the Linux session's to make and its resolutions are the ones that ship.
   2. Make a `thief` profile with `alice`'s identity, and don't approve it.
   3. `bob` writes to `alice`:
   4. `thief` writes to `bob`: `bob` sees "A message from keys you haven't accepted.", not the text.
-- [ ] **The same two scenarios across machines:** `alice` on this PC, `alice-laptop` on the Mac.
+- [ ] **The same two scenarios across machines:** `alice` on this PC, `alice-laptop` on the Mac. — **held back: the Mac goes last.** Everything else in §4 is profiles on this PC.
 - [ ] **Restart:** after a restart of every profile, the shield and the approvals are still there, and new messages still decrypt.
 - [ ] **Fresh start:** a profile that had private chats before this build says once that old chats were removed. Friends, requests, blocks and settings are kept.
 ## 5. Media uploads (the upload plan's P1)
