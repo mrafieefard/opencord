@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/providers/voice_reconnect.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/tray.dart';
 import 'package:opencord/features/desktop/tray_menu.dart';
@@ -16,6 +18,13 @@ import 'package:opencord/features/window/window_providers.dart';
 final trayBindingProvider = Provider<void>((ref) {
   final tray = ref.watch(trayServiceProvider);
   final window = ref.watch(nativeWindowProvider);
+
+  // Quitting on purpose, in a call or not, offers no reconnect next time
+  // (D88).
+  void quit() {
+    forgetLastCall(ref.read(keyValueStoreProvider));
+    window.quit();
+  }
 
   void update() {
     final voice = ref.read(voiceSessionProvider);
@@ -52,7 +61,7 @@ final trayBindingProvider = Provider<void>((ref) {
       case SetPresence(:final presence):
         ref.read(selfPresenceProvider.notifier).choose(presence);
       case QuitApp():
-        window.quit();
+        quit();
     }
   });
   final closes = window.closeRequests.listen((_) {
@@ -62,7 +71,7 @@ final trayBindingProvider = Provider<void>((ref) {
     if (mac || (ref.read(appSettingsProvider).closeToTray && tray.available)) {
       window.hide();
     } else {
-      window.quit();
+      quit();
     }
   });
   ref.onDispose(() {

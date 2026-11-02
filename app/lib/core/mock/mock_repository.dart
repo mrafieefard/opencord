@@ -3779,6 +3779,24 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceConnectionChanged(session.server, channelId, _connected));
   }
 
+  /// As another of the user's devices would: takes the call over.
+  void debugVoiceElsewhere() {
+    final session = _voice;
+    if (session == null) return;
+    _leaveVoiceNow();
+    _emit(OwnVoiceChanged(session.server, null, elsewhere: true));
+  }
+
+  /// As the core would when getting back into the call after a fresh
+  /// session is refused, for [message].
+  void debugRejoinRefused(String message) {
+    final session = _voice;
+    if (session == null) return;
+    _leaveVoiceNow();
+    _emit(VoiceRejoinFailed(session.server, session.channel, message));
+    _emit(OwnVoiceChanged(session.server, null));
+  }
+
   static const _connected = VoiceConnectionStatus(
     VoiceConnectionPhase.connected,
   );

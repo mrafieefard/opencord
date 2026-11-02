@@ -633,6 +633,11 @@ class RustRepository implements OpencordRepository {
         server,
         field0,
       ),
+      core.CoreEventPayload_VoiceRejoinFailed(
+        :final channelId,
+        :final message,
+      ) =>
+        VoiceRejoinFailed(server, channelId, message),
       core.CoreEventPayload_VoiceSettingsUpdate(:final field0) =>
         VoiceSettingsChanged(server, voiceSettingsFrom(field0)),
       core.CoreEventPayload_StreamCreate(:final field0) => StreamStarted(
@@ -854,7 +859,7 @@ class RustRepository implements OpencordRepository {
     }
     if (own?.server != server) return null;
     _ownVoice = null;
-    return OwnVoiceChanged(server, null);
+    return OwnVoiceChanged(server, null, elsewhere: state.channelId != null);
   }
 
   // Servers -----------------------------------------------------------------
