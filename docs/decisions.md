@@ -1660,3 +1660,49 @@ The owner asked for the custom title bar on every platform, with the system or c
 - **Owed by hand:**
   - the see-through background on Linux (the screen was locked);
   - everything on Windows and macOS: `docs/plans/media-check-windows.md`, `docs/plans/media-check-macos.md`.
+
+## D87: The media viewer's player, rotate and picture-in-picture (2026-11-02)
+
+(Built on D86, pull request #25.)
+
+- **Why.** The owner's list after their first look at the viewer's window:
+  - a rotate button;
+  - the video's controls as Telegram's player;
+  - speed with the pitch kept;
+  - a full screen for the video;
+  - picture-in-picture.
+
+  The model is their screenshots of Telegram Desktop. Spec and plan: `docs/superpowers/specs/2026-11-02-media-viewer-player-design.md`, `docs/superpowers/plans/2026-11-02-media-viewer-player.md`.
+- **Rotate** is a general viewer button beside Download (owner: the same place for photos and videos), not in the player. It turns a quarter left, as Telegram's ↺, and the zoom and the click beside the picture follow the turned shape.
+- **The bar**
+  - **Box:** 480 × 70, 7 above the bottom, black at half.
+  - **First row:** the volume and play, then full screen, picture-in-picture and the speed.
+  - **Second row:** the time played, the seek bar and the time left.
+  - **Space:** a video keeps 84 clear above and below, so it's never under the bar. The bottom-left text keeps to its left or goes.
+  - **Fading:** the bar fades with the viewer's controls.
+- **Speed**
+  - 1x, 1.5x, 2x, 3x, where Telegram has its settings.
+  - **The sound:** `opencord-media`'s FFmpeg player stretches its sound with `wsola` (as voice messages do), so the pitch stays.
+  - **The clock:** it counts the media's own time at the speed, so the position and seeking stay true.
+  - **A wsola trap:** a flushed `TimeStretch` keeps its input and plays it again on the next pull, so every flush is followed by a reset.
+  - **Each video starts at 1x**, apart from voice messages' speed, which carries from message to message.
+- **Full screen**
+  - The video fills the window under the bar; Esc ends it before it closes.
+  - From a normal window the window goes full screen too. The session's `setMode(…, remember: false)` keeps that out of `ui.mediaViewer`.
+- **Picture-in-picture**
+  - **The window:** a third mode of D86's window, 320 wide with the video's shape, at the bottom right of the main window's screen, 24 in. It plays on: the viewer keeps the same `VideoPlayerView` under a `GlobalKey` as the window changes.
+  - **Remembered:** its frame is kept under `ui.mediaViewer` as `pip`, apart from the mode, which never becomes picture-in-picture.
+  - **Its controls:** volume, back, close, play and the seek bar. They sit over a drag area that also takes a double click back, so their clicks don't wait for a second one. Other media brings the viewer back.
+  - **Linux:**
+    - GTK keep-above and its size hints. Wayland ignores keep-above and the position, so there it's an ordinary small window wherever KWin puts it (owner: acceptable).
+    - KWin answers new size limits with the old size, which GTK takes, so the runner asks for the size again 100 ms later.
+    - Leaving changes no window state, so the runner reports the mode itself.
+  - **Windows:** a topmost popup, resized from its own edges with its shape kept (`WM_SIZING`).
+  - **macOS:** the floating level on every Space. The traffic lights are hidden, and `contentAspectRatio` keeps the shape.
+- **Checked:**
+  - **Dart tests:** rotate, the bar, full screen, speed, and picture-in-picture: the same player, its controls, back, close, drag, a double click, photos without it, and the remembered frame.
+  - **Rust tests:** the tempo stage (the pitch kept at 2x and 3x by zero crossings, nothing played twice across speed changes), the clock at a speed, and the 2 s fixture ending in about a second at 2x.
+  - **On KDE Plasma 6 Wayland:** `integration_test/linux/media_window_test.dart` goes 320×180 and back on the real runner.
+- **Owed by hand:**
+  - **Linux:** a real video's bar, speed and picture-in-picture, looked at, not only measured.
+  - **Windows and macOS:** everything, in `docs/plans/media-check-windows.md` §3 and `docs/plans/media-check-macos.md` §4.
