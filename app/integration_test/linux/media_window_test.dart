@@ -115,6 +115,7 @@ void main() {
       final view = PlatformDispatcher.instance.view(id: viewId)!;
       return view.physicalSize / view.devicePixelRatio;
     }
+    final normalSize = viewerSize();
 
     await container.read(mediaViewerProvider.notifier).enterPip(16 / 9);
     await _until(
@@ -132,6 +133,9 @@ void main() {
           statuses.last.mode == MediaWindowMode.normal &&
           viewerSize().width >= 480,
     );
+    // The size it had, not the smallest a normal window may be.
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(viewerSize(), normalSize);
     // Closing waits for the frame without the view, which the test draws.
     final closed = container.read(mediaViewerProvider.notifier).close();
     await _until(tester, () => PlatformDispatcher.instance.views.length == 1);

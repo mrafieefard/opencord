@@ -717,6 +717,19 @@ void main() {
       await closeViewer(tester);
     });
 
+    testWidgets('a_click_beside_the_full_screen_video_keeps_the_viewer', (
+      tester,
+    ) async {
+      final (_, closes) = await pumpVideo(tester);
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      final picture = tester.getRect(find.byType(Texture));
+      await tester.tapAt(Offset(picture.left / 2, 300));
+      await tester.pump();
+      expect(closes, isEmpty);
+      await closeViewer(tester);
+    });
+
     testWidgets('full_screen_from_a_normal_window_comes_back_normal', (
       tester,
     ) async {

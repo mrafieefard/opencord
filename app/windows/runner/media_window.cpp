@@ -172,6 +172,8 @@ std::optional<int64_t> MediaWindowChannel::Open(
       engine_id ? FlutterDesktopEngineForId(*engine_id) : nullptr;
   if (engine == nullptr) return std::nullopt;
 
+  // A window closed from picture-in-picture leaves nothing of it behind.
+  pip_ = false;
   fullscreen_ = StringArg(args, "mode") != "normal";
   // The normal window: logical size, physical place (as the main window
   // keeps them); centred on the main window's monitor when the place is
@@ -254,6 +256,8 @@ void MediaWindowChannel::Close() {
   view_ = nullptr;
   HWND window = window_;
   window_ = nullptr;
+  pip_ = false;
+  fullscreen_ = true;
   ::DestroyWindow(window);
 }
 

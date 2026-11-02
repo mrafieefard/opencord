@@ -88,6 +88,7 @@
    - Back, or a double click, returns to the window it was, still playing; close stops the video.
    - Opening another photo or video brings the viewer back with it.
    - Close it somewhere else and open picture-in-picture again: it comes back there, at that size.
+   - Close from picture-in-picture, with a normal window remembered, then open a photo: a normal window with its borders, and the photo laid out as the viewer, not as picture-in-picture.
 
 ## 4. Report
 

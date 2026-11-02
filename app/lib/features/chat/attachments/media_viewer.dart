@@ -410,7 +410,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   @override
   Widget build(BuildContext context) {
     final current = widget.media[_currentIndex];
-    final closesOnClick = !_normalWindow;
+    // A video's full screen keeps the viewer: a click beside it, as to
+    // bring the controls back, doesn't close.
+    final closesOnClick = !_normalWindow && !_videoFullScreen;
 
     return CallbackShortcuts(
       bindings: {
