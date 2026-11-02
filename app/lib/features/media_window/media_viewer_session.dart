@@ -96,6 +96,9 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   /// The window is in a mode it only passes through, not to remember.
   bool _modeHeld = false;
 
+  /// The mode picture-in-picture goes back to.
+  MediaWindowMode? _beforePip;
+
   /// A close the runner hasn't been told about yet. An open waits for it,
   /// or the runner would answer the window it is about to destroy.
   Future<void>? _closing;
@@ -122,6 +125,8 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   /// is no window to open: the caller shows the viewer in the app instead.
   Future<bool> open(MediaViewerRequest request) async {
     if (_closing case final closing?) await closing;
+    // Other media brings the viewer back: there is one player.
+    if (state?.status.mode == MediaWindowMode.pip) await leavePip();
     final current = state;
     if (current != null) {
       state = current.copyWith(
@@ -133,6 +138,7 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
     }
     _placement = _readPlacement();
     _modeHeld = false;
+    _beforePip = null;
     final viewId = await _window.open(_placement);
     if (viewId == null) return false;
     state = MediaViewerSession(
@@ -189,6 +195,30 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
     await _window.setMode(mode);
   }
 
+  /// Turns the window into a small one over other apps, playing on, with
+  /// the video's [aspect]. Leaving goes back to the mode it had, or to
+  /// [returnTo].
+  Future<void> enterPip(double aspect, {MediaWindowMode? returnTo}) async {
+    final current = state;
+    if (current == null || current.status.mode == MediaWindowMode.pip) return;
+    _beforePip = returnTo ?? current.status.mode;
+    _modeHeld = true;
+    state = current.copyWith(
+      status: MediaWindowStatus(
+        mode: MediaWindowMode.pip,
+        focused: current.status.focused,
+      ),
+    );
+    await _window.enterPip(aspect: aspect, frame: _placement.pip);
+  }
+
+  Future<void> leavePip() async {
+    if (state?.status.mode != MediaWindowMode.pip) return;
+    final back = _beforePip ?? _placement.mode;
+    _beforePip = null;
+    await setMode(back, remember: false);
+  }
+
   void _onStatus(MediaWindowStatus status) {
     final current = state;
     if (current == null) return;
@@ -201,12 +231,15 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
 
   void _onGeometry(WindowGeometry geometry) {
     final status = state?.status;
-    if (status == null ||
-        status.mode != MediaWindowMode.normal ||
-        status.maximized) {
-      return;
+    if (status == null || status.maximized) return;
+    switch (status.mode) {
+      case MediaWindowMode.normal:
+        _placement = _placement.copyWith(normal: geometry);
+      case MediaWindowMode.pip:
+        _placement = _placement.copyWith(pip: geometry);
+      case MediaWindowMode.fullscreen:
+        return;
     }
-    _placement = _placement.copyWith(normal: geometry);
     _scheduleSave();
   }
 

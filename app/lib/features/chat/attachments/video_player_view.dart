@@ -5,6 +5,7 @@ import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/pip_controls.dart';
 import 'package:opencord/features/chat/attachments/video_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -22,6 +23,8 @@ class VideoPlayerView extends ConsumerStatefulWidget {
     this.frameControls = _unframed,
     this.fullScreen = false,
     this.onFullScreen,
+    this.onPip,
+    this.pip,
   });
 
   final String serverKey;
@@ -41,6 +44,12 @@ class VideoPlayerView extends ConsumerStatefulWidget {
   /// and what switches it.
   final bool fullScreen;
   final VoidCallback? onFullScreen;
+
+  /// The bar's picture-in-picture button, given the video's shape.
+  final ValueChanged<double>? onPip;
+
+  /// Shown as picture-in-picture: its own controls instead of the bar.
+  final PipActions? pip;
 
   static Widget _unframed(Widget child) => child;
 
@@ -144,6 +153,18 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
     } else {
       notifier.mediaPlay(_item);
     }
+  }
+
+  void _seekStart(double ms) => setState(() {
+    _draggingSeek = true;
+    _dragPositionMs = ms;
+  });
+
+  void _seekMove(double ms) => setState(() => _dragPositionMs = ms);
+
+  void _seekEnd(double ms) {
+    setState(() => _draggingSeek = false);
+    ref.read(playbackProvider.notifier).seek(_item, ms.toInt());
   }
 
   void _nextSpeed() {
@@ -301,13 +322,11 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
 
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: VideoBar.bottom,
-              child: Center(
+            if (widget.pip case final pip?)
+              Positioned.fill(
                 child: widget.frameControls(
-                  VideoBar(
+                  PipControls(
+                    actions: pip,
                     playing: playback.playing,
                     positionMs: currentPosMs,
                     durationMs: durationMs,
@@ -315,26 +334,44 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
                     muted: _muted,
                     onTogglePlay: _togglePlay,
                     onToggleMute: _toggleMute,
-                    fullScreen: widget.fullScreen,
-                    onFullScreen: widget.onFullScreen,
-                    speed: _speed,
-                    onSpeed: _nextSpeed,
                     onVolume: _onVolumeChanged,
-                    onSeekStart: (v) => setState(() {
-                      _draggingSeek = true;
-                      _dragPositionMs = v;
-                    }),
-                    onSeek: (v) => setState(() => _dragPositionMs = v),
-                    onSeekEnd: (v) {
-                      setState(() => _draggingSeek = false);
-                      ref
-                          .read(playbackProvider.notifier)
-                          .seek(_item, v.toInt());
-                    },
+                    onSeekStart: _seekStart,
+                    onSeek: _seekMove,
+                    onSeekEnd: _seekEnd,
+                  ),
+                ),
+              )
+            else
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: VideoBar.bottom,
+                child: Center(
+                  child: widget.frameControls(
+                    VideoBar(
+                      playing: playback.playing,
+                      positionMs: currentPosMs,
+                      durationMs: durationMs,
+                      volume: _volume,
+                      muted: _muted,
+                      onTogglePlay: _togglePlay,
+                      onToggleMute: _toggleMute,
+                      fullScreen: widget.fullScreen,
+                      onFullScreen: widget.onFullScreen,
+                      onPip: switch (widget.onPip) {
+                        final onPip? => () => onPip(aspectRatio),
+                        null => null,
+                      },
+                      speed: _speed,
+                      onSpeed: _nextSpeed,
+                      onVolume: _onVolumeChanged,
+                      onSeekStart: _seekStart,
+                      onSeek: _seekMove,
+                      onSeekEnd: _seekEnd,
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

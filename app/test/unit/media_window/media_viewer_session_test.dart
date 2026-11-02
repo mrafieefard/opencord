@@ -143,6 +143,57 @@ void main() {
     expect(window.calls.last, 'open:normal');
   });
 
+  test('the_pip_window_is_remembered_apart_from_the_mode', () async {
+    await viewer().open(_request);
+    await viewer().enterPip(16 / 9);
+    expect(window.calls.last, 'pip:1.78');
+    expect(
+      container.read(mediaViewerProvider)!.status.mode,
+      MediaWindowMode.pip,
+    );
+    window.sendStatus(const MediaWindowStatus(mode: MediaWindowMode.pip));
+    window.sendGeometry(
+      const WindowGeometry(width: 400, height: 225, x: 9, y: 8),
+    );
+    await Future<void>.delayed(quiet);
+    final saved = jsonDecode(store.read(mediaViewerPlacementKey)!);
+    expect(saved['mode'], 'fullscreen');
+    expect(saved['pip'], {'width': 400, 'height': 225, 'x': 9, 'y': 8});
+
+    await viewer().close();
+    await viewer().open(_request);
+    expect(window.calls.last, 'open:fullscreen');
+    await viewer().enterPip(16 / 9);
+    expect(window.calls.last, 'pip:1.78 at 400x225');
+  });
+
+  test('leaving_pip_goes_back_to_the_mode_it_had', () async {
+    store.write(mediaViewerPlacementKey, '{"mode":"normal"}');
+    await viewer().open(_request);
+    await viewer().enterPip(1);
+    window.sendStatus(const MediaWindowStatus(mode: MediaWindowMode.pip));
+    await Future<void>.delayed(Duration.zero);
+    await viewer().leavePip();
+    expect(window.calls.last, 'setMode:normal');
+    expect(
+      container.read(mediaViewerProvider)!.status.mode,
+      MediaWindowMode.normal,
+    );
+  });
+
+  test('opening_other_media_leaves_pip', () async {
+    await viewer().open(_request);
+    await viewer().enterPip(1);
+    window.sendStatus(const MediaWindowStatus(mode: MediaWindowMode.pip));
+    await Future<void>.delayed(Duration.zero);
+    await viewer().open(_request);
+    expect(window.calls, contains('setMode:fullscreen'));
+    expect(
+      container.read(mediaViewerProvider)!.status.mode,
+      MediaWindowMode.fullscreen,
+    );
+  });
+
   test('a_broken_placement_opens_full_screen', () async {
     store.write(mediaViewerPlacementKey, '{');
     await viewer().open(_request);

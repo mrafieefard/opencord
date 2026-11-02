@@ -12,6 +12,11 @@ abstract final class OcMediaColors {
   /// The video's bar, Telegram's: black at half, the video showing through.
   static const playerBar = Color(0x80000000);
 
+  /// Picture-in-picture: black behind the video, and a light shade under
+  /// its controls so they read over a bright picture.
+  static const pipBackground = Color(0xFF000000);
+  static const pipShade = Color(0x40000000);
+
   /// The "Saved to Downloads" note.
   static const note = Color(0xE6000000);
 

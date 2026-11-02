@@ -41,6 +41,7 @@ class VideoBar extends StatelessWidget {
     required this.onSeekEnd,
     this.fullScreen = false,
     this.onFullScreen,
+    this.onPip,
     this.speed = 1,
     this.onSpeed,
   });
@@ -69,6 +70,9 @@ class VideoBar extends StatelessWidget {
   /// without it there's no button.
   final bool fullScreen;
   final VoidCallback? onFullScreen;
+
+  /// Picture-in-picture; without it there's no button.
+  final VoidCallback? onPip;
 
   /// The speed playing, which [onSpeed] moves on to the next one.
   final double speed;
@@ -151,6 +155,13 @@ class VideoBar extends StatelessWidget {
                             : OcIcons.fullscreen,
                         fullScreen ? 'Exit full screen' : 'Full screen',
                         onFullScreen,
+                      ),
+                    if (onPip case final onPip?)
+                      _button(
+                        context,
+                        OcIcons.pictureInPictureAlt,
+                        'Picture in picture',
+                        onPip,
                       ),
                     if (onSpeed case final onSpeed?)
                       SizedBox(

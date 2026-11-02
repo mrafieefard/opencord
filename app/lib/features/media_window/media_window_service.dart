@@ -7,8 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/features/window/native_window.dart';
 
 /// How the media viewer's window sits on the screen, as Telegram's viewer
-/// does (D86): covering the whole monitor, or a window of its own size.
-enum MediaWindowMode { fullscreen, normal }
+/// does (D86): covering the whole monitor, a window of its own size, or a
+/// small video over other apps (picture-in-picture, D87).
+enum MediaWindowMode { fullscreen, normal, pip }
 
 /// The viewer window's last mode and normal size, kept between openings.
 @immutable
@@ -16,6 +17,7 @@ class MediaWindowPlacement {
   const MediaWindowPlacement({
     this.mode = MediaWindowMode.fullscreen,
     this.normal,
+    this.pip,
   });
 
   /// Anything unreadable opens full screen, as the first time does.
@@ -24,10 +26,14 @@ class MediaWindowPlacement {
     final mode = MediaWindowMode.values
         .where((mode) => mode.name == json['mode'])
         .firstOrNull;
-    if (mode == null) return const MediaWindowPlacement();
+    // The window never opens as picture-in-picture.
+    if (mode == null || mode == MediaWindowMode.pip) {
+      return const MediaWindowPlacement();
+    }
     return MediaWindowPlacement(
       mode: mode,
       normal: WindowGeometry.fromJson(json),
+      pip: WindowGeometry.fromJson(json['pip']),
     );
   }
 
@@ -36,12 +42,17 @@ class MediaWindowPlacement {
   /// The normal window's size and place, once it has had one.
   final WindowGeometry? normal;
 
+  /// The picture-in-picture window's, once it has had one.
+  final WindowGeometry? pip;
+
   MediaWindowPlacement copyWith({
     MediaWindowMode? mode,
     WindowGeometry? normal,
+    WindowGeometry? pip,
   }) => MediaWindowPlacement(
     mode: mode ?? this.mode,
     normal: normal ?? this.normal,
+    pip: pip ?? this.pip,
   );
 
   Map<String, Object?> toJson() => {
@@ -52,16 +63,25 @@ class MediaWindowPlacement {
       'x': ?normal.x,
       'y': ?normal.y,
     },
+    if (pip case final pip?) 'pip': _frame(pip),
+  };
+
+  static Map<String, Object?> _frame(WindowGeometry frame) => {
+    'width': frame.width,
+    'height': frame.height,
+    'x': ?frame.x,
+    'y': ?frame.y,
   };
 
   @override
   bool operator ==(Object other) =>
       other is MediaWindowPlacement &&
       other.mode == mode &&
-      other.normal == normal;
+      other.normal == normal &&
+      other.pip == pip;
 
   @override
-  int get hashCode => Object.hash(mode, normal);
+  int get hashCode => Object.hash(mode, normal, pip);
 }
 
 /// The viewer window's state as the runner reports it.
@@ -79,9 +99,11 @@ class MediaWindowStatus {
     if (map is! Map) return const MediaWindowStatus();
     final mode = map['mode'];
     return MediaWindowStatus(
-      mode: mode == 'fullscreen'
-          ? MediaWindowMode.fullscreen
-          : MediaWindowMode.normal,
+      mode: switch (mode) {
+        'fullscreen' => MediaWindowMode.fullscreen,
+        'pip' => MediaWindowMode.pip,
+        _ => MediaWindowMode.normal,
+      },
       maximized: mode == 'maximized',
       focused: map['focused'] != false,
     );
@@ -111,7 +133,12 @@ abstract interface class MediaWindowService {
 
   Future<void> close();
 
+  /// Full screen or normal.
   Future<void> setMode(MediaWindowMode mode);
+
+  /// A small window over other apps with the video's [aspect], where
+  /// [frame] was, or at the bottom right of the screen the first time.
+  Future<void> enterPip({required double aspect, WindowGeometry? frame});
 
   Future<void> minimize();
 
@@ -127,7 +154,7 @@ abstract interface class MediaWindowService {
 
   Stream<MediaWindowStatus> get status;
 
-  /// The normal window's size and place as it moves.
+  /// The normal or picture-in-picture window's size and place as it moves.
   Stream<WindowGeometry> get geometry;
 }
 
@@ -182,6 +209,13 @@ class ChannelMediaWindow implements MediaWindowService {
       _invoke<void>('setMode', mode.name);
 
   @override
+  Future<void> enterPip({required double aspect, WindowGeometry? frame}) =>
+      _invoke<void>('pip', {
+        'aspect': aspect,
+        if (frame != null) ...MediaWindowPlacement._frame(frame),
+      });
+
+  @override
   Future<void> minimize() => _invoke<void>('minimize');
 
   @override
@@ -216,6 +250,12 @@ class NullMediaWindow implements MediaWindowService {
 
   @override
   Future<void> setMode(MediaWindowMode mode) async {}
+
+  @override
+  Future<void> enterPip({
+    required double aspect,
+    WindowGeometry? frame,
+  }) async {}
 
   @override
   Future<void> minimize() async {}
