@@ -16,7 +16,8 @@ import 'package:opencord/features/media_window/media_window_service.dart';
 
 // The media viewer's own window on the Linux runner (D86): a second view
 // on the app's engine in a window of its own, full screen and see-through,
-// that switches to a normal window and closes without closing the app.
+// that switches to a normal window and to picture-in-picture (D87), and
+// closes without closing the app.
 //
 //   flutter test integration_test/linux/media_window_test.dart -d linux
 //
@@ -107,6 +108,30 @@ void main() {
       () => statuses.isNotEmpty && statuses.last.mode == MediaWindowMode.normal,
     );
     await _hold();
+
+    // Picture-in-picture (D87): 320 wide with the video's shape, and back.
+    final viewId = container.read(mediaViewerProvider)!.viewId;
+    Size viewerSize() {
+      final view = PlatformDispatcher.instance.view(id: viewId)!;
+      return view.physicalSize / view.devicePixelRatio;
+    }
+
+    await container.read(mediaViewerProvider.notifier).enterPip(16 / 9);
+    await _until(
+      tester,
+      () =>
+          statuses.last.mode == MediaWindowMode.pip &&
+          viewerSize().width <= 330,
+    );
+    expect(viewerSize().width / viewerSize().height, closeTo(16 / 9, 0.05));
+    await _hold();
+    await container.read(mediaViewerProvider.notifier).leavePip();
+    await _until(
+      tester,
+      () =>
+          statuses.last.mode == MediaWindowMode.normal &&
+          viewerSize().width >= 480,
+    );
     // Closing waits for the frame without the view, which the test draws.
     final closed = container.read(mediaViewerProvider.notifier).close();
     await _until(tester, () => PlatformDispatcher.instance.views.length == 1);
