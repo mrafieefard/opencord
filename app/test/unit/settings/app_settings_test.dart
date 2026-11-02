@@ -14,7 +14,6 @@ void main() {
       expect(linux.fontSize, 14);
       expect(linux.reduceMotion, isFalse);
       expect(linux.density, MessageDensity.comfortable);
-      expect(linux.windowFrame, WindowFramePreference.auto);
       expect(linux.closeToTray, isTrue);
       expect(mac.closeToTray, isFalse);
       expect(linux.restoreWindowPosition, isTrue);
@@ -27,7 +26,6 @@ void main() {
         fontSize: 16,
         reduceMotion: true,
         density: MessageDensity.compact,
-        windowFrame: WindowFramePreference.system,
         closeToTray: false,
         startMinimized: true,
         launchAtLogin: true,

@@ -59,25 +59,6 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('on a tiling compositor the headers are just headers', (
-    tester,
-  ) async {
-    final window = FakeNativeWindow();
-    final app = await MockApp.pump(
-      tester,
-      window: window,
-      windowInfo: const WindowInfo(chrome: WindowChrome.bare),
-      platform: TargetPlatform.linux,
-    );
-
-    await tester.dragFrom(headerSpace(tester), const Offset(40, 10));
-    await tester.pump();
-
-    expect(window.calls.where((call) => !call.startsWith('setTitle')), isEmpty);
-    expect(find.bySemanticsLabel('Close'), findsNothing);
-    await app.dispose(tester);
-  });
-
   testWidgets('GNOME buttons follow the button layout and the window state', (
     tester,
   ) async {

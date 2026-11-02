@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,13 +8,7 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
-bool get _desktop =>
-    defaultTargetPlatform == TargetPlatform.linux ||
-    defaultTargetPlatform == TargetPlatform.windows ||
-    defaultTargetPlatform == TargetPlatform.macOS;
-
-/// Appearance (§8.1): theme, message density, font size, reduce motion
-/// and the window frame.
+/// Appearance (§8.1): theme, message density, font size and reduce motion.
 class AppearancePage extends ConsumerWidget {
   const AppearancePage({super.key});
 
@@ -134,41 +127,6 @@ class AppearancePage extends ConsumerWidget {
             ),
           ],
         ),
-        if (_desktop) ...[
-          const SizedBox(height: OcSpace.s24),
-          SettingsSection(
-            title: 'Window frame',
-            footer: 'Takes effect when Opencord starts next.',
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(OcSpace.s12),
-                child: SettingsChoiceCards<WindowFramePreference>(
-                  value: settings.windowFrame,
-                  // Saved for the next start with the other changes.
-                  onChanged: (frame) =>
-                      update((s) => s.copyWith(windowFrame: frame)),
-                  options: const [
-                    ChoiceCardOption(
-                      value: WindowFramePreference.auto,
-                      label: 'Auto',
-                      description: 'Fits your desktop',
-                    ),
-                    ChoiceCardOption(
-                      value: WindowFramePreference.custom,
-                      label: 'Custom',
-                      description: 'Opencord draws the title bar',
-                    ),
-                    ChoiceCardOption(
-                      value: WindowFramePreference.system,
-                      label: 'System',
-                      description: 'Your desktop draws the frame',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
       ],
     );
   }

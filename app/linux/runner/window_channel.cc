@@ -13,7 +13,6 @@ constexpr int kTiled = GDK_WINDOW_STATE_TILED | GDK_WINDOW_STATE_TOP_TILED |
                        GDK_WINDOW_STATE_LEFT_TILED;
 
 struct WindowChannel {
-  WindowChrome chrome = WindowChrome::kCustom;
   GtkWindow* window = nullptr;
   FlView* view = nullptr;
   FlMethodChannel* channel = nullptr;
@@ -179,18 +178,6 @@ bool visible_on_some_monitor(GdkDisplay* display, int x, int y, int width,
   return false;
 }
 
-const char* chrome_name(WindowChrome chrome) {
-  switch (chrome) {
-    case WindowChrome::kCustom:
-      return "custom";
-    case WindowChrome::kSystem:
-      return "system";
-    case WindowChrome::kBare:
-      return "bare";
-  }
-  return "custom";
-}
-
 // Applies the app's startup settings. Sizes are of the visible window; on
 // the custom frame the transparent margin is added around them.
 FlValue* configure(WindowChannel* self, FlValue* args) {
@@ -201,7 +188,7 @@ FlValue* configure(WindowChannel* self, FlValue* args) {
   const bool transparent = gtk_widget_get_visual(GTK_WIDGET(self->window)) ==
                                gdk_screen_get_rgba_visual(screen) &&
                            gdk_screen_is_composited(screen);
-  const bool frame = self->chrome == WindowChrome::kCustom && transparent;
+  const bool frame = transparent;
   self->frame_margin = frame ? int_arg(args, "frameMargin", 0) : 0;
   self->resize_band = frame ? int_arg(args, "resizeBand", 0) : 0;
   const int margin = self->frame_margin;
@@ -245,7 +232,7 @@ FlValue* configure(WindowChannel* self, FlValue* args) {
   g_autofree gchar* layout = decoration_layout();
   FlValue* info = fl_value_new_map();
   fl_value_set_string_take(info, "chrome",
-                           fl_value_new_string(chrome_name(self->chrome)));
+                           fl_value_new_string("custom"));
   fl_value_set_string_take(info, "transparent", fl_value_new_bool(transparent));
   fl_value_set_string_take(info, "frameMargin", fl_value_new_int(margin));
   fl_value_set_string_take(info, "wayland",
@@ -354,43 +341,10 @@ void method_call_cb(FlMethodChannel*, FlMethodCall* call, gpointer data) {
 
 }  // namespace
 
-WindowChrome window_chrome_at_startup() {
-  g_autofree gchar* path = g_build_filename(g_get_user_data_dir(),
-                                            APPLICATION_ID, "window-chrome",
-                                            nullptr);
-  // The user's choice; Auto (or anything else) is settled here, for the
-  // desktop this start finds.
-  g_autofree gchar* saved = nullptr;
-  if (g_file_get_contents(path, &saved, nullptr, nullptr)) {
-    g_strstrip(saved);
-    if (strcmp(saved, "system") == 0) return WindowChrome::kSystem;
-    if (strcmp(saved, "custom") == 0) return WindowChrome::kCustom;
-  }
-  static const char* const tiling[] = {"hyprland", "sway", "i3",  "river",
-                                       "niri",     "bspwm", "dwm"};
-  g_autofree gchar* desktop =
-      g_ascii_strdown(g_getenv("XDG_CURRENT_DESKTOP") != nullptr
-                          ? g_getenv("XDG_CURRENT_DESKTOP")
-                          : "",
-                      -1);
-  g_auto(GStrv) names = g_strsplit(desktop, ":", -1);
-  bool kde = false;
-  for (gchar** name = names; *name != nullptr; name++) {
-    g_strstrip(*name);
-    for (const char* compositor : tiling) {
-      if (strcmp(*name, compositor) == 0) return WindowChrome::kBare;
-    }
-    kde = kde || strcmp(*name, "kde") == 0;
-  }
-  return kde ? WindowChrome::kSystem : WindowChrome::kCustom;
-}
-
-void window_channel_register(GtkWindow* window, FlView* view,
-                             WindowChrome chrome) {
+void window_channel_register(GtkWindow* window, FlView* view) {
   // Lives as long as the process, like the window it serves.
   static WindowChannel instance;
   WindowChannel* self = &instance;
-  self->chrome = chrome;
   self->window = window;
   self->view = view;
   channel_state = self;
