@@ -3,8 +3,11 @@ import FlutterMacOS
 
 @main
 class AppDelegate: FlutterAppDelegate {
+  /// The app stays in the Dock when its window closes (§7): red hides the
+  /// window, and AppKit counts a hidden last window as closed, so `true`
+  /// here quit the app instead. ⌘Q and the menu bar's Quit end it.
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    return true
+    return false
   }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
