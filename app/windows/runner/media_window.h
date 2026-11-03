@@ -42,6 +42,8 @@ class MediaWindowChannel {
   // Opens the window; answers the new view's id, or nothing if it could not
   // be made.
   std::optional<int64_t> Open(const flutter::EncodableMap& args);
+  // Hides the viewer and keeps its view built: destroying the view would
+  // stop the engine the main window is running on. See the body.
   void Close();
   void SetFullscreen(bool fullscreen);
   void EnterPip(const flutter::EncodableMap& args);
@@ -63,6 +65,8 @@ class MediaWindowChannel {
   FlutterDesktopViewControllerRef controller_ = nullptr;
   HWND view_ = nullptr;
   bool fullscreen_ = true;
+  // Closed, so hidden, but still built: the next open shows it again.
+  bool hidden_ = false;
   bool pip_ = false;
   // Picture-in-picture's width over height.
   double pip_aspect_ = 16.0 / 9.0;
