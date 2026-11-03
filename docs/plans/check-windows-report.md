@@ -570,12 +570,14 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   2. `alice` joins the voice channel, then `alice2` joins the same one.
   3. `alice` shows "Your call in <channel> moved to another device."
   4. **Reconnect** on `alice` takes the call back, and `alice2` is out of it.
-- [ ] **No bar after:**
-  - leaving the call;
-  - `bob`, given Move Members, disconnects `alice` from the member menu;
-  - `bob` moves `alice` to another channel;
-  - **Quit Opencord** from the tray menu while in a call, then a restart;
-  - Close with **Close button minimizes to the tray** off, while in a call, then a restart.
+- [~] **No bar after:** — **one of five done; two of the five cannot be done on #27's build at all.**
+  - leaving the call; — **PASS.** `alice` left with Disconnect, was killed and restarted: no bar.
+  - `bob`, given Move Members, disconnects `alice` from the member menu; — **not done.** Needs a role with Move Members granted to `bob` first.
+  - `bob` moves `alice` to another channel; — **not done.** Needs that role *and* a second voice channel; the test server has only `General`.
+  - **Quit Opencord** from the tray menu while in a call, then a restart; — **cannot be done on this build.** #27's build has **no tray at all** — the tray is #24 — so there is no tray menu to quit from.
+  - Close with **Close button minimizes to the tray** off, while in a call, then a restart. — **cannot be done on this build.** Same reason: with no tray, **Windows & behavior** on #27's build offers only *Launch at login* and *Restore the last window position*. The setting this step turns off does not exist here.
+
+  > Both of the last two need a build carrying **#24 and #27 together**, which only exists once the batch is merged. They are not failures and they are not skips for convenience — there is nothing on this build to drive. The same shape as §1's caption buttons and the Appearance box: the plan's wording assumes the merged state, and several boxes can only be judged after the Linux session's merge.
 - [ ] **Getting back in was refused.**
   1. In the voice channel's settings set **User limit** to 1, and remove Move Members from `alice`'s roles.
   2. `alice` joins it.
