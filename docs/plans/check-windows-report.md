@@ -731,12 +731,12 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - **Settings → Windows & behavior → Close button minimizes to the tray** is shown on Windows. Turned off, Close quits. — **PASS.** The switch is there and on by default; turned off **and saved**, Close ended the process. Note the settings page keeps changes behind a *Careful — you have unsaved changes!* bar, so a toggle that is not saved does nothing — it looked at first like the setting had no effect.
 - [x] **Quit Opencord** in the menu exits the process (Task Manager shows no `opencord.exe` for that profile). — **PASS.** No `opencord.exe` left afterwards.
 - [x] **Explorer restart:** run `Stop-Process -Name explorer -Force`, then wait for it to come back (or start `explorer.exe`). The icon comes back by itself and still works. — **PASS.** Explorer was killed with both clients running; both icons came back on their own, with no restart of the app, and a click on one still opened its own window. It also cleared the ghost icons left by earlier killed instances — worth knowing, since a stale icon makes the count wrong.
-- [~] **The voice icon:** — **three of five shapes confirmed, read off the icon's own pixels** (`sheet-voice.png`, `sheet-mute.png`, `sheet-left.png`):
+- [x] **The voice icon:** — **PASS, all five.** The four shapes were read off the icon's own pixels (`sheet-voice.png`, `sheet-mute.png`, `sheet-left.png`):
   - in a voice channel: a ring; — **PASS**, a plain ring the moment `alice` joined `General`.
   - while you talk: a filled circle; — **PASS**, confirmed by the owner speaking into the real microphone: the ring fills white while they talk. The scripted half of this section could not reach it, since it needs sound going into the device the app is listening to.
   - muted or deafened: the ring with a slash; — **muted: PASS**, the ring gains a slash from the mic button inside the app. Deafened not checked separately.
   - out of voice: the chat bubble again; — **PASS**, both clients were bubbles before joining and `alice`'s went back to a bubble on Disconnect.
-  - the unread dot stays in every state. — **not checked**; it needs unread messages held across each of the states above.
+  - the unread dot stays in every state. — **PASS**, checked by the owner with messages from `bob` left unread while `alice` went through all four: the dot stays on the ring, the filled circle, the slashed ring and the bubble alike.
 - [x] **Two profiles** each get their own icon, and each icon's clicks go to its own window. — **PASS.** Two icons for two profiles; the first opens `alice` (pid 7932) and the second `bob` (pid 16508), each leaving the other alone. Note both tooltips start `Opencord` with no profile in them, so they are told apart by what they open, not by their name.
 - [ ] **Start minimized** with **Launch at login**: after signing out and in, Opencord starts in the tray with no window.
 ## 3. The reconnect bar (#27), and the volume bug
