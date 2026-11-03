@@ -38,7 +38,7 @@ pwsh -File app/tool/windows/check_m5.ps1
 | `check_hardware.ps1` | W8 step 1: the §15 hardware items that need a person at the PC — a headset taken away mid-call and brought back, and the PC slept or hibernated mid-call. It prompts for nothing: each step waits for the hardware itself. **Exits 2 when the hardware never moved.** |
 | `host_lan_server.ps1` | W8 step 1: a real server on the LAN for the call between this PC, the Linux machine and the Mac — the LAN address in the invite link, the two firewall rules, and a database that survives the call. Only for the case where this PC hosts; neither plan says which machine does, and the Linux machine is the better default. Not a check; it measures nothing. |
 | `check_receive_video.ps1` | W4: a voicebot's camera and screen shown in the app, drawn, the right colours, focus mode, and hidden tiles that stop receiving. **Exits 2 when only the screen half did not come** — see below. |
-| `window_ui.ps1` | Drives a real Opencord window from the command line: its style bits and rect, the actual mouse and keyboard, screenshots and single pixels. Dot-source it. `Test-OcDesktopUsable` is the guard every caller needs — see below. |
+| `window_ui.ps1` | Drives a real Opencord window from the command line: its style bits and rect, the actual mouse and keyboard, screenshots and single pixels, the notification area and the menus it opens. Dot-source it. `Test-OcDesktopUsable` and `Hide-OcTerminal` are the two guards every caller needs — see below. |
 | `check_window_chrome.ps1` | The app's own title bar (D83, and §1 of [check-windows.md](../../../docs/plans/check-windows.md)): no system frame, maximise and restore, Aero Snap to the sides, dragging and double-clicking the header, the edges resizing. It saves the caption buttons at rest and hovered for a person to judge. **Exits 2 on a locked workstation** — see below. |
 
 A check exits 0 when it passed and 1 when it failed. Several also exit **2**,
@@ -86,6 +86,34 @@ for a result that proves nothing either way:
   `SetForegroundWindow` is refused to a background process often enough that
   the click `Set-OcFocus` makes is the only way in, and its return value says
   whether even that worked.
+
+## Two guards, and why both exist
+
+Both of these were found the same way: a check reported the app failing at
+something the app does correctly, because the harness was in the room with
+the thing it was measuring.
+
+- **`Test-OcDesktopUsable`** — behind the lock screen LogonUI owns the
+  desktop, injected input reaches nothing and every capture is of the lock
+  screen. Call it first in anything that drives the UI.
+- **`Hide-OcTerminal` / `Show-OcTerminal`** — the window this session runs in
+  sits on top of the app, so a click meant for the app lands on the terminal
+  and the app never takes the foreground. A script that **launches** its app
+  never meets this, because a new window comes up in front of everything; one
+  that drives an **already-running** window always does. Minimise the
+  terminal for the length of the check and restore it after.
+
+Two more things about driving a real desktop, learned the same way:
+
+- Snap leaves a window in a state Windows remembers — a snapped window does
+  not follow a drag, its edges may refuse to resize, and Win+Left/Win+Right
+  *cycle* left half → restored → right half rather than snapping to a side.
+  `Reset-OcWindow` puts it back to a known rect; call it before any check
+  that moves or resizes a window.
+- `Set-OcFocus` returns whether the foreground really changed, and that
+  answer matters: keys sent to an unfocused window do nothing, which looks
+  exactly like a window ignoring them. Prefer `Set-OcFocusOrStop`, which
+  retries and tells you when the focus never came.
 
 `check_v4.ps1` and `check_bundled_ffmpeg.ps1` need `FFMPEG_DIR` and
 `LIBCLANG_PATH` set, like any build here from W3 on, and

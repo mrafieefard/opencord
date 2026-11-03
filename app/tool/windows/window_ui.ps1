@@ -250,3 +250,170 @@ function Reset-OcWindow {
                                   ($SWP_NOZORDER -bor $SWP_NOACTIVATE))
     Start-Sleep -Milliseconds 350
 }
+
+function Get-OcForeground {
+    <#  Whatever holds the foreground, app or not. Matching the foreground
+        against the app's own windows cannot tell "another window has it"
+        from "no window has it", and those want different answers. #>
+    $handle = [Win32Ui]::GetForegroundWindow()
+    $procId = 0; [void][Win32Ui]::GetWindowThreadProcessId($handle, [ref]$procId)
+    $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+    $name = New-Object System.Text.StringBuilder 512
+    [void][Win32Ui]::GetClassName($handle, $name, $name.Capacity)
+    [pscustomobject]@{
+        Handle = $handle; ProcessId = $procId
+        Process = $(if ($proc) { $proc.ProcessName } else { '?' })
+        Class = $name.ToString()
+    }
+}
+
+function Hide-OcTerminal {
+    <#  Puts the session's own terminal away for the length of a check.
+
+        The window this session runs in sits on top of the app, so a click
+        meant for the app lands on the terminal and the app never takes the
+        foreground - which reads as the app ignoring the click. A script that
+        launches its own app never meets this, because a new window comes up
+        in front; one that drives an already-running window always does.
+
+        Returns the handle to pass back to Show-OcTerminal, or zero when the
+        foreground was not a terminal and nothing was touched. #>
+    $handle = [Win32Ui]::GetForegroundWindow()
+    $procId = 0; [void][Win32Ui]::GetWindowThreadProcessId($handle, [ref]$procId)
+    $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+    if ($proc -and $proc.ProcessName -match 'WindowsTerminal|conhost|pwsh|powershell|Code') {
+        [void][Win32Ui]::ShowWindow($handle, 6)
+        Start-Sleep -Milliseconds 700
+        return $handle
+    }
+    [IntPtr]::Zero
+}
+
+function Show-OcTerminal {
+    <#  Brings back what Hide-OcTerminal put away. Safe on a zero handle. #>
+    param([IntPtr]$Handle)
+    if ($Handle -ne [IntPtr]::Zero) { [void][Win32Ui]::ShowWindow($Handle, 9) }
+}
+
+function Invoke-OcRightClick {
+    <#  A real right click, for the tray's menu. #>
+    param([Parameter(Mandatory)][int]$X, [Parameter(Mandatory)][int]$Y)
+    [void][Win32Ui]::SetCursorPos($X, $Y); Start-Sleep -Milliseconds 120
+    [Win32Ui]::mouse_event(0x0008, 0, 0, 0, 0)
+    [Win32Ui]::mouse_event(0x0010, 0, 0, 0, 0)
+    Start-Sleep -Milliseconds 700
+}
+
+function Get-OcMenuItems {
+    <#  Every menu item on screen, with its check state and centre.
+
+        Toggle is the item's ToggleState where it has one, which is how the
+        tray's Mute and Deafen marks are read without judging a picture. A
+        menu that has only just opened reports NaN rectangles, so a centre
+        that is not known yet comes back as -1 rather than throwing. #>
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::MenuItem)
+    $items = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+    $out = New-Object System.Collections.ArrayList
+    foreach ($item in $items) {
+        $rect = $item.Current.BoundingRectangle
+        $cx = -1; $cy = -1
+        if (-not [double]::IsNaN($rect.X) -and $rect.Width -gt 0) {
+            $cx = [int]($rect.X + $rect.Width / 2)
+            $cy = [int]($rect.Y + $rect.Height / 2)
+        }
+        $state = ''
+        try {
+            $state = $item.GetCurrentPattern(
+                [System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState
+        } catch { }
+        [void]$out.Add([pscustomobject]@{
+            Name = $item.Current.Name; Toggle = $state; X = $cx; Y = $cy })
+    }
+    $out
+}
+
+function Get-OcTrayButtons {
+    <#  Every notification-area button, by its tooltip, with its centre. #>
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'ToolbarWindow32')
+    $bars = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+    $out = New-Object System.Collections.ArrayList
+    foreach ($bar in $bars) {
+        $kids = $bar.FindAll([System.Windows.Automation.TreeScope]::Children,
+            [System.Windows.Automation.Condition]::TrueCondition)
+        foreach ($kid in $kids) {
+            if (-not $kid.Current.Name) { continue }
+            $rect = $kid.Current.BoundingRectangle
+            if ([double]::IsNaN($rect.X) -or $rect.Width -le 0) { continue }
+            [void]$out.Add([pscustomobject]@{
+                Bar = $bar.Current.Name; Name = $kid.Current.Name
+                X = [int]($rect.X + $rect.Width / 2)
+                Y = [int]($rect.Y + $rect.Height / 2) })
+        }
+    }
+    $out
+}
+
+function Get-OcAppTrayIcons {
+    <#  Opencord's own tray icons, one per running profile.
+
+        Windows puts them in the hidden part of the notification area, whose
+        buttons are only in the tree while the chevron's flyout is open. The
+        flyout is opened only when they are not already readable: clicking
+        the chevron blindly closes an open one, and the icons then read as
+        absent. A tooltip starts "Opencord", so the profiles are told apart
+        by which window an icon opens, not by its name.
+
+        Icons left behind by killed instances linger until something touches
+        them, so a count taken after a run of launches can be too high;
+        restarting Explorer clears them. #>
+    # The comma keeps a single icon an array: PowerShell unrolls a one-item
+    # array on the way out, and the caller asks for .Count.
+    $found = @(Get-OcTrayButtons | Where-Object { $_.Name -match "Opencord" })
+    if ($found.Count) { return ,$found }
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Button')
+    foreach ($button in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+        if ($button.Current.Name -eq 'Notification Chevron') {
+            # Invoke, not a synthetic click: the taskbar moves the chevron
+            # when Explorer restarts, and a click at the rect's centre does
+            # not always open the flyout even when the rect is current.
+            try {
+                $button.GetCurrentPattern(
+                    [System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            } catch {
+                $rect = $button.Current.BoundingRectangle
+                Invoke-OcClick -X ([int]($rect.X + $rect.Width / 2)) -Y ([int]($rect.Y + $rect.Height / 2))
+            }
+            Start-Sleep -Seconds 2
+            break
+        }
+    }
+    ,@(Get-OcTrayButtons | Where-Object { $_.Name -match "Opencord" })
+}
+
+function Save-OcRegion {
+    <#  A PNG of a rectangle of the screen, for what is not a window of the
+        app's own - a tray menu, a tooltip. #>
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][int]$X,
+          [Parameter(Mandatory)][int]$Y, [Parameter(Mandatory)][int]$W,
+          [Parameter(Mandatory)][int]$H)
+    if ($W -le 0 -or $H -le 0) { throw "nothing to capture ($W x $H)" }
+    $bmp = New-Object System.Drawing.Bitmap $W, $H
+    $graphics = [System.Drawing.Graphics]::FromImage($bmp)
+    $graphics.CopyFromScreen($X, $Y, 0, 0, (New-Object System.Drawing.Size $W, $H))
+    $graphics.Dispose()
+    $dir = Split-Path -Parent $Path
+    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
+    $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
+    $Path
+}
