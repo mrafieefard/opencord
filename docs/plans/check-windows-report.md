@@ -755,11 +755,11 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
 - [x] **Offered once:** kill it again while out of the call, and start it again. No bar. — **PASS.** With `alice` out of the call, killed and restarted: no bar.
 - [x] **The × hides the bar**, and doesn't come back after a restart. — **PASS both halves.** The × dismissed the bar and left the window alone (the app did not close, the rect did not change); killed and restarted afterwards, the bar stayed away. Unlike Reconnect, **the × is not shadowed by the caption buttons**: hovering it shows the app's own *Dismiss* tooltip and its hover ring, so only Reconnect is affected by the overlap above.
 - [x] **Joining any call hides it:** joining another voice channel while the bar shows. — **PASS.** With the bar up, **Join voice** put `alice` in the call and the bar went at once. Only one voice channel exists on the test server, so this is the same channel rather than a different one; the box's point — that joining a call clears the offer — holds.
-- [ ] **Another device took the call.**
+- [x] **Another device took the call.** — **PASS, both halves**, checked by the owner with a real `alice2` profile carrying `alice`'s identity (exported and imported, not a copied folder, so it is a second *device* rather than the same one twice).
   1. Make a second profile with `alice`'s identity: export it from **Settings → Identity & keys → Backup → Export identity backup**, start `$env:OPENCORD_PROFILE = "alice2"`, and use **Import identity** there.
   2. `alice` joins the voice channel, then `alice2` joins the same one.
-  3. `alice` shows "Your call in <channel> moved to another device."
-  4. **Reconnect** on `alice` takes the call back, and `alice2` is out of it.
+  3. `alice` shows "Your call in <channel> moved to another device." — **it does.**
+  4. **Reconnect** on `alice` takes the call back, and `alice2` is out of it. — **both.** Click Reconnect on its **left** half: the right half is swallowed by the maximise hit region (§C).
 - [~] **No bar after:** — **one of five done; two of the five cannot be done on #27's build at all.**
   - leaving the call; — **PASS.** `alice` left with Disconnect, was killed and restarted: no bar.
   - `bob`, given Move Members, disconnects `alice` from the member menu; — **not done.** Needs a role with Move Members granted to `bob` first.
