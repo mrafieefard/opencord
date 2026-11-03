@@ -838,7 +838,7 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
 - [ ] **Zoom** works across the whole screen, not only the photo's first size.
 - [ ] **The video** plays in the viewer with its own controls, and the viewer's text is not over them.
 - [ ] **Download** saves to Downloads without asking. The note says "Saved to Downloads", and clicking it opens the folder. A second Download of the same file adds " (2)".
-- [ ] **Opening again:** clicking another photo while the viewer is open shows it in the same window and brings it forward.
+- [x] **Opening again:** clicking another photo while the viewer is open shows it in the same window and brings it forward. — **PASS.** With the viewer open, clicking a second photo swapped the picture in place. **No second window ever appeared**: throughout this section only one `OPENCORD_MEDIA_VIEWER` has existed at a time, which is the half of this box worth measuring rather than judging.
 - [ ] **The tray:**
   - close the main window to the tray with the viewer open: the viewer stays;
   - close the viewer: the app keeps running in the tray;
