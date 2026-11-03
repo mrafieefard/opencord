@@ -395,16 +395,21 @@ void main() {
   });
 
   testWidgets(
-    'macos_leaves_the_title_strips_double_click_to_the_system',
+    'a_double_click_on_the_top_strip_switches_without_closing',
     (tester) async {
-      final (window, _) = await _pumpWindow(tester);
+      final (window, closes) = await _pumpWindow(tester);
       await tester.tapAt(const Offset(400, 10));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.tapAt(const Offset(400, 10));
       await tester.pump(const Duration(seconds: 1));
-      expect(window.calls, isNot(contains('setMode:normal')));
+      expect(window.calls, contains('setMode:normal'));
+      expect(closes, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    variant: TargetPlatformVariant({
+      TargetPlatform.linux,
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
   );
 
   group('zoom, as Telegram\'s, across the whole screen', () {

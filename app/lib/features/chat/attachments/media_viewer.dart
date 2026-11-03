@@ -379,12 +379,9 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
                         height: _titleHeight,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          // macOS's own title bar zooms on a double click,
-                          // which the runner turns into the switch.
-                          onDoubleTap:
-                              Theme.of(context).platform == TargetPlatform.macOS
-                              ? null
-                              : _toggleMode,
+                          // On macOS too: the Flutter view covers the
+                          // system's title bar, which never sees the click.
+                          onDoubleTap: _toggleMode,
                           onPanStart: _normalWindow
                               ? (_) => ref
                                     .read(mediaWindowServiceProvider)
