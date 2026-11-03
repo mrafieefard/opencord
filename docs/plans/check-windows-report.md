@@ -843,11 +843,11 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - close the main window to the tray with the viewer open: the viewer stays;
   - close the viewer: the app keeps running in the tray;
   - **Quit Opencord** from the tray with the viewer open: everything exits.
-- [ ] **Display settings:**
-  - at 100 % and 150 % scaling;
-  - with two monitors, full screen opens on the main window's monitor;
-  - **known, check whether it bites:** with two monitors at different scaling, a remembered normal window is converted with the main window's scaling, so it may reopen at the wrong size on the other monitor;
-  - **known:** a remembered normal window that only just overlaps a monitor still there (after unplugging one) may open nearly off-screen.
+- [~] **Display settings:** — **the scaling part passes; the three that need a second monitor cannot be done on this machine** (one display, `\.\DISPLAY1`, 1920x1080).
+  - at 100 % and 150 % scaling; — **PASS**, checked by the owner at both: the viewer opens correctly either way, full screen genuinely fills the screen and the chrome is the right size and sharp.
+  - with two monitors, full screen opens on the main window's monitor; — **not testable here.** Needs a second display.
+  - **known, check whether it bites:** with two monitors at different scaling, a remembered normal window is converted with the main window's scaling, so it may reopen at the wrong size on the other monitor; — **not testable here**, and still unanswered: this is a *known risk*, so it stays a live question for whoever has two monitors, not a box to tick from this pass.
+  - **known:** a remembered normal window that only just overlaps a monitor still there (after unplugging one) may open nearly off-screen. — **not testable here.** Needs a second display to unplug.
 ## 7. The viewer's player and picture-in-picture (#26, D87)
 
 > **All five boxes pass**, every one checked by hand on `media-viewer-player`. Nothing in this section had to be deferred, and nothing in it is waiting on the merge. D87's picture-in-picture does the whole of what it promises, down to coming back where and how big it was left.
