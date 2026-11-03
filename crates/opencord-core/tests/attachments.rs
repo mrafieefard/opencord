@@ -138,6 +138,11 @@ async fn download(owner: &TestClient, key: &str, attachment_id: i64) -> Vec<u8> 
         .download_attachment(key, attachment_id, path.to_string_lossy().into_owned())
         .await
         .unwrap();
+    let left: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(left, ["saved"], "a save leaves only its file");
     std::fs::read(path).unwrap()
 }
 
