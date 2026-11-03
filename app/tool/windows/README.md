@@ -115,6 +115,32 @@ Two more things about driving a real desktop, learned the same way:
   exactly like a window ignoring them. Prefer `Set-OcFocusOrStop`, which
   retries and tells you when the focus never came.
 
+
+## Keys the app can actually see
+
+`Send-OcKeys` uses `keybd_event`, which sends a virtual key with **scan code
+0**. Flutter's Windows key handling reads the scan code, so it discards
+them. A whole section of the Windows report once said "the media viewer
+takes no keyboard at all" when the truth was that nothing scripted had ever
+reached it — the keys work fine from a real keyboard. `SendKeys` has the
+same fault.
+
+Use **`Send-OcRealKey`** for anything the app itself handles. It sends real
+scan codes through `SendInput`, with the extended-key flag where Windows
+needs one:
+
+```powershell
+Send-OcRealKey -Vk 0x1B                 # Esc
+Send-OcRealKey -Vk 0x0D -Mods @(0x12)   # Alt+Enter
+Send-OcRealKey -Vk 0x27                 # Right arrow
+```
+
+`Send-OcKeys` is still right for shortcuts **Windows** handles before the
+app sees them — Win+Up, Win+Left, Alt+F4 — which is why the snap checks pass
+with it.
+
+**A key that does nothing under a script is not a finding until it has been
+tried by hand.**
 `check_v4.ps1` and `check_bundled_ffmpeg.ps1` need `FFMPEG_DIR` and
 `LIBCLANG_PATH` set, like any build here from W3 on, and
 `check_bundled_ffmpeg.ps1` renames `FFMPEG_DIR` out of the way while it runs —

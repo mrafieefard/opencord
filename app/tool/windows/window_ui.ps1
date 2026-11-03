@@ -428,3 +428,61 @@ function Save-OcRegion {
     $bmp.Dispose()
     $Path
 }
+
+function Send-OcRealKey {
+    <#  A key the app actually receives, unlike Send-OcKeys.
+
+        Send-OcKeys uses keybd_event, which sends a virtual key with scan
+        code 0. Flutter's Windows key handling reads the scan code, so it
+        drops those: a whole section of this report once read as "the media
+        viewer takes no keyboard at all" when in truth nothing scripted had
+        ever reached it. SendKeys has the same fault.
+
+        This sends real scan codes from MapVirtualKey through SendInput,
+        with the extended-key flag where Windows needs one, which Flutter
+        does see. Use it for anything inside the app; Send-OcKeys is still
+        fine for Windows' own shortcuts (Win+Up, Alt+F4), which the shell
+        handles before Flutter sees them.
+
+            Send-OcRealKey -Vk 0x1B                 # Esc
+            Send-OcRealKey -Vk 0x0D -Mods @(0x12)   # Alt+Enter
+    #>
+    param([Parameter(Mandatory)][uint16]$Vk, [uint16[]]$Mods = @())
+    if (-not ('OcKeyInput' -as [type])) {
+        Add-Type -Namespace '' -Name OcKeyInput -MemberDefinition @'
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT { public ushort wVk, wScan; public uint dwFlags, time; public IntPtr dwExtraInfo; }
+    [StructLayout(LayoutKind.Explicit, Size=40)]
+    public struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public KEYBDINPUT ki; }
+    [DllImport("user32.dll")] public static extern uint SendInput(uint n, INPUT[] p, int size);
+    [DllImport("user32.dll")] public static extern uint MapVirtualKeyW(uint code, uint mapType);
+'@
+    }
+    # Keys Windows marks extended; without the flag the app reads the wrong one.
+    $extended = @(0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E, 0x24, 0x23, 0x21, 0x22,
+                  0x5B, 0x5C, 0x6F, 0x0D)
+    function New-OcKeyEvent([uint16]$key, [bool]$up) {
+        $flags = 0x0008                                   # KEYEVENTF_SCANCODE
+        if ($up) { $flags = $flags -bor 0x0002 }          # KEYEVENTF_KEYUP
+        if ($extended -contains $key) { $flags = $flags -bor 0x0001 }
+        $event = New-Object OcKeyInput+INPUT
+        $event.type = 1
+        $event.ki = New-Object OcKeyInput+KEYBDINPUT
+        $event.ki.wVk = 0            # scan code only; the virtual key is ignored
+        $event.ki.wScan = [uint16]([OcKeyInput]::MapVirtualKeyW($key, 0))
+        $event.ki.dwFlags = $flags
+        $event
+    }
+    $events = New-Object System.Collections.ArrayList
+    foreach ($mod in $Mods) { [void]$events.Add((New-OcKeyEvent $mod $false)) }
+    [void]$events.Add((New-OcKeyEvent $Vk $false))
+    [void]$events.Add((New-OcKeyEvent $Vk $true))
+    for ($i = $Mods.Count - 1; $i -ge 0; $i--) {
+        [void]$events.Add((New-OcKeyEvent $Mods[$i] $true))
+    }
+    $array = [OcKeyInput+INPUT[]]$events.ToArray([type]'OcKeyInput+INPUT')
+    $sent = [OcKeyInput]::SendInput([uint32]$array.Length, $array,
+        [System.Runtime.InteropServices.Marshal]::SizeOf([type]'OcKeyInput+INPUT'))
+    Start-Sleep -Milliseconds 400
+    $sent
+}
