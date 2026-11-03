@@ -495,6 +495,35 @@ Also worth knowing: the build rewrites `app/analysis_options.yaml`
 ("Upgrading analysis_options.yaml to exclude build and platform
 directories"). It is easy to sweep into a commit; check `git status` before
 committing after any local Windows build.
+
+### A14. A build's tray icon starts hidden, every time
+
+Windows hides the notification-area icon of any executable it has not seen
+before — the default is *Only show notifications* — and it remembers that
+per **executable path**, in `TrayNotify\IconStreams` on Windows 10.
+
+Every build here lives somewhere different, so each one is a new application
+as far as Windows is concerned:
+
+```
+C:\oc\tray-background\opencord\opencord.exe
+C:\oc\media-viewer-player\opencord\opencord.exe
+C:\o\app\build\windows\x64\runner\Release\opencord.exe   (a local build)
+```
+
+Pin one and the next is still hidden. It is not the app: it registers its
+icon correctly each time.
+
+**So: open the `^` chevron before concluding the tray icon is missing.** Two
+of this report's confusions came from this — once reading the icons as absent
+when they were merely hidden, and once counting a killed instance's ghost
+icon as a live one. Ghosts linger until something hovers over them;
+restarting Explorer clears them.
+
+To put one on the taskbar: drag it out of the chevron's pop-up, or
+**Settings → Personalization → Taskbar → Select which icons appear on the
+taskbar**. `IconStreams` itself is an obfuscated blob — not worth editing by
+hand.
 ## B. Which build to use for which section
 
 The batch is **not merged**, so §0.1's second path applies: each section is
