@@ -642,6 +642,38 @@ is the Linux session's to make and its resolutions are the ones that ship.
 - **Windows 11 only:** sharing a screen's sound needs build 20348 or later.
   **Not run: no Windows 11 PC** (`docs/plans/windows.md`).
 
+## 9.5 Where the run stopped, and what is next
+
+**Stopped at: the PC locked itself a second time**, in the middle of re-running
+§1's checks. `check_window_chrome.ps1` caught it and exited 2 rather than
+scoring the app against a lock screen — the guard doing its job. Nothing that
+injects input or reads the screen can go further until the PC is unlocked.
+
+**The rig is still standing** and does not need rebuilding:
+
+- the server runs on `localhost:7710` with `alice` (owner) and `bob` as its
+  two members, `#general` and the `General` voice channel;
+- both clients run from `C:\oc\tray-background\` (§2's build), tiled side by
+  side; switching sections means killing them and starting the same two
+  profiles from that section's build in table B — the identities and the
+  server stay, because they live in the profile, not the build.
+
+**Pick up at**, in this order, all of them §2 and all needing an unlocked PC:
+
+1. the three closing boxes — Close hides to the tray, messages still arrive,
+   a tray click restores it in the same place and size, and **Settings →
+   Windows & behavior → Close button minimizes to the tray** turned off makes
+   Close quit;
+2. **Quit Opencord** from the menu ends the process;
+3. the voice icon's four states in the `General` voice channel;
+4. *Clicking outside the menu, or Esc, closes it* — attempted twice and
+   inconclusive both times, because the flyout kept closing under the re-read
+   rather than because the menu misbehaved. Open the menu, confirm it is
+   there, then close it one way per run.
+
+Then §3 to §8, which have not been started. §3 needs the network cut
+described in section B; §4's cross-machine half waits for the Mac.
+
 ## 10. Where this goes
 
 - Post the ticked list above in the batch's thread, with the failures,
