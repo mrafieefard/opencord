@@ -822,7 +822,7 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - **known, check whether it bites:** with two monitors at different scaling, a remembered normal window is converted with the main window's scaling, so it may reopen at the wrong size on the other monitor;
   - **known:** a remembered normal window that only just overlaps a monitor still there (after unplugging one) may open nearly off-screen.
 ## 7. The viewer's player and picture-in-picture (#26, D87)
-- [ ] **Rotate:** beside Download at the bottom right, for photos and videos. Each click turns a quarter left; the next item starts unturned.
+- [x] **Rotate:** beside Download at the bottom right, for photos and videos. Each click turns a quarter left; the next item starts unturned. — **PASS, all four parts**, checked by the owner: a quarter anticlockwise per click, four clicks back to the start, the next photo opens unturned rather than carrying the rotation over, and videos rotate as photos do.
 - [x] **The bar** (a video): narrow, centred at the bottom, see-through, and never over the video. — **PASS, every part**, checked by the owner on `short_video.mp4` in the viewer.
   - First row: volume, play, full screen, picture-in-picture and the speed. — all five, in that order.
   - Second row: the time played, the seek bar and the time left. — all three.
