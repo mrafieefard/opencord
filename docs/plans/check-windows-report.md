@@ -849,6 +849,8 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - **known, check whether it bites:** with two monitors at different scaling, a remembered normal window is converted with the main window's scaling, so it may reopen at the wrong size on the other monitor;
   - **known:** a remembered normal window that only just overlaps a monitor still there (after unplugging one) may open nearly off-screen.
 ## 7. The viewer's player and picture-in-picture (#26, D87)
+
+> **All five boxes pass**, every one checked by hand on `media-viewer-player`. Nothing in this section had to be deferred, and nothing in it is waiting on the merge. D87's picture-in-picture does the whole of what it promises, down to coming back where and how big it was left.
 - [x] **Rotate:** beside Download at the bottom right, for photos and videos. Each click turns a quarter left; the next item starts unturned. — **PASS, all four parts**, checked by the owner: a quarter anticlockwise per click, four clicks back to the start, the next photo opens unturned rather than carrying the rotation over, and videos rotate as photos do.
 - [x] **The bar** (a video): narrow, centred at the bottom, see-through, and never over the video. — **PASS, every part**, checked by the owner on `short_video.mp4` in the viewer.
   - First row: volume, play, full screen, picture-in-picture and the speed. — all five, in that order.
@@ -859,7 +861,7 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - the video fills the screen at its own shape, with only the bar and the title buttons left, fading; — it does.
   - Esc ends it first, then closes; — **both, from a real keyboard.** This is what showed the A12 note up as wrong: see below.
   - from a normal window, the window goes full screen and comes back normal, and the next viewer still opens normal. — it does.
-- [ ] **Picture-in-picture:**
+- [x] **Picture-in-picture:** — **PASS, all eight parts**, checked by the owner.
   - the button turns the viewer into a small window, 320 wide with the video's shape, at the bottom right of the screen, playing on without a restart;
   - it stays above other windows, also when another app is active;
   - its own controls: volume top left, back and close top right, play in the middle, the times and seek bar at the bottom; they fade;
