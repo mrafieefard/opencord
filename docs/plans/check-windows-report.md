@@ -132,6 +132,20 @@ Run on `feat/media-viewer-player` (the branch §5 to §7 name).
   skipped, 0 failed**, which is the meaningful Windows result and is what this
   box should ask for.
 
+- **A fourth load-sensitive test, found in CI rather than here:** the UI-harness
+  pull request (#32) adds three PowerShell files and nothing else, and its
+  `Client (macOS)` job still failed on
+  `attachments::range_reader_reads_any_span` — *block 1 wasn't read ahead*
+  (`crates/opencord-core/tests/attachments.rs:628`). The assertion is that a
+  read-ahead of the next block finishes inside a one-second
+  `tokio::time::sleep`, so a busy runner loses the race; 20 of the 21 tests in
+  that target passed. Its `Phone (Android)` job failed in the Android SDK
+  manager (`Failed to install … cmake;3.22.1`), which is the runner, not the
+  code. Both jobs pass on #31 and on every one of #21–#29, so neither belongs
+  to this batch — but **`range_reader_reads_any_span` is a flake worth a fix
+  branch of its own**, next to `fix/flaky-reshape-test`. Re-running the two
+  jobs is what this report calls a pass for #32.
+
 ### A3. The clipboard (upload plan Task 21) — decided
 
 The plan asked the owner to choose. **The owner chose: write `image` and
