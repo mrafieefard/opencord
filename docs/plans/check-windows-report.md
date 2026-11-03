@@ -31,6 +31,9 @@
 | A2 | §5 — `cargo test --workspace --lib --bins --tests` and `flutter test` | **PASS**, with two caveats that are not the batch's — see A2 |
 | A3 | §5 — the clipboard's licence question | **settled by the owner**, see A3 |
 | A4 | §1 — the title bar, as far as a machine can settle it | **partly checked**, see A4 |
+| A5 | This PC ran out of RAM and then out of disk | **fixed enough to carry on**, see A5 |
+| A6 | Integration tests on Windows | **tried, abandoned**, see A6 |
+| A7 | Rebuilding this PC's FFmpeg | **not done, on purpose**, see A7 |
 
 > **The run stopped because the PC locked itself.** The checks in A4 were
 > driven through Win32 — the real mouse and keyboard, and screenshots — and
@@ -182,7 +185,46 @@ drag-to-edge snapping; the edges resizing; 125 % and 150 % scaling; and all
 of §1's private-messages box. The script covers all but the judgement calls
 and the screens behind a server.
 
-### A5. The local FFmpeg rebuild — not done, on purpose
+### A5. This PC ran out of disk, twice over
+
+Worth knowing before anyone runs the rest of these checks here.
+
+- **`cargo test --workspace` needs `-j 4`.** At the default 16 jobs it dies
+  with `error[E0786]: found invalid metadata files for crate opencord_core`
+  → `failed to mmap file 'libopencord_core.rlib': The paging file is too
+  small for this operation to complete. (os error 1455)`. 16 GB of RAM and 16
+  logical cores is not enough for 16 rustc jobs on this workspace.
+- **The disk reached 0 bytes free** during this run and stayed there until it
+  was cleared: `target/debug` alone had grown to **75 GB**, of which 20 GB was
+  the incremental-compilation cache. A full disk does not announce itself —
+  it surfaced as an unrelated-looking build failure (`failed to run custom
+  build command for opusic-sys`) and as `gh run watch` dying mid-stream.
+
+  Freed without a `cargo clean` (which `CLAUDE.md` says to ask about first):
+  `target/debug/incremental` (20 GB, rebuilt on demand) and `app/build`
+  (2.4 GB, this session's own Flutter output) — back to 22 GB free. **The
+  remaining 55 GB of `target/debug` is the owner's to decide about.** Check
+  `df -h /` before the full checks, as `CLAUDE.md` already says.
+
+### A6. Integration tests on Windows — tried, abandoned
+
+CI runs `app/integration_test/*_test.dart` **only on Linux**, under `xvfb`;
+the Windows job runs Clippy, `cargo test`, `flutter pub get` and
+`flutter build windows --release`, and no Dart tests at all. So these have
+never run on Windows, and they drive the app in-process rather than through
+injected input — which would have made them usable even on a locked
+workstation.
+
+`flutter test integration_test/core_bridge_test.dart -d windows` was tried
+and **did not get as far as running**: the Windows debug build failed on
+`opusic-sys v0.7.5`, and the cause was the full disk above, not the test.
+
+It was not retried. These tests are not among the plan's 61 boxes, and a
+second Windows debug build is exactly what filled the disk. Whether they
+should run on Windows in CI is a reasonable question for the Linux session,
+and a separate one from this batch.
+
+### A7. The local FFmpeg rebuild — not done, on purpose
 
 A1 recommends rebuilding this PC's `C:\ffmpeg` with
 `app/tool/windows/build_ffmpeg.ps1`, because the copy here is a hand-installed
