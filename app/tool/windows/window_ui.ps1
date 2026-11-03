@@ -370,12 +370,23 @@ function Get-OcAppTrayIcons {
         absent. A tooltip starts "Opencord", so the profiles are told apart
         by which window an icon opens, not by its name.
 
+        Matched on a name that *starts* with Opencord, not one that merely
+        contains it: while the app is in a voice channel Windows shows its
+        own microphone-in-use indicator, whose tooltip reads "... Opencord
+        is using your microphone", and counting that as a tray icon turns
+        two profiles into three.
+
+        Assign the result before filtering it - "$icons = Get-OcAppTrayIcons"
+        then pipe $icons. The array is returned whole so that .Count is right
+        for a single icon under StrictMode, which means piping the function
+        directly hands Where-Object the array as one item.
+
         Icons left behind by killed instances linger until something touches
         them, so a count taken after a run of launches can be too high;
         restarting Explorer clears them. #>
     # The comma keeps a single icon an array: PowerShell unrolls a one-item
     # array on the way out, and the caller asks for .Count.
-    $found = @(Get-OcTrayButtons | Where-Object { $_.Name -match "Opencord" })
+    $found = @(Get-OcTrayButtons | Where-Object { $_.Name -match "^Opencord" })
     if ($found.Count) { return ,$found }
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
     $root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -397,7 +408,7 @@ function Get-OcAppTrayIcons {
             break
         }
     }
-    ,@(Get-OcTrayButtons | Where-Object { $_.Name -match "Opencord" })
+    ,@(Get-OcTrayButtons | Where-Object { $_.Name -match "^Opencord" })
 }
 
 function Save-OcRegion {
