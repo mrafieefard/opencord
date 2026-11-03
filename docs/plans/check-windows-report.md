@@ -810,9 +810,9 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - seeking works; — it lands where it is put and carries on.
   - a voice message records and plays; — held the microphone, sent it, played it back.
   - playing a voice message pauses the video. — it does, rather than the two sounding at once, which is the part of this box with any teeth.
-- [ ] **Saving:**
-  - Download on a file card asks where to save, and saves there;
-  - **Save all** puts several files in one folder, beside the files already there.
+- [x] **Saving:** — **PASS, both**, checked by the owner.
+  - Download on a file card asks where to save, and saves there; — it asks, and the file lands where it was told. Note this is deliberately unlike the **viewer's** Download, which saves straight to Downloads without asking: two different buttons, each behaving as its own box asks.
+  - **Save all** puts several files in one folder, beside the files already there. — it does, without disturbing what was in the folder.
 - [ ] **The clipboard** (upload plan Task 21). — **the owner's decision is made: the Win32 route, no BSL-1.0** (see A3). Written as the branch `fix/windows-clipboard` (pull request #31); until it merges Windows says "this system's clipboard isn't supported". Once it is in, check both halves by hand:
   - paste a screenshot: Win+Shift+S, then Ctrl+V in the composer;
   - **Copy image** on a photo, then paste it into Paint and into a browser.
