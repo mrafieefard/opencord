@@ -252,6 +252,38 @@ settled against the CI artifact, which is the build that actually ships.
 It still wants doing before anyone trusts a *local* release build or
 `check_bundled_ffmpeg.ps1`.
 
+### A8. The §1 harness was wrong before the app was — two bugs, both fixed
+
+The first full run of `check_window_chrome.ps1` on #22's build reported **4 of
+11 failing**. None of the four was the app.
+
+- **State leaked from one check into the next.** Aero Snap leaves a window in
+  a state Windows remembers. Dragging a *snapped* window does not move it by
+  the drag's delta — Windows unsnaps it and lays the restored size under the
+  cursor — and its edges may refuse to resize at all. So the drag check
+  (`moved to 762,558 … wanted +120,+90`) and the edge-resize check
+  (`1280 -> 1280`) were measuring Windows unsnapping a window, not the app
+  moving or resizing one. Win+Left and Win+Right also *cycle* a window — left
+  half → restored → right half — so sending Right straight after Left only
+  restored it, which is why `Win+RIGHT` reported exactly the reset rect.
+- **A missed click looked like an ignored key.** `Set-OcFocus` already
+  returned whether the foreground really changed, because
+  `SetForegroundWindow` is refused to a background process often enough that
+  its click is the only way in. The script discarded that answer with
+  `[void](…)`, so when the click missed, the keys went nowhere and `Win+Up`
+  was recorded as the app failing to maximise.
+
+Both are fixed on `ci/windows-ui-checks` (#32): `Reset-OcWindow` restores the
+window to a known un-snapped rect before each check that needs one, and
+`Set-OcFocusOrStop` retries the click and **exits 2** — the "proves nothing"
+code — when the foreground never arrives, rather than blaming the app. A third
+commit focuses the window before the first screenshot, since `CopyFromScreen`
+copies the screen and had photographed a browser sitting over the app.
+
+**After the fixes: 11 of 11 pass, on three consecutive runs.** The lesson is
+the one the exit-2 convention already encodes: a UI harness that cannot prove
+it drove the app must say so, not score the app.
+
 ## B. Which build to use for which section
 
 The batch is **not merged**, so §0.1's second path applies: each section is
@@ -376,15 +408,15 @@ is the Linux session's to make and its resolutions are the ones that ship.
 
 ## 1. The title bar (#22) and private messages' title bar (#21)
 
-> Partly settled by `check_window_chrome.ps1` and by hand before the PC locked — see A4. `WS_CAPTION` being set is **not** a failure of the first box: judge the client rect or the screenshot, not the style bit.
-- [~] No system title bar anywhere: at start, after restoring from minimised, and after leaving maximised. — **at start: PASS** (client rect 1264x792 inside a 1280x800 window, so 8 px in all go to the frame against a ~31 px caption; the screenshot shows the app's own header). The other two states are not checked.
-- [~] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen. — **the fresh-profile welcome screen: PASS** (screenshot). The four screens behind an identity and a server are not checked.
-- [ ] Close's hover is the app's own (inverted, monochrome). The others highlight on hover.
-- [ ] Dragging the empty header moves the window, also over a channel's or chat's title.
-- [ ] A double click on the header maximises, and a second one restores.
-- [~] Aero Snap works: drag to the top to maximise, to a side for half the screen; Win+Up, Win+Down, Win+Left and Win+Right too. — **the keyboard half: PASS.** `Win+Left` snapped it to the left half (974x1047 at -7,0; a frameless window hangs its invisible resize border over the edge) and Windows raised Snap Assist over it. From snapped, `Win+Up` gave a quarter (974x568) and `Win+Down` the half back. Dragging to an edge is not checked.
+> Re-run on **#22's own build** after two harness bugs were fixed (see A8): **11 of 11 machine checks pass**, on three consecutive runs. `WS_CAPTION` being set is **not** a failure of the first box: judge the client rect or the screenshot, not the style bit.
+- [~] No system title bar anywhere: at start, after restoring from minimised, and after leaving maximised. — **at start: PASS** (client rect 1264x792 inside a 1280x800 window: 8 px lost in all, against a 23 px caption, and `01-start.png` shows the app's own header strip with no system caption). Minimised and un-maximised are still not measured.
+- [~] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen. — **the welcome screen: PASS** (`04-buttons-rest.png`: minimise, maximise, close, in that order, at the top right). The four screens behind an identity and a server are not checked.
+- [x] Close's hover is the app's own (inverted, monochrome). The others highlight on hover. — **PASS, judged from `05-hover-*.png`.** Close inverts to a light background with a dark glyph and stays monochrome — not Windows' red. Minimise and Maximise take a subtle grey highlight and keep their white glyph.
+- [~] Dragging the empty header moves the window, also over a channel's or chat's title. — **the empty header: PASS** (dragged +120,+90 from 200,120 and landed at 315,206, inside the 12 px tolerance). Over a channel's or a chat's title needs a server.
+- [x] A double click on the header maximises, and a second one restores. — **PASS** (maximised=True then False).
+- [~] Aero Snap works: drag to the top to maximise, to a side for half the screen; Win+Up, Win+Down, Win+Left and Win+Right too. — **the whole keyboard half: PASS.** Win+Up filled the work area (1936x1056 over 1920x1040, the frameless overhang), Win+Down gave 1280x800 back, Win+Left gave 974x1047 at -7,0 and Win+Right 974x1047 at 953,0. Dragging to an edge is still not checked.
 - [-] Hovering Maximise shows Windows 11's snap layouts (Windows 11 only). — **not run: no Windows 11 PC.**
-- [ ] The window's edges and corners resize it.
+- [~] The window's edges and corners resize it. — **the right edge: PASS** (1280 → 1441 on a +160 drag). The other edges and the corners are not checked.
 - [ ] **Settings → Appearance** has no Window frame choice.
 - [ ] **Private messages (#21):**
   - on **Friends**, and in a private chat, the caption buttons are there and the header drags the window;
