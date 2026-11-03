@@ -415,53 +415,51 @@ open-and-close cycles in one session stay clean, and a viewer left in the
 normal window reopens at the same 496×360 client size. **0 crashes, against
 4 in 4 before.**
 
-### A12. The media viewer takes no keyboard input at all
+### A12. The media viewer takes no keyboard until it has been reopened once
 
-Separate from the crash, and with one cause behind several failed boxes:
-**no key reaches the media viewer's Dart**, though the mouse works
-everywhere in it.
+**Corrected twice; this is what it actually is.** The owner found it at the
+keyboard, and it is narrower and more specific than either earlier draft:
 
-| Key | Expected | What happens |
-|---|---|---|
-| **Esc** | closes the viewer | nothing |
-| **Alt+Enter** | switches full screen ↔ normal window | nothing, either direction |
-| **Left / Right** | step through a multi-photo message | nothing; the photo does not change |
+1. Open a photo or video. **Esc does nothing.**
+2. Close the viewer another way — a click beside the photo, or its own
+   Close button.
+3. Open it again. **Esc now closes it, normally.**
 
-The same actions by mouse all work: the Close button closes, the top strip's
-double click switches the mode, and the side strips step the photos. Checked
-with two injection paths, raw `keybd_event` and `SendKeys`, with
-`GetForegroundWindow` confirmed as `OPENCORD_MEDIA_VIEWER` each time.
+So the viewer does take keys, but not on the first open of a session. That
+also explains the two wrong drafts of this note: both were written from
+scripted runs that only ever tested a freshly opened viewer, and never
+reopened one.
 
-**Where it is not.** An earlier draft of this note blamed the Win32 side —
-`WM_SYSKEYDOWN` being eaten in `media_window.cpp`. **That was wrong**, and
-measuring killed it: with the viewer in front, `GetGUIThreadInfo` puts the
-thread's keyboard focus on a `FLUTTERVIEW` whose parent is the **viewer's**
-own window, not the main window's.
+**Why the scripted half of this report could not see it at all.** Synthetic
+keystrokes never reach the viewer, reopened or not — `keybd_event` and
+`SendKeys` both send a virtual key with **scan code 0**, and Flutter's
+Windows key handling works from scan codes, so it drops them. Every "key
+does nothing" in this section came from that, which is why this note once
+claimed the viewer took no keyboard at all. **Keys in the viewer have to be
+checked by a person**; the harness cannot, and a future script should not
+pretend otherwise.
 
-```
-focused hwnd: 1903430  class=FLUTTERVIEW
-  parent:     8326594  class=OPENCORD_MEDIA_VIEWER
-viewer hwnd = 8326594
-```
+**Where it is.** `media_window.cpp` calls `::SetFocus(view_)` at the end of
+`Open()`, straight after `FlutterDesktopEngineCreateViewController` — before
+the new view is ready to take the focus, so it does not stick. A reopen goes
+through `WM_ACTIVATE`, which calls `::SetFocus(view_)` again on a view that
+is ready by then, and from that point keys work. The fix is to set the focus
+once the view is up rather than in the same breath as creating it — posting
+it to the message loop, as the file already does for `kGoFullscreen`, is the
+shape of it.
 
-So the viewer's Flutter view holds the keyboard, and Win32 is delivering to
-it. `media_window.cpp` already forwards focus to the view, both when it opens
-and on `WM_ACTIVATE`. Keys also work normally in the main window's view, so
-Flutter's key handling is fine in this build.
+That is a Windows file, so it is a platform session's to fix, not the Linux
+session's.
 
-**Where it is, then.** Keys arrive at the right view and nothing in Dart acts
-on them, which points at the viewer's own widget tree having no focused node
-inside its view — a second view gets its own focus tree, and shortcuts never
-fire without one. That is shared Dart, not a Windows file, so it goes to the
-Linux session rather than being fixed here.
+**What it costs:** the first photo anyone opens after starting the app does
+not answer Esc, the arrows or Alt+Enter. The mouse works throughout, so it
+reads as the keyboard being unsupported rather than as a bug.
 
 `app/test/widget/chat/media_viewer_test.dart` has a passing
-`alt_enter_switches_the_window_mode`, which sends altLeft+enter and asserts
-`setMode:normal`. It passes because the test harness delivers straight into
-the tree's focus scope; the real app has to get focus there first. A green
-Dart test and a dead shortcut on the machine is exactly the gap this manual
-pass exists to find, and it is also why the test does not protect against
-this returning.
+`alt_enter_switches_the_window_mode`. It passes because the test harness
+delivers straight into the tree's focus scope, so it cannot see a focus that
+never arrived in the real window — which is why it does not protect against
+this.
 
 
 ### A13. Building the Windows app here needs a short path
@@ -828,10 +826,10 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - Second row: the time played, the seek bar and the time left. — all three.
   - It fades with the rest when the mouse rests. — it does.
 - [x] **Speed:** 1x, 1.5x, 2x, 3x and round again. Voices keep their pitch, and the times stay in the video's own time. — **PASS, all three parts**, checked by the owner on `speech_60s.mp4`, which counts the seconds aloud so the last part is measurable rather than a judgement: the spoken count and the displayed time agreed. The four speeds cycle and wrap, and the voice at 2x is faster without rising in pitch.
-- [ ] **Full screen:**
-  - the video fills the screen at its own shape, with only the bar and the title buttons left, fading;
-  - Esc ends it first, then closes;
-  - from a normal window, the window goes full screen and comes back normal, and the next viewer still opens normal.
+- [x] **Full screen:** — **PASS, all three**, checked by the owner.
+  - the video fills the screen at its own shape, with only the bar and the title buttons left, fading; — it does.
+  - Esc ends it first, then closes; — **both, from a real keyboard.** This is what showed the A12 note up as wrong: see below.
+  - from a normal window, the window goes full screen and comes back normal, and the next viewer still opens normal. — it does.
 - [ ] **Picture-in-picture:**
   - the button turns the viewer into a small window, 320 wide with the video's shape, at the bottom right of the screen, playing on without a restart;
   - it stays above other windows, also when another app is active;
