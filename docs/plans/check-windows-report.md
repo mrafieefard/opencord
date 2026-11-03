@@ -23,6 +23,11 @@
 > *inverted and monochrome*?) and the live two-client work are still a
 > person's.
 
+
+> **Doing the rest by hand:** [check-windows-by-hand.md](check-windows-by-hand.md)
+> has a recipe for every box still open or partly done — the build to use, the
+> steps, what counts as a pass, and the traps that waste time.
+
 ## A. What has already been settled mechanically
 
 | # | Check | Result |
