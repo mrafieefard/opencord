@@ -827,7 +827,7 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - First row: volume, play, full screen, picture-in-picture and the speed. — all five, in that order.
   - Second row: the time played, the seek bar and the time left. — all three.
   - It fades with the rest when the mouse rests. — it does.
-- [ ] **Speed:** 1x, 1.5x, 2x, 3x and round again. Voices keep their pitch, and the times stay in the video's own time.
+- [x] **Speed:** 1x, 1.5x, 2x, 3x and round again. Voices keep their pitch, and the times stay in the video's own time. — **PASS, all three parts**, checked by the owner on `speech_60s.mp4`, which counts the seconds aloud so the last part is measurable rather than a judgement: the spoken count and the displayed time agreed. The four speeds cycle and wrap, and the voice at 2x is faster without rising in pitch.
 - [ ] **Full screen:**
   - the video fills the screen at its own shape, with only the bar and the title buttons left, fading;
   - Esc ends it first, then closes;
