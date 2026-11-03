@@ -823,10 +823,10 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - **known:** a remembered normal window that only just overlaps a monitor still there (after unplugging one) may open nearly off-screen.
 ## 7. The viewer's player and picture-in-picture (#26, D87)
 - [ ] **Rotate:** beside Download at the bottom right, for photos and videos. Each click turns a quarter left; the next item starts unturned.
-- [ ] **The bar** (a video): narrow, centred at the bottom, see-through, and never over the video.
-  - First row: volume, play, full screen, picture-in-picture and the speed.
-  - Second row: the time played, the seek bar and the time left.
-  - It fades with the rest when the mouse rests.
+- [x] **The bar** (a video): narrow, centred at the bottom, see-through, and never over the video. — **PASS, every part**, checked by the owner on `short_video.mp4` in the viewer.
+  - First row: volume, play, full screen, picture-in-picture and the speed. — all five, in that order.
+  - Second row: the time played, the seek bar and the time left. — all three.
+  - It fades with the rest when the mouse rests. — it does.
 - [ ] **Speed:** 1x, 1.5x, 2x, 3x and round again. Voices keep their pitch, and the times stay in the video's own time.
 - [ ] **Full screen:**
   - the video fills the screen at its own shape, with only the bar and the title buttons left, fading;
