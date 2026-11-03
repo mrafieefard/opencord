@@ -1706,3 +1706,27 @@ The owner asked for the custom title bar on every platform, with the system or c
 - **Owed by hand:**
   - **Linux:** a real video's bar, speed and picture-in-picture, looked at, not only measured.
   - **Windows and macOS:** everything, in `docs/plans/media-check-windows.md` §3 and `docs/plans/media-check-macos.md` §4.
+
+## D89: FFmpeg plays videos on macOS (2026-11-03)
+
+(For the media uploads plan's P2, steps 1 to 3; built on D87, pull request #26.)
+
+- **Why.** The media player (`opencord-media`'s `player`) is FFmpeg's, and D34 kept FFmpeg off macOS: the viewer said "This video can't play on this computer yet". Videos, voice messages' speed and picture-in-picture all need it.
+- **For playback only.** Calls keep VideoToolbox through `video/codec/macos/` (D34); nothing in a call loads FFmpeg's codecs.
+- **The build** (`app/tool/macos/build_ffmpeg.sh`):
+  - FFmpeg 9.0.2 and dav1d 1.5.4, the versions and checksums of `app/tool/build_ffmpeg.sh`, with its decoders, demuxers, parsers and bitstream filters, and no encoders or protocols;
+  - VideoToolbox decoding for H.264 and HEVC;
+  - dav1d static, inside libavcodec;
+  - universal: x86_64 and arm64 built apart (one is a cross build) and merged with `lipo`; macOS 13 and newer (D34);
+  - LGPL only: no `--enable-gpl` or `--enable-nonfree`.
+- **In the app.**
+  - The five dylibs are named `@rpath/libavcodec.63.dylib` and so on.
+  - The podspec links them from `FFMPEG_DIR`. A Runner build phase, "Bundle FFmpeg", copies them into `Contents/Frameworks`, signs each with the app's identity, and copies FFmpeg's licence to `Resources/FFMPEG-LICENSE.txt`.
+  - Building the app needs `FFMPEG_DIR`. The tests find the dylibs through `DYLD_LIBRARY_PATH`.
+- **CI.** The macOS client job builds FFmpeg with Homebrew's nasm, meson and ninja, and caches it by the script's hash, as the Linux and Windows jobs do.
+- **Checked on the Intel Mac** (macOS 15.8.1):
+  - the build takes about 6 minutes; the dylibs come to 18 MB;
+  - `cargo test -p opencord-media --test player`: 10 passed, none skipped, `the_planned_decoders_are_there` included;
+  - `otool -L` on the app's binary, the core and the dylibs shows only `@rpath` and system paths;
+  - in the app: a 75 s H.264 and AAC video plays in the viewer, seeks, runs at 1.5x and 3x on the video's own clock, and plays on in picture-in-picture.
+- **Owed:** the app on a Mac without MacPorts or Homebrew (or another user account), and on Apple silicon.

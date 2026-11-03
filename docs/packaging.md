@@ -32,6 +32,8 @@ V4L2 cameras without the camera portal would need `--device=all`; the camera por
 
 The release is a universal (x86_64 and arm64) `Opencord.app`, zipped, needing macOS 13 (D34).
 
+- **Carried:** the five FFmpeg 9.0.2 LGPL dylibs (avcodec, avformat, avutil, swresample, swscale; 18 MB, universal) in `Contents/Frameworks`, with static dav1d 1.5.4 (BSD-2) in libavcodec and FFmpeg's licence as `Resources/FFMPEG-LICENSE.txt`. They decode only, for the media player; calls use VideoToolbox (D89). Built by `app/tool/macos/build_ffmpeg.sh`; the app builds with `FFMPEG_DIR` pointing at its result.
+
 - **Usage strings** (`app/macos/Runner/Info.plist`), which macOS shows when it asks:
   - microphone: "Opencord uses your microphone in voice channels.";
   - camera: "Opencord uses your camera when you turn it on in a voice channel.";
