@@ -383,16 +383,38 @@ about.
 3. The viewer and the main window both vanish; no `opencord.exe` is left.
    The session log's last line is the crash above.
 
-The fault is inside `flutter_windows.dll`, which says the embedder is being
-asked to do something after teardown rather than the Dart code being wrong —
-the media viewer is a second `FlutterViewController` in
-`app/windows/runner/media_window.cpp`, and the order in which that view and
-its window are destroyed is where to look.
+**The cause, and the fix — PR #39.** The viewer is a second view on the app's
+**own** engine, made with `FlutterDesktopEngineCreateViewController` from the
+engine id Dart passes in. The only teardown the embedder exports is
+`FlutterDesktopViewControllerDestroy`, and its own header says it
+
+> Shuts down the engine instance associated with |controller|
+
+which here is the engine the **main window** is still running on. Closing the
+viewer therefore stopped the engine underneath the main window, and the app
+came apart. There is no `EngineDestroyViewController` to call instead — the
+exported symbols were checked.
+
+A first attempt deferred that destroy out of the engine's callback, on a
+re-entrancy theory; it did **not** help, because the destroy call itself is
+the problem rather than when it is made. (Worth recording how that nearly
+passed: the window is hidden before teardown, and a check that asks whether
+the viewer window is still *visible* says "closed" either way. The crash log
+is the only honest witness.)
+
+What ships instead: closing hides the window and keeps the view built, and
+the next open shows the same one — which is also where the remembered mode
+and place now come from. Verified on a local release build against the crash
+log: all three close routes leave the app and its main window alive, four
+open-and-close cycles in one session stay clean, and a viewer left in the
+normal window reopens at the same 496×360 client size. **0 crashes, against
+4 in 4 before.**
 
 ### A12. The media viewer takes no keyboard input at all
 
 Separate from the crash, and with one cause behind several failed boxes:
-**no key reaches the media viewer**, though the mouse works everywhere in it.
+**no key reaches the media viewer's Dart**, though the mouse works
+everywhere in it.
 
 | Key | Expected | What happens |
 |---|---|---|
@@ -400,24 +422,76 @@ Separate from the crash, and with one cause behind several failed boxes:
 | **Alt+Enter** | switches full screen ↔ normal window | nothing, either direction |
 | **Left / Right** | step through a multi-photo message | nothing; the photo does not change |
 
-The same actions by mouse all work: the Close button closes (and crashes),
-the top strip's double click switches the mode, and the side strips step the
-photos. Keys that **Windows** handles rather than the app do work on the same
-window — Win+Up gives full screen, Alt+F4 reaches it (and crashes it). So the
-window is focused and receiving input; what fails is the delivery of keys to
-Flutter.
-
-Checked with two injection paths, raw `keybd_event` and `SendKeys`, with
+The same actions by mouse all work: the Close button closes, the top strip's
+double click switches the mode, and the side strips step the photos. Checked
+with two injection paths, raw `keybd_event` and `SendKeys`, with
 `GetForegroundWindow` confirmed as `OPENCORD_MEDIA_VIEWER` each time.
 
-**This is Windows-only, and the shared code is already right:**
+**Where it is not.** An earlier draft of this note blamed the Win32 side —
+`WM_SYSKEYDOWN` being eaten in `media_window.cpp`. **That was wrong**, and
+measuring killed it: with the viewer in front, `GetGUIThreadInfo` puts the
+thread's keyboard focus on a `FLUTTERVIEW` whose parent is the **viewer's**
+own window, not the main window's.
+
+```
+focused hwnd: 1903430  class=FLUTTERVIEW
+  parent:     8326594  class=OPENCORD_MEDIA_VIEWER
+viewer hwnd = 8326594
+```
+
+So the viewer's Flutter view holds the keyboard, and Win32 is delivering to
+it. `media_window.cpp` already forwards focus to the view, both when it opens
+and on `WM_ACTIVATE`. Keys also work normally in the main window's view, so
+Flutter's key handling is fine in this build.
+
+**Where it is, then.** Keys arrive at the right view and nothing in Dart acts
+on them, which points at the viewer's own widget tree having no focused node
+inside its view — a second view gets its own focus tree, and shortcuts never
+fire without one. That is shared Dart, not a Windows file, so it goes to the
+Linux session rather than being fixed here.
+
 `app/test/widget/chat/media_viewer_test.dart` has a passing
 `alt_enter_switches_the_window_mode`, which sends altLeft+enter and asserts
-`setMode:normal`. A green Dart test and a dead shortcut on the machine is
-exactly the gap this manual pass exists to find. `media_window.cpp` is where
-the viewer's window procedure lives, and Alt+Enter and Esc arrive as
-`WM_SYSKEYDOWN`/`WM_KEYDOWN` on the host window before any child view.
+`setMode:normal`. It passes because the test harness delivers straight into
+the tree's focus scope; the real app has to get focus there first. A green
+Dart test and a dead shortcut on the machine is exactly the gap this manual
+pass exists to find, and it is also why the test does not protect against
+this returning.
 
+
+### A13. Building the Windows app here needs a short path
+
+`flutter build windows --release` fails in this repo at its normal place:
+
+```
+FileTracker : error FTK1011: could not create the new file tracking log file:
+C:\Users\mrafi\dev\opencord\app\build\windows\x64\plugins\opencord_core\cargokit_build\
+  x86_64-pc-windows-msvc\release\build\opusic-sys-<hash>\out\build\CMakeFiles\
+  CMakeScratch\TryCompile-<id>\...\Lib-link.read.1.tlog
+```
+
+That path is **262 characters** — two over `MAX_PATH`. `LongPathsEnabled` is
+already `1` on this machine; MSBuild's FileTracker does not honour it. Three
+things that look like they should help and do not:
+
+- building through `C:\src\opencord` (the short symlink): CMake resolves it
+  back to the long real path;
+- `CARGO_TARGET_DIR=C:\t`: cargokit sets its own `cargokit_build` and wins;
+- a junction from `app/build` to `C:\b`: the files land in the short place
+  but the path *string* MSBuild passes around is unchanged.
+
+What works is a genuinely short source path. A worktree does it without
+disturbing the checkout:
+
+```
+git worktree add C:\o <branch>
+cd C:\o\app && flutter build windows --release
+```
+
+Also worth knowing: the build rewrites `app/analysis_options.yaml`
+("Upgrading analysis_options.yaml to exclude build and platform
+directories"). It is easy to sweep into a commit; check `git status` before
+committing after any local Windows build.
 ## B. Which build to use for which section
 
 The batch is **not merged**, so §0.1's second path applies: each section is
@@ -721,10 +795,10 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
 
   > **Defect: Alt+Enter does not switch the viewer's mode, in either direction.** With the viewer focused (`GetForegroundWindow` is `OPENCORD_MEDIA_VIEWER`), Alt+Enter from full screen leaves it at 1920×1080 and from the normal window leaves it at 496×368. Tried with two different injection paths — raw `keybd_event` and `SendKeys('%{ENTER}')` — and **Win+Up on the very same window worked moments before**, so keys do reach it. What makes this worth chasing: the behaviour **is** specified and covered by a passing Dart widget test, `alt_enter_switches_the_window_mode` in `app/test/widget/chat/media_viewer_test.dart`, which sends altLeft+enter and asserts `setMode:normal`. So the shared logic is right and something Windows-specific swallows the keystroke before Flutter sees it. Alt+Enter arrives as **`WM_SYSKEYDOWN`**, not `WM_KEYDOWN`, and `app/windows/runner/media_window.cpp` ends its window procedure at `DefWindowProcW` — that is the place to look. Being a Windows file, this one is a platform session's to fix rather than the Linux session's.
 - [x] **Remembering:** close the viewer in the normal window and open another photo: it opens normal, at the same place and size. The same after restarting the app. — **PASS, and across a restart.** Left in the normal window at 496×368, the app crashed on close (below), was started again, and the next photo opened **in the normal window at 496×368** — the stronger half of the box, since it survived a process death rather than a tidy shutdown.
-- [ ] **Closing:** — **one of three; the other two take the whole app down. See the crash below.**
-  - Esc closes the viewer, also right after typing a letter in it; — **FAILS.** With the viewer confirmed foreground, Esc does nothing, through `keybd_event` and `SendKeys('{ESC}')` alike. It is the keyboard, not Esc — see the note below.
-  - in full screen, a click beside the photo closes it. In the normal window it doesn't; — **the normal window half: PASS** (clicked beside the photo, the viewer stayed and the app lived). **The full-screen half CRASHES the app**, twice out of two.
-  - Alt+F4 and the taskbar button's Close close only the viewer; the app stays. — **FAILS: Alt+F4 takes the main window and the process with it**, by the same crash.
+- [~] **Closing:** — **two of three pass once PR #39 is in; Esc still does not, for the keyboard reason in A12.**
+  - Esc closes the viewer, also right after typing a letter in it; — **FAILS**, and not because of the crash: no key reaches the viewer's Dart at all (A12). Unaffected by #39.
+  - in full screen, a click beside the photo closes it. In the normal window it doesn't; — **PASS on both halves with #39.** In full screen the click closes the viewer and the app stays up; in the normal window it correctly does nothing. On the build under test it crashed the app instead, twice out of two.
+  - Alt+F4 and the taskbar button's Close close only the viewer; the app stays. — **Alt+F4: PASS with #39** — the viewer goes, the main window and the process stay. The viewer's own Close button behaves the same. The taskbar button's Close is not separately checked. On the build under test both crashed the app.
 - [~] **Moving around:** — **the mouse half passes, the keyboard half does not.**
   - in the three-photo message, the left and right arrows and the side strips step through it; — **side strips: PASS.** Clicking the right strip went from *Photo 1 of 3* to *Photo 2 of 3*, with `‹` and `›` drawn on the strips. **Arrow keys: FAIL** — two Right presses on the focused viewer left the same photo on screen.
   - "Photo 2 of 4" and "name · date at time" show at the bottom left; — **PASS.** *Photo 1 of 3* then *Photo 2 of 3*, with *Alice · 3 Nov at 17:24* under it, bottom left.
