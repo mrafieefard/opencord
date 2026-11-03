@@ -453,6 +453,24 @@ files that must not be hand-merged at all.
 Found by merging the nine locally; that branch was thrown away, since the merge
 is the Linux session's to make and its resolutions are the ones that ship.
 
+### The Android job fails on the runner, not on the code
+
+`Phone (Android)` failed twice on #32, which adds **only PowerShell files**
+and cannot reach the mobile build at all:
+
+- `com.android.builder.sdk.InstallFailedException: Failed to install the
+  following SDK components: cmake;3.22.1` — the SDK manager;
+- `java.io.IOException: No space left on device`, configuring
+  `:react-native-worklets`, which then also failed to write
+  `~/.gradle/caches/9.4.1/file-changes/last-build.bin` — the runner's disk.
+
+The first passed on a plain re-run with no change pushed; the second is
+re-running as this is written. The mobile job evidently
+sits close enough to the runner's disk limit that a cache miss tips it over,
+so **a red `Phone (Android)` on this batch is worth re-running before it is
+read as a regression**. Freeing space in the job, or caching less of the
+Gradle and node_modules trees, would stop it costing a re-run each time.
+
 
 ---
 
