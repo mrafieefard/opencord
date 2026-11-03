@@ -680,12 +680,12 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - close from picture-in-picture with a normal window remembered, then open a photo: a normal window with its borders, laid out as the viewer, not as picture-in-picture.
 ## 8. Scrolling and compact mode (#28, #29)
 - [x] **Compact mode (#28):** in **Settings → Appearance → Message density**, choose **Compact**. On a wide window, a text channel's lines run the chat's whole width, 16 px in from each side, as in private chats. Comfortable bubbles stay in a centred column. — **PASS**, shown with the same message in both densities in a 1900 px window (`s8-compact-text.png`, `s8-comfy-text.png`). One long line was sent so it had to wrap, since media attachments have their own widths and settle nothing. **Compact**: the line runs x ≈ 470 → 1600, wrapping only at the chat's right edge, in rows with the avatar in its own column. **Comfortable**: the same text is a bubble held to x ≈ 890 → 1450, a centred column well short of both edges. The density is saved behind the *unsaved changes* bar, like the rest of that page. Put back to Comfortable afterwards.
-- [ ] **Private chats (#29):**
-  - a chat opens at the newest message;
-  - a new message from `bob` scrolls into view while you're at the newest one;
-  - while you read older messages, new ones don't move you;
-  - sending takes you to the newest message;
-  - scrolling up loads older messages without a jump.
+- [x] **Private chats (#29):** — **PASS, all five.** Driven in a real private chat between `alice` and `bob` with **113 numbered messages**, so the line number at the top of the view measures the scroll position rather than a judgement about it.
+  - a chat opens at the newest message; — **PASS.** Leaving for Friends and coming back lands on the last line, at the bottom.
+  - a new message from `bob` scrolls into view while you're at the newest one; — **PASS.** `BOB-A` appeared below the last line without being asked for.
+  - while you read older messages, new ones don't move you; — **PASS.** Scrolled up to lines 3–6, `bob` sent `BOB-B`, and the view was pixel-identical afterwards.
+  - sending takes you to the newest message; — **PASS.** Sent from lines 3–6 and the view jumped to the bottom, the new line under `BOB-A`/`BOB-B`.
+  - scrolling up loads older messages without a jump. — **PASS**, sampled rather than eyeballed: the top visible line went **86 → 68 → 51 → 39 → 28 → 17** over six equal scrolls, monotonic, with no backward step and no reset. The steps shorten only because the older lines wrap to two rows, so fewer fit. Scrolling further reaches line 1 and the chat's own start divider.
 - [ ] **Remembering the place (#29):**
   - scroll halfway up a long channel, go to another channel and come back: the same place;
   - the same for a private chat, and each chat keeps its own place;
