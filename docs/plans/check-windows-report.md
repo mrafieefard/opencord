@@ -478,16 +478,16 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
 
 ## 1. The title bar (#22) and private messages' title bar (#21)
 
-> Re-run on **#22's own build** after two harness bugs were fixed (see A8): **11 of 11 machine checks pass**, on three consecutive runs. `WS_CAPTION` being set is **not** a failure of the first box: judge the client rect or the screenshot, not the style bit.
+> Re-run on **#22's own build** after two harness bugs were fixed (see A8): **11 of 11 machine checks pass**, on three consecutive runs. **3 of 11 boxes pass outright, 6 partly.** `WS_CAPTION` being set is **not** a failure of the first box: judge the client rect or the screenshot, not the style bit.
 - [~] No system title bar anywhere: at start, after restoring from minimised, and after leaving maximised. — **at start: PASS** (client rect 1264x792 inside a 1280x800 window: 8 px lost in all, against a 23 px caption, and `01-start.png` shows the app's own header strip with no system caption). Minimised and un-maximised are still not measured.
-- [~] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen. — **welcome screen, a channel (`#general`), Friends and "no servers": PASS. But which build matters.** On **#22's build alone the Private messages side has no caption buttons at all** — hovering where Close belongs leaves every pixel at the background `14,14,16`, so they are absent, not merely dark. On **#21's build they are there** on the same screens and the same profile. That is the split the two pull requests describe (#22 the app's title bar, #21 the private-messages one), not a regression — but it does mean **neither build alone satisfies this box**, and it is only true once they are both on `beta`. A private chat and Settings are still not checked.
+- [~] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen. — **welcome screen, a channel (`#general`), Friends and "no servers": PASS. But which build matters.** On **#22's build alone the Private messages side has no caption buttons at all** — hovering where Close belongs leaves every pixel at the background `14,14,16`, so they are absent, not merely dark. On **#21's build they are there** on the same screens and the same profile. That is the split the two pull requests describe (#22 the app's title bar, #21 the private-messages one), not a regression — but it does mean **neither build alone satisfies this box**, and it is only true once they are both on `beta`. **Settings: PASS too** — the caption buttons sit at the top right of the Settings page on both builds. Only a private chat is left.
 - [x] Close's hover is the app's own (inverted, monochrome). The others highlight on hover. — **PASS, judged from `05-hover-*.png`.** Close inverts to a light background with a dark glyph and stays monochrome — not Windows' red. Minimise and Maximise take a subtle grey highlight and keep their white glyph.
 - [~] Dragging the empty header moves the window, also over a channel's or chat's title. — **the empty header: PASS** (dragged +120,+90 from 200,120 and landed at 315,206, inside the 12 px tolerance). Over a channel's or a chat's title needs a server.
 - [x] A double click on the header maximises, and a second one restores. — **PASS** (maximised=True then False).
 - [~] Aero Snap works: drag to the top to maximise, to a side for half the screen; Win+Up, Win+Down, Win+Left and Win+Right too. — **the whole keyboard half: PASS.** Win+Up filled the work area (1936x1056 over 1920x1040, the frameless overhang), Win+Down gave 1280x800 back, Win+Left gave 974x1047 at -7,0 and Win+Right 974x1047 at 953,0. Dragging to an edge is still not checked.
 - [-] Hovering Maximise shows Windows 11's snap layouts (Windows 11 only). — **not run: no Windows 11 PC.**
 - [~] The window's edges and corners resize it. — **the right edge: PASS** (1280 → 1441 on a +160 drag). The other edges and the corners are not checked.
-- [ ] **Settings → Appearance** has no Window frame choice.
+- [x] **Settings → Appearance** has no Window frame choice. — **PASS on #22's build**, where the page ends at *Reduce motion* (`pr22-appearance.png`). It is worth saying what this looks like elsewhere: on **#24's build the choice is still there** — a **WINDOW FRAME** section offering *Auto / Custom / System* and "Takes effect when Opencord starts next" (`alice-appearance.png`). That is #22 doing exactly what it says, not a disagreement between the builds; the box is only true once #22 is on `beta`. The section is below the fold at this window size, so scroll before judging it absent.
 - [~] **Private messages (#21):** — **the caption buttons on Friends: PASS** on #21's build (`pm21-header.png`), and absent on #22's, as above. The rest of this box is not checked yet.
   - on **Friends**, and in a private chat, the caption buttons are there and the header drags the window;
   - the empty space to the right of Friends' tabs (Online, All, Pending…) drags it too;
@@ -495,24 +495,24 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
 - [ ] At 100 %, 125 % and 150 % scaling, the buttons are sharp and line up with the header.
 ## 2. The tray, and running in the background (#24)
 
-> Driven on #24's build with both clients running. **4 of 11 boxes pass outright, 2 partly.** The icons live in the *hidden* part of the notification area here, which is Windows' choice, not the app's — read them by opening the chevron.
+> Driven on #24's build with both clients running. **7 of 11 boxes pass outright, 3 partly.** The icons live in the *hidden* part of the notification area here, which is Windows' choice, not the app's — read them by opening the chevron.
 - [~] **The icon** shows in the notification area. It is sharp at 100 % and 150 % scaling, and at 150 % after a restart. — **it shows: PASS** (one icon per running client, in the overflow area). Sharpness at 100 % and 150 % is not judged.
 - [x] **Hovering it** shows the unread summary, such as "No unread messages" or "3 unread messages, 1 mention". — **PASS.** With `alice` minimised and two messages sent from `bob`, `alice`'s icon reads `Opencord` / `2 unread messages` and `bob`'s own reads `Opencord` / `No unread messages`.
 - [~] **A left click** brings the window forward and focuses it: when it's minimised, when it's hidden behind another app, and when it was closed to the tray. — **minimised: PASS** (both minimised, a left click on `bob`'s icon restored and focused `bob` and left `alice` minimised). **Behind another app: PASS** (`bob` focused in front, a left click on `alice`'s icon brought `alice` to the foreground). Closed to the tray is not tested yet.
 - [x] **A right click** opens the menu: Open Opencord, Mute, Deafen, Status (Online, Idle, Do not disturb, Invisible), Quit Opencord. Mute and Deafen show a check mark when on, Status a mark beside the current one, and the marks follow when they change from inside the app. — **PASS, all four parts.** The menu holds exactly those five entries in that order; Status opens Online / Idle / Do not disturb / Invisible with a mark against Online; and after clicking the mic **inside `alice`'s window**, the same menu shows a check mark against Mute (`tray-menu-muted.png`), with Deafen still clear.
-- [ ] **Clicking outside the menu, or Esc,** closes it.
-- [ ] **Closing:**
-  - the window's Close hides it, and the app keeps running: messages still arrive (send one from `bob`) and the icon's unread dot appears;
-  - a tray click brings it back, in the same place, at the same size;
-  - **Settings → Windows & behavior → Close button minimizes to the tray** is shown on Windows. Turned off, Close quits.
-- [ ] **Quit Opencord** in the menu exits the process (Task Manager shows no `opencord.exe` for that profile).
+- [x] **Clicking outside the menu, or Esc,** closes it. — **PASS both ways** (menu open reads 2 of its named items; after Esc, 0; reopened, 2; after a click elsewhere, 0).
+- [x] **Closing:**
+  - the window's Close hides it, and the app keeps running: messages still arrive (send one from `bob`) and the icon's unread dot appears; — **PASS.** Close left the process alive with no window, `bob`'s message still arrived, and `alice`'s tooltip went to `1 unread message`.
+  - a tray click brings it back, in the same place, at the same size; — **PASS.** Closed at `100,80 1000x820`, came back at `100,80 1000x820`.
+  - **Settings → Windows & behavior → Close button minimizes to the tray** is shown on Windows. Turned off, Close quits. — **PASS.** The switch is there and on by default; turned off **and saved**, Close ended the process. Note the settings page keeps changes behind a *Careful — you have unsaved changes!* bar, so a toggle that is not saved does nothing — it looked at first like the setting had no effect.
+- [x] **Quit Opencord** in the menu exits the process (Task Manager shows no `opencord.exe` for that profile). — **PASS.** No `opencord.exe` left afterwards.
 - [x] **Explorer restart:** run `Stop-Process -Name explorer -Force`, then wait for it to come back (or start `explorer.exe`). The icon comes back by itself and still works. — **PASS.** Explorer was killed with both clients running; both icons came back on their own, with no restart of the app, and a click on one still opened its own window. It also cleared the ghost icons left by earlier killed instances — worth knowing, since a stale icon makes the count wrong.
-- [ ] **The voice icon:**
-  - in a voice channel: a ring;
-  - while you talk: a filled circle;
-  - muted or deafened: the ring with a slash;
-  - out of voice: the chat bubble again;
-  - the unread dot stays in every state.
+- [~] **The voice icon:** — **three of five shapes confirmed, read off the icon's own pixels** (`sheet-voice.png`, `sheet-mute.png`, `sheet-left.png`):
+  - in a voice channel: a ring; — **PASS**, a plain ring the moment `alice` joined `General`.
+  - while you talk: a filled circle; — **not checked.** It needs real sound going into the microphone the app is listening to; VB-CABLE is installed, so this is wiring `alice`'s input to `CABLE Output` and playing a tone into `CABLE Input`, not a limitation of the app.
+  - muted or deafened: the ring with a slash; — **muted: PASS**, the ring gains a slash from the mic button inside the app. Deafened not checked separately.
+  - out of voice: the chat bubble again; — **PASS**, both clients were bubbles before joining and `alice`'s went back to a bubble on Disconnect.
+  - the unread dot stays in every state. — **not checked**; it needs unread messages held across each of the states above.
 - [x] **Two profiles** each get their own icon, and each icon's clicks go to its own window. — **PASS.** Two icons for two profiles; the first opens `alice` (pid 7932) and the second `bob` (pid 16508), each leaving the other alone. Note both tooltips start `Opencord` with no profile in them, so they are told apart by what they open, not by their name.
 - [ ] **Start minimized** with **Launch at login**: after signing out and in, Opencord starts in the tray with no window.
 ## 3. The reconnect bar (#27), and the volume bug
