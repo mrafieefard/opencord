@@ -143,8 +143,9 @@ Run on `feat/media-viewer-player` (the branch §5 to §7 name).
   manager (`Failed to install … cmake;3.22.1`), which is the runner, not the
   code. Both jobs pass on #31 and on every one of #21–#29, so neither belongs
   to this batch — but **`range_reader_reads_any_span` is a flake worth a fix
-  branch of its own**, next to `fix/flaky-reshape-test`. Re-running the two
-  jobs is what this report calls a pass for #32.
+  branch of its own**, next to `fix/flaky-reshape-test`. Re-running just those
+  two jobs turned both green on the first retry (macOS 37m33s, Android 50m20s), which
+  is #32 all thirteen checks green.
 
 ### A3. The clipboard (upload plan Task 21) — decided
 
