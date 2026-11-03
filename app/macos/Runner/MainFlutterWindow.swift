@@ -457,6 +457,20 @@ final class MediaViewerNSWindow: NSWindow {
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
+
+  /// A double click on the top strip, the app's 32 pt title area. The
+  /// Flutter view covers macOS's own title bar, which never sees it.
+  var onTitleDoubleClick: (() -> Void)?
+  private static let titleHeight: CGFloat = 32
+
+  override func sendEvent(_ event: NSEvent) {
+    if event.type == .leftMouseDown, event.clickCount == 2,
+      event.locationInWindow.y >= frame.height - Self.titleHeight
+    {
+      onTitleDoubleClick?()
+    }
+    super.sendEvent(event)
+  }
 }
 
 /// The "dev.opencord/media_window" method channel (D86): the media
@@ -554,6 +568,7 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
     viewer.contentMinSize = Self.minSize
     viewer.contentViewController = viewController
     viewer.delegate = self
+    viewer.onTitleDoubleClick = { [weak self] in self?.switchMode() }
     window = viewer
     controller = viewController
 
@@ -641,10 +656,15 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
     return false
   }
 
-  /// Green switches between full screen and the normal window.
-  func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
+  /// Green, or a double click on the top strip, switches between full
+  /// screen and the normal window.
+  private func switchMode() {
     fullscreen.toggle()
     apply()
+  }
+
+  func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
+    switchMode()
     return false
   }
 
