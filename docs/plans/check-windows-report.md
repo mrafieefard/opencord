@@ -798,11 +798,11 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
 ## 5. Media uploads (the upload plan's P1)
 - [x] **FFmpeg.** The shipped FFmpeg DLLs contain the decoders and demuxers from the upload plan's Task 32, `libdav1d` included. — **PASS, see A1.** Checked against the CI artifact's own `avcodec-63.dll`, not a local build: all four Task 32 lists byte-identical, `libdav1d` in and statically linked, LGPL, all five DLLs bundled. Nothing missing, so no switch of build and no `docs/packaging.md` change.
 - [x] **Tests:** `cargo test --workspace --lib --bins --tests` and `flutter test` pass. — **PASS with two caveats, see A2.** Rust: green but for three load-sensitive `video::sender` tests in code the batch doesn't touch (they pass alone; `fix/flaky-reshape-test` fixes one and is unmerged), and the workspace needs `-j 4` on this PC. Dart: 1121/1121 pass excluding goldens; the 18 golden failures are Linux-rendered references that Windows CI never checks.
-- [ ] **Sending:**
-  - drop a photo, a video and a PDF on the composer;
-  - the upload bar moves, and Cancel stops one;
-  - the sent photo shows in the grid at its size, with no jump;
-  - the video tile shows its first frame and its length.
+- [x] **Sending:** — **PASS, all four**, checked by the owner by dragging from Explorer rather than through the paperclip, so the drop path itself is covered.
+  - drop a photo, a video and a PDF on the composer; — all three attach.
+  - the upload bar moves, and Cancel stops one; — the bar runs rather than jumping, and Cancel on a large upload (`speech_60s.mp4`, 34 MB) stopped that one and left the others alone.
+  - the sent photo shows in the grid at its size, with no jump; — it does.
+  - the video tile shows its first frame and its length. — both.
 - [ ] **Playing:**
   - a video plays in the chat, then in the viewer, with sound;
   - seeking works;
