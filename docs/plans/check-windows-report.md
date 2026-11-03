@@ -627,15 +627,17 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - paste a screenshot: Win+Shift+S, then Ctrl+V in the composer;
   - **Copy image** on a photo, then paste it into Paint and into a browser.
 ## 6. The media viewer's window (#25, D86)
-- [ ] **Opening:**
-  - click a photo: a new window opens and covers the whole monitor, taskbar included;
-  - it has a taskbar button of its own;
-  - the chat and desktop show through behind the photo, dimmed. If the background is solid dark instead, transparency failed: note it with a screenshot. That's the known risk.
-- [ ] **Buttons:** Windows' minimise, restore and close at the top right, in white. Close hovers inverted, as the main window's does.
-- [ ] **Modes:**
-  - Restore gives a normal window, 800×600 the first time. Its borders resize it, down to 480×360, and dragging the background moves it;
-  - Maximise, Win+Up, dragging it to the top of the screen, and Aero Snap all turn it back into full screen;
-  - a double click on the top strip, or Alt+Enter, switches too.
+- [x] **Opening:** — **PASS, all three, and the known risk did not bite.**
+  - click a photo: a new window opens and covers the whole monitor, taskbar included; — **PASS.** A second window of class `OPENCORD_MEDIA_VIEWER` appears at **0,0 1920×1080** on a 1920×1080 monitor, so it covers the taskbar too, not just the work area.
+  - it has a taskbar button of its own; — **PASS.** It is an **unowned** top-level window (`GetWindow(GW_OWNER)` = 0) with no `WS_EX_TOOLWINDOW`, which is exactly what makes Windows give a window its own button.
+  - the chat and desktop show through behind the photo, dimmed. If the background is solid dark instead, transparency failed: note it with a screenshot. That's the known risk. — **PASS: transparency works.** `s6-viewer.png` is a whole-desktop capture with the viewer open, and the windows behind it are legible through the dimming. **The known risk did not bite on this machine.**
+- [x] **Buttons:** Windows' minimise, restore and close at the top right, in white. Close hovers inverted, as the main window's does. — **PASS** (`s6-vbtn-sheet.png`). Minimise, restore and close sit at the top right in white, and Close inverts to a white background with a dark glyph on hover, matching the main window.
+- [~] **Modes:** — **everything passes except Alt+Enter.**
+  - Restore gives a normal window, 800×600 the first time. Its borders resize it, down to 480×360, and dragging the background moves it; — **PASS, all three.** Restore gave exactly **800×600** at 560,220. Dragged well past the minimum, the window stops at a 496×368 *window* rect whose **client rect is exactly 480×360** — the plan's number; the extra 16×8 is the invisible resize border, so this is the limit the plan asks for and not a near miss. Dragging the background moved it +144,+96 against +150,+100 asked, inside drag rounding.
+  - Maximise, Win+Up, dragging it to the top of the screen, and Aero Snap all turn it back into full screen; — **PASS.** The Maximise button gives 0,0 1920×1080 and toggles back; Win+Up gives the same. **Dragging to the top works, but only with a dwell at the edge** — released immediately the window merely moves to y=0, which looks like a failure and is the harness being too quick, not the app. Windows' own drag-snap is enabled here (`WindowArrangementActive = 1`).
+  - a double click on the top strip, or Alt+Enter, switches too. — **double click: PASS** (full screen → the remembered normal window). **Alt+Enter: FAILS — see below.**
+
+  > **Defect: Alt+Enter does not switch the viewer's mode, in either direction.** With the viewer focused (`GetForegroundWindow` is `OPENCORD_MEDIA_VIEWER`), Alt+Enter from full screen leaves it at 1920×1080 and from the normal window leaves it at 496×368. Tried with two different injection paths — raw `keybd_event` and `SendKeys('%{ENTER}')` — and **Win+Up on the very same window worked moments before**, so keys do reach it. What makes this worth chasing: the behaviour **is** specified and covered by a passing Dart widget test, `alt_enter_switches_the_window_mode` in `app/test/widget/chat/media_viewer_test.dart`, which sends altLeft+enter and asserts `setMode:normal`. So the shared logic is right and something Windows-specific swallows the keystroke before Flutter sees it. Alt+Enter arrives as **`WM_SYSKEYDOWN`**, not `WM_KEYDOWN`, and `app/windows/runner/media_window.cpp` ends its window procedure at `DefWindowProcW` — that is the place to look. Being a Windows file, this one is a platform session's to fix rather than the Linux session's.
 - [ ] **Remembering:** close the viewer in the normal window and open another photo: it opens normal, at the same place and size. The same after restarting the app.
 - [ ] **Closing:**
   - Esc closes the viewer, also right after typing a letter in it;
