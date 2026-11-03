@@ -75,6 +75,25 @@ std::string StringArg(const flutter::EncodableMap& map, const char* key) {
   return text ? *text : std::string();
 }
 
+
+// The frame DWM draws around the normal window follows the system theme,
+// and without being asked it is the light one — a white line around a dark
+// app. Win32Window::UpdateTheme does this for the main window, but the
+// viewer is not a Win32Window, so it has to ask for itself.
+void UseDarkFrame(HWND window) {
+  // Documented from Windows 10 1809 on; older builds ignore it.
+  constexpr DWORD kUseImmersiveDarkMode = 20;
+  DWORD light = 1;
+  DWORD size = sizeof(light);
+  if (::RegGetValueW(HKEY_CURRENT_USER,
+                     LR"(Software\Microsoft\Windows\CurrentVersion\Themes\Personalize)",
+                     L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light,
+                     &size) != ERROR_SUCCESS) {
+    return;
+  }
+  const BOOL dark = light == 0;
+  ::DwmSetWindowAttribute(window, kUseImmersiveDarkMode, &dark, sizeof(dark));
+}
 // The desktop shows through where the viewer paints nothing: the accent
 // policy flutter_acrylic uses for its transparent effect, with a fully
 // transparent tint. The viewer paints its own dark background.
@@ -218,6 +237,7 @@ std::optional<int64_t> MediaWindowChannel::Open(
       height, nullptr, nullptr, ::GetModuleHandleW(nullptr), this);
   if (window_ == nullptr) return std::nullopt;
   MakeSeeThrough(window_);
+  UseDarkFrame(window_);
 
   RECT client;
   ::GetClientRect(window_, &client);
@@ -624,6 +644,11 @@ LRESULT MediaWindowChannel::HandleMessage(HWND hwnd, UINT message,
       }
       return 0;
     }
+    case WM_SETTINGCHANGE:
+      // The system theme can change while the viewer is open; the main
+      // window follows it and so should this one.
+      UseDarkFrame(hwnd);
+      break;
     case WM_ERASEBKGND:
       // The viewer paints everything, see-through where it wants.
       return 1;
