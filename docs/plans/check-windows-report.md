@@ -803,11 +803,11 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - the upload bar moves, and Cancel stops one; — the bar runs rather than jumping, and Cancel on a large upload (`speech_60s.mp4`, 34 MB) stopped that one and left the others alone.
   - the sent photo shows in the grid at its size, with no jump; — it does.
   - the video tile shows its first frame and its length. — both.
-- [ ] **Playing:**
-  - a video plays in the chat, then in the viewer, with sound;
-  - seeking works;
-  - a voice message records and plays;
-  - playing a voice message pauses the video.
+- [x] **Playing:** — **PASS, all four**, checked by the owner.
+  - a video plays in the chat, then in the viewer, with sound; — both places, with sound.
+  - seeking works; — it lands where it is put and carries on.
+  - a voice message records and plays; — held the microphone, sent it, played it back.
+  - playing a voice message pauses the video. — it does, rather than the two sounding at once, which is the part of this box with any teeth.
 - [ ] **Saving:**
   - Download on a file card asks where to save, and saves there;
   - **Save all** puts several files in one folder, beside the files already there.
