@@ -679,7 +679,7 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - close it somewhere else and open picture-in-picture again: it comes back there, at that size;
   - close from picture-in-picture with a normal window remembered, then open a photo: a normal window with its borders, laid out as the viewer, not as picture-in-picture.
 ## 8. Scrolling and compact mode (#28, #29)
-- [ ] **Compact mode (#28):** in **Settings → Appearance → Message density**, choose **Compact**. On a wide window, a text channel's lines run the chat's whole width, 16 px in from each side, as in private chats. Comfortable bubbles stay in a centred column.
+- [x] **Compact mode (#28):** in **Settings → Appearance → Message density**, choose **Compact**. On a wide window, a text channel's lines run the chat's whole width, 16 px in from each side, as in private chats. Comfortable bubbles stay in a centred column. — **PASS**, shown with the same message in both densities in a 1900 px window (`s8-compact-text.png`, `s8-comfy-text.png`). One long line was sent so it had to wrap, since media attachments have their own widths and settle nothing. **Compact**: the line runs x ≈ 470 → 1600, wrapping only at the chat's right edge, in rows with the avatar in its own column. **Comfortable**: the same text is a bubble held to x ≈ 890 → 1450, a centred column well short of both edges. The density is saved behind the *unsaved changes* bar, like the rest of that page. Put back to Comfortable afterwards.
 - [ ] **Private chats (#29):**
   - a chat opens at the newest message;
   - a new message from `bob` scrolls into view while you're at the newest one;
