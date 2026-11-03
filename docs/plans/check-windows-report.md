@@ -284,6 +284,37 @@ copies the screen and had photographed a browser sitting over the app.
 the one the exit-2 convention already encodes: a UI harness that cannot prove
 it drove the app must say so, not score the app.
 
+### A9. The two-client rig is up — and four traps on the way
+
+`alice` (the server's **owner**) and `bob` both run against
+`localhost:7710`, both in `#general`, "2 members, 2 online". The server has a
+`general` text channel and a `General` voice channel. That is §0.2 and §0.3
+satisfied, and it is what §2 to §8 need. Four things cost time:
+
+- **The claim token the server prints at start is the only one that works.**
+  `opencord-server reset-claim-token` against a *stopped* server writes a
+  token that the next start throws away: an unclaimed server issues a fresh
+  one when it boots and prints it (`claim_token=…` on the `listening` line).
+  A claim with the CLI's token fails with *you are not a member of this
+  server; join with an invite*, which reads like a wrong flow rather than a
+  stale secret. Take the token from the running server's own output.
+- **Ctrl+V does not reach the app from `SendKeys`.** The paste silently does
+  nothing and the field stays empty, so a check that pastes and clicks on
+  would blame whatever came next. Typing the text works. Worth knowing before
+  §5, which is about the clipboard: a failure to paste there has to be shown
+  to be the app's and not the harness's.
+- **One instance per profile, and a missing `OPENCORD_PROFILE` is not
+  harmless.** The single-instance mutex is `…opencord.profile_<name>`
+  (`app/windows/runner/single_instance.cpp`), so two profiles do run side by
+  side — but an instance started *without* the variable takes the default
+  mutex, finds the one already held, hands over and exits 0. It looks exactly
+  like a launch that failed for no reason.
+- **The app's fingerprint matched the server's, exactly.** The *Verify
+  server* dialog showed `C94B 058C … 6629 EC93`, and
+  `opencord-server fingerprint` prints
+  `c94b058c0d76455fcd2283e336bc7c6f3fd4850e1fac52cd1b0ef6916629ec93`. Checked
+  rather than clicked through.
+
 ## B. Which build to use for which section
 
 The batch is **not merged**, so §0.1's second path applies: each section is
@@ -410,7 +441,7 @@ is the Linux session's to make and its resolutions are the ones that ship.
 
 > Re-run on **#22's own build** after two harness bugs were fixed (see A8): **11 of 11 machine checks pass**, on three consecutive runs. `WS_CAPTION` being set is **not** a failure of the first box: judge the client rect or the screenshot, not the style bit.
 - [~] No system title bar anywhere: at start, after restoring from minimised, and after leaving maximised. — **at start: PASS** (client rect 1264x792 inside a 1280x800 window: 8 px lost in all, against a 23 px caption, and `01-start.png` shows the app's own header strip with no system caption). Minimised and un-maximised are still not measured.
-- [~] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen. — **the welcome screen: PASS** (`04-buttons-rest.png`: minimise, maximise, close, in that order, at the top right). The four screens behind an identity and a server are not checked.
+- [~] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen. — **welcome screen, a channel (`#general`), Friends and "no servers": PASS. But which build matters.** On **#22's build alone the Private messages side has no caption buttons at all** — hovering where Close belongs leaves every pixel at the background `14,14,16`, so they are absent, not merely dark. On **#21's build they are there** on the same screens and the same profile. That is the split the two pull requests describe (#22 the app's title bar, #21 the private-messages one), not a regression — but it does mean **neither build alone satisfies this box**, and it is only true once they are both on `beta`. A private chat and Settings are still not checked.
 - [x] Close's hover is the app's own (inverted, monochrome). The others highlight on hover. — **PASS, judged from `05-hover-*.png`.** Close inverts to a light background with a dark glyph and stays monochrome — not Windows' red. Minimise and Maximise take a subtle grey highlight and keep their white glyph.
 - [~] Dragging the empty header moves the window, also over a channel's or chat's title. — **the empty header: PASS** (dragged +120,+90 from 200,120 and landed at 315,206, inside the 12 px tolerance). Over a channel's or a chat's title needs a server.
 - [x] A double click on the header maximises, and a second one restores. — **PASS** (maximised=True then False).
@@ -418,7 +449,7 @@ is the Linux session's to make and its resolutions are the ones that ship.
 - [-] Hovering Maximise shows Windows 11's snap layouts (Windows 11 only). — **not run: no Windows 11 PC.**
 - [~] The window's edges and corners resize it. — **the right edge: PASS** (1280 → 1441 on a +160 drag). The other edges and the corners are not checked.
 - [ ] **Settings → Appearance** has no Window frame choice.
-- [ ] **Private messages (#21):**
+- [~] **Private messages (#21):** — **the caption buttons on Friends: PASS** on #21's build (`pm21-header.png`), and absent on #22's, as above. The rest of this box is not checked yet.
   - on **Friends**, and in a private chat, the caption buttons are there and the header drags the window;
   - the empty space to the right of Friends' tabs (Online, All, Pending…) drags it too;
   - in a narrow window (the sidebar no longer inline), the buttons are still there and nothing overlaps.
