@@ -3,14 +3,25 @@
 > The report for [check-windows.md](check-windows.md). Tick each box that passes;
 > for each failure write what happened, with a screenshot, and name the step.
 >
+> `[x]` passed, `[ ]` not checked yet, `[~]` **partly** checked — the box says
+> which part passed and which part is still owed, and a `[~]` is not a pass.
+>
 > **The PC:** Windows 10 Pro 22H2 (build 19045), 16 GB RAM, 16 logical cores.
 > There is no Windows 11 PC, so every step marked *Windows 11 only* is
 > **not run: no Windows 11 PC**.
 >
-> **Prepared by a Claude Code session on 2026-11-02/03.** That session had no way
-> to drive the GUI — no screenshots, clicks, hovers or drags — so it ran only
-> the checks a machine can settle and left the other 59 boxes untouched. What it
-> did run is in §A below, with the evidence. Nothing in §1 to §8 is ticked by it.
+> **Prepared by a Claude Code session on 2026-11-02/03.** Everything it
+> settled is in §A below, with the numbers it judged on. The session drove the
+> real window through Win32 — the actual mouse and keyboard, and screenshots —
+> so the GUI boxes are not inherently out of reach; `check_window_chrome.ps1`
+> (pull request #32) now runs §1's machine-checkable ones in one command.
+>
+> It stopped when **the PC locked itself**. Nothing that injects input works
+> behind a lock screen, so the rest is waiting on an unlock rather than on
+> anything about the app. Only the boxes §A names are ticked; every other box
+> in §1 to §8 is untouched, and the judgement calls (is Close's hover
+> *inverted and monochrome*?) and the live two-client work are still a
+> person's.
 
 ## A. What has already been settled mechanically
 
@@ -19,6 +30,15 @@
 | A1 | §5 — the shipped FFmpeg DLLs carry Task 32's decoders, `libdav1d` included | **PASS**, see A1 |
 | A2 | §5 — `cargo test --workspace --lib --bins --tests` and `flutter test` | **PASS**, with two caveats that are not the batch's — see A2 |
 | A3 | §5 — the clipboard's licence question | **settled by the owner**, see A3 |
+| A4 | §1 — the title bar, as far as a machine can settle it | **partly checked**, see A4 |
+
+> **The run stopped because the PC locked itself.** The checks in A4 were
+> driven through Win32 — the real mouse and keyboard, and screenshots — and
+> that works only on an unlocked workstation. Behind the lock screen LogonUI
+> owns the desktop: clicks and keys reach no application and every capture
+> returns the lock screen. The remaining boxes are waiting on an unlock, not
+> on anything about the app. `app/tool/windows/check_window_chrome.ps1`
+> (pull request #32) now runs §1's machine-checkable boxes in one command.
 
 ### A1. The shipped FFmpeg DLLs — PASS
 
@@ -123,6 +143,57 @@ no new licence at all.
 Written as the branch `fix/windows-clipboard` (pull request #31). Until it merges, Windows answers
 "this system's clipboard isn't supported" and §5's clipboard box stays open.
 The two hand checks it needs are listed in §5 below.
+
+### A4. The title bar (§1) — what the machine settled before the PC locked
+
+Driven against `C:\oc\media-viewer-player\opencord\opencord.exe`, profile
+`alice`, at 100 % scaling on the 1920×1080 screen.
+
+**Checked, with the numbers:**
+
+- **No system title bar at start.** The window is 1280×800 and its client
+  rect is 1264×792, so **8 px in all** go to the frame — a system caption
+  alone is about 31 px, and the horizontal 16 px is the resize border. There
+  is no caption. The screenshot agrees: the top strip is the app's own dark
+  header with its own −, □ and × at the right, and no Windows caption, icon
+  or title text.
+- **The caption buttons are at the top right** on the fresh-profile welcome
+  screen, which is §1's "no servers" case.
+- **Aero Snap answers the keyboard.** `Win+Left` snapped the window to the
+  left half (974×1047 at −7,0 — a frameless window hangs its invisible
+  resize border over the edge) and Windows raised **Snap Assist** over it,
+  which is itself the system treating it as a normal snappable window. From
+  snapped, `Win+Up` gave a quarter (974×568) and `Win+Down` gave the half
+  back.
+- The window class is `OPENCORD_MAIN_WINDOW`; it reports 96 dpi; it carries
+  `WS_THICKFRAME`, so Windows will resize it from the edges.
+
+**A trap for whoever finishes this:** `WS_CAPTION` **is set** on the window.
+That is not a failure of §1's first box. A frameless window normally keeps
+the bit and suppresses the frame by answering `WM_NCCALCSIZE`, which is
+exactly what the client rect above shows. Reading the style bit would give a
+confident wrong answer; judge the client rect, or the screenshot.
+
+**Not checked, and not ticked:** no system title bar *after restoring from
+minimised* and *after leaving maximised*; the buttons on a channel, Friends,
+a private chat and Settings (all behind an identity and a server); Close's
+hover being inverted and monochrome; dragging the header; the double click;
+drag-to-edge snapping; the edges resizing; 125 % and 150 % scaling; and all
+of §1's private-messages box. The script covers all but the judgement calls
+and the screens behind a server.
+
+### A5. The local FFmpeg rebuild — not done, on purpose
+
+A1 recommends rebuilding this PC's `C:\ffmpeg` with
+`app/tool/windows/build_ffmpeg.ps1`, because the copy here is a hand-installed
+GPL build. **That was left alone:** the script needs MSYS2 at `C:\msys64` or
+`MSYS2_ROOT` for FFmpeg's configure, and there is none on this PC. Installing
+a toolchain of that size is the owner's call, not a side effect of a check
+run, and nothing in the plan depends on it — §5's FFmpeg box is already
+settled against the CI artifact, which is the build that actually ships.
+
+It still wants doing before anyone trusts a *local* release build or
+`check_bundled_ffmpeg.ps1`.
 
 ## B. Which build to use for which section
 
@@ -247,12 +318,14 @@ is the Linux session's to make and its resolutions are the ones that ship.
 # The checks
 
 ## 1. The title bar (#22) and private messages' title bar (#21)
-- [ ] No system title bar anywhere: at start, after restoring from minimised, and after leaving maximised.
-- [ ] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen (a fresh profile with no server joined).
+
+> Partly settled by `check_window_chrome.ps1` and by hand before the PC locked — see A4. `WS_CAPTION` being set is **not** a failure of the first box: judge the client rect or the screenshot, not the style bit.
+- [~] No system title bar anywhere: at start, after restoring from minimised, and after leaving maximised. — **at start: PASS** (client rect 1264x792 inside a 1280x800 window, so 8 px in all go to the frame against a ~31 px caption; the screenshot shows the app's own header). The other two states are not checked.
+- [~] Minimise, Maximise/Restore and Close sit at the top right, on every screen: a channel, Friends, a private chat, Settings, and the "no servers" screen. — **the fresh-profile welcome screen: PASS** (screenshot). The four screens behind an identity and a server are not checked.
 - [ ] Close's hover is the app's own (inverted, monochrome). The others highlight on hover.
 - [ ] Dragging the empty header moves the window, also over a channel's or chat's title.
 - [ ] A double click on the header maximises, and a second one restores.
-- [ ] Aero Snap works: drag to the top to maximise, to a side for half the screen; Win+Up, Win+Down, Win+Left and Win+Right too.
+- [~] Aero Snap works: drag to the top to maximise, to a side for half the screen; Win+Up, Win+Down, Win+Left and Win+Right too. — **the keyboard half: PASS.** `Win+Left` snapped it to the left half (974x1047 at -7,0; a frameless window hangs its invisible resize border over the edge) and Windows raised Snap Assist over it. From snapped, `Win+Up` gave a quarter (974x568) and `Win+Down` the half back. Dragging to an edge is not checked.
 - [-] Hovering Maximise shows Windows 11's snap layouts (Windows 11 only). — **not run: no Windows 11 PC.**
 - [ ] The window's edges and corners resize it.
 - [ ] **Settings → Appearance** has no Window frame choice.
