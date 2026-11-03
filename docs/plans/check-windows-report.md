@@ -453,6 +453,40 @@ files that must not be hand-merged at all.
 Found by merging the nine locally; that branch was thrown away, since the merge
 is the Linux session's to make and its resolutions are the ones that ship.
 
+
+### A shared bug: the Reconnect button sits under the caption buttons
+
+**Where:** the voice reconnect bar (#27), on Windows, on any build that also
+has the custom title bar (#22/#24) — which on Windows is all of them.
+
+**What happens:** the bar puts **Reconnect** at its right-hand end. The window's
+own Minimise / Maximise / Close sit at the top right too, and the **Maximise
+button's hit area extends upwards over the bar**. So a click on the right-hand
+part of Reconnect maximises the window and never reaches the button: the call
+is not rejoined and the bar stays, which reads as "Reconnect is broken".
+
+**How to repeat it**, with one client:
+
+1. Join a voice channel.
+2. `Stop-Process -Name opencord -Force`, then start the app again. The bar
+   appears: *Opencord closed while you were in General.*
+3. Size the window to 1000 px wide and click Reconnect **on its right half**.
+   The window maximises; nothing else happens.
+4. Click it again **on its left half** (x ≈ 875 of 1000). It reconnects
+   properly and the bar goes.
+
+**The numbers**, measured at 1000 px wide, 100 % scaling: Reconnect is drawn
+across about **x 862–950**; Maximise's hit area covers about **x 907–953** and
+reaches up through the whole height of the bar — y = 14, 20 and 28 all
+maximise. Hovering x 905 pops Windows' own *Maximize* tooltip while the
+Reconnect button underneath still draws its hover highlight, which is the
+clearest single symptom.
+
+**Why it is yours and not a Windows-only fix:** the bar is shared Dart
+(`app/lib/…`), not one of the Windows files a platform session may touch
+(platforms.md §4). The fix is a layout one — keep the bar's actions clear of
+the caption buttons' column, or inset the bar's right edge by the caption
+width on desktop.
 ### The Android job fails on the runner, not on the code
 
 `Phone (Android)` failed twice on #32, which adds **only PowerShell files**
@@ -521,11 +555,13 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
 > (the refused rejoin, and the volume bug), use the Wi-Fi/Tailscale split and
 > `Disable-NetAdapter -Name Tailscale` from §B — it cuts `alice` alone.
 
-- [ ] **The app closed in a call.**
+- [x] **The app closed in a call.** — **PASS, all four steps**, but see the defect below.
   1. `alice` joins the voice channel.
   2. Kill her app: `Stop-Process -Name opencord` (with only `alice` running), or End task in Task Manager.
-  3. Start it again: the bar says "Opencord closed while you were in <channel>."
-  4. **Reconnect** puts her back in the call, and the bar goes.
+  3. Start it again: the bar says "Opencord closed while you were in <channel>." — **the wording is exactly that**: *Opencord closed while you were in General.*
+  4. **Reconnect** puts her back in the call, and the bar goes. — **it does**: the header went back to *1 connected* and the bar disappeared.
+
+  > **Defect found doing this: most of the Reconnect button does nothing but maximise the window.** The bar puts Reconnect at the top right, which is where the custom title bar's caption buttons are, and the **Maximise button's hit area reaches up over the bar**. Hovering the right-hand half of Reconnect pops Windows' *Maximize* tooltip, and clicking there maximises the window and leaves the call unjoined. In a 1000 px-wide window Reconnect is drawn across about x 862–950, and Maximise takes x 907–953 — so roughly **the right half of the button is dead**, at every height in the bar (tried y = 14, 20 and 28; all maximised). Clicking at x = 875 reconnects normally. It is only findable by clicking the left part of a button whose right part looks identical, so a person would reasonably call Reconnect broken. Reported to the Linux session in §C: the bar is shared Dart, not a Windows file.
 - [ ] **Offered once:** kill it again while out of the call, and start it again. No bar.
 - [ ] **The × hides the bar**, and doesn't come back after a restart.
 - [ ] **Joining any call hides it:** joining another voice channel while the bar shows.
