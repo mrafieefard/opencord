@@ -336,6 +336,88 @@ This belongs with A8's lesson. Both failures were the harness being in the
 room with the thing it was measuring, and both read as the app misbehaving.
 Any later section driving an already-running window needs the same guard.
 
+
+### A11. Closing the media viewer crashes the whole app
+
+**The most serious thing found in this run.** Every way of closing the media
+viewer takes the entire application down with an access violation, and the
+same fault address every time:
+
+```
+FATAL native crash  code=0xC0000005  module=flutter_windows.dll  offset=0x1d7b0
+```
+
+`0xC0000005` is `STATUS_ACCESS_VIOLATION`. It is written to the session log
+(**Settings → About → Logs**), so each occurrence has a record.
+
+**Four crashes, four runs, one signature.** The routes that crash:
+
+| How the viewer was closed | Result |
+|---|---|
+| A click beside the photo, **in full screen** | crash (twice out of two) |
+| **Alt+F4** on the viewer | crash — main window and process go too |
+| The viewer's own **Close button** (×) | crash |
+
+And the control that shows it is about *closing*, not about the viewer:
+
+| Action | Result |
+|---|---|
+| A click beside the photo **in the normal window** (which must *not* close it) | correct: viewer stays, app lives |
+| Restore / Maximise, dragging, resizing, stepping photos | all fine, no crash |
+
+Two earlier runs that opened the viewer and never closed it logged **no
+crash**; every run that closed it logged exactly one. So the trigger is the
+close path itself, not opening or using the viewer.
+
+**What it costs:** the viewer is the way a photo is looked at. Closing it is
+not an edge case, it is the second half of looking at every picture — so on
+Windows the app dies whenever someone finishes viewing a photo, losing the
+window, the call and anything unsent. This is worse than any box in §6 asks
+about.
+
+**To repeat it**, one client, nothing else needed:
+
+1. Send a photo to any channel and click it. The viewer opens full screen.
+2. Click beside the photo, on the dimmed background — or press Alt+F4, or
+   click the viewer's own ×.
+3. The viewer and the main window both vanish; no `opencord.exe` is left.
+   The session log's last line is the crash above.
+
+The fault is inside `flutter_windows.dll`, which says the embedder is being
+asked to do something after teardown rather than the Dart code being wrong —
+the media viewer is a second `FlutterViewController` in
+`app/windows/runner/media_window.cpp`, and the order in which that view and
+its window are destroyed is where to look.
+
+### A12. The media viewer takes no keyboard input at all
+
+Separate from the crash, and with one cause behind several failed boxes:
+**no key reaches the media viewer**, though the mouse works everywhere in it.
+
+| Key | Expected | What happens |
+|---|---|---|
+| **Esc** | closes the viewer | nothing |
+| **Alt+Enter** | switches full screen ↔ normal window | nothing, either direction |
+| **Left / Right** | step through a multi-photo message | nothing; the photo does not change |
+
+The same actions by mouse all work: the Close button closes (and crashes),
+the top strip's double click switches the mode, and the side strips step the
+photos. Keys that **Windows** handles rather than the app do work on the same
+window — Win+Up gives full screen, Alt+F4 reaches it (and crashes it). So the
+window is focused and receiving input; what fails is the delivery of keys to
+Flutter.
+
+Checked with two injection paths, raw `keybd_event` and `SendKeys`, with
+`GetForegroundWindow` confirmed as `OPENCORD_MEDIA_VIEWER` each time.
+
+**This is Windows-only, and the shared code is already right:**
+`app/test/widget/chat/media_viewer_test.dart` has a passing
+`alt_enter_switches_the_window_mode`, which sends altLeft+enter and asserts
+`setMode:normal`. A green Dart test and a dead shortcut on the machine is
+exactly the gap this manual pass exists to find. `media_window.cpp` is where
+the viewer's window procedure lives, and Alt+Enter and Esc arrive as
+`WM_SYSKEYDOWN`/`WM_KEYDOWN` on the host window before any child view.
+
 ## B. Which build to use for which section
 
 The batch is **not merged**, so §0.1's second path applies: each section is
@@ -638,15 +720,15 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   - a double click on the top strip, or Alt+Enter, switches too. — **double click: PASS** (full screen → the remembered normal window). **Alt+Enter: FAILS — see below.**
 
   > **Defect: Alt+Enter does not switch the viewer's mode, in either direction.** With the viewer focused (`GetForegroundWindow` is `OPENCORD_MEDIA_VIEWER`), Alt+Enter from full screen leaves it at 1920×1080 and from the normal window leaves it at 496×368. Tried with two different injection paths — raw `keybd_event` and `SendKeys('%{ENTER}')` — and **Win+Up on the very same window worked moments before**, so keys do reach it. What makes this worth chasing: the behaviour **is** specified and covered by a passing Dart widget test, `alt_enter_switches_the_window_mode` in `app/test/widget/chat/media_viewer_test.dart`, which sends altLeft+enter and asserts `setMode:normal`. So the shared logic is right and something Windows-specific swallows the keystroke before Flutter sees it. Alt+Enter arrives as **`WM_SYSKEYDOWN`**, not `WM_KEYDOWN`, and `app/windows/runner/media_window.cpp` ends its window procedure at `DefWindowProcW` — that is the place to look. Being a Windows file, this one is a platform session's to fix rather than the Linux session's.
-- [ ] **Remembering:** close the viewer in the normal window and open another photo: it opens normal, at the same place and size. The same after restarting the app.
-- [ ] **Closing:**
-  - Esc closes the viewer, also right after typing a letter in it;
-  - in full screen, a click beside the photo closes it. In the normal window it doesn't;
-  - Alt+F4 and the taskbar button's Close close only the viewer; the app stays.
-- [ ] **Moving around:**
-  - in the three-photo message, the left and right arrows and the side strips step through it;
-  - "Photo 2 of 4" and "name · date at time" show at the bottom left;
-  - the controls fade after a second without moving the mouse, and come back on movement.
+- [x] **Remembering:** close the viewer in the normal window and open another photo: it opens normal, at the same place and size. The same after restarting the app. — **PASS, and across a restart.** Left in the normal window at 496×368, the app crashed on close (below), was started again, and the next photo opened **in the normal window at 496×368** — the stronger half of the box, since it survived a process death rather than a tidy shutdown.
+- [ ] **Closing:** — **one of three; the other two take the whole app down. See the crash below.**
+  - Esc closes the viewer, also right after typing a letter in it; — **FAILS.** With the viewer confirmed foreground, Esc does nothing, through `keybd_event` and `SendKeys('{ESC}')` alike. It is the keyboard, not Esc — see the note below.
+  - in full screen, a click beside the photo closes it. In the normal window it doesn't; — **the normal window half: PASS** (clicked beside the photo, the viewer stayed and the app lived). **The full-screen half CRASHES the app**, twice out of two.
+  - Alt+F4 and the taskbar button's Close close only the viewer; the app stays. — **FAILS: Alt+F4 takes the main window and the process with it**, by the same crash.
+- [~] **Moving around:** — **the mouse half passes, the keyboard half does not.**
+  - in the three-photo message, the left and right arrows and the side strips step through it; — **side strips: PASS.** Clicking the right strip went from *Photo 1 of 3* to *Photo 2 of 3*, with `‹` and `›` drawn on the strips. **Arrow keys: FAIL** — two Right presses on the focused viewer left the same photo on screen.
+  - "Photo 2 of 4" and "name · date at time" show at the bottom left; — **PASS.** *Photo 1 of 3* then *Photo 2 of 3*, with *Alice · 3 Nov at 17:24* under it, bottom left.
+  - the controls fade after a second without moving the mouse, and come back on movement. — **PASS.** Left alone, the caption buttons, the counter and the download and rotate icons all faded out; they were back after the next move of the mouse.
 - [ ] **Zoom** works across the whole screen, not only the photo's first size.
 - [ ] **The video** plays in the viewer with its own controls, and the viewer's text is not over them.
 - [ ] **Download** saves to Downloads without asking. The note says "Saved to Downloads", and clicking it opens the folder. A second Download of the same file adds " (2)".
