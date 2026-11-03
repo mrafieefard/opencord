@@ -63,6 +63,9 @@ try {
 
     Write-Host ''
     Write-Host '--- 1. no system title bar, and the app draws its own ---'
+    # CopyFromScreen takes whatever is on top of that rect, so a window left
+    # over the app would be saved as if it were the app. Focus it first.
+    [void](Set-OcFocusOrStop -Window $window)
     Save-OcShot -Path "$ShotDir\01-start.png" -Handle $window.Handle | Out-Null
     # A system title bar would sit in the window's top ~30px and hold the
     # window text. The app's own header is its content, so the only honest
