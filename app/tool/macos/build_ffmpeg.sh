@@ -81,7 +81,7 @@ EOF
     cd "$work/ffmpeg-$arch"
     # Threads are named because --disable-autodetect turns them off too.
     if ! PKG_CONFIG_PATH="$out/lib/pkgconfig" PKG_CONFIG_LIBDIR="$out/lib/pkgconfig" ./configure \
-      "${cross[@]}" --arch="$arch" --target-os=darwin \
+      ${cross[@]+"${cross[@]}"} --arch="$arch" --target-os=darwin \
       --cc=clang --extra-cflags="$flags" --extra-ldflags="$flags" \
       --prefix="$out" --libdir="$out/lib" --install-name-dir=@rpath \
       --enable-shared --disable-static --enable-pic \
