@@ -315,6 +315,27 @@ satisfied, and it is what §2 to §8 need. Four things cost time:
   `c94b058c0d76455fcd2283e336bc7c6f3fd4850e1fac52cd1b0ef6916629ec93`. Checked
   rather than clicked through.
 
+### A10. The session's own terminal was failing the checks
+
+Clicks aimed at the app were landing on **Windows Terminal**, which sits on
+top because it is where this session runs. `GetForegroundWindow` came back
+`WindowsTerminal / CASCADIA_HOSTING_WINDOW_CLASS` after a click that should
+have focused `bob`, and the tray-click check then "failed" because the window
+it was meant to raise was never behind anything.
+
+It only showed up in §2. §1 never hit it because
+`check_window_chrome.ps1` **launches** its app, and a new window comes up in
+front of everything; §2 drives two clients that were already running.
+
+The fix is `Hide-OcTerminal` / `Show-OcTerminal`: minimise the session's own
+window for the length of a check and restore it after. With it, the same two
+checks pass — `bob` takes the foreground from a click, and a left click on
+`alice`'s tray icon brings `alice` out from behind `bob`.
+
+This belongs with A8's lesson. Both failures were the harness being in the
+room with the thing it was measuring, and both read as the app misbehaving.
+Any later section driving an already-running window needs the same guard.
+
 ## B. Which build to use for which section
 
 The batch is **not merged**, so §0.1's second path applies: each section is
@@ -455,24 +476,26 @@ is the Linux session's to make and its resolutions are the ones that ship.
   - in a narrow window (the sidebar no longer inline), the buttons are still there and nothing overlaps.
 - [ ] At 100 %, 125 % and 150 % scaling, the buttons are sharp and line up with the header.
 ## 2. The tray, and running in the background (#24)
-- [ ] **The icon** shows in the notification area. It is sharp at 100 % and 150 % scaling, and at 150 % after a restart.
-- [ ] **Hovering it** shows the unread summary, such as "No unread messages" or "3 unread messages, 1 mention".
-- [ ] **A left click** brings the window forward and focuses it: when it's minimised, when it's hidden behind another app, and when it was closed to the tray.
-- [ ] **A right click** opens the menu: Open Opencord, Mute, Deafen, Status (Online, Idle, Do not disturb, Invisible), Quit Opencord. Mute and Deafen show a check mark when on, Status a mark beside the current one, and the marks follow when they change from inside the app.
+
+> Driven on #24's build with both clients running. **4 of 11 boxes pass outright, 2 partly.** The icons live in the *hidden* part of the notification area here, which is Windows' choice, not the app's — read them by opening the chevron.
+- [~] **The icon** shows in the notification area. It is sharp at 100 % and 150 % scaling, and at 150 % after a restart. — **it shows: PASS** (one icon per running client, in the overflow area). Sharpness at 100 % and 150 % is not judged.
+- [x] **Hovering it** shows the unread summary, such as "No unread messages" or "3 unread messages, 1 mention". — **PASS.** With `alice` minimised and two messages sent from `bob`, `alice`'s icon reads `Opencord` / `2 unread messages` and `bob`'s own reads `Opencord` / `No unread messages`.
+- [~] **A left click** brings the window forward and focuses it: when it's minimised, when it's hidden behind another app, and when it was closed to the tray. — **minimised: PASS** (both minimised, a left click on `bob`'s icon restored and focused `bob` and left `alice` minimised). **Behind another app: PASS** (`bob` focused in front, a left click on `alice`'s icon brought `alice` to the foreground). Closed to the tray is not tested yet.
+- [x] **A right click** opens the menu: Open Opencord, Mute, Deafen, Status (Online, Idle, Do not disturb, Invisible), Quit Opencord. Mute and Deafen show a check mark when on, Status a mark beside the current one, and the marks follow when they change from inside the app. — **PASS, all four parts.** The menu holds exactly those five entries in that order; Status opens Online / Idle / Do not disturb / Invisible with a mark against Online; and after clicking the mic **inside `alice`'s window**, the same menu shows a check mark against Mute (`tray-menu-muted.png`), with Deafen still clear.
 - [ ] **Clicking outside the menu, or Esc,** closes it.
 - [ ] **Closing:**
   - the window's Close hides it, and the app keeps running: messages still arrive (send one from `bob`) and the icon's unread dot appears;
   - a tray click brings it back, in the same place, at the same size;
   - **Settings → Windows & behavior → Close button minimizes to the tray** is shown on Windows. Turned off, Close quits.
 - [ ] **Quit Opencord** in the menu exits the process (Task Manager shows no `opencord.exe` for that profile).
-- [ ] **Explorer restart:** run `Stop-Process -Name explorer -Force`, then wait for it to come back (or start `explorer.exe`). The icon comes back by itself and still works.
+- [x] **Explorer restart:** run `Stop-Process -Name explorer -Force`, then wait for it to come back (or start `explorer.exe`). The icon comes back by itself and still works. — **PASS.** Explorer was killed with both clients running; both icons came back on their own, with no restart of the app, and a click on one still opened its own window. It also cleared the ghost icons left by earlier killed instances — worth knowing, since a stale icon makes the count wrong.
 - [ ] **The voice icon:**
   - in a voice channel: a ring;
   - while you talk: a filled circle;
   - muted or deafened: the ring with a slash;
   - out of voice: the chat bubble again;
   - the unread dot stays in every state.
-- [ ] **Two profiles** each get their own icon, and each icon's clicks go to its own window.
+- [x] **Two profiles** each get their own icon, and each icon's clicks go to its own window. — **PASS.** Two icons for two profiles; the first opens `alice` (pid 7932) and the second `bob` (pid 16508), each leaving the other alone. Note both tooltips start `Opencord` with no profile in them, so they are told apart by what they open, not by their name.
 - [ ] **Start minimized** with **Launch at login**: after signing out and in, Opencord starts in the tray with no window.
 ## 3. The reconnect bar (#27), and the volume bug
 
