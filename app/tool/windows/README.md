@@ -78,6 +78,15 @@ for a result that proves nothing either way:
   first for the same reason — and nothing that drives the UI can be left to
   run unattended on a PC that locks itself.
 
+- `check_window_chrome.ps1`, when **the window never took the foreground**.
+  Keys sent to a window that is not focused do nothing, which on paper looks
+  exactly like a window that ignored them — so a focus that never arrives is
+  reported as a run that proves nothing rather than as four failing checks.
+  `Set-OcFocusOrStop` is what each caller should use over bare `Set-OcFocus`:
+  `SetForegroundWindow` is refused to a background process often enough that
+  the click `Set-OcFocus` makes is the only way in, and its return value says
+  whether even that worked.
+
 `check_v4.ps1` and `check_bundled_ffmpeg.ps1` need `FFMPEG_DIR` and
 `LIBCLANG_PATH` set, like any build here from W3 on, and
 `check_bundled_ffmpeg.ps1` renames `FFMPEG_DIR` out of the way while it runs —

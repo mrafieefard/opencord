@@ -19,6 +19,8 @@ Add-Type -AssemblyName System.Windows.Forms
 
 if (-not ('Win32Ui' -as [type])) {
 Add-Type -Namespace '' -Name Win32Ui -MemberDefinition @'
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int X, int Y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
@@ -212,4 +214,39 @@ function Set-OcFocus {
     Invoke-OcClick -X ($Window.X + $OffsetX) -Y ($Window.Y + $OffsetY)
     Start-Sleep -Milliseconds 300
     [Win32Ui]::GetForegroundWindow() -eq $Window.Handle
+}
+
+function Set-OcFocusOrStop {
+    <#  Set-OcFocus returns whether the foreground really changed, and a check
+        that ignores that answer blames the app for the harness's own missed
+        click: a keystroke sent to a window that never took the focus does
+        nothing, which looks exactly like a window that ignored the key.
+        So try a few times, and say plainly when the focus never arrived. #>
+    param([Parameter(Mandatory)]$Window, [int]$Tries = 4,
+          [int]$OffsetX = 80, [int]$OffsetY = 110)
+    foreach ($try in 1..$Tries) {
+        if (Set-OcFocus -Window $Window -OffsetX $OffsetX -OffsetY $OffsetY) { return $true }
+        Start-Sleep -Milliseconds 400
+    }
+    $false
+}
+
+function Reset-OcWindow {
+    <#  Puts the window back to a known, un-snapped rect.
+
+        Aero Snap leaves a window in a state Windows remembers: dragging a
+        snapped window does not move it by the drag's delta — Windows unsnaps
+        it and lays the restored size under the cursor — and its edges may
+        refuse to resize at all. A drag or resize check that runs straight
+        after a snap check therefore measures Windows' unsnapping, not the
+        app. Restoring first is what makes those two checks about the app. #>
+    param([Parameter(Mandatory)]$Window, [int]$X = 200, [int]$Y = 120,
+          [int]$W = 1280, [int]$H = 800)
+    $SW_RESTORE = 9
+    $SWP_NOZORDER = 0x0004; $SWP_NOACTIVATE = 0x0010
+    [void][Win32Ui]::ShowWindow($Window.Handle, $SW_RESTORE)
+    Start-Sleep -Milliseconds 250
+    [void][Win32Ui]::SetWindowPos($Window.Handle, [IntPtr]::Zero, $X, $Y, $W, $H,
+                                  ($SWP_NOZORDER -bor $SWP_NOACTIVATE))
+    Start-Sleep -Milliseconds 350
 }

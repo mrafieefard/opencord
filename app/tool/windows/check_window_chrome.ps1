@@ -1,11 +1,11 @@
-# The app's own title bar on Windows (D83, and §1 of
+# The app's own title bar on Windows (D83, and Â§1 of
 # docs/plans/check-windows.md), checked without a pair of hands.
 #
 #   pwsh -File app/tool/windows/check_window_chrome.ps1 `
 #        -Exe C:\oc\media-viewer-player\opencord\opencord.exe
 #
-# It drives the real window through Win32 — the actual mouse, the actual
-# keyboard — and reads the results back from the window's rect and from
+# It drives the real window through Win32 â the actual mouse, the actual
+# keyboard â and reads the results back from the window's rect and from
 # screenshots it saves beside itself. Each check prints PASS or FAIL with
 # the numbers it judged on, and the screenshots stay for the report.
 #
@@ -19,7 +19,7 @@
 #     a person to compare, since "inverted and monochrome" is a judgement;
 #   - Windows 11's snap layouts on hover, which need Windows 11;
 #   - anything behind a screen the app only reaches with an identity and a
-#     server (Friends, a private chat, Settings), which §1 also asks for.
+#     server (Friends, a private chat, Settings), which Â§1 also asks for.
 
 param(
     [string]$Exe = 'C:\oc\media-viewer-player\opencord\opencord.exe',
@@ -80,15 +80,20 @@ try {
 
     Write-Host ''
     Write-Host '--- 2. maximise and restore ---'
+    Reset-OcWindow -Window (Get-OcMainWindow -ProcessId $app.Id)
     $before = Get-OcMainWindow -ProcessId $app.Id
-    [void](Set-OcFocus -Window $before)
+    if (-not (Set-OcFocusOrStop -Window $before)) {
+        Write-Host "  SKIP  the window never took the foreground, so no key below would"
+        Write-Host "        prove anything about the app. Nothing here is a result."
+        exit 2
+    }
     Send-OcKeys -Mods LWIN -Key UP
     $max = Get-OcMainWindow -ProcessId $app.Id
     Note 'Win+Up fills the work area' `
          ($max.W -ge $work.Width -and $max.H -ge $work.Height - 8) `
          "$($max.W)x$($max.H) against a $($work.Width)x$($work.Height) work area"
     Save-OcShot -Path "$ShotDir\02-maximised.png" -Handle $max.Handle | Out-Null
-    [void](Set-OcFocus -Window $max)
+    [void](Set-OcFocusOrStop -Window $max)
     Send-OcKeys -Mods LWIN -Key DOWN
     $restored = Get-OcMainWindow -ProcessId $app.Id
     Note 'Win+Down gives the size back' `
@@ -99,8 +104,12 @@ try {
     Write-Host ''
     Write-Host '--- 3. Aero Snap to the sides ---'
     foreach ($side in 'LEFT', 'RIGHT') {
+        # Win+Left and Win+Right cycle a window left half → restored → right
+        # half, so sending Right straight after Left only restores it. Each
+        # side starts from an unsnapped window to be a test of that side.
+        Reset-OcWindow -Window (Get-OcMainWindow -ProcessId $app.Id)
         $w0 = Get-OcMainWindow -ProcessId $app.Id
-        [void](Set-OcFocus -Window $w0)
+        [void](Set-OcFocusOrStop -Window $w0)
         Send-OcKeys -Mods LWIN -Key $side
         Send-OcKeys -Key ESC                     # Snap Assist takes the foreground
         $snapped = Get-OcMainWindow -ProcessId $app.Id
@@ -113,11 +122,14 @@ try {
              "$($snapped.W)x$($snapped.H) at $($snapped.X),$($snapped.Y)"
     }
     $w0 = Get-OcMainWindow -ProcessId $app.Id
-    [void](Set-OcFocus -Window $w0)
+    [void](Set-OcFocusOrStop -Window $w0)
     Send-OcKeys -Mods LWIN -Key DOWN; Send-OcKeys -Key ESC
 
     Write-Host ''
     Write-Host '--- 4. the header drags the window, and a double click maximises ---'
+    # A snapped window unsnaps under a drag instead of following it, so the
+    # drag and resize checks below start from a known, restored rect.
+    Reset-OcWindow -Window (Get-OcMainWindow -ProcessId $app.Id)
     $w1 = Get-OcMainWindow -ProcessId $app.Id
     # Empty header: to the right of any title, left of the caption buttons,
     # which sit in the last ~140px.
@@ -139,6 +151,7 @@ try {
 
     Write-Host ''
     Write-Host '--- 5. the edges resize ---'
+    Reset-OcWindow -Window (Get-OcMainWindow -ProcessId $app.Id)
     $w3 = Get-OcMainWindow -ProcessId $app.Id
     Invoke-OcDrag -FromX ($w3.X + $w3.W - 1) -FromY ($w3.Y + [int]($w3.H / 2)) `
                   -ToX ($w3.X + $w3.W + 160) -ToY ($w3.Y + [int]($w3.H / 2))
