@@ -1722,7 +1722,7 @@ The owner asked for the custom title bar on every platform, with the system or c
 - **In the app.**
   - The five dylibs are named `@rpath/libavcodec.63.dylib` and so on.
   - The podspec links them from `FFMPEG_DIR`. A Runner build phase, "Bundle FFmpeg", copies them into `Contents/Frameworks`, signs each with the app's identity, and copies FFmpeg's licence to `Resources/FFMPEG-LICENSE.txt`.
-  - Building the app needs `FFMPEG_DIR`. The tests find the dylibs through `DYLD_LIBRARY_PATH`.
+  - Building the app needs `FFMPEG_DIR`. The tests find the dylibs through an rpath: `RUSTFLAGS="-C link-arg=-Wl,-rpath,$FFMPEG_DIR/lib"`. `DYLD_LIBRARY_PATH` doesn't do: macOS drops it whenever a system binary such as `/bin/bash` or `/usr/bin/env` starts, so a script or a CI step loses it.
 - **CI.** The macOS client job builds FFmpeg with Homebrew's nasm, meson and ninja, and caches it by the script's hash, as the Linux and Windows jobs do.
 - **Checked on the Intel Mac** (macOS 15.8.1):
   - the build takes about 6 minutes; the dylibs come to 18 MB;

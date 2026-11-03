@@ -623,12 +623,8 @@ jobs:
           brew install nasm meson ninja
           app/tool/macos/build_ffmpeg.sh ~/ffmpeg
 
-      # The dylibs are named @rpath/…: the tests find them through
-      # DYLD_LIBRARY_PATH, the app in its Frameworks folder.
       - name: Use FFmpeg
-        run: |
-          echo "FFMPEG_DIR=$HOME/ffmpeg" >> "$GITHUB_ENV"
-          echo "DYLD_LIBRARY_PATH=$HOME/ffmpeg/lib" >> "$GITHUB_ENV"
+        run: echo "FFMPEG_DIR=$HOME/ffmpeg" >> "$GITHUB_ENV"
 
       # The release is universal: Rust builds for both architectures.
       - uses: dtolnay/rust-toolchain@stable
@@ -646,7 +642,12 @@ jobs:
       # macOS allows 256 open files by default; the tests' servers each
       # keep a database pool, and SQLite says "unable to open database
       # file" when they run out.
+      # FFmpeg's dylibs are named @rpath/…: the app finds them in its
+      # Frameworks folder, the tests through this rpath. DYLD_LIBRARY_PATH
+      # wouldn't do: macOS drops it when the step's bash starts.
       - name: Test
+        env:
+          RUSTFLAGS: -C link-arg=-Wl,-rpath,${{ env.FFMPEG_DIR }}/lib
         run: |
           ulimit -n 10240
           cargo test --locked --no-fail-fast $CLIENT_CRATES
