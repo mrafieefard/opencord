@@ -524,6 +524,55 @@ To put one on the taskbar: drag it out of the chevron's pop-up, or
 **Settings → Personalization → Taskbar → Select which icons appear on the
 taskbar**. `IconStreams` itself is an obfuscated blob — not worth editing by
 hand.
+
+### A15. §4 needs #23's own server, and its device approval did not complete
+
+**The plan does not say so, and it stops §4 dead.** #23 is not a client-only
+change: against `beta` it touches
+
+```
+crates/opencord-server/src/handlers/private.rs   +88
+crates/opencord-server/src/server.rs             +23
+crates/opencord-server/src/db/mod.rs             +68
+proto/opencord/v1/private.proto                  +21
+```
+
+Run #23's client against the stock test server and **Message** on a profile
+card is greyed out, saying *the server doesn't support relay messages*. That
+is the client correctly refusing, not a bug: the server has no relay
+capability to advertise. §4 therefore needs the server from #23's own CI run
+(`opencord-server-windows-x64.zip`), not the one in `C:\oc\server`.
+
+With that server, from a clean start — new profiles, empty database — two
+identities join and **message each other normally**, so relay itself works.
+
+**What did not work: approving a second device of one identity.** With
+`ann` and `ann2` both carrying one identity and chats already in place, the
+approval was never completed in this session, and the peer kept seeing *"A
+message from keys you haven't accepted."* — which is the right message for an
+unapproved device, so the encryption side is behaving. **The cause was not
+established**, and this is deliberately not filed as a defect: nobody
+characterised which step fails (no banner, no words, words differing, or
+**They match** not sticking). It wants a fresh session with one person
+watching each of the two devices.
+
+**A trap worth checking when someone does:** the **Approve** banner is gated
+on the approving device having chats —
+
+```dart
+if (own.hasChats)
+  for (final device in others)
+    KeyBanner(... actions: [Approve, Not mine])
+```
+
+and §4's own *Fresh start* box says a profile that had private chats before
+this build is told they were **removed**. So a profile that has just moved
+onto #23 has no chats, and therefore no way to approve a second device until
+it starts a new one — with nothing on screen to say why. That is a guess from
+reading the code, not a measured finding, but it matches the first attempt
+here exactly, where the approving profile had been wiped by that very
+migration.
+
 ## B. Which build to use for which section
 
 The batch is **not merged**, so §0.1's second path applies: each section is
@@ -783,6 +832,8 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   4. Kill the app in the call and use **Reconnect**: still 40 %.
   5. If the volume is wrong at any point, write down which case, what the slider shows, and what you hear. Keep the session log (**Settings → About → Logs → Open logs folder**) and attach it.
 ## 4. Private message keys (#23)
+
+> **Blocked, and not for want of trying — see A15.** §4 needs the server from **#23's own CI run**, not the one in `C:\oc\server`: #23 changes the server and the proto, and against the stock server the client greys **Message** out with *the server doesn't support relay messages*. With #23's server and a clean start, two identities chat normally. Approving a **second device of one identity** could not be completed, and the step that fails was not pinned down, so nothing here is filed as a defect yet. A fresh session with someone watching each device should settle it.
 - [ ] **Scenario 3: a second device of one identity.**
   1. Make `alice-laptop` with `alice`'s identity: **Export identity backup** on `alice`, then **Import identity** on a new profile.
   2. Before approving, `bob` writes to `alice`:
