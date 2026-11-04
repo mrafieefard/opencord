@@ -2,12 +2,12 @@
 
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/providers/voice_reconnect.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/voice/voice_reconnect_bar.dart';
 
 import '../../support/app.dart';
@@ -158,10 +158,7 @@ void main() {
 
     final bar = tester.getRect(find.byKey(VoiceReconnectBar.barKey));
     expect(bar.width, 1440);
-    expect(
-      tester.getTopLeft(find.byKey(const Key('shell-rail'))).dy,
-      bar.bottom,
-    );
+    expect(tester.getTopLeft(find.byKey(DesktopShell.railKey)).dy, bar.bottom);
     await tester.pump(const Duration(seconds: 1));
     await app.dispose(tester);
   });

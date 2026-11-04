@@ -18,6 +18,7 @@ import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/debug_menu.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
 import 'package:opencord/features/shell/window_title.dart';
@@ -39,10 +40,10 @@ import 'package:opencord/ui/widgets/toast.dart';
 class DesktopShell extends ConsumerStatefulWidget {
   const DesktopShell({super.key});
 
-  static const railKey = Key('shell-rail');
-  static const sidebarKey = Key('shell-sidebar');
-  static const mainKey = Key('shell-main');
-  static const membersKey = Key('shell-members');
+  static const railKey = ShellKeys.rail;
+  static const sidebarKey = ShellKeys.left;
+  static const mainKey = ShellKeys.main;
+  static const membersKey = ShellKeys.panel;
 
   @override
   ConsumerState<DesktopShell> createState() => _DesktopShellState();
