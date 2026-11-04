@@ -388,6 +388,12 @@ void window_channel_present(const gchar* link) {
   send(self, "openLink", value);
 }
 
+GdkEvent* window_channel_last_press() {
+  return channel_state != nullptr ? channel_state->last_press : nullptr;
+}
+
+GdkWindowEdge window_channel_edge(const gchar* name) { return edge_from(name); }
+
 void window_channel_draw_own_frame(GtkWindow* window) {
 #ifdef GDK_WINDOWING_WAYLAND
   GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));

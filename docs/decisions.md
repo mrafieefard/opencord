@@ -157,7 +157,6 @@ The §2.1 greys have a slight cool tint: the red, green and blue channels differ
 - **Restoring the window** brings back its size and maximized state everywhere. Position comes back too where the platform allows; Wayland does not let windows read or set their position. A saved position on a monitor that is gone falls back to the primary monitor, at the saved size. Windows keeps the position in physical pixels and the size in logical ones, so a window on a monitor with a different scale from the primary comes back there.
 - The Windows and macOS runner code could not be built on the development machine. CI builds both.
 
-
 ## D20: Chat conventions (2026-10-07)
 
 - The message list is two slivers around an anchor: older messages grow upwards from it and newer ones downwards. This is the only layout where both loading history and receiving messages leave the view still. The list follows new messages only while the reader is at the end.
@@ -203,7 +202,6 @@ The §2.1 greys have a slight cool tint: the red, green and blue channels differ
 - **Tokens.** One Ed25519 key in the data folder signs voice tokens and media tokens, under separate domain labels. Voice nodes get only its public half. Media tokens are base64url bearer tokens, valid for 24 hours.
 - **The client core** marks each voice state `this_device` rather than handing session ids to Dart. It holds this device's channel across all servers (one at a time) and, after a fresh session such as a server restart, joins it again. When the server refuses, the app is told this device left. When the connection fails, it tries again at the next Ready. `VoiceServerUpdate` and the media token stay in Rust, for the media engine and the soundboard.
 - **Server settings** gain a Voice & video page for Manage server. The channel editor gains bitrate, user limit, voice chat and "Push-to-talk required", which sets or clears the @everyone deny of Use voice activity (plan §5.3). The desktop UI plan's §17.4, which describes this, has not arrived, so these follow the existing settings pages. Permissions the app cannot use yet keep the roles editor's "later" note.
-
 
 ## D25: Voice nodes and audio forwarding (Phase 2 V1, 2026-10-08)
 
@@ -517,7 +515,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - When everyone leaves and the channel comes back on another voice node, the player gets a new voice state pointing at that node's bridge.
   - With voice only on external nodes, music is supported when `[music] enabled` is on, even though the main server runs no bridge itself.
 - **Owed (manual).** A public Lavalink node through a domain with a Let's Encrypt certificate (plan L3 acceptance): it needs a public machine and a real domain. The 150 ms check on a real LAN with 10 devices.
-
 
 ## D46: Search, links and artwork (Phase 3 L4, 2026-10-15)
 
@@ -947,7 +944,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 - **Also.** `app/tool/e2e_server.sh` starts its servers with `OPENCORD_MUSIC_UDP_PORT=0`, so a check runs while another server holds UDP 7712.
 - **Not done here:** the checks by hand from A5, A6 and A7 (listed in `docs/attachments.md`) and scrolling 200 image messages at 60 fps need a display; the transfer speed on an idle machine; the Windows and macOS work (P1, P2).
 
-
 ## D61: Private messages: protocol, shared rules, config and schema (Phase 5 E0, 2026-10-22)
 
 - **Why.** Milestone E0 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 1–3, commits `f424002..5911218`) adds the protocol messages, shared cryptographic signing rules and constants, server config section, schema migration, and Ready capability flag that the private messages and friend delivery architecture builds on.
@@ -971,7 +967,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - `crates/opencord-common/src/private.rs`: `payload_layouts_are_fixed`, `device_signatures_bind_every_field`, `prekey_signatures_bind_the_fallback_flag`, `slips_name_both_people_in_order`, `wrong_lengths_never_verify`.
   - `crates/opencord-server/src/config.rs`: `environment_overrides_the_file`, `private_message_limits_out_of_range_are_refused`, `default_file_matches_default_config`.
   - `crates/opencord-server/tests/private.rs`: `ready_says_whether_private_messages_are_on`.
-
 
 ## D62: Private messages: the server's devices, keys, waiting events, relay and friends (Phase 5 E1, 2026-10-22)
 
@@ -1024,7 +1019,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   Workspace clippy, `check_platforms.sh`, `flutter analyze` and `flutter test` (957 passed, 1 skipped) also pass.
 - **Review.** E1 was checked against the plan on 2026-10-22. The code matched; this entry was rewritten because the first version described a different design for Task 7 (an `accepted_at_ms` column, `FORBIDDEN` errors, a stored friend list) and wrong details for Tasks 4 and 6.
 
-
 ## D63: Private messages: client storage, keys and contacts (Phase 5 E2, 2026-10-23)
 
 - **Why.** Milestone E2 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 8–10, commits `aa7eb69..7fde6c6`). The client core stores encrypted data at rest in a SQLite database sealed with keys derived from a master key (kept in the system keychain from Task 16 on, not the identity key), manages device keys and Olm sessions via vodozemac, and tracks contacts, privacy settings and friend states. Tasks 8 and 9 were done by Claude through claude-bridge, Task 10 by Gemini.
@@ -1049,7 +1043,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 
   Workspace clippy, `app/tool/check_platforms.sh`, `dart format`, `flutter analyze` and `flutter test` (957 passed, 1 skipped) also pass.
 - **Review.** E2 was checked against the plan on 2026-10-23. Task 10 matches the plan's rules and its table of friend events, with all 11 tests. This entry was corrected in two places: the keys come from a master key, not the identity key, and what sealing authenticates.
-
 
 ## D64: Private messages: core private message service (Phase 5 E3, 2026-10-24)
 
@@ -1101,7 +1094,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
 
   Core unit tests (132 passed), the workspace's tests, workspace clippy (0 warnings), `app/tool/check_platforms.sh`, `flutter analyze` (no issues), and `flutter test` (957 passed, 1 skipped) all pass.
 - **Review.** E3 was checked against the plan on 2026-10-24. Four actions in `actions.rs` that read contact before server requests and saved stale state were fixed in `52b75b2` by re-reading with `fresh`.
-
 
 ## D65: Private messages: client app, views and notifications (Phase 5 E4, 2026-10-24)
 
@@ -1166,7 +1158,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
   - E4 added no golden tests.
   - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
 
-
 ## D66: Private messages: security pass, documentation and manual verification (Phase 5 E5, 2026-10-24)
 
 - **Why.** Milestone E5 of private messages (`docs/superpowers/plans/2026-10-22-private-messages.md`, Tasks 23–24, commits `304920f..7e62e23`). Hardens the private messaging implementation across all nine security items, documents the protocol and user/admin architecture, and specifies manual verification scenarios. Task 23 was done by Claude through claude-bridge, Task 24 by Gemini.
@@ -1197,9 +1188,6 @@ The desktop UI plan's §17.5 never arrived, so where Phase 2 §12 says only what
     - 44 server private tests;
     - 1025 Flutter tests in `app/test` (1 skipped).
   - Workspace clippy (`opencord_core`, `opencord-server`), `app/tool/check_platforms.sh`, `dart format`, and `flutter analyze` pass with 0 errors and 0 warnings.
-
-
-
 
 ## D67: Uploaded songs the server plays itself (2026-10-24)
 
@@ -1501,7 +1489,6 @@ Milestone R4 of `docs/superpowers/plans/2026-10-26-mobile-client.md` (spec §8.7
   - A cancelled upload row had no way to go away; "Added to the queue" toasts were replaced by the row's tick.
 - **Not done:** the player hasn't been seen on iOS, and real artwork only on the code path (the fake world has none); the scrubber's feel is checked on the emulator, not a phone.
 
-
 ## D81: The phone apps' first release (2026-10-31)
 
 Milestone R5 of `docs/superpowers/plans/2026-10-26-mobile-client.md`: Task 22 (iOS, by Claude on the Mac), the Android checks after it, and Task 21 (release builds). Merged into beta through #15 (`1cd012b`) and #19.
@@ -1653,3 +1640,32 @@ The owner asked for the custom title bar on every platform, with the system or c
   - GNOME with AppIndicator, Waybar on Hyprland;
   - Windows 10 and 11: the icon, its menu, a click, close and come back, Explorer restarting;
   - macOS: the menu bar icon, a right click, and dark and light menu bars.
+
+## D86: The media viewer in its own window (2026-11-02)
+
+(D83 to D85 are taken by pull requests #22 to #24 in the same batch. This one is built on #22 and #24.)
+
+- **Why.** The owner asked for the viewer in a window of its own, as Telegram Desktop's: a new, see-through window, full screen by default, with the system's own title buttons except on macOS, which keeps its real traffic lights. The overlay inside the main window wasn't that, and on Windows it showed GNOME-style buttons. Spec and plan: `docs/superpowers/specs/2026-11-02-media-viewer-window-design.md`, `docs/superpowers/plans/2026-11-02-media-viewer-window.md`.
+- **Telegram's behaviour, copied, not its code** (it's GPL):
+  - **Two modes.** Full screen covers the monitor: Windows' taskbar, or macOS's menu bar and Dock. The normal window is at least 480×360 and starts at 800×600. Maximize, green, a double click on the top 32 px, Alt+Enter and Ctrl+Enter switch between them. On Windows, Aero Snap and Win+Up turn into full screen. The mode and the normal size are kept under `ui.mediaViewer`.
+  - **Background.** `#222222` at 92 %.
+  - **Layout.** Previous and next along the sides. "Photo 3 of 7" and "sender · time" at the bottom left, and Download at the bottom right. The controls fade after 1.1 s without movement.
+  - **Closing.** In full screen, a click beside the picture closes the viewer. In the normal window it doesn't: a drag there moves the window. Esc closes in both.
+  - **Download.** It saves straight into the downloads folder, beside a file of the same name. It can't open a dialog: every save dialog attaches to the main window, which is under the viewer or hidden in the tray.
+- **One engine, a second view.** The viewer shares the running app: its providers, the repository, and video textures. `main.dart` uses `runWidget` with `AppViews`: the implicit view, and the viewer's view while it's open. Flutter 3.44's multi-window API is `@internal` and master-only, so each runner adds the view itself:
+  - **Linux:** `fl_view_new_for_engine`. Its close handler is connected before the view's, which would quit the app. The window announces it draws its own frame (`gdk_wayland_window_announce_csd`); without that, KWin added a title bar (frame 808×634 around an 800×600 client).
+  - **Windows:** `FlutterDesktopEngineCreateViewController` with `FlutterDesktopEngineForId(PlatformDispatcher.engineId)`. Both are exported by `flutter_windows.dll` but declared only in the engine's internal header, so a Flutter upgrade may move them, and CI's Windows build would say so. The window is see-through through the accent policy flutter_acrylic uses.
+  - **macOS:** `FlutterViewController(engine:)`. The engine allows a second view only in multi-view mode, and its own switch asserts once the main view exists. So the runner sets the `_multiViewEnabled` flag directly, after checking it's there. Without it, the viewer opens in the app.
+- **Fallback.** Wherever the runner has no window, the viewer is today's overlay in the main window.
+- **The close button on Windows** hovers inverted, as the main window's does. The spec said Windows' red, but the app has no hues (desktop UI plan §1).
+- **Checked:**
+  - Dart tests for the channel, the session (reused window, the system's close, the view removed before the window, the remembered mode and size), the layout, fading, the mode rules, keys, each platform's buttons and Download.
+  - On KDE Plasma 6 Wayland, `integration_test/linux/media_window_test.dart` and KWin scripting:
+    - a second window of the same process with its own taskbar entry;
+    - 1920×1080 at 0,0 full screen, over the panel;
+    - 800×600 normal, with no KWin frame;
+    - KWin's close reaching the app, which kept running;
+    - the second view gone on close.
+- **Owed by hand:**
+  - the see-through background on Linux (the screen was locked);
+  - everything on Windows and macOS: `docs/plans/media-check-windows.md`, `docs/plans/media-check-macos.md`.

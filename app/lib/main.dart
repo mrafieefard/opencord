@@ -15,7 +15,8 @@ Future<void> main(List<String> args) async {
   // binding wants Flutter's own error box back when they end.
   limitErrorBoxes();
   final environment = Platform.environment;
-  runApp(
+  // runWidget, not runApp: the media viewer opens a second view (D86).
+  runWidget(
     await startupWidget(
       () => startApp(
         profile: appProfile(environment),
@@ -28,6 +29,7 @@ Future<void> main(List<String> args) async {
         atLogin: args.contains(autostartArg),
       ),
       window: ChannelNativeWindow.new,
+      multiView: true,
     ),
   );
 }

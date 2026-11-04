@@ -3,6 +3,7 @@
 #include <flutter_linux/flutter_linux.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "media_window.h"
 #include "window_channel.h"
 
 struct _MyApplication {
@@ -71,6 +72,7 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
   window_channel_register(window, view);
+  media_window_register(window, view);
 
   // Dropped files (desktop_drop) come as a file list first. The plugin asks
   // for the document portal's transfer key first, then STRING. Plasma's

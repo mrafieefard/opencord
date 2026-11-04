@@ -162,7 +162,11 @@ class MessageBubble extends StatelessWidget {
           if (message.attachments.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: AttachmentsView(serverKey: serverKey, message: message),
+              child: AttachmentsView(
+                serverKey: serverKey,
+                message: message,
+                senderName: author,
+              ),
             ),
           if (message.uploads.isNotEmpty)
             UploadProgressList(

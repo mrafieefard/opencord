@@ -47,7 +47,11 @@ class WindowFrame extends ConsumerWidget {
       return Stack(
         children: [
           Positioned.fill(child: child),
-          ..._handles(window, outside: 0, band: windowResizeBand),
+          ...windowResizeHandles(
+            onResize: window.startResize,
+            outside: 0,
+            band: windowResizeBand,
+          ),
         ],
       );
     }
@@ -77,87 +81,13 @@ class WindowFrame extends ConsumerWidget {
             ),
           ),
         ),
-        ..._handles(
-          window,
+        ...windowResizeHandles(
+          onResize: window.startResize,
           outside: margin - windowResizeBand,
           band: windowResizeBand,
         ),
       ],
     );
-  }
-
-  /// Resize handles: a [band] wide ring starting [outside] from the window
-  /// edge, with square corners of [windowCornerSize].
-  List<Widget> _handles(
-    NativeWindow window, {
-    required double outside,
-    required double band,
-  }) {
-    const corner = windowCornerSize;
-    Widget handle(ResizeEdge edge, MouseCursor cursor) => MouseRegion(
-      cursor: cursor,
-      child: Listener(
-        behavior: HitTestBehavior.opaque,
-        onPointerDown: (event) {
-          if (event.buttons == 1) window.startResize(edge);
-        },
-      ),
-    );
-    return [
-      Positioned(
-        left: outside + corner,
-        right: outside + corner,
-        top: outside,
-        height: band,
-        child: handle(ResizeEdge.top, SystemMouseCursors.resizeUp),
-      ),
-      Positioned(
-        left: outside + corner,
-        right: outside + corner,
-        bottom: outside,
-        height: band,
-        child: handle(ResizeEdge.bottom, SystemMouseCursors.resizeDown),
-      ),
-      Positioned(
-        top: outside + corner,
-        bottom: outside + corner,
-        left: outside,
-        width: band,
-        child: handle(ResizeEdge.left, SystemMouseCursors.resizeLeft),
-      ),
-      Positioned(
-        top: outside + corner,
-        bottom: outside + corner,
-        right: outside,
-        width: band,
-        child: handle(ResizeEdge.right, SystemMouseCursors.resizeRight),
-      ),
-      for (final (edge, cursor, left, top) in const [
-        (ResizeEdge.topLeft, SystemMouseCursors.resizeUpLeft, true, true),
-        (ResizeEdge.topRight, SystemMouseCursors.resizeUpRight, false, true),
-        (ResizeEdge.bottomLeft, SystemMouseCursors.resizeDownLeft, true, false),
-        (
-          ResizeEdge.bottomRight,
-          SystemMouseCursors.resizeDownRight,
-          false,
-          false,
-        ),
-      ])
-        Positioned(
-          left: left ? outside : null,
-          right: left ? null : outside,
-          top: top ? outside : null,
-          bottom: top ? null : outside,
-          width: corner + band,
-          height: corner + band,
-          child: _CornerHandle(
-            band: band,
-            left: left,
-            top: top,
-            child: handle(edge, cursor),
-          ),
-        ),
-    ];
   }
 }
 
@@ -199,4 +129,79 @@ class _CornerHandle extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Resize handles for a Stack over the whole window: a [band] wide ring
+/// starting [outside] from the window edge, with square corners of
+/// [windowCornerSize]. A press on one calls [onResize] with its edge.
+List<Widget> windowResizeHandles({
+  required void Function(ResizeEdge edge) onResize,
+  required double outside,
+  required double band,
+}) {
+  const corner = windowCornerSize;
+  Widget handle(ResizeEdge edge, MouseCursor cursor) => MouseRegion(
+    cursor: cursor,
+    child: Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (event) {
+        if (event.buttons == 1) onResize(edge);
+      },
+    ),
+  );
+  return [
+    Positioned(
+      left: outside + corner,
+      right: outside + corner,
+      top: outside,
+      height: band,
+      child: handle(ResizeEdge.top, SystemMouseCursors.resizeUp),
+    ),
+    Positioned(
+      left: outside + corner,
+      right: outside + corner,
+      bottom: outside,
+      height: band,
+      child: handle(ResizeEdge.bottom, SystemMouseCursors.resizeDown),
+    ),
+    Positioned(
+      top: outside + corner,
+      bottom: outside + corner,
+      left: outside,
+      width: band,
+      child: handle(ResizeEdge.left, SystemMouseCursors.resizeLeft),
+    ),
+    Positioned(
+      top: outside + corner,
+      bottom: outside + corner,
+      right: outside,
+      width: band,
+      child: handle(ResizeEdge.right, SystemMouseCursors.resizeRight),
+    ),
+    for (final (edge, cursor, left, top) in const [
+      (ResizeEdge.topLeft, SystemMouseCursors.resizeUpLeft, true, true),
+      (ResizeEdge.topRight, SystemMouseCursors.resizeUpRight, false, true),
+      (ResizeEdge.bottomLeft, SystemMouseCursors.resizeDownLeft, true, false),
+      (
+        ResizeEdge.bottomRight,
+        SystemMouseCursors.resizeDownRight,
+        false,
+        false,
+      ),
+    ])
+      Positioned(
+        left: left ? outside : null,
+        right: left ? null : outside,
+        top: top ? outside : null,
+        bottom: top ? null : outside,
+        width: corner + band,
+        height: corner + band,
+        child: _CornerHandle(
+          band: band,
+          left: left,
+          top: top,
+          child: handle(edge, cursor),
+        ),
+      ),
+  ];
 }

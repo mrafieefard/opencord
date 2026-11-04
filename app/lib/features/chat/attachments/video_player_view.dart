@@ -19,6 +19,8 @@ class VideoPlayerView extends ConsumerStatefulWidget {
     required this.serverKey,
     required this.attachment,
     this.pictureKey,
+    this.framePicture = _unframed,
+    this.controlsInset = 0,
   });
 
   final String serverKey;
@@ -26,6 +28,15 @@ class VideoPlayerView extends ConsumerStatefulWidget {
 
   /// Marks the picture, for a viewer that closes on clicks beside it.
   final GlobalKey? pictureKey;
+
+  /// Wraps the playing picture alone, as the viewer's zoom does, so the
+  /// controls stay where they are.
+  final Widget Function(Widget picture) framePicture;
+
+  /// How far above the bottom edge the controls sit.
+  final double controlsInset;
+
+  static Widget _unframed(Widget picture) => picture;
 
   @override
   ConsumerState<VideoPlayerView> createState() => _VideoPlayerViewState();
@@ -240,30 +251,31 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
           alignment: Alignment.center,
           children: [
             // Video display or audio surface
-            if (hasVideo && textureId != null)
-              Center(
-                child: AspectRatio(
-                  key: widget.pictureKey,
-                  aspectRatio: aspectRatio,
-                  child: Texture(textureId: textureId),
-                ),
-              )
-            else
-              Center(
-                child: Container(
-                  key: widget.pictureKey,
-                  width: 320,
-                  height: 240,
-                  color: colors.surface,
-                  child: Center(
-                    child: Icon(
-                      hasVideo ? OcIcons.movie : OcIcons.musicNote,
-                      size: 64,
-                      color: colors.textSecondary,
+            widget.framePicture(
+              hasVideo && textureId != null
+                  ? Center(
+                      child: AspectRatio(
+                        key: widget.pictureKey,
+                        aspectRatio: aspectRatio,
+                        child: Texture(textureId: textureId),
+                      ),
+                    )
+                  : Center(
+                      child: Container(
+                        key: widget.pictureKey,
+                        width: 320,
+                        height: 240,
+                        color: colors.surface,
+                        child: Center(
+                          child: Icon(
+                            hasVideo ? OcIcons.movie : OcIcons.musicNote,
+                            size: 64,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
+            ),
 
             if (playback.buffering)
               const SizedBox(
@@ -276,7 +288,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
             Positioned(
               left: OcSpace.s16,
               right: OcSpace.s16,
-              bottom: OcSpace.s16,
+              bottom: widget.controlsInset + OcSpace.s16,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {},
