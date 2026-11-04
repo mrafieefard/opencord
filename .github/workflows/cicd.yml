@@ -607,6 +607,25 @@ jobs:
         with:
           version: ${{ needs.version.outputs.version }}
 
+      # FFmpeg for the media player (D89), built from source as on Linux
+      # and Windows (app/tool/macos/build_ffmpeg.sh), universal, and cached
+      # by its script. The app carries its dylibs.
+      - name: Cache FFmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/ffmpeg
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/tool/macos/build_ffmpeg.sh') }}
+
+      - name: Build FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          brew install nasm meson ninja
+          app/tool/macos/build_ffmpeg.sh ~/ffmpeg
+
+      - name: Use FFmpeg
+        run: echo "FFMPEG_DIR=$HOME/ffmpeg" >> "$GITHUB_ENV"
+
       # The release is universal: Rust builds for both architectures.
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -623,7 +642,12 @@ jobs:
       # macOS allows 256 open files by default; the tests' servers each
       # keep a database pool, and SQLite says "unable to open database
       # file" when they run out.
+      # FFmpeg's dylibs are named @rpath/…: the app finds them in its
+      # Frameworks folder, the tests through this rpath. DYLD_LIBRARY_PATH
+      # wouldn't do: macOS drops it when the step's bash starts.
       - name: Test
+        env:
+          RUSTFLAGS: -C link-arg=-Wl,-rpath,${{ env.FFMPEG_DIR }}/lib
         run: |
           ulimit -n 10240
           cargo test --locked --no-fail-fast $CLIENT_CRATES

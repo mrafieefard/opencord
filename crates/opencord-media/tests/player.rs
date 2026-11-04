@@ -432,7 +432,7 @@ fn probe_and_poster_makes_a_jpeg() {
 }
 
 /// What Task 32 builds FFmpeg with: CI runs this against that build.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 #[test]
 fn the_planned_decoders_are_there() {
     if !supported() {

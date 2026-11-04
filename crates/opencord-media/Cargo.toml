@@ -79,6 +79,8 @@ objc2-core-audio = { version = "0.3.2", default-features = false, features = ["s
 objc2-core-audio-types = { version = "0.3.2", default-features = false, features = ["std", "CoreAudioBaseTypes"] }
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFArray", "CFData", "CFDictionary", "CFMachPort", "CFNotificationCenter", "CFNumber", "CFRunLoop", "CFString"] }
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGEvent", "CGEventSource", "CGEventTypes", "CGRemoteOperation"] }
+# The media player (D89); calls keep VideoToolbox (video/codec/macos/).
+ffmpeg-next.workspace = true
 pic-scale = { version = "0.7.12", default-features = false, features = ["avx", "neon", "rdm", "sse"] }
 yuv = { version = "0.8.19", default-features = false, features = ["avx", "rdm", "sse"] }
 
