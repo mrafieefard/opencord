@@ -2,6 +2,7 @@
 //! per identity under `<data_dir>/private/`, its secret columns sealed with
 //! keys derived from the keychain's master key.
 
+use std::ffi::OsStr;
 use std::path::Path;
 use std::time::Duration;
 
@@ -19,6 +20,9 @@ const KEY_CHECK_LABEL: &str = "settings.key_check";
 const KEY_CHECK_PLAINTEXT: &[u8] = b"opencord-private-key-check";
 /// The database file and SQLite's two companions, moved aside together.
 const FILE_SUFFIXES: [&str; 3] = ["", "-wal", "-shm"];
+/// How long moving a file waits for it to be closed: two seconds in all.
+const MOVE_TRIES: u32 = 40;
+const MOVE_WAIT: Duration = Duration::from_millis(50);
 
 pub struct PrivateStore {
     pool: SqlitePool,
@@ -186,13 +190,36 @@ async fn move_aside(path: &Path, now_ms: i64) -> Result<(), PrivateError> {
         from.push(suffix);
         let mut to = from.clone();
         to.push(format!(".unreadable-{now_ms}"));
-        match tokio::fs::rename(&from, &to).await {
+        match rename_when_free(&from, &to).await {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
         }
     }
     Ok(())
+}
+
+/// Renames a file, waiting for whoever still has it open. On Windows a file
+/// that's open can't be renamed: a connection that failed closes its file on
+/// its own thread, just after the failure is returned, and virus scanners open
+/// new files too.
+async fn rename_when_free(from: &OsStr, to: &OsStr) -> std::io::Result<()> {
+    let mut tries = 1;
+    loop {
+        match tokio::fs::rename(from, to).await {
+            Err(error) if tries < MOVE_TRIES && still_open(&error) => {
+                tries += 1;
+                tokio::time::sleep(MOVE_WAIT).await;
+            }
+            result => return result,
+        }
+    }
+}
+
+/// Windows' ERROR_SHARING_VIOLATION. The same number means something else
+/// elsewhere.
+fn still_open(error: &std::io::Error) -> bool {
+    cfg!(windows) && error.raw_os_error() == Some(32)
 }
 
 async fn setting(pool: &SqlitePool, key: &str) -> Result<Option<String>, sqlx::Error> {
@@ -393,6 +420,31 @@ mod tests {
             .unwrap();
         assert!(!opened.started_fresh);
         opened.store.close().await;
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn a_file_still_open_is_moved_once_it_is_closed() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("private.db");
+        std::fs::write(&path, b"damaged").unwrap();
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&path)
+            .unwrap();
+        let closes = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            drop(held);
+        });
+
+        move_aside(&path, 7).await.unwrap();
+
+        closes.await.unwrap();
+        assert!(!path.exists());
+        assert!(dir.path().join("private.db.unreadable-7").exists());
     }
 
     #[tokio::test]
