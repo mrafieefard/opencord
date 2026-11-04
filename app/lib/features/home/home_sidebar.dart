@@ -4,12 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/features/channels/user_panel.dart';
-import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/shell/navigation.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/ui/widgets/oc_float.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -21,11 +20,36 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 
+/// The home sidebar header float (§5.16), 52 px tall.
+class HomeHead extends StatelessWidget {
+  const HomeHead({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return SizedBox(
+      height: OcFloats.header,
+      child: OcFloat(
+        key: ShellKeys.head,
+        color: colors.sidebar,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Private messages',
+              style: OcText.header.copyWith(color: colors.text),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The sidebar for the home view (§6.2).
 class HomeSidebar extends ConsumerWidget {
-  const HomeSidebar({super.key, this.leadingControls = false});
-
-  final bool leadingControls;
+  const HomeSidebar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,17 +86,6 @@ class HomeSidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderBar(
-            leadingControls: leadingControls,
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Private messages',
-                style: OcText.header.copyWith(color: colors.text),
-              ),
-            ),
-          ),
           const SizedBox(height: OcSpace.s8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
@@ -129,8 +142,6 @@ class HomeSidebar extends ConsumerWidget {
               },
             ),
           ),
-          const VoiceConnectedPanel(),
-          const UserPanel(),
         ],
       ),
     );

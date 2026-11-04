@@ -10,16 +10,15 @@ import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
-import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_channel_row.dart';
-import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/dialogs/create_channel_dialog.dart';
 import 'package:opencord/features/dialogs/invite_dialog.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/ui/widgets/oc_float.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -36,12 +35,33 @@ import 'package:opencord/ui/widgets/toast.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/ui/widgets/ellipsis_text.dart';
 
+/// The server header float (§5.3), 52 px tall.
+class ServerHead extends ConsumerWidget {
+  const ServerHead({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
+    final server = ref.watch(currentServerProvider);
+    return SizedBox(
+      height: OcFloats.header,
+      child: OcFloat(
+        key: ShellKeys.head,
+        color: colors.sidebar,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+          child: server == null
+              ? const SizedBox()
+              : _ServerHeader(serverKey: server),
+        ),
+      ),
+    );
+  }
+}
+
 /// The channel sidebar (§4.2).
 class ChannelSidebar extends ConsumerWidget {
-  const ChannelSidebar({super.key, this.leadingControls = false});
-
-  /// Carries left-hand window controls (§3.1).
-  final bool leadingControls;
+  const ChannelSidebar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,21 +72,12 @@ class ChannelSidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderBar(
-            leadingControls: leadingControls,
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-            child: server == null
-                ? const SizedBox()
-                : _ServerHeader(serverKey: server),
-          ),
           const _SearchLauncher(),
           Expanded(
             child: server == null
                 ? const SizedBox()
                 : _ChannelList(serverKey: server),
           ),
-          const VoiceConnectedPanel(),
-          const UserPanel(),
         ],
       ),
     );
@@ -122,27 +133,34 @@ class _ServerHeader extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  EllipsisText(
-                    name,
-                    style: OcText.header.copyWith(color: colors.text),
+                  Flexible(
+                    child: EllipsisText(
+                      name,
+                      style: OcText.header.copyWith(color: colors.text),
+                    ),
                   ),
-                  Row(
-                    children: [
-                      ConnectionDot(
-                        connected: state.connection.isConnected,
-                        size: 6,
-                      ),
-                      const SizedBox(width: OcSpace.s6),
-                      Expanded(
-                        child: Text(
-                          status,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: OcText.meta.copyWith(color: colors.textMuted),
+                  Flexible(
+                    child: Row(
+                      children: [
+                        ConnectionDot(
+                          connected: state.connection.isConnected,
+                          size: 6,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: OcSpace.s6),
+                        Expanded(
+                          child: Text(
+                            status,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: OcText.meta.copyWith(
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -229,17 +247,13 @@ class _SearchLauncher extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        OcSpace.s12,
-        OcSpace.s10,
-        OcSpace.s12,
-        OcSpace.s4,
-      ),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Hoverable(
         onTap: () => showQuickSwitcher(context, ref),
         semanticLabel: 'Search, jump to a channel, server or member',
         focusRadius: BorderRadius.circular(OcRadius.searchPill),
         builder: (context, state) => AnimatedContainer(
+          key: ShellKeys.search,
           duration: OcMotion.of(context).hover,
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),

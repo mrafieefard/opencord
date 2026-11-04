@@ -44,13 +44,10 @@ class ChatArea extends ConsumerStatefulWidget {
     this.musicShown = false,
     this.onSelectMusic,
     this.onOpenSidebar,
-    this.leadingControls = false,
-    this.trailingControls = false,
+    this.includeComposer = true,
   });
 
-  /// Window controls (§3.1), when this is the first or the rightmost header.
-  final bool leadingControls;
-  final bool trailingControls;
+  final bool includeComposer;
 
   final bool membersShown;
   final VoidCallback onToggleMembers;
@@ -110,14 +107,15 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
             ),
           ),
         ),
-        MeasuredHeight(
-          onChanged: (height) => _composerHeight.value = height,
-          child: Composer(
-            key: ValueKey(('composer', open)),
-            channel: open,
-            controller: _controller,
+        if (widget.includeComposer)
+          MeasuredHeight(
+            onChanged: (height) => _composerHeight.value = height,
+            child: Composer(
+              key: ValueKey(('composer', open)),
+              channel: open,
+              controller: _controller,
+            ),
           ),
-        ),
       ],
     ),
   );
@@ -170,8 +168,6 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                 onSelectMusic: widget.onSelectMusic,
                 onOpenSidebar: widget.onOpenSidebar,
                 onJumpTo: _controller.jumpToMessage,
-                leadingControls: widget.leadingControls,
-                trailingControls: widget.trailingControls,
               ),
               if (server != null && !noServers)
                 ConnectionBanner(serverKey: server),

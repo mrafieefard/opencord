@@ -15,7 +15,7 @@ import 'package:opencord/features/music/music_search.dart';
 import 'package:opencord/features/music/music_uploads.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -73,7 +73,6 @@ class MusicPanel extends ConsumerWidget {
     this.isOverlay = false,
     this.onSelectMembers,
     this.onSelectMusic,
-    this.trailingControls = false,
   });
 
   final MusicChannel channel;
@@ -81,7 +80,6 @@ class MusicPanel extends ConsumerWidget {
   final bool isOverlay;
   final VoidCallback? onSelectMembers;
   final VoidCallback? onSelectMusic;
-  final bool trailingControls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -97,8 +95,7 @@ class MusicPanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderBar(
-            trailingControls: trailingControls,
+          PanelHeader(
             padding: const EdgeInsets.only(
               left: OcSpace.s16,
               right: OcSpace.s8,
@@ -130,14 +127,12 @@ class MusicPanel extends ConsumerWidget {
                     onPressed: onSelectMusic,
                   ),
                 ],
-                if (!trailingControls ||
-                    !showsTrailingWindowControls(context, ref))
-                  OcIconButton(
-                    icon: OcIcons.close,
-                    tooltip: 'Close',
-                    size: OcIconButtonSize.compact,
-                    onPressed: onClose,
-                  ),
+                OcIconButton(
+                  icon: OcIcons.close,
+                  tooltip: 'Close',
+                  size: OcIconButtonSize.compact,
+                  onPressed: onClose,
+                ),
               ],
             ),
           ),

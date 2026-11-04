@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/settings/voice_view_prefs.dart';
@@ -9,10 +8,15 @@ import 'package:opencord/core/providers/voice_cues.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_sidebar.dart';
+import 'package:opencord/features/channels/user_panel.dart';
+import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/chat/chat_area.dart';
+import 'package:opencord/features/chat/chat_controller.dart';
+import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/dialogs/identity_changed_dialog.dart';
 import 'package:opencord/features/home/home_main.dart';
 import 'package:opencord/features/home/home_sidebar.dart';
+import 'package:opencord/features/home/private_chat.dart';
 import 'package:opencord/features/members/member_panel.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_panel.dart';
@@ -20,13 +24,16 @@ import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/debug_menu.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/navigation_history.dart';
+import 'package:opencord/features/shell/shell_drawer.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
+import 'package:opencord/features/shell/title_crumb.dart';
 import 'package:opencord/features/shell/window_title.dart';
 import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
+import 'package:opencord/features/window/app_title_bar.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_reconnect_bar.dart';
@@ -35,6 +42,8 @@ import 'package:opencord/features/shell/mac_menu_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
+import 'package:opencord/ui/widgets/notched_float.dart';
+import 'package:opencord/ui/widgets/oc_float.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
 /// The desktop window: rail, channel sidebar, main column and member panel
@@ -160,11 +169,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     required bool music,
     required VoidCallback onClose,
     bool isOverlay = false,
-    bool trailingControls = false,
   }) {
     final channel = ref.read(musicChannelProvider);
     return AnimatedContainer(
-      key: DesktopShell.membersKey,
       duration: OcMotion.of(context).panel,
       curve: OcMotion.curve,
       width: music ? OcSize.musicPanelWidth : OcSize.memberPanelWidth,
@@ -175,14 +182,12 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               isOverlay: isOverlay,
               onSelectMembers: _selectMembers,
               onSelectMusic: _selectMusic,
-              trailingControls: trailingControls,
             )
           : MemberPanel(
               onClose: onClose,
               isOverlay: isOverlay,
               onSelectMembers: _selectMembers,
               onSelectMusic: _selectMusic,
-              trailingControls: trailingControls,
             ),
     );
   }
@@ -354,113 +359,126 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               },
               child: Focus(
                 autofocus: true,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Over the whole layout, as Discord's (D88).
-                    const VoiceReconnectBar(),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final layout = ShellLayout.forWidth(
-                            constraints.maxWidth,
-                          );
-                          _layout = layout;
-                          final border = VerticalDivider(
-                            width: 1,
-                            thickness: 1,
-                            color: colors.border,
-                          );
-                          final membersInline =
-                              layout.membersInline && panelOpen;
-                          return Stack(
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const SizedBox(
-                                    key: DesktopShell.railKey,
-                                    width: OcSize.railWidth,
-                                    child: ServerRail(),
+                child: ColoredBox(
+                  color: colors.rail,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const AppTitleBar(
+                        leading: HistoryArrows(),
+                        center: TitleCrumb(),
+                      ),
+                      const VoiceReconnectBar(),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final layout = ShellLayout.forWidth(
+                              constraints.maxWidth,
+                            );
+                            _layout = layout;
+                            final membersInline =
+                                layout.membersInline && panelOpen;
+                            return Stack(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    OcFloats.gap,
+                                    0,
+                                    OcFloats.gap,
+                                    OcFloats.gap,
                                   ),
-                                  border,
-                                  if (layout.sidebarInline) ...[
-                                    SizedBox(
-                                      key: DesktopShell.sidebarKey,
-                                      width: layout.sidebarWidth,
-                                      child: homeShown
-                                          ? const HomeSidebar(
-                                              leadingControls: true,
-                                            )
-                                          : const ChannelSidebar(
-                                              leadingControls: true,
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      const SizedBox(
+                                        width: OcSize.railWidth,
+                                        child: OcFloat(
+                                          key: ShellKeys.rail,
+                                          child: ServerRail(),
+                                        ),
+                                      ),
+                                      if (layout.sidebarInline) ...[
+                                        const SizedBox(width: OcFloats.gap),
+                                        SizedBox(
+                                          key: ShellKeys.left,
+                                          width: layout.sidebarWidth,
+                                          child: const _LeftColumn(),
+                                        ),
+                                        const SizedBox(
+                                          key: ShellKeys.splitter,
+                                          width: OcFloats.gap,
+                                        ),
+                                      ] else ...[
+                                        const SizedBox(width: OcFloats.gap),
+                                      ],
+                                      Expanded(
+                                        child: _MainColumn(
+                                          layout: layout,
+                                          panelOpen: panelOpen,
+                                          membersActive: membersActive,
+                                          musicActive: musicActive,
+                                          musicShown: musicShown,
+                                          onOpenSidebar: layout.sidebarInline
+                                              ? null
+                                              : () => setState(
+                                                  () => _sidebarDrawer = true,
+                                                ),
+                                          onSelectMembers: _selectMembers,
+                                          onSelectMusic: _selectMusic,
+                                        ),
+                                      ),
+                                      if (membersInline) ...[
+                                        const SizedBox(width: OcFloats.gap),
+                                        SizedBox(
+                                          key: ShellKeys.side,
+                                          width: musicShown
+                                              ? OcSize.musicPanelWidth
+                                              : OcSize.memberPanelWidth,
+                                          child: OcFloat(
+                                            key: ShellKeys.panel,
+                                            color: colors.sidebar,
+                                            child: _rightPanel(
+                                              music: musicShown,
+                                              onClose: _closeRightPanel,
                                             ),
-                                    ),
-                                    border,
-                                  ],
-                                  Expanded(
-                                    key: DesktopShell.mainKey,
-                                    child: homeShown
-                                        ? HomeMain(
-                                            leadingControls:
-                                                !layout.sidebarInline,
-                                            trailingControls: true,
-                                          )
-                                        : ChatArea(
-                                            membersShown: membersActive,
-                                            onToggleMembers: _selectMembers,
-                                            musicShown: musicActive,
-                                            onSelectMusic: _selectMusic,
-                                            onOpenSidebar: layout.sidebarInline
-                                                ? null
-                                                : () => setState(
-                                                    () => _sidebarDrawer = true,
-                                                  ),
-                                            leadingControls:
-                                                !layout.sidebarInline,
-                                            trailingControls: !membersInline,
                                           ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                  if (membersInline) ...[
-                                    border,
-                                    _rightPanel(
+                                ),
+                                if (!layout.sidebarInline && _sidebarDrawer)
+                                  ShellDrawer(
+                                    fromRight: false,
+                                    inset: OcFloats.gap * 2 + OcFloats.rail,
+                                    width: layout.leftDrawerWidth(
+                                      constraints.maxWidth,
+                                    ),
+                                    onClose: () =>
+                                        setState(() => _sidebarDrawer = false),
+                                    child: const _LeftColumn(),
+                                  ),
+                                if (!layout.membersInline && _membersDrawer)
+                                  ShellDrawer(
+                                    fromRight: true,
+                                    width: musicShown
+                                        ? OcSize.musicPanelWidth
+                                        : OcSize.memberPanelWidth,
+                                    onClose: _closeRightPanel,
+                                    child: _rightPanel(
                                       music: musicShown,
                                       onClose: _closeRightPanel,
-                                      trailingControls: true,
+                                      isOverlay: true,
                                     ),
-                                  ],
-                                ],
-                              ),
-                              if (!layout.sidebarInline && _sidebarDrawer)
-                                _Drawer(
-                                  fromRight: false,
-                                  inset: OcSize.railWidth + 1,
-                                  onClose: () =>
-                                      setState(() => _sidebarDrawer = false),
-                                  child: SizedBox(
-                                    key: DesktopShell.sidebarKey,
-                                    width: layout.sidebarWidth,
-                                    child: homeShown
-                                        ? const HomeSidebar()
-                                        : const ChannelSidebar(),
                                   ),
-                                ),
-                              if (!layout.membersInline && _membersDrawer)
-                                _Drawer(
-                                  fromRight: true,
-                                  onClose: _closeRightPanel,
-                                  child: _rightPanel(
-                                    music: musicShown,
-                                    onClose: _closeRightPanel,
-                                    isOverlay: true,
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
+                              ],
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -471,108 +489,149 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   }
 }
 
-/// A panel over the layout with a scrim behind it. Escape or a click on
-/// the scrim closes it.
-class _Drawer extends StatefulWidget {
-  const _Drawer({
-    required this.fromRight,
-    required this.onClose,
-    required this.child,
-    this.inset = 0,
-  });
-
-  final bool fromRight;
-  final VoidCallback onClose;
-  final Widget child;
-
-  /// Space left uncovered on the opening side (the rail stays usable).
-  final double inset;
+/// The left column: head slot, channels float, voice panel and user panel (§2).
+class _LeftColumn extends ConsumerWidget {
+  const _LeftColumn();
 
   @override
-  State<_Drawer> createState() => _DrawerState();
-}
-
-class _DrawerState extends State<_Drawer> {
-  final _scope = FocusScopeNode(debugLabel: 'drawer');
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _scope.requestFocus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _scope.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
-    final motion = OcMotion.of(context);
-    final fromRight = widget.fromRight;
-    final onClose = widget.onClose;
-    return Positioned.fill(
-      left: fromRight ? 0 : widget.inset,
-      child: Shortcuts(
-        shortcuts: const {
-          SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
-        },
-        child: Actions(
-          actions: {
-            DismissIntent: CallbackAction<DismissIntent>(
-              onInvoke: (_) => onClose(),
-            ),
-          },
-          child: FocusScope(
-            node: _scope,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: onClose,
-                    child: ColoredBox(
-                      color: colors.scrim.withValues(
-                        alpha: colors.scrim.a * 0.6,
-                      ),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: fromRight
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 1, end: 0),
-                    duration: motion.morph,
-                    curve: OcMotion.curve,
-                    builder: (context, offset, child) => FractionalTranslation(
-                      translation: Offset(fromRight ? offset : -offset, 0),
-                      child: child,
-                    ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: fromRight
-                              ? BorderSide(color: colors.border)
-                              : BorderSide.none,
-                          right: fromRight
-                              ? BorderSide.none
-                              : BorderSide(color: colors.border),
-                        ),
-                      ),
-                      child: widget.child,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    final homeShown = ref.watch(homeShownProvider);
+    final voice = ref.watch(voiceSessionProvider);
+    final inVoice = voice.serverKey != null && voice.channelId != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (homeShown) const HomeHead() else const ServerHead(),
+        const SizedBox(height: OcFloats.gap),
+        Expanded(
+          child: OcFloat(
+            key: ShellKeys.channels,
+            color: colors.sidebar,
+            child: homeShown ? const HomeSidebar() : const ChannelSidebar(),
           ),
         ),
-      ),
+        if (inVoice) ...[
+          const SizedBox(height: OcFloats.gap),
+          OcFloat(
+            key: ShellKeys.vcard,
+            color: colors.sidebar,
+            child: const VoiceConnectedPanel(),
+          ),
+        ],
+        const SizedBox(height: OcFloats.gap),
+        const SizedBox(
+          height: OcFloats.bottom,
+          child: OcFloat(key: ShellKeys.me, child: UserPanel()),
+        ),
+      ],
+    );
+  }
+}
+
+/// The main column: main float with notch, and composer float underneath (§2).
+class _MainColumn extends ConsumerWidget {
+  const _MainColumn({
+    required this.layout,
+    required this.panelOpen,
+    required this.membersActive,
+    required this.musicActive,
+    required this.musicShown,
+    required this.onOpenSidebar,
+    required this.onSelectMembers,
+    required this.onSelectMusic,
+  });
+
+  final ShellLayout layout;
+  final bool panelOpen;
+  final bool membersActive;
+  final bool musicActive;
+  final bool musicShown;
+  final VoidCallback? onOpenSidebar;
+  final VoidCallback onSelectMembers;
+  final VoidCallback? onSelectMusic;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
+    final homeShown = ref.watch(homeShownProvider);
+    final currentPeer = ref.watch(currentPeerProvider);
+
+    final server = ref.watch(currentServerProvider);
+    final channelId = ref.watch(currentChannelProvider);
+    final channel = server == null
+        ? null
+        : ref.watch(
+            serverProvider(
+              server,
+            ).select((state) => state.data?.channels[channelId]),
+          );
+    final open = server == null || channel == null
+        ? null
+        : (server: server, channel: channel.id);
+    final noServers = ref.watch(
+      serverListProvider.select((servers) => servers.isEmpty),
+    );
+
+    final bool isChat;
+    if (homeShown) {
+      isChat = currentPeer != null;
+    } else {
+      isChat = !noServers && open != null && channel!.kind.isTextLike;
+    }
+
+    Widget mainContent;
+    Widget? composerContent;
+
+    if (homeShown) {
+      mainContent = HomeMain(
+        onOpenSidebar: onOpenSidebar,
+        includeComposer: false,
+      );
+      if (currentPeer != null) {
+        composerContent = PrivateChatBottomBar(peer: currentPeer);
+      }
+    } else {
+      mainContent = ChatArea(
+        membersShown: membersActive,
+        onToggleMembers: onSelectMembers,
+        musicShown: musicActive,
+        onSelectMusic: onSelectMusic,
+        onOpenSidebar: onOpenSidebar,
+        includeComposer: false,
+      );
+      if (isChat && open != null) {
+        composerContent = Composer(
+          channel: open,
+          controller: ref.read(chatControllerProvider),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: NotchedFloat(
+            key: ShellKeys.main,
+            notch: const AlwaysStoppedAnimation(0),
+            color: colors.chat,
+            child: mainContent,
+          ),
+        ),
+        if (isChat && composerContent != null) ...[
+          const SizedBox(height: OcFloats.gap),
+          SizedBox(
+            height: OcFloats.bottom,
+            child: OcFloat(
+              key: ShellKeys.composer,
+              color: colors.sidebar,
+              child: composerContent,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

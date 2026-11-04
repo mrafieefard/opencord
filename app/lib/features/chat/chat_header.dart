@@ -13,7 +13,8 @@ import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -38,8 +39,6 @@ class ChatHeader extends ConsumerWidget {
     this.onSelectMusic,
     required this.onJumpTo,
     this.onOpenSidebar,
-    this.leadingControls = false,
-    this.trailingControls = false,
     this.voiceChatAlone = false,
   });
 
@@ -58,11 +57,10 @@ class ChatHeader extends ConsumerWidget {
   final VoidCallback? onSelectMusic;
   final ValueChanged<int> onJumpTo;
   final VoidCallback? onOpenSidebar;
-  final bool leadingControls;
-  final bool trailingControls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
     final open = channel;
     final target = open == null
         ? null
@@ -72,9 +70,9 @@ class ChatHeader extends ConsumerWidget {
             ).select((state) => state.data?.channels[open.channel]),
           );
     final pins = ref.read(repositoryProvider).capabilities.pins;
-    return HeaderBar(
-      leadingControls: leadingControls,
-      trailingControls: trailingControls,
+    return PanelHeader(
+      key: ShellKeys.hd,
+      color: colors.chat,
       child: Row(
         children: [
           if (onOpenSidebar != null)
@@ -230,40 +228,47 @@ class _Title extends ConsumerWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        EllipsisText(
-          target.kind.isTextLike ? '#${target.name}' : target.name,
-          style: OcText.header.copyWith(color: colors.text),
+        Flexible(
+          child: EllipsisText(
+            target.kind.isTextLike ? '#${target.name}' : target.name,
+            style: OcText.header.copyWith(color: colors.text),
+          ),
         ),
         if (names.isNotEmpty)
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  typingLabel(names),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: style,
+          Flexible(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    typingLabel(names),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: style,
+                  ),
                 ),
-              ),
-              TypingDots(color: colors.textSecondary),
-            ],
+                TypingDots(color: colors.textSecondary),
+              ],
+            ),
           )
         else
-          Text(
-            switch (connected) {
-              0 => 'No one connected',
-              final count? => '${countLabel(count)} connected',
-              null => [
-                '${countLabel(audience.members)} member'
-                    '${audience.members == 1 ? '' : 's'}, '
-                    '${countLabel(audience.online)} online',
-                if (topic != null && topic.isNotEmpty) topic,
-              ].join(' · '),
-            },
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: style,
+          Flexible(
+            child: Text(
+              switch (connected) {
+                0 => 'No one connected',
+                final count? => '${countLabel(count)} connected',
+                null => [
+                  '${countLabel(audience.members)} member'
+                      '${audience.members == 1 ? '' : 's'}, '
+                      '${countLabel(audience.online)} online',
+                  if (topic != null && topic.isNotEmpty) topic,
+                ].join(' · '),
+              },
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
           ),
       ],
     );

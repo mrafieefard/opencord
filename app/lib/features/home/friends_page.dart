@@ -6,7 +6,9 @@ import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/own_device_notice.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -43,14 +45,9 @@ final friendsTabProvider = NotifierProvider<FriendsTabNotifier, FriendsTab>(
 );
 
 class FriendsPage extends ConsumerStatefulWidget {
-  const FriendsPage({
-    super.key,
-    this.leadingControls = false,
-    this.trailingControls = false,
-  });
+  const FriendsPage({super.key, this.onOpenSidebar});
 
-  final bool leadingControls;
-  final bool trailingControls;
+  final VoidCallback? onOpenSidebar;
 
   @override
   ConsumerState<FriendsPage> createState() => _FriendsPageState();
@@ -67,13 +64,20 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 
     return Column(
       children: [
-        // 60 px Header with title and tabs (§6.2)
-        HeaderBar(
-          leadingControls: widget.leadingControls,
-          trailingControls: widget.trailingControls,
+        PanelHeader(
+          key: ShellKeys.hd,
+          color: colors.chat,
           padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
           child: Row(
             children: [
+              if (widget.onOpenSidebar != null) ...[
+                OcIconButton(
+                  icon: OcIcons.menu,
+                  tooltip: 'Open channels',
+                  onPressed: widget.onOpenSidebar,
+                ),
+                const SizedBox(width: OcSpace.s8),
+              ],
               IgnorePointer(
                 child: Text(
                   'Friends',

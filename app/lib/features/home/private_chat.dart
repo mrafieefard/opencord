@@ -24,13 +24,13 @@ class PrivateChat extends ConsumerStatefulWidget {
   const PrivateChat({
     super.key,
     required this.peer,
-    this.leadingControls = false,
-    this.trailingControls = false,
+    this.onOpenSidebar,
+    this.includeComposer = true,
   });
 
   final String peer;
-  final bool leadingControls;
-  final bool trailingControls;
+  final VoidCallback? onOpenSidebar;
+  final bool includeComposer;
 
   @override
   ConsumerState<PrivateChat> createState() => _PrivateChatState();
@@ -176,11 +176,7 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
 
     return Column(
       children: [
-        PrivateHeader(
-          peer: widget.peer,
-          leadingControls: widget.leadingControls,
-          trailingControls: widget.trailingControls,
-        ),
+        PrivateHeader(peer: widget.peer, onOpenSidebar: widget.onOpenSidebar),
         Expanded(
           child: PrivateMessageList(
             // Each chat scrolls on its own.
@@ -208,8 +204,110 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
             ),
           ),
         if (!isRequestMode && !isBlocked) KeyBanners(peer: widget.peer),
-        bottomBar,
+        if (widget.includeComposer) bottomBar,
       ],
     );
+  }
+}
+
+/// The composer / blocked / request bar for private chat, for the composer float (§2.1).
+class PrivateChatBottomBar extends ConsumerWidget {
+  const PrivateChatBottomBar({super.key, required this.peer});
+
+  final String peer;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
+    final contact = ref.watch(privateContactsProvider).byPeer[peer];
+    final name = ref.watch(contactNameProvider(peer));
+    final sharedServers = ref.watch(sharedServersProvider(peer));
+    final isBlocked = contact?.blocked ?? false;
+    final isRequestMode = contact?.conversation == ConversationStatus.request;
+
+    final anyConnectedSharedServer = sharedServers.any((s) {
+      final srv = ref.watch(serverProvider(s.serverKey));
+      return srv.connection.phase == ConnectionPhase.connected &&
+          srv.data != null;
+    });
+
+    if (isRequestMode) {
+      return RequestBar(peer: peer);
+    } else if (isBlocked) {
+      return Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'You blocked $name.',
+              style: OcText.body.copyWith(color: colors.textMuted),
+            ),
+            const SizedBox(width: OcSpace.s12),
+            OcButton(
+              label: 'Unblock',
+              onPressed: () async {
+                try {
+                  await ref.read(repositoryProvider).unblockUser(peer);
+                } on RepoException catch (e) {
+                  if (!context.mounted) return;
+                  await showPrivateFailure(context, e, name: name);
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    } else if (sharedServers.isEmpty) {
+      return Container(
+        height: 56,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: Text(
+          'You no longer share a server with $name.',
+          style: OcText.body.copyWith(color: colors.textMuted),
+        ),
+      );
+    } else if (contact != null && !contact.reachable) {
+      return Container(
+        height: 56,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: Text(
+          'Nothing you write would reach $name until you compare the words '
+          'or use the new keys.',
+          style: OcText.body.copyWith(color: colors.textMuted),
+        ),
+      );
+    } else if (!anyConnectedSharedServer) {
+      return Container(
+        height: 56,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: Text(
+          "You don't share a connected server with $name right now.",
+          style: OcText.body.copyWith(color: colors.textMuted),
+        ),
+      );
+    } else {
+      return PrivateComposer(peer: peer);
+    }
   }
 }

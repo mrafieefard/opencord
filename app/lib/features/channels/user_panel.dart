@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,7 +5,6 @@ import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
-import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
@@ -43,16 +39,9 @@ class UserPanel extends ConsumerWidget {
     final voice = ref.watch(voiceSessionProvider);
     final session = ref.read(voiceSessionProvider.notifier);
     return Container(
-      // As tall as the composer, so the two top lines meet.
-      height: math.max(
-        ref.watch(restingComposerHeightProvider) ?? OcSize.userPanel,
-        OcSize.userPanelLeast,
-      ),
+      height: OcFloats.bottom,
       padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-      decoration: BoxDecoration(
-        color: colors.sidebar,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
+      decoration: BoxDecoration(color: colors.sidebar),
       child: Row(
         children: [
           Expanded(

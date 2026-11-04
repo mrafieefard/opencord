@@ -13,7 +13,8 @@ import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/music/now_playing_card.dart';
 import 'package:opencord/features/shell/navigation.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -34,16 +35,12 @@ class MemberPanel extends ConsumerStatefulWidget {
     this.isOverlay = false,
     this.onSelectMembers,
     this.onSelectMusic,
-    this.trailingControls = false,
   });
 
   final VoidCallback onClose;
   final bool isOverlay;
   final VoidCallback? onSelectMembers;
   final VoidCallback? onSelectMusic;
-
-  /// Carries the right-hand window controls (§3.1).
-  final bool trailingControls;
 
   @override
   ConsumerState<MemberPanel> createState() => _MemberPanelState();
@@ -115,8 +112,7 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderBar(
-            trailingControls: widget.trailingControls,
+          PanelHeader(
             padding: const EdgeInsets.only(
               left: OcSpace.s16,
               right: OcSpace.s8,
@@ -159,34 +155,29 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
                     onPressed: widget.onSelectMusic,
                   ),
                 ],
-                // Window buttons beside it would make two × in a row; the
-                // list still toggles from the chat header.
-                if (!widget.trailingControls ||
-                    !showsTrailingWindowControls(context, ref))
-                  OcIconButton(
-                    icon: OcIcons.close,
-                    tooltip: 'Close member list',
-                    size: OcIconButtonSize.compact,
-                    onPressed: widget.onClose,
-                  ),
+                OcIconButton(
+                  icon: OcIcons.close,
+                  tooltip: 'Close member list',
+                  size: OcIconButtonSize.compact,
+                  onPressed: widget.onClose,
+                ),
               ],
             ),
           ),
           const NowPlayingCard(),
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              OcSpace.s12,
-              OcSpace.s12,
-              OcSpace.s12,
-              OcSpace.s4,
-            ),
-            child: OcTextField(
-              controller: _search,
-              hint: 'Search members',
-              prefixIcon: OcIcons.search,
-              radius: OcRadius.searchPill,
-              semanticLabel: 'Search members',
-              onChanged: (value) => setState(() => _query = value),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+            child: SizedBox(
+              key: ShellKeys.memSearch,
+              height: 36,
+              child: OcTextField(
+                controller: _search,
+                hint: 'Search members',
+                prefixIcon: OcIcons.search,
+                radius: OcRadius.searchPill,
+                semanticLabel: 'Search members',
+                onChanged: (value) => setState(() => _query = value),
+              ),
             ),
           ),
           Expanded(

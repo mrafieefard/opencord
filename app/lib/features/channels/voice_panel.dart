@@ -53,10 +53,7 @@ class VoiceConnectedPanel extends ConsumerWidget {
         OcSpace.s8,
         OcSpace.s10,
       ),
-      decoration: BoxDecoration(
-        color: colors.sidebar,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
+      decoration: BoxDecoration(color: colors.sidebar),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

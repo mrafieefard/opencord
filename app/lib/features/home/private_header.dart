@@ -9,7 +9,8 @@ import 'package:opencord/features/home/encryption_dialog.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/members/member_avatar.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -21,16 +22,10 @@ import 'package:opencord/ui/widgets/popup_route.dart';
 
 /// Top header in a private conversation (§6.3).
 class PrivateHeader extends ConsumerWidget {
-  const PrivateHeader({
-    super.key,
-    required this.peer,
-    this.leadingControls = false,
-    this.trailingControls = false,
-  });
+  const PrivateHeader({super.key, required this.peer, this.onOpenSidebar});
 
   final String peer;
-  final bool leadingControls;
-  final bool trailingControls;
+  final VoidCallback? onOpenSidebar;
 
   void _showRelayMenu(
     BuildContext context,
@@ -109,12 +104,20 @@ class PrivateHeader extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        HeaderBar(
-          leadingControls: leadingControls,
-          trailingControls: trailingControls,
+        PanelHeader(
+          key: ShellKeys.hd,
+          color: colors.chat,
           padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
           child: Row(
             children: [
+              if (onOpenSidebar != null) ...[
+                OcIconButton(
+                  icon: OcIcons.menu,
+                  tooltip: 'Open channels',
+                  onPressed: onOpenSidebar,
+                ),
+                const SizedBox(width: OcSpace.s8),
+              ],
               ContactAvatar(peer: peer, presence: presence),
               const SizedBox(width: OcSpace.s12),
               Expanded(
