@@ -107,6 +107,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: ./.github/actions/free-disk
+
       - uses: ./.github/actions/stamp-version
         with:
           version: ${{ needs.version.outputs.version }}
@@ -324,6 +326,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/free-disk
 
       - uses: ./.github/actions/stamp-version
         with:
@@ -740,6 +744,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/free-disk
+        with:
+          android: false
 
       - uses: ./.github/actions/stamp-version
         with:
