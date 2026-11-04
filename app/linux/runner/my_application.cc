@@ -44,8 +44,8 @@ static void my_application_activate(GApplication* application) {
     gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
   }
 
-  const WindowChrome chrome = window_chrome_at_startup();
-  if (chrome != WindowChrome::kSystem) gtk_window_set_decorated(window, FALSE);
+  // The app draws its own title bar on every desktop.
+  gtk_window_set_decorated(window, FALSE);
   gtk_window_set_default_size(window, 1280, 800);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
@@ -65,9 +65,10 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
                            self);
   gtk_widget_realize(GTK_WIDGET(view));
+  window_channel_draw_own_frame(window);
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
-  window_channel_register(window, view, chrome);
+  window_channel_register(window, view);
 
   // Dropped files (desktop_drop) come as a file list first. The plugin asks
   // for the document portal's transfer key first, then STRING. Plasma's

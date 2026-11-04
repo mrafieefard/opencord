@@ -64,7 +64,6 @@ class WindowChannel {
   HWND window_;
   HWND view_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
-  bool custom_ = true;
   bool intercept_close_ = false;
   bool fullscreen_ = false;
   bool maximize_on_show_ = false;

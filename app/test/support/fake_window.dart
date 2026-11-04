@@ -33,7 +33,6 @@ class FakeNativeWindow implements NativeWindow {
 
   @override
   Future<WindowInfo> configure({
-    required WindowChrome chrome,
     required int background,
     required double minWidth,
     required double minHeight,
@@ -43,7 +42,7 @@ class FakeNativeWindow implements NativeWindow {
     bool interceptClose = false,
     bool hidden = false,
   }) async {
-    calls.add('configure:${chrome.name}${hidden ? ':hidden' : ''}');
+    calls.add('configure${hidden ? ':hidden' : ''}');
     return WindowInfo.none;
   }
 
