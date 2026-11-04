@@ -222,7 +222,7 @@ Each part names the widget that becomes it. A number here replaces the widget's 
   - the channel's name without `#`, or the peer's name, or `Friends`, or `Message requests`: 13/600 `text`, one line, ellipsis.
   - With no server and no contacts: nothing.
 - **Right:**
-  - **Linux:** `LinuxWindowButtons`: 24 px circles, background `hover`, hover `selected`, `6` apart, last one's edge `8` from the window's edge. The button's hit extent is 30 here, so the row's right padding is 5. The user's button layout still decides which show and on which side; left-hand ones come before the back arrow.
+  - **Linux:** `LinuxWindowButtons`: 24 px circles, background `hover`, hover `selected`, `6` apart, last one's edge `8` from the window's edge. The button's hit extent is 30 here, so the row's right padding is 5. The glyphs stay GNOME's, with minimise low in its circle: the owner's call over the prototype's centred stand-in. The user's button layout still decides which show and on which side; left-hand ones come before the back arrow.
   - **Windows:** `WindowsCaptionButtons`, 46 × 32, flush with the top right corner, unchanged.
   - **macOS:** native traffic lights: band height `40`, inset `14` (`bandHeight`, `lightsInset` in `MainFlutterWindow.swift`; `bandWidth` becomes `78`). The arrows start at x = 78, or 8 in full screen.
 - **Fullscreen:** the row stays, without window controls.
