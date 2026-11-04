@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/window/app_title_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -89,11 +89,7 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const HeaderBar(
-            leadingControls: true,
-            trailingControls: true,
-            child: SizedBox(),
-          ),
+          const AppTitleBar(),
           Expanded(
             child: Center(
               child: SingleChildScrollView(

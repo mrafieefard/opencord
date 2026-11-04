@@ -30,16 +30,15 @@ class MainFlutterWindow: NSWindow {
 
 /// The "dev.opencord/window" method channel (desktop UI plan §3.1): a
 /// transparent, full-size title bar with the native traffic lights moved to
-/// a band above the server rail as tall as the header. The app's header row
-/// moves the window through `performDrag`.
+/// a band at the start of the app's title row. That row moves the window
+/// through `performDrag`.
 final class WindowChannel: NSObject, NSWindowDelegate {
-  /// The traffic lights' band: as tall as the header (`OcSize.header`, the
-  /// rail's 52 pt spacer and its 8 pt padding), so the lights sit on the
-  /// header's middle, and as wide as the rail, so the rest of the header
-  /// row keeps its clicks. The rail's first item starts below it.
-  private let bandHeight: CGFloat = 60
-  private let bandWidth: CGFloat = 76
-  private let lightsInset: CGFloat = 20
+  /// The traffic lights' band: as tall as the title row (`OcFloats.titleBar`),
+  /// so the lights sit on its middle, and as wide as the room `AppTitleBar`
+  /// keeps for them, so the rest of the row keeps its clicks.
+  private let bandHeight: CGFloat = 40
+  private let bandWidth: CGFloat = 78
+  private let lightsInset: CGFloat = 14
 
   private weak var window: NSWindow?
   private let channel: FlutterMethodChannel
@@ -69,9 +68,9 @@ final class WindowChannel: NSObject, NSWindowDelegate {
     placeTrafficLights()
   }
 
-  /// Centers the traffic lights in the band above the rail, inset 20 pt
-  /// from the left. The system resets this on some changes, so it runs
-  /// again after resizes, full-screen transitions and title changes.
+  /// Centers the traffic lights in the band, `lightsInset` from the left.
+  /// The system resets this on some changes, so it runs again after resizes,
+  /// full-screen transitions and title changes.
   private func placeTrafficLights() {
     guard let window, !window.styleMask.contains(.fullScreen),
       let close = window.standardWindowButton(.closeButton),
