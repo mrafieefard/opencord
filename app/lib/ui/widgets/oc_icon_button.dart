@@ -37,6 +37,7 @@ class OcIconButton extends StatelessWidget {
     this.activeStyle = OcActiveStyle.selected,
     this.shortcut,
     this.color,
+    this.disabledColor,
     this.focusNode,
     this.showTooltip = true,
   });
@@ -57,6 +58,9 @@ class OcIconButton extends StatelessWidget {
 
   /// Icon color at rest; defaults to `textSecondary`.
   final Color? color;
+
+  /// Icon color when disabled; defaults to `textMuted`.
+  final Color? disabledColor;
   final FocusNode? focusNode;
 
   /// Off where the surroundings label the button themselves (the hover
@@ -84,7 +88,10 @@ class OcIconButton extends StatelessWidget {
           active,
           activeStyle,
         )) {
-          (false, _, _) => (Colors.transparent, colors.textMuted),
+          (false, _, _) => (
+            Colors.transparent,
+            disabledColor ?? colors.textMuted,
+          ),
           (true, true, OcActiveStyle.inverted) => (
             state.active
                 ? Color.lerp(colors.accent, colors.onAccent, 0.12)!

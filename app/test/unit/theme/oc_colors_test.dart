@@ -56,6 +56,13 @@ void main() {
       ]);
     });
 
+    test('icon_disabled_token', () {
+      expect(OcColors.dark.iconDisabled, OcColors.dark.selected);
+      expect(OcColors.light.iconDisabled, const Color(0xFFC1C1C8));
+      expect(OcColors.dark.byName('iconDisabled'), OcColors.dark.selected);
+      expect(OcColors.light.byName('iconDisabled'), const Color(0xFFC1C1C8));
+    });
+
     test('voice and recording tokens have their designated values', () {
       expect(hex(OcColors.dark.voice), '#4C8DFF');
       expect(hex(OcColors.light.voice), '#2F6FEB');

@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
@@ -260,5 +261,85 @@ void main() {
       lessThan(120),
     );
     expect(tester.getSize(find.byKey(const Key('wide'))).width, 500);
+  });
+
+  testWidgets('badge_is_18_tall', (tester) async {
+    await pumpThemed(
+      tester,
+      const Column(children: [UnreadBadge(count: 1), MentionBadge()]),
+    );
+
+    final unread = tester.widget<Container>(
+      find.descendant(
+        of: find.byType(UnreadBadge),
+        matching: find.byType(Container),
+      ),
+    );
+    expect(tester.getSize(find.byType(UnreadBadge)).height, 18);
+    expect(unread.constraints?.minWidth, 18);
+    expect(unread.padding, const EdgeInsets.symmetric(horizontal: 5));
+
+    final unreadText = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(UnreadBadge),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(unreadText.style?.fontSize, 11);
+    expect(unreadText.style?.fontWeight, FontWeight.w600);
+
+    expect(tester.getSize(find.byType(MentionBadge)).height, 18);
+    expect(tester.getSize(find.byType(MentionBadge)).width, 18);
+    final mentionText = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(MentionBadge),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(mentionText.style?.fontSize, 11);
+    expect(mentionText.style?.fontWeight, FontWeight.w600);
+  });
+
+  testWidgets('initials_follow_the_spec', (tester) async {
+    for (final size in [32.0, 36.0, 72.0]) {
+      await pumpThemed(tester, OcAvatar(id: 'u1', name: 'Kai', size: size));
+      final text = tester.widget<Text>(
+        find.descendant(of: find.byType(OcAvatar), matching: find.byType(Text)),
+      );
+      final expected = 0.31 * size + 1.7;
+      expect(text.style?.fontSize, closeTo(expected, 0.001));
+      expect(text.style?.fontWeight, FontWeight.w600);
+    }
+  });
+
+  testWidgets('presence_ring_is_two', (tester) async {
+    expect(PresenceBadge.ring, 2.0);
+    await pumpThemed(
+      tester,
+      const OcAvatar(id: 'u1', name: 'Kai', presence: Presence.online),
+    );
+    final positioned = tester.widget<Positioned>(
+      find.ancestor(
+        of: find.byType(PresenceBadge),
+        matching: find.byType(Positioned),
+      ),
+    );
+    expect(positioned.right, -2.0);
+    expect(positioned.bottom, -2.0);
+  });
+
+  testWidgets('disabled_button_uses_the_given_colour', (tester) async {
+    const disabled = Color(0xFF556677);
+    await pumpThemed(
+      tester,
+      const OcIconButton(
+        icon: Icons.star,
+        tooltip: 'Star',
+        onPressed: null,
+        disabledColor: disabled,
+      ),
+    );
+    final icon = tester.widget<Icon>(find.byType(Icon));
+    expect(icon.color, disabled);
   });
 }

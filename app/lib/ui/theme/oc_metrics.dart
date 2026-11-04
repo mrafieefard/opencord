@@ -43,8 +43,8 @@ abstract final class OcSize {
   static const double hitCompact = 28;
   static const double hitVoice = 48;
 
-  static const double railWidth = 76;
-  static const double sidebarWidth = 304;
+  static const double railWidth = OcFloats.rail;
+  static const double sidebarWidth = OcFloats.leftDefault;
   static const double sidebarNarrowWidth = 264;
   static const double memberPanelWidth = 264;
   static const double musicPanelWidth = 340;

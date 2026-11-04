@@ -18,8 +18,8 @@ String formatCount(int count) {
 }
 
 final _badgeText = OcText.meta.copyWith(
-  fontSize: 11.5,
-  fontWeight: FontWeight.w700,
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
   height: 1,
 );
 
@@ -34,13 +34,13 @@ class UnreadBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      constraints: const BoxConstraints(minWidth: 20),
-      height: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      constraints: const BoxConstraints(minWidth: 18),
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: muted ? colors.selected : colors.accent,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
       ),
       child: Text(
         formatCount(count),
@@ -60,14 +60,12 @@ class MentionBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      width: 20,
-      height: 20,
+      constraints: const BoxConstraints(minWidth: 18),
+      width: 18,
+      height: 18,
       alignment: Alignment.center,
       decoration: BoxDecoration(color: colors.accent, shape: BoxShape.circle),
-      child: Text(
-        '@',
-        style: _badgeText.copyWith(color: colors.onAccent, fontSize: 12),
-      ),
+      child: Text('@', style: _badgeText.copyWith(color: colors.onAccent)),
     );
   }
 }

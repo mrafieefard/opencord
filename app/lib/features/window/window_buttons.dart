@@ -15,12 +15,13 @@ enum ButtonSide { left, right }
 /// GNOME-style window buttons (§3.1): round 24 px buttons in the header,
 /// in the order and on the side the user's button layout says.
 class LinuxWindowButtons extends ConsumerWidget {
-  const LinuxWindowButtons({super.key, required this.side});
+  const LinuxWindowButtons({super.key, required this.side, this.extent = 36});
 
   final ButtonSide side;
+  final double extent;
 
   /// The hit area of one button; the round button itself is 24 px.
-  static const double extent = 36;
+  static const double defaultExtent = 36;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,6 +37,7 @@ class LinuxWindowButtons extends ConsumerWidget {
       children: [
         for (final button in buttons)
           GnomeWindowButton(
+            extent: extent,
             glyph: switch (button) {
               WindowButton.minimize => WindowGlyph.minimize,
               WindowButton.maximize =>
@@ -112,10 +114,12 @@ class GnomeWindowButton extends StatelessWidget {
     super.key,
     required this.glyph,
     required this.onPressed,
+    this.extent = 36,
   });
 
   final WindowGlyph glyph;
   final VoidCallback onPressed;
+  final double extent;
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +138,7 @@ class GnomeWindowButton extends StatelessWidget {
               ? colors.selected
               : colors.hover;
           return SizedBox.square(
-            dimension: LinuxWindowButtons.extent,
+            dimension: extent,
             child: Center(
               child: AnimatedContainer(
                 duration: OcMotion.of(context).hover,

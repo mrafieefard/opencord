@@ -26,6 +26,7 @@ abstract final class OcIcons {
     0xe5c5,
     fontFamily: fontFamily,
   );
+  static const IconData arrowForward = IconData(0xe5c8, fontFamily: fontFamily);
   static const IconData arrowUpward = IconData(0xe5d8, fontFamily: fontFamily);
   static const IconData article = IconData(0xef42, fontFamily: fontFamily);
   static const IconData attachFile = IconData(0xe226, fontFamily: fontFamily);
@@ -68,6 +69,7 @@ abstract final class OcIcons {
     fontFamily: fontFamily,
   );
   static const IconData dns = IconData(0xe875, fontFamily: fontFamily);
+  static const IconData dockToLeft = IconData(0xf7e5, fontFamily: fontFamily);
   static const IconData doneAll = IconData(0xe877, fontFamily: fontFamily);
   static const IconData download = IconData(0xf090, fontFamily: fontFamily);
   static const IconData dragIndicator = IconData(

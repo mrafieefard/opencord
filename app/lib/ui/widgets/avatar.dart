@@ -65,7 +65,7 @@ class OcAvatar extends StatelessWidget {
       overflow: TextOverflow.clip,
       textScaler: TextScaler.noScaling,
       style: OcText.bodyStrong.copyWith(
-        fontSize: size * 0.38,
+        fontSize: 0.31 * size + 1.7,
         height: 1,
         color: inverted ? colors.onAccent : colors.text,
       ),
@@ -143,7 +143,7 @@ class PresenceBadge extends StatelessWidget {
   });
 
   /// Width of the ring that separates the badge from what is behind it.
-  static const double ring = 2.5;
+  static const double ring = 2;
 
   final Presence presence;
   final double size;

@@ -25,6 +25,7 @@ class OcColors extends ThemeExtension<OcColors> {
     required this.avatarShades,
     required this.voice,
     required this.recording,
+    required this.iconDisabled,
   });
 
   static const dark = OcColors(
@@ -54,6 +55,7 @@ class OcColors extends ThemeExtension<OcColors> {
     ],
     voice: Color(0xFF4C8DFF),
     recording: Color(0xFFF2555A),
+    iconDisabled: Color(0xFF27272C),
   );
 
   static const light = OcColors(
@@ -83,6 +85,7 @@ class OcColors extends ThemeExtension<OcColors> {
     ],
     voice: Color(0xFF2F6FEB),
     recording: Color(0xFFDC3E42),
+    iconDisabled: Color(0xFFC1C1C8),
   );
 
   /// Server rail background.
@@ -150,6 +153,9 @@ class OcColors extends ThemeExtension<OcColors> {
   /// The recording dot and the cancel state only.
   final Color recording;
 
+  /// Disabled icons (§2.3).
+  final Color iconDisabled;
+
   /// The grey an id always gets as its avatar background.
   Color avatarShade(Object id) =>
       avatarShades[stableHash(id.toString()) % avatarShades.length];
@@ -173,6 +179,7 @@ class OcColors extends ThemeExtension<OcColors> {
     'bubbleOut': bubbleOut,
     'mentionBg': mentionBg,
     'scrim': scrim,
+    'iconDisabled': iconDisabled,
   };
 
   Color byName(String name) =>
@@ -200,6 +207,7 @@ class OcColors extends ThemeExtension<OcColors> {
     List<Color>? avatarShades,
     Color? voice,
     Color? recording,
+    Color? iconDisabled,
   }) {
     return OcColors(
       rail: rail ?? this.rail,
@@ -222,6 +230,7 @@ class OcColors extends ThemeExtension<OcColors> {
       avatarShades: avatarShades ?? this.avatarShades,
       voice: voice ?? this.voice,
       recording: recording ?? this.recording,
+      iconDisabled: iconDisabled ?? this.iconDisabled,
     );
   }
 
@@ -253,6 +262,7 @@ class OcColors extends ThemeExtension<OcColors> {
       ],
       voice: mix(voice, other.voice),
       recording: mix(recording, other.recording),
+      iconDisabled: mix(iconDisabled, other.iconDisabled),
     );
   }
 }
