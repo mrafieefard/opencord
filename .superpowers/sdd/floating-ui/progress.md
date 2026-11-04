@@ -55,3 +55,12 @@
 - Deviations from the plan: none
 - Left undone / doubts: none
 
+## Task 7 — The shell (owner: Gemini, score: 3)
+- Commit: 82749d7
+- Tests added: frames_match_the_prototype, ground_shows_between_floats, header_is_52_with_its_line, headers_do_not_drag, left_drawer_opens_from_the_hamburger, right_drawer_floats, drawers_open_on_the_springs, smallest_window_with_everything_has_no_overflow, reconnect_bar_floats
+- Commands run: source .superpowers/sdd/media/env.sh && cd app && flutter test test/widget/shell/floating_frames_test.dart test/widget/shell/shell_test.dart test/widget/voice/voice_reconnect_bar_test.dart && flutter analyze && dart format lib test → all passed, no issues found
+- Screens looked at: rendered in CP1 checkpoint
+- Deviations from the plan: none
+- Left undone / doubts: none
+
+
