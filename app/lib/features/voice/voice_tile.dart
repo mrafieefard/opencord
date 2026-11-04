@@ -321,20 +321,35 @@ class _WatchPrompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    if (small) {
-      return Center(child: Icon(OcIcons.monitor, color: colors.textMuted));
-    }
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$name is live',
-            style: OcText.bodyStrong.copyWith(color: colors.text),
-          ),
-          const SizedBox(height: OcSpace.s8),
-          OcButton.primary(label: 'Watch', onPressed: onWatch),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (small || constraints.maxHeight < 90) {
+            return Center(
+              child: Icon(OcIcons.monitor, color: colors.textMuted),
+            );
+          }
+          final dense = constraints.maxHeight < 110;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  '$name is live',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: OcText.bodyStrong.copyWith(color: colors.text),
+                ),
+              ),
+              SizedBox(height: dense ? OcSpace.s4 : OcSpace.s8),
+              OcButton.primary(
+                label: 'Watch',
+                dense: dense,
+                onPressed: onWatch,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
