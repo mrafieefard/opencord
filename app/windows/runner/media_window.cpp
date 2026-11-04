@@ -75,6 +75,25 @@ std::string StringArg(const flutter::EncodableMap& map, const char* key) {
   return text ? *text : std::string();
 }
 
+
+// The frame DWM draws around the normal window follows the system theme,
+// and without being asked it is the light one — a white line around a dark
+// app. Win32Window::UpdateTheme does this for the main window, but the
+// viewer is not a Win32Window, so it has to ask for itself.
+void UseDarkFrame(HWND window) {
+  // Documented from Windows 10 1809 on; older builds ignore it.
+  constexpr DWORD kUseImmersiveDarkMode = 20;
+  DWORD light = 1;
+  DWORD size = sizeof(light);
+  if (::RegGetValueW(HKEY_CURRENT_USER,
+                     LR"(Software\Microsoft\Windows\CurrentVersion\Themes\Personalize)",
+                     L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light,
+                     &size) != ERROR_SUCCESS) {
+    return;
+  }
+  const BOOL dark = light == 0;
+  ::DwmSetWindowAttribute(window, kUseImmersiveDarkMode, &dark, sizeof(dark));
+}
 // The desktop shows through where the viewer paints nothing: the accent
 // policy flutter_acrylic uses for its transparent effect, with a fully
 // transparent tint. The viewer paints its own dark background.
@@ -142,7 +161,8 @@ MediaWindowChannel::MediaWindowChannel(HWND main,
 
 MediaWindowChannel::~MediaWindowChannel() {
   channel_->SetMethodCallHandler(nullptr);
-  Close();
+  // The view is deliberately not destroyed, see Close: the process is on
+  // its way out and Windows reclaims the window with it.
 }
 
 double MediaWindowChannel::Scale() const {
@@ -164,6 +184,12 @@ int MediaWindowChannel::FrameY() const {
 std::optional<int64_t> MediaWindowChannel::Open(
     const flutter::EncodableMap& args) {
   if (window_ != nullptr) {
+    // Closed earlier means hidden, not gone: show the same view again,
+    // which brings back the mode and place it was left in.
+    if (hidden_) {
+      hidden_ = false;
+      ::ShowWindow(window_, SW_SHOW);
+    }
     ::SetForegroundWindow(window_);
     return FlutterDesktopViewControllerGetViewId(controller_);
   }
@@ -211,6 +237,7 @@ std::optional<int64_t> MediaWindowChannel::Open(
       height, nullptr, nullptr, ::GetModuleHandleW(nullptr), this);
   if (window_ == nullptr) return std::nullopt;
   MakeSeeThrough(window_);
+  UseDarkFrame(window_);
 
   RECT client;
   ::GetClientRect(window_, &client);
@@ -245,20 +272,28 @@ std::optional<int64_t> MediaWindowChannel::Open(
 
 void MediaWindowChannel::Close() {
   if (window_ == nullptr) return;
-  if (view_ != nullptr) {
-    ::RemoveWindowSubclass(view_, ViewProc, kViewSubclassId);
-  }
-  // The view goes before its window: the engine stops drawing into it.
-  if (controller_ != nullptr) {
-    FlutterDesktopViewControllerDestroy(controller_);
-    controller_ = nullptr;
-  }
-  view_ = nullptr;
-  HWND window = window_;
-  window_ = nullptr;
+  // Hidden, never destroyed, and this is not laziness.
+  //
+  // The viewer is a second view on the app's own engine
+  // (FlutterDesktopEngineCreateViewController, with the engine id Dart hands
+  // us). The only teardown the embedder exports is
+  // FlutterDesktopViewControllerDestroy, and its own header says it "shuts
+  // down the engine instance associated with |controller|" -- that engine
+  // being the one the main window is still running on. Calling it therefore
+  // stopped the whole app, which surfaced as
+  //
+  //     FATAL native crash  code=0xC0000005  module=flutter_windows.dll
+  //
+  // on every route that closed the viewer: a click beside the photo in full
+  // screen, Alt+F4, and the viewer's own Close button. There is no
+  // EngineDestroyViewController to call instead.
+  //
+  // So closing hides the window and keeps the view. The next open shows the
+  // same one again, which also gives the remembered mode and place for
+  // free. The view is let go when the process exits.
+  ::ShowWindow(window_, SW_HIDE);
+  hidden_ = true;
   pip_ = false;
-  fullscreen_ = true;
-  ::DestroyWindow(window);
 }
 
 void MediaWindowChannel::SetFullscreen(bool fullscreen) {
@@ -609,6 +644,11 @@ LRESULT MediaWindowChannel::HandleMessage(HWND hwnd, UINT message,
       }
       return 0;
     }
+    case WM_SETTINGCHANGE:
+      // The system theme can change while the viewer is open; the main
+      // window follows it and so should this one.
+      UseDarkFrame(hwnd);
+      break;
     case WM_ERASEBKGND:
       // The viewer paints everything, see-through where it wants.
       return 1;
