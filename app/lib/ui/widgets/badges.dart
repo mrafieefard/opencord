@@ -52,7 +52,7 @@ class UnreadBadge extends StatelessWidget {
   }
 }
 
-/// An inverted "@" circle: someone mentioned you (§5.3).
+/// An inverted "@" pill: someone mentioned you (§5.3).
 class MentionBadge extends StatelessWidget {
   const MentionBadge({super.key});
 
@@ -61,10 +61,13 @@ class MentionBadge extends StatelessWidget {
     final colors = context.oc;
     return Container(
       constraints: const BoxConstraints(minWidth: 18),
-      width: 18,
       height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: colors.accent, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: colors.accent,
+        borderRadius: BorderRadius.circular(9),
+      ),
       child: Text('@', style: _badgeText.copyWith(color: colors.onAccent)),
     );
   }

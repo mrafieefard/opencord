@@ -480,8 +480,8 @@ Everywhere: right-click menus, dropdowns, popovers.
 - **Onboarding and the keyring screen:** `AppTitleBar` without arrows or crumb, over their current content on `chat`.
 - **`NoServersView`:** inside the main float, no notch.
 - **`OcSize.header` (60)** stays only for the settings dialog's own header.
-- **Presence badge:** real shapes stay; ring `2`, at `−2`.
-- **Avatar initials:** font size `0.31 · size + 1.7`, weight 600 (matches the prototype's table within 0.5).
+- **Presence badge:** real shapes stay; a `12` disc whose edge reaches `2` past the avatar's, ringed `2` outside that.
+- **Avatar initials:** weight 600; font size from the prototype's table: avatar 20, 22, 26, 32, 34, 36, 40, 72 take 8, 8.5, 9.5, 12, 12, 12.5, 13.5, 24. Any other size takes `0.31 · size + 1.7`, the line through them.
 - **`LinuxWindowButtons`** take an `extent`; the media viewer keeps its `36`.
 - **Empty panes, errors, tooltips, toasts, settings pages:** unchanged, inside whichever float holds them.
 

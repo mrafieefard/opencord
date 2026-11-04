@@ -17,7 +17,7 @@
 ## Global Constraints
 
 - **Branch and pull request:** `feat/floating-ui`, made in "Before Task 1". If it starts from `origin/batch/2026-11-01` because pull request #40 is still open, run `git merge origin/beta` at the start of the first milestone after #40 merges. The first milestone opens **one draft pull request into `beta`**; later milestones push to it. Until #40 merges, its diff also shows #40's commits. It stays a draft until the last checkpoint passes. Half of a redesign must not reach a release branch, so this replaces "one pull request per milestone" for this plan. Never merge.
-- **Scope:** `app/` and docs only. Nothing in `crates/`, `proto/` or `mobile/`. No new dependency.
+- **Scope:** `app/` and docs only. Nothing in `crates/`, `proto/` or `mobile/`, with one exception: a new colour in `OcColors` also goes in `mobile/src/ui/theme/tokens.ts`, because `tokens.test.ts` holds them equal. No new dependency.
 - **Platforms:** desktop. Linux runs here; Windows and macOS compile in CI, with hand checks listed in Task 22.
 - **Colours:** `OcColors` tokens only, monochrome (`test/widget/monochrome_test.dart`). macOS's native traffic lights are the one exception.
 - **Words:** every user-visible string in the spec is copied exactly.
@@ -387,7 +387,7 @@ abstract final class ShellKeys { static const titlebar = Key('float-titlebar'); 
 
 - [ ] **Tests:**
   - `badge_is_18_tall`: `UnreadBadge` and `MentionBadge`: height 18, minimum width 18, padding 5, text 11/600.
-  - `initials_follow_the_spec`: font size for avatar 32, 36, 72 is `0.31 · size + 1.7`.
+  - `initials_follow_the_spec`: §5.19's table, and the line for any other size.
   - `presence_ring_is_two`.
   - `disabled_button_uses_the_given_colour`.
   - `icon_disabled_token`: `selected` in dark, `0xFFC1C1C8` in light.

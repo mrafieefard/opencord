@@ -15,7 +15,11 @@ enum ButtonSide { left, right }
 /// GNOME-style window buttons (§3.1): round 24 px buttons in the header,
 /// in the order and on the side the user's button layout says.
 class LinuxWindowButtons extends ConsumerWidget {
-  const LinuxWindowButtons({super.key, required this.side, this.extent = 36});
+  const LinuxWindowButtons({
+    super.key,
+    required this.side,
+    this.extent = defaultExtent,
+  });
 
   final ButtonSide side;
   final double extent;
@@ -114,7 +118,7 @@ class GnomeWindowButton extends StatelessWidget {
     super.key,
     required this.glyph,
     required this.onPressed,
-    this.extent = 36,
+    this.extent = LinuxWindowButtons.defaultExtent,
   });
 
   final WindowGlyph glyph;

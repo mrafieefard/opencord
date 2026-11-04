@@ -288,8 +288,23 @@ void main() {
     expect(unreadText.style?.fontSize, 11);
     expect(unreadText.style?.fontWeight, FontWeight.w600);
 
+    final mention = tester.widget<Container>(
+      find.descendant(
+        of: find.byType(MentionBadge),
+        matching: find.byType(Container),
+      ),
+    );
     expect(tester.getSize(find.byType(MentionBadge)).height, 18);
-    expect(tester.getSize(find.byType(MentionBadge)).width, 18);
+    expect(mention.constraints?.minWidth, 18);
+    expect(mention.padding, const EdgeInsets.symmetric(horizontal: 5));
+    expect(
+      (mention.decoration! as BoxDecoration).borderRadius,
+      BorderRadius.circular(9),
+    );
+
+    // In a row, as everywhere it's used: the "@" and its padding, not a circle.
+    await pumpThemed(tester, const Row(children: [MentionBadge()]));
+    expect(tester.getSize(find.byType(MentionBadge)).width, closeTo(21, 1));
     final mentionText = tester.widget<Text>(
       find.descendant(
         of: find.byType(MentionBadge),
@@ -301,13 +316,24 @@ void main() {
   });
 
   testWidgets('initials_follow_the_spec', (tester) async {
-    for (final size in [32.0, 36.0, 72.0]) {
+    final sizes = <double, double>{
+      20.0: 8.0,
+      22.0: 8.5,
+      26.0: 9.5,
+      32.0: 12.0,
+      34.0: 12.0,
+      36.0: 12.5,
+      40.0: 13.5,
+      72.0: 24.0,
+      // Not one of the design's: the line through them.
+      28.0: 0.31 * 28 + 1.7,
+    };
+    for (final MapEntry(key: size, value: fontSize) in sizes.entries) {
       await pumpThemed(tester, OcAvatar(id: 'u1', name: 'Kai', size: size));
       final text = tester.widget<Text>(
         find.descendant(of: find.byType(OcAvatar), matching: find.byType(Text)),
       );
-      final expected = 0.31 * size + 1.7;
-      expect(text.style?.fontSize, closeTo(expected, 0.001));
+      expect(text.style?.fontSize, fontSize);
       expect(text.style?.fontWeight, FontWeight.w600);
     }
   });
@@ -318,14 +344,13 @@ void main() {
       tester,
       const OcAvatar(id: 'u1', name: 'Kai', presence: Presence.online),
     );
-    final positioned = tester.widget<Positioned>(
-      find.ancestor(
-        of: find.byType(PresenceBadge),
-        matching: find.byType(Positioned),
-      ),
-    );
-    expect(positioned.right, -2.0);
-    expect(positioned.bottom, -2.0);
+    final avatar = tester.getRect(find.byType(OcAvatar));
+    final badge = tester.getRect(find.byType(PresenceBadge));
+    // The disc, inside its ring, reaches 2 past the avatar (`.pres`).
+    final disc = badge.deflate(PresenceBadge.ring);
+    expect(disc.width, 12);
+    expect(disc.right, avatar.right + 2);
+    expect(disc.bottom, avatar.bottom + 2);
   });
 
   testWidgets('disabled_button_uses_the_given_colour', (tester) async {

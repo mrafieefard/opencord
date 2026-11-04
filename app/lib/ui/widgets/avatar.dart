@@ -65,7 +65,7 @@ class OcAvatar extends StatelessWidget {
       overflow: TextOverflow.clip,
       textScaler: TextScaler.noScaling,
       style: OcText.bodyStrong.copyWith(
-        fontSize: 0.31 * size + 1.7,
+        fontSize: initialsFontSize(size),
         height: 1,
         color: inverted ? colors.onAccent : colors.text,
       ),
@@ -111,8 +111,8 @@ class OcAvatar extends StatelessWidget {
         children: [
           avatar,
           Positioned(
-            right: -PresenceBadge.ring,
-            bottom: -PresenceBadge.ring,
+            right: -PresenceBadge.overhang - PresenceBadge.ring,
+            bottom: -PresenceBadge.overhang - PresenceBadge.ring,
             child: PresenceBadge(
               presence: presence,
               size: badge,
@@ -124,6 +124,22 @@ class OcAvatar extends StatelessWidget {
     );
   }
 }
+
+/// The initials' font size in an avatar of [size]: the design's own at the
+/// sizes it uses, and the line through them for any other.
+double initialsFontSize(double size) =>
+    _initialsFontSizes[size] ?? 0.31 * size + 1.7;
+
+final _initialsFontSizes = <double, double>{
+  20.0: 8.0,
+  22.0: 8.5,
+  26.0: 9.5,
+  32.0: 12.0,
+  34.0: 12.0,
+  36.0: 12.5,
+  40.0: 13.5,
+  72.0: 24.0,
+};
 
 /// Presence badge diameter for an avatar of [avatarSize].
 double presenceBadgeSize(double avatarSize) => avatarSize >= 60
@@ -144,6 +160,10 @@ class PresenceBadge extends StatelessWidget {
 
   /// Width of the ring that separates the badge from what is behind it.
   static const double ring = 2;
+
+  /// How far the badge's disc reaches past the avatar's edge, not counting
+  /// the ring.
+  static const double overhang = 2;
 
   final Presence presence;
   final double size;
