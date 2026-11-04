@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/providers/voice_reconnect.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/tray.dart';
@@ -101,6 +103,30 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('quitting in a call forgets it, so no reconnect is offered', (
+    tester,
+  ) async {
+    final tray = FakeTray();
+    final app = await _pump(tester, tray: tray, window: FakeNativeWindow());
+    final server = app.repository.servers.first.key;
+    final voice = app
+        .read(serverProvider(server))
+        .data!
+        .channels
+        .values
+        .firstWhere((channel) => channel.kind == ChannelKind.voice);
+    await app.read(voiceSessionProvider.notifier).join(server, voice.id);
+    await tester.pump();
+    expect(app.store.read(lastCallKey), isNotNull);
+
+    tray.click(const QuitApp());
+    await tester.pump();
+
+    expect(app.store.read(lastCallKey), isNull);
+    await tester.pump(const Duration(seconds: 1));
+    await app.dispose(tester);
+  });
+
   testWidgets('a click on the icon brings the window forward', (tester) async {
     final tray = FakeTray();
     final window = FakeNativeWindow();
@@ -172,10 +198,12 @@ void main() {
         closeToTray: false,
       );
 
+      app.store.write(lastCallKey, '{"server": "a.example", "channel": 7}');
       window.closeEvents.add(null);
       await tester.pump();
 
       expect(window.calls, contains('quit'));
+      expect(app.store.read(lastCallKey), isNull);
       await app.dispose(tester);
     });
   });

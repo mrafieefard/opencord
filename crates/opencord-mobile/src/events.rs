@@ -473,6 +473,7 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::EphemeralMessage(_)
         | CoreEventPayload::PrivateSettingsUpdate(_)
         | CoreEventPayload::StorageUpdate(_)
+        | CoreEventPayload::VoiceRejoinFailed { .. }
         | CoreEventPayload::StagedUploadProgress { .. }
         | CoreEventPayload::DownloadProgress { .. } => return None,
     })

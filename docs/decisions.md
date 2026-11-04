@@ -1716,6 +1716,24 @@ The owner asked for the custom title bar on every platform, with the system or c
   - **Linux:** a real video's bar, speed and picture-in-picture, looked at, not only measured.
   - **Windows and macOS:** everything, in `docs/plans/media-check-windows.md` §3 and `docs/plans/media-check-macos.md` §4.
 
+## D88: The reconnect bar (2026-11-02)
+
+**Decision:** a bar across the top of the desktop app, as Discord's, offers to get back into a call this device is out of without having left it. It says why and has a Reconnect button and a ×.
+
+- **When it shows:**
+  - **The app closed in a call.** The call is kept under `voice.lastCall` while this device is in it, and offered once at the next start.
+  - **Another of the user's devices took the call over.** The repository marks its `OwnVoiceChanged` as `elsewhere`: the user's own voice state, from another session, in a channel.
+  - **Getting back in was refused.** After a fresh session the core rejoins by itself; when the server says no, the core now sends `VoiceRejoinFailed` with the server's reason, before the state saying this device left.
+- **When it doesn't:** leaving, a moderator's disconnect or move, and quitting on purpose (the tray's Quit, or closing the window with **Close button minimizes to the tray** off). Quitting forgets the call.
+- **What goes:** joining any call, Reconnect succeeding, or the ×. A refused Reconnect keeps the bar and shows the server's reason in a toast.
+- **A dropped voice connection that the core is still retrying** shows in the voice panel's status, as before, not in the bar: the core never gives up on it.
+- **Reconnect** joins the call again through the voice session, so the saved per-user volumes go to the new call as with any join, and another device's call is taken back.
+- **A channel the server no longer has** shows no bar.
+- **Limits:**
+  - ⌘Q on macOS quits without forgetting the call, so the next start offers it.
+  - The stale session of an app that died may stay in the channel until the voice node drops it; Reconnect replaces it.
+- **Checks:** a core test for the refused rejoin; Dart unit tests for the offer and the repository's mapping, and widget tests for the bar and quitting.
+
 ## D89: FFmpeg plays videos on macOS (2026-11-03)
 
 (For the media uploads plan's P2, steps 1 to 3; built on D87, pull request #26.)

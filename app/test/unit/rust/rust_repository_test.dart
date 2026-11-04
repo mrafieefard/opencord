@@ -737,6 +737,10 @@ void main() {
         harness.events.whereType<OwnVoiceChanged>().map((e) => e.channelId),
         [studio, null],
       );
+      expect(
+        harness.events.whereType<OwnVoiceChanged>().map((e) => e.elsewhere),
+        [false, false],
+      );
     });
 
     test('another device taking the call over ends it here', () async {
@@ -746,10 +750,28 @@ void main() {
       update(harness, voiceState(_self, lounge, thisDevice: false));
       await harness.settle();
 
-      expect(
-        harness.events.whereType<OwnVoiceChanged>().single.channelId,
-        isNull,
+      final ended = harness.events.whereType<OwnVoiceChanged>().single;
+      expect(ended.channelId, isNull);
+      expect(ended.elsewhere, isTrue);
+    });
+
+    test('a refused rejoin is told, with the reason', () async {
+      final harness = await ready();
+      await harness.repository.joinVoice(_server, lounge);
+
+      harness.core.emit(
+        _server,
+        const core.CoreEventPayload.voiceRejoinFailed(
+          channelId: lounge,
+          message: 'missing permission: connect',
+        ),
       );
+      await harness.settle();
+
+      final refused = harness.events.whereType<VoiceRejoinFailed>().single;
+      expect(refused.serverKey, _server);
+      expect(refused.channelId, lounge);
+      expect(refused.message, 'missing permission: connect');
     });
 
     test('joining, leaving, mute and deafen go to the core', () async {

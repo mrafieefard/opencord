@@ -157,9 +157,26 @@ final class VoiceChanged extends RepoEvent {
 /// device took the call over, or getting back in after a reconnect failed.
 /// [channelId] is null when this device is no longer in voice there.
 final class OwnVoiceChanged extends RepoEvent {
-  const OwnVoiceChanged(super.serverKey, this.channelId);
+  const OwnVoiceChanged(
+    super.serverKey,
+    this.channelId, {
+    this.elsewhere = false,
+  });
 
   final int? channelId;
+
+  /// Another of the user's devices took the call over.
+  final bool elsewhere;
+}
+
+/// Getting back into [channelId] after a fresh session was refused, for
+/// the server's [message]; an [OwnVoiceChanged] saying this device left
+/// follows.
+final class VoiceRejoinFailed extends RepoEvent {
+  const VoiceRejoinFailed(super.serverKey, this.channelId, this.message);
+
+  final int channelId;
+  final String message;
 }
 
 /// Domains & network changed, while this device watches it.
