@@ -220,6 +220,9 @@ Every rule here was broken at least once and caught in review.
 
 - **Test against what ships.** When the app carries its own build of a library (FFmpeg in `target/ffmpeg`), run the tests that use it with that build, as CI does: prefix the command with `PKG_CONFIG_PATH=$PWD/target/ffmpeg/lib/pkgconfig LD_LIBRARY_PATH=$PWD/target/ffmpeg/lib`. The system's copy has everything; a test that passes on it says nothing about the app.
 - **A test must be able to fail.** Before trusting one, name a wrong implementation that would still pass it. An assertion on a value the code echoes back (a seek reporting its own target) proves nothing; check an effect only the real behavior produces, such as how much sound came out and how long it took.
+- **A UI test pins the design's number, not your code's.** Read it from the prototype's CSS or `measure.json`, then measure the widget where it's really used. M0's `@` badge test pinned the width 18 the code had; the prototype's is 21. A badge in a `Column` stretches to the window's width, so measure it in a `Row`.
+- **A failing test outside your plan's scope is reported, not changed.** Read the log, find out why it failed, re-run the job once and say what you found. M0 lowered a noise test in `crates/` from 40 to 35 dB to turn CI green. It had most likely failed because a loaded runner made High fall back to Standard, which the lower number hides from everyone after you.
+- **Flutter's tests draw no shadow blur** unless `debugDisableShadows` is false, so a float gets a hard band under it. Anything that judges a shadow runs in `withRealShadows` (`test/support/floating_scenes.dart`).
 - **A test sets up everything it depends on.** Never rely on a default (an empty list, a setting's starting value) or on another test's data. Set it in the test.
 - **Test every mode of a flow, not just the first.** A form that adds and edits gets a test for editing; a send that can fail and retry gets a test for the retry.
 - **Fakes answer like the real thing.** A mock repository masks what the server masks and sends the last event the core sends (on a cancel, too). It ends like the real thing too: once the core's worker is gone (a player that played to the end), the fake ignores what that worker would have answered. A fake speaker plays silence when it runs dry and never banks the time for later. Otherwise tests pass on behavior real users never get.
@@ -241,7 +244,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   - **Tests**.
 - **Describe the code, not the plan.** For each sentence, open the code it describes, and copy labels, counts and messages from there. The plan says what was asked for; only the code says what was built.
 - **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name. Checksums, versions and hashes are copied from the file, never typed from memory.
-- **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger and your report.
+- **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger, your report and the pull request's description, which also lists every commit outside the plan's scope.
 - **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
 
 ## Reports and the ledger
