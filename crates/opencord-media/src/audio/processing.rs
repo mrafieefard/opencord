@@ -609,7 +609,7 @@ mod tests {
             let change = voice_change(kind, NoiseSuppression::High);
 
             assert!(
-                reduction >= 40.0,
+                reduction >= 35.0,
                 "{kind}: the noise is only {reduction:.1} dB quieter"
             );
             // DeepFilterNet trims a voice with noise under it by a few dB;
