@@ -56,30 +56,34 @@ void main() {
         if (scene.light.contains(width)) ThemePreference.light,
       ]) {
         final shot = '${scene.name}_${width.tag}_${theme.name}';
-        testWidgets(shot, skip: _out.isEmpty, (tester) async {
-          final app = await MockApp.pump(
-            tester,
-            size: width.size,
-            platform: TargetPlatform.linux,
-            settings: (s) => s.copyWith(theme: theme),
-          );
-          final driver = SceneDriver(tester);
-          try {
+        testWidgets(
+          shot,
+          skip: _out.isEmpty,
+          (tester) => withRealShadows(() async {
+            final app = await MockApp.pump(
+              tester,
+              size: width.size,
+              platform: TargetPlatform.linux,
+              settings: (s) => s.copyWith(theme: theme),
+            );
+            final driver = SceneDriver(tester);
+            try {
+              await driver.settle(600);
+              await scene.play(driver);
+            } on SceneUnavailable catch (missing) {
+              debugPrint('skipped $shot: $missing');
+              await app.dispose(tester);
+              return;
+            }
             await driver.settle(600);
-            await scene.play(driver);
-          } on SceneUnavailable catch (missing) {
-            debugPrint('skipped $shot: $missing');
+            await decodeImages(tester);
+            await writeShot(tester, '$_out/$shot.png');
+            if (theme == ThemePreference.dark) {
+              _record('${scene.name}@${width.tag}', measureFrames(tester));
+            }
             await app.dispose(tester);
-            return;
-          }
-          await driver.settle(600);
-          await decodeImages(tester);
-          await writeShot(tester, '$_out/$shot.png');
-          if (theme == ThemePreference.dark) {
-            _record('${scene.name}@${width.tag}', measureFrames(tester));
-          }
-          await app.dispose(tester);
-        });
+          }),
+        );
       }
     }
   }

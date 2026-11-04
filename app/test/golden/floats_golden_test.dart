@@ -4,6 +4,7 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/widgets/notched_float.dart';
 import 'package:opencord/ui/widgets/oc_float.dart';
 
+import '../support/floating_scenes.dart';
 import '../support/pump.dart';
 
 const _float = Size(220, 170);
@@ -32,49 +33,52 @@ class _Header extends StatelessWidget {
 
 void main() {
   for (final (name, colors) in themes) {
-    testWidgets('floats and the notch at 52, 26 and 0 ($name)', (tester) async {
-      // At 2×, so the curves can be checked at full size.
-      const logical = Size(16 + 4 * 220 + 3 * 12 + 16, 16 + 170 + 28);
-      tester.view.physicalSize = logical * 2;
-      tester.view.devicePixelRatio = 2;
-      addTearDown(tester.view.reset);
-      final notches = [
-        for (final n in [52.0, 26.0, 0.0]) ValueNotifier(n),
-      ];
-      addTearDown(() {
-        for (final notch in notches) {
-          notch.dispose();
-        }
-      });
+    testWidgets(
+      'floats and the notch at 52, 26 and 0 ($name)',
+      (tester) => withRealShadows(() async {
+        // At 2×, so the curves can be checked at full size.
+        const logical = Size(16 + 4 * 220 + 3 * 12 + 16, 16 + 170 + 28);
+        tester.view.physicalSize = logical * 2;
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.reset);
+        final notches = [
+          for (final n in [52.0, 26.0, 0.0]) ValueNotifier(n),
+        ];
+        addTearDown(() {
+          for (final notch in notches) {
+            notch.dispose();
+          }
+        });
 
-      await pumpThemed(
-        tester,
-        colors: colors,
-        background: (c) => c.rail,
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 12,
-            children: [
-              SizedBox.fromSize(
-                size: _float,
-                child: const OcFloat(child: SizedBox.expand()),
-              ),
-              for (final notch in notches)
+        await pumpThemed(
+          tester,
+          colors: colors,
+          background: (c) => c.rail,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 12,
+              children: [
                 SizedBox.fromSize(
                   size: _float,
-                  child: NotchedFloat(notch: notch, child: const _Header()),
+                  child: const OcFloat(child: SizedBox.expand()),
                 ),
-            ],
+                for (final notch in notches)
+                  SizedBox.fromSize(
+                    size: _float,
+                    child: NotchedFloat(notch: notch, child: const _Header()),
+                  ),
+              ],
+            ),
           ),
-        ),
-      );
+        );
 
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/floats_$name.png'),
-      );
-    });
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/floats_$name.png'),
+        );
+      }),
+    );
   }
 }

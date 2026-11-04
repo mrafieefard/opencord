@@ -107,38 +107,46 @@ void main() {
 
   for (final film in _films) {
     if (names != null && !names.contains(film.name)) continue;
-    testWidgets(film.name, skip: _out.isEmpty, (tester) async {
-      final app = await MockApp.pump(
-        tester,
-        size: wide1280.size,
-        platform: TargetPlatform.linux,
-        settings: (s) => s.copyWith(theme: ThemePreference.dark),
-      );
-      final scene = SceneDriver(tester);
-      try {
+    testWidgets(
+      film.name,
+      skip: _out.isEmpty,
+      (tester) => withRealShadows(() async {
+        final app = await MockApp.pump(
+          tester,
+          size: wide1280.size,
+          platform: TargetPlatform.linux,
+          settings: (s) => s.copyWith(theme: ThemePreference.dark),
+        );
+        final scene = SceneDriver(tester);
+        try {
+          await scene.settle(600);
+          await film.setup(scene);
+          await scene.settle(600);
+          await decodeImages(tester);
+          await film.action(scene);
+        } on SceneUnavailable catch (missing) {
+          debugPrint('skipped ${film.name}: $missing');
+          await app.dispose(tester);
+          return;
+        }
+        // The first frame builds what the action changed and starts its
+        // animations; the second is their first tick, at 0 ms.
+        await tester.pump();
+        await tester.pump();
+        var at = 0;
+        for (final time in film.times) {
+          await tester.pump(Duration(milliseconds: time - at));
+          at = time;
+          final ms = '$time'.padLeft(3, '0');
+          await writeShot(
+            tester,
+            '$_out/${film.name}_$ms.png',
+            clip: film.clip,
+          );
+        }
         await scene.settle(600);
-        await film.setup(scene);
-        await scene.settle(600);
-        await decodeImages(tester);
-        await film.action(scene);
-      } on SceneUnavailable catch (missing) {
-        debugPrint('skipped ${film.name}: $missing');
         await app.dispose(tester);
-        return;
-      }
-      // The first frame builds what the action changed and starts its
-      // animations; the second is their first tick, at 0 ms.
-      await tester.pump();
-      await tester.pump();
-      var at = 0;
-      for (final time in film.times) {
-        await tester.pump(Duration(milliseconds: time - at));
-        at = time;
-        final ms = '$time'.padLeft(3, '0');
-        await writeShot(tester, '$_out/${film.name}_$ms.png', clip: film.clip);
-      }
-      await scene.settle(600);
-      await app.dispose(tester);
-    });
+      }),
+    );
   }
 }

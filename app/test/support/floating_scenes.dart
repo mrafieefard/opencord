@@ -17,6 +17,17 @@ import 'package:opencord/features/voice/voice_tile.dart';
 import 'app.dart';
 import 'finders.dart';
 
+/// Runs [body] with shadows blurred as the app blurs them. Flutter's tests
+/// turn the blur off, which leaves a hard band under every float.
+Future<void> withRealShadows(Future<void> Function() body) async {
+  debugDisableShadows = false;
+  try {
+    await body();
+  } finally {
+    debugDisableShadows = true;
+  }
+}
+
 /// A window size the checks render at (the plan's breakpoints).
 class Breakpoint {
   const Breakpoint(this.tag, this.size);
