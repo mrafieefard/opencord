@@ -21,6 +21,7 @@ export interface ColorTokens {
   bubbleOut: string;
   mentionBg: string;
   scrim: string;
+  iconDisabled: string;
   avatarShades: readonly string[];
   voice: string;
   recording: string;
@@ -46,6 +47,7 @@ const dark: ColorTokens = {
   bubbleIn: '#1A1A1E',
   bubbleOut: '#2A2A30',
   mentionBg: '#26262B',
+  iconDisabled: '#27272C',
   scrim: '#000000B3',
   avatarShades: ['#2B2B30', '#34343A', '#3E3E45', '#494951', '#55555D'],
   voice: '#4C8DFF',
@@ -69,6 +71,7 @@ const light: ColorTokens = {
   bubbleIn: '#FFFFFF',
   bubbleOut: '#E4E4E8',
   mentionBg: '#E2E2E6',
+  iconDisabled: '#C1C1C8',
   scrim: '#00000066',
   avatarShades: ['#D9D9DE', '#CDCDD3', '#C1C1C8', '#E3E3E7', '#B6B6BE'],
   voice: '#2F6FEB',
