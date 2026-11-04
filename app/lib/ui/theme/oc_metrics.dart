@@ -70,6 +70,28 @@ abstract final class OcSize {
   static const Size defaultWindow = Size(1280, 800);
 }
 
+/// The floating frame's numbers (the floating UI's design, §2 and §5): the
+/// gaps, the floats' radius, the fixed rows and columns, the main page's
+/// notch and its button, and the left column's widths.
+abstract final class OcFloats {
+  static const double gap = 8,
+      radius = 16,
+      titleBar = 40,
+      header = 52,
+      rail = 62,
+      side = 264,
+      sideMusic = 340,
+      voiceChat = 380,
+      bottom = 62,
+      notch = 52,
+      paneButton = 44,
+      paneButtonInset = 4;
+  static const double leftDefault = 288,
+      leftNarrow = 264,
+      leftMin = 232,
+      leftMax = 420;
+}
+
 /// Window widths where the layout changes (§3).
 abstract final class OcBreakpoint {
   /// All four columns from here up.
