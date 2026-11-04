@@ -809,10 +809,10 @@ Gradle and node_modules trees, would stop it costing a re-run each time.
   2. `alice` joins the voice channel, then `alice2` joins the same one.
   3. `alice` shows "Your call in <channel> moved to another device." — **it does.**
   4. **Reconnect** on `alice` takes the call back, and `alice2` is out of it. — **both.** Click Reconnect on its **left** half: the right half is swallowed by the maximise hit region (§C).
-- [~] **No bar after:** — **one of five done; two of the five cannot be done on #27's build at all.**
+- [~] **No bar after:** — **three of five pass; the other two cannot be done on #27's build at all.**
   - leaving the call; — **PASS.** `alice` left with Disconnect, was killed and restarted: no bar.
-  - `bob`, given Move Members, disconnects `alice` from the member menu; — **not done.** Needs a role with Move Members granted to `bob` first.
-  - `bob` moves `alice` to another channel; — **not done.** Needs that role *and* a second voice channel; the test server has only `General`.
+  - `bob`, given Move Members, disconnects `alice` from the member menu; — **PASS**, checked by the owner with a Move Members role granted to the second identity: disconnected from the member menu, restarted, and no bar.
+  - `bob` moves `alice` to another channel; — **PASS**, with a second voice channel added for somewhere to move her to: moved, restarted, and no bar.
   - **Quit Opencord** from the tray menu while in a call, then a restart; — **cannot be done on this build.** #27's build has **no tray at all** — the tray is #24 — so there is no tray menu to quit from.
   - Close with **Close button minimizes to the tray** off, while in a call, then a restart. — **cannot be done on this build.** Same reason: with no tray, **Windows & behavior** on #27's build offers only *Launch at login* and *Restore the last window position*. The setting this step turns off does not exist here.
 
