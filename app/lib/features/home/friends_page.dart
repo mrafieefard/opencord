@@ -5,6 +5,7 @@ import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/home/friend_rows.dart';
+import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -41,7 +42,14 @@ final friendsTabProvider = NotifierProvider<FriendsTabNotifier, FriendsTab>(
 );
 
 class FriendsPage extends ConsumerStatefulWidget {
-  const FriendsPage({super.key});
+  const FriendsPage({
+    super.key,
+    this.leadingControls = false,
+    this.trailingControls = false,
+  });
+
+  final bool leadingControls;
+  final bool trailingControls;
 
   @override
   ConsumerState<FriendsPage> createState() => _FriendsPageState();
@@ -59,18 +67,22 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     return Column(
       children: [
         // 60 px Header with title and tabs (§6.2)
-        Container(
-          height: 60,
+        HeaderBar(
+          leadingControls: widget.leadingControls,
+          trailingControls: widget.trailingControls,
           padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: colors.border, width: 1)),
-          ),
           child: Row(
             children: [
-              Text('Friends', style: OcText.title.copyWith(color: colors.text)),
+              IgnorePointer(
+                child: Text(
+                  'Friends',
+                  style: OcText.title.copyWith(color: colors.text),
+                ),
+              ),
               const SizedBox(width: OcSpace.s20),
-              // Scrolls sideways when the window is too narrow for all tabs.
-              Expanded(
+              // Scrolls sideways when the window is too narrow for all tabs;
+              // only as wide as the tabs, so the space after them drags.
+              Flexible(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: ChoiceChips<FriendsTab>(

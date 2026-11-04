@@ -20,9 +20,16 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 
 /// The conversation view for private messaging (§6.3).
 class PrivateChat extends ConsumerStatefulWidget {
-  const PrivateChat({super.key, required this.peer});
+  const PrivateChat({
+    super.key,
+    required this.peer,
+    this.leadingControls = false,
+    this.trailingControls = false,
+  });
 
   final String peer;
+  final bool leadingControls;
+  final bool trailingControls;
 
   @override
   ConsumerState<PrivateChat> createState() => _PrivateChatState();
@@ -153,7 +160,11 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
 
     return Column(
       children: [
-        PrivateHeader(peer: widget.peer),
+        PrivateHeader(
+          peer: widget.peer,
+          leadingControls: widget.leadingControls,
+          trailingControls: widget.trailingControls,
+        ),
         Expanded(
           child: PrivateMessageList(
             peer: widget.peer,

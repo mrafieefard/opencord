@@ -2,8 +2,10 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
+import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/window_title.dart';
 import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/features/window/native_window.dart';
@@ -109,6 +111,48 @@ void main() {
     expect(restore, 1);
     expect(find.bySemanticsLabel('Minimize'), findsNothing);
     expect(window.calls, containsAllInOrder(['minimize', 'toggleMaximize']));
+    await app.dispose(tester);
+  });
+
+  testWidgets('private messages keep the window buttons and drag area', (
+    tester,
+  ) async {
+    final window = FakeNativeWindow();
+    final app = await MockApp.pump(
+      tester,
+      window: window,
+      windowInfo: custom,
+      platform: TargetPlatform.linux,
+    );
+    final main = find.byKey(DesktopShell.mainKey);
+    final buttons = find.descendant(
+      of: main,
+      matching: find.bySemanticsLabel('Close'),
+    );
+
+    await tester.tap(find.byTooltip('Private messages'));
+    await tester.pumpAndSettle();
+    final friends = buttons.evaluate().length;
+    await tester.dragFrom(
+      tester.getTopRight(main) + const Offset(-200, 30),
+      const Offset(40, 10),
+    );
+    final mira = app
+        .read(privateContactsProvider)
+        .all
+        .firstWhere((c) => c.name == 'Mira Okafor');
+    app.read(navigationProvider.notifier).openConversation(mira.peer);
+    await tester.pumpAndSettle();
+    final chat = buttons.evaluate().length;
+    await tester.dragFrom(
+      tester.getTopLeft(main) + const Offset(260, 30),
+      const Offset(40, 10),
+    );
+
+    expect(friends, 1, reason: 'the Friends page header has them');
+    expect(chat, 1, reason: 'a private chat header has them');
+    expect(window.calls.where((call) => call == 'startDrag'), hasLength(2));
+    await tester.pump(const Duration(seconds: 1));
     await app.dispose(tester);
   });
 

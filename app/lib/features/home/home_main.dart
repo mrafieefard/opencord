@@ -7,6 +7,7 @@ import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/home/private_chat.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/no_servers.dart';
+import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -16,7 +17,15 @@ import 'package:opencord/ui/widgets/oc_dialog.dart';
 
 /// The main content area of the home view (§6.2).
 class HomeMain extends ConsumerStatefulWidget {
-  const HomeMain({super.key});
+  const HomeMain({
+    super.key,
+    this.leadingControls = false,
+    this.trailingControls = false,
+  });
+
+  /// Window controls (§3.1), for the header of whichever page is shown.
+  final bool leadingControls;
+  final bool trailingControls;
 
   @override
   ConsumerState<HomeMain> createState() => _HomeMainState();
@@ -68,22 +77,24 @@ class _HomeMainState extends ConsumerState<HomeMain> {
     final unavailable = repo.privateUnavailable ?? contactsState.error;
 
     if (unavailable != null) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(OcSpace.s24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(OcIcons.error, size: 48, color: colors.textMuted),
-                const SizedBox(height: OcSpace.s16),
-                Text(
-                  unavailable.message,
-                  textAlign: TextAlign.center,
-                  style: OcText.body.copyWith(color: colors.textSecondary),
-                ),
-              ],
+      return _withHeader(
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(OcSpace.s24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(OcIcons.error, size: 48, color: colors.textMuted),
+                  const SizedBox(height: OcSpace.s16),
+                  Text(
+                    unavailable.message,
+                    textAlign: TextAlign.center,
+                    style: OcText.body.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -92,14 +103,34 @@ class _HomeMainState extends ConsumerState<HomeMain> {
 
     final servers = ref.watch(serverListProvider);
     if (servers.isEmpty && contactsState.all.isEmpty) {
-      return const NoServersView();
+      return _withHeader(const NoServersView());
     }
 
     final currentPeer = ref.watch(currentPeerProvider);
     if (currentPeer != null) {
-      return PrivateChat(peer: currentPeer);
+      return PrivateChat(
+        peer: currentPeer,
+        leadingControls: widget.leadingControls,
+        trailingControls: widget.trailingControls,
+      );
     }
 
-    return const FriendsPage();
+    return FriendsPage(
+      leadingControls: widget.leadingControls,
+      trailingControls: widget.trailingControls,
+    );
   }
+
+  /// A page with no header of its own still gets the title bar's.
+  Widget _withHeader(Widget page) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      HeaderBar(
+        leadingControls: widget.leadingControls,
+        trailingControls: widget.trailingControls,
+        child: const SizedBox(),
+      ),
+      Expanded(child: page),
+    ],
+  );
 }
