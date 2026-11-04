@@ -74,7 +74,8 @@ libc = "0.2.190"
 glow = "0.18.0"
 khronos-egl = { version = "6.0.0", features = ["dynamic"] }
 # Pasting and copying images (media uploads plan, Task 21), on X11 and
-# Wayland. On Windows it brings Boost-licensed crates.
+# Wayland. Windows does it on the Win32 API instead, because there `arboard`
+# brings Boost-licensed crates.
 arboard = { version = "3.7.0", default-features = false, features = ["image-data", "wayland-data-control"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -82,5 +83,7 @@ arboard = { version = "3.7.0", default-features = false, features = ["image-data
 arboard = { version = "3.7.0", default-features = false, features = ["image-data"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-# The session log's clock and its crash handler (D82).
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Kernel", "Win32_System_LibraryLoader", "Win32_System_SystemInformation"] }
+# The session log's clock and its crash handler (D82), and the clipboard's
+# images (media uploads plan, Task 21): DataExchange is the clipboard itself
+# and Memory the blocks its formats travel in.
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_DataExchange", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_Kernel", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_SystemInformation"] }
