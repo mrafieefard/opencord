@@ -58,12 +58,13 @@ int _voiceChannel(MockApp app) => app
 
 /// Clicks the General voice channel, which opens and joins it.
 Future<void> _joinGeneral(WidgetTester tester) async {
-  await tester.tap(
-    find.descendant(
-      of: find.byKey(DesktopShell.sidebarKey),
-      matching: find.text('General'),
-    ),
+  final target = find.descendant(
+    of: find.byKey(DesktopShell.sidebarKey),
+    matching: find.text('General'),
   );
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+  await tester.tap(target);
   await _pumpFor(tester, const Duration(milliseconds: 300));
 }
 

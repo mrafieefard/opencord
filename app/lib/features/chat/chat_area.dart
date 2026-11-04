@@ -84,6 +84,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
     ChannelRef open,
     bool unreachable, {
     required bool pins,
+    bool? includeComposer,
   }) => AttachmentDropZone(
     channel: open,
     child: Column(
@@ -107,7 +108,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
             ),
           ),
         ),
-        if (widget.includeComposer)
+        if (includeComposer ?? widget.includeComposer)
           MeasuredHeight(
             onChanged: (height) => _composerHeight.value = height,
             child: Composer(
@@ -187,6 +188,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                       open,
                       unreachable,
                       pins: false,
+                      includeComposer: true,
                     ),
                     (true, false) => Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -201,7 +203,12 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                         VerticalDivider(width: 1, color: colors.border),
                         SizedBox(
                           width: _voiceChatWidth,
-                          child: _channelChat(open, unreachable, pins: false),
+                          child: _channelChat(
+                            open,
+                            unreachable,
+                            pins: false,
+                            includeComposer: true,
+                          ),
                         ),
                       ],
                     ),
