@@ -2,14 +2,14 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-10-26-mobile-client.md`: the phone apps, in React Native on the Rust core. The design it builds on is `docs/superpowers/specs/2026-10-26-mobile-client-design.md`. Milestone R0 (the facade, the app's build, its core layer and its store) is Claude's and comes first; the screens from R1 on are mostly yours. The private messages plan before it is finished.
+You are implementing `docs/superpowers/plans/2026-11-04-floating-ui.md`: the desktop app rebuilt as floating panels, 1:1 with the owner's prototype. The design it builds on is `docs/superpowers/specs/2026-11-04-floating-ui-design.md`, which holds every number; where they disagree, the prototype beside it wins. The phone apps plan before it is finished.
 
-- **UI work follows Software Mansion's React Native skills** (`~/.claude/plugins/marketplaces/swmansion/skills/react-native-best-practices`), as the plan's "Skills for UI work" says.
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
-- Each milestone ends in a pull request (see "Every change is a pull request"). Its code is reviewed and fixed there, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
-- The plan gives behavior, interfaces, names and tests, not finished code. Only the proto, the SQL and a few types are given exactly: copy those as they are. You write the rest, and the rules below are what the review checks it against.
+- **One draft pull request for the whole plan.** The first milestone opens it into `beta`, later ones push to it. For this plan, that replaces "at the end of each milestone, open a pull request" below.
+- The plan gives behavior, interfaces, names, numbers and tests, not finished code. You write the code, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-- The user releases one milestone at a time. Stop at the end of each milestone and report.
+- **The owner releases one milestone at a time. Stop at each checkpoint (CP0–CP6) and report.** Claude scores the screens there, and that score decides.
+- **The decisions entry is Claude's** for this plan, at the last review. Don't write one per milestone.
 
 ## Every change is a pull request
 
