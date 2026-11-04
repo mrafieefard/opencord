@@ -105,7 +105,7 @@ The main float's background is `chat`. New colour token: `iconDisabled`, `select
   | others | the widget's existing icon | `mic`, `micOff`, `headphones`, `headsetOff`, `settings`, `callEnd`, `graphicEq`, `screenShare`, `musicNote`, `videocam`, `videocamOff`, `search`, `pushPin`, `moreVert`, `tag`, `campaign`, `volumeUp`, `lock`, `close`, `attachFile`, `mood`/the composer's own, `mail`, `group`, `chat` |
 
   New icons go in `icons` in `app/tool/build_icons.dart`, then `dart run tool/build_icons.dart`.
-- **Type:** Inter and JetBrains Mono through `OcText`. Sizes below are `size/weight`. Line heights come from `OcText` unless given.
+- **Type:** Inter and JetBrains Mono through `OcText`. Sizes below are `size/weight`. Line heights come from `OcText` unless given. Letter spacing is `0` unless given: `OcText` must say so, or each style inherits `0.25` from Material's default text style and runs 3–4 % wider than the prototype.
 
 ## 4. Motion
 
@@ -468,10 +468,12 @@ Everywhere: right-click menus, dropdowns, popovers.
 
 ### 5.18 Drawers (`ShellDrawer`, from `_Drawer`)
 
-- **Scrim:** from the title bar's bottom to the window's bottom, full width: `scrim` at 0.6 of its alpha, fade 120 ms. A click or Esc closes.
+- **Scrim:** from the title bar's bottom to the window's bottom, full width, over the rail too: `scrim` at 0.6 of its alpha, fade in 120 ms, gone as soon as the drawer starts to close. A click or Esc closes.
 - **Right drawer:** floats `8` from the right and bottom, under the title bar: at 1100 × 800, `828,40,264,752`. Enters from `100 % + gap + 24` to the right on `pane`; leaves on `paneOut`. Music: `340`, at most window − 16.
-- **Left drawer** (compact): head, channels, voice card and user panel, at x = `gap·2 + 62` = 78, width `min(leftWidth, window − 62 − 32)`: at 759, `78,40,285,652`. Enters from `−24` with a fade (100 ms) on `pane`; leaves in 120 ms `easeIn`. The rail stays usable beside it.
+- **Left drawer** (compact): head, channels, voice card and user panel, at x = `gap·2 + 62` = 78, width `min(leftWidth, window − 62 − 32)`: at 759, `78,40,285,652`. Enters from `−24` with a fade (100 ms) on `pane`; leaves in 120 ms `easeIn`.
 - The notch closes while the right drawer is open, as inline.
+- **Going anywhere closes them:** opening a channel, a chat or Friends shuts whichever drawer is open, on its way out.
+- A panel's own X closes the drawer the same way as Esc, on its curve.
 - **Home view too:** a compact window gets the hamburger in its headers. (Today it has no way to open the list.)
 
 ### 5.19 Everything else
