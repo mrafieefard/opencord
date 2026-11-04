@@ -346,10 +346,14 @@ class _MessageListState extends ConsumerState<MessageList>
     return Overlay.wrap(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final side = math.max(
-            OcSpace.s16,
-            (constraints.maxWidth - OcSize.messageColumn) / 2,
-          );
+          // Bubbles keep to a readable column; compact lines use the
+          // whole width, as in private chats.
+          final side = compact
+              ? OcSpace.s16
+              : math.max(
+                  OcSpace.s16,
+                  (constraints.maxWidth - OcSize.messageColumn) / 2,
+                );
           return Stack(
             children: [
               NotificationListener<ScrollNotification>(
