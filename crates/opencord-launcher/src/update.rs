@@ -72,14 +72,14 @@ pub enum Status {
     },
 }
 
-/// Brings the install to the newest build `track` takes. Returns the
-/// version it switched to, or `None` when the installed one stays.
+/// Brings the install to `track`'s newest build. Returns the version it
+/// switched to, or `None` when the installed one stays.
 ///
-/// Updates never go backwards: an older build than the installed one
-/// stays where it is. But when the user has picked another track since
-/// the installed build was installed (the app restarts for it), that
-/// track's newest build replaces it, even an older one: a canary user
-/// who picks stable gets stable.
+/// Updates never go backwards within a track: an older build than the
+/// installed one stays where it is. But a build of another track gives way
+/// to `track`'s newest, even an older one, whether the user has just picked
+/// `track` (the app restarts for it) or an older launcher installed it: a
+/// canary user who picks stable gets stable.
 pub fn update(
     layout: &Layout,
     source: &dyn Source,
@@ -96,9 +96,9 @@ pub fn update(
             .is_some_and(|installed_for| installed_for != track.name());
     let manifest = source.latest(track)?;
     let wanted = manifest.version.clone();
-    let stays = current
-        .as_ref()
-        .is_some_and(|current| *current == wanted || (!switching && *current > wanted));
+    let stays = current.as_ref().is_some_and(|current| {
+        *current == wanted || (!switching && Track::of(current) == Some(track) && *current > wanted)
+    });
     if stays {
         layout.write_installed(&Installed {
             version: current,
@@ -343,21 +343,48 @@ mod tests {
 
     #[cfg(not(any(windows, target_os = "macos")))]
     #[test]
-    fn the_installed_version_or_a_newer_one_stays() {
+    fn the_installed_version_or_a_newer_one_of_the_track_stays() {
         let root = tempfile::tempdir().unwrap();
         let layout = Layout::new(root.path());
-        run(&layout, &fake("0.0.2", app_archive(b"stable"), None))
+        run(&layout, &fake("0.0.2-beta.9", app_archive(b"beta"), None))
             .0
             .unwrap();
 
-        // The same, and an older build (a switch to a track behind it).
-        for version in ["0.0.2", "0.0.2-beta.9"] {
+        // The same, and an older build of the same track.
+        for version in ["0.0.2-beta.9", "0.0.2-beta.3"] {
             let source = fake(version, app_archive(b"other"), None);
             let (result, _) = run(&layout, &source);
             assert!(result.unwrap().is_none());
             assert_eq!(*source.downloads.borrow(), 0);
         }
-        assert_eq!(layout.current().unwrap().to_string(), "0.0.2");
+        assert_eq!(layout.current().unwrap().to_string(), "0.0.2-beta.9");
+    }
+
+    /// What older launchers left behind: a canary installed for a beta
+    /// user. The canary sorts higher, but it isn't what they asked for.
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn a_build_of_another_track_gives_way_to_the_tracks_own() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        run(
+            &layout,
+            &fake("0.0.1-canary.4", app_archive(b"canary"), None),
+        )
+        .0
+        .unwrap();
+
+        let beta = fake("0.0.1-beta.5", app_archive(b"beta"), None);
+        let (result, _) = run(&layout, &beta);
+        assert_eq!(result.unwrap().unwrap().to_string(), "0.0.1-beta.5");
+        assert_eq!(layout.current().unwrap().to_string(), "0.0.1-beta.5");
+        let exe = layout::app_executable(&layout.version_dir(&layout.current().unwrap()));
+        assert_eq!(fs::read(exe).unwrap(), b"beta");
+
+        // And it stays on the next start.
+        let (result, _) = run(&layout, &beta);
+        assert!(result.unwrap().is_none());
+        assert_eq!(*beta.downloads.borrow(), 1);
     }
 
     #[cfg(not(any(windows, target_os = "macos")))]
