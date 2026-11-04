@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/debug_menu.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/navigation_history.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
@@ -275,6 +277,12 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     FullscreenIntent: CallbackAction<FullscreenIntent>(
       onInvoke: (_) => _toggleFullscreen(),
     ),
+    BackIntent: CallbackAction<BackIntent>(
+      onInvoke: (_) => ref.read(navigationHistoryProvider.notifier).back(),
+    ),
+    ForwardIntent: CallbackAction<ForwardIntent>(
+      onInvoke: (_) => ref.read(navigationHistoryProvider.notifier).forward(),
+    ),
   };
 
   /// From the keyboard there is no button to open it from: it opens above
@@ -298,6 +306,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(navigationHistoryProvider);
     final colors = context.oc;
     final homeShown = ref.watch(homeShownProvider);
     final panelOpen =
@@ -335,114 +344,124 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         child: Actions(
           actions: _actions(),
           child: MacMenuBar(
-            child: Focus(
-              autofocus: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Over the whole layout, as Discord's (D88).
-                  const VoiceReconnectBar(),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final layout = ShellLayout.forWidth(
-                          constraints.maxWidth,
-                        );
-                        _layout = layout;
-                        final border = VerticalDivider(
-                          width: 1,
-                          thickness: 1,
-                          color: colors.border,
-                        );
-                        final membersInline = layout.membersInline && panelOpen;
-                        return Stack(
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const SizedBox(
-                                  key: DesktopShell.railKey,
-                                  width: OcSize.railWidth,
-                                  child: ServerRail(),
-                                ),
-                                border,
-                                if (layout.sidebarInline) ...[
-                                  SizedBox(
+            child: Listener(
+              onPointerDown: (event) {
+                if (event.buttons & kBackMouseButton != 0) {
+                  ref.read(navigationHistoryProvider.notifier).back();
+                } else if (event.buttons & kForwardMouseButton != 0) {
+                  ref.read(navigationHistoryProvider.notifier).forward();
+                }
+              },
+              child: Focus(
+                autofocus: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Over the whole layout, as Discord's (D88).
+                    const VoiceReconnectBar(),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final layout = ShellLayout.forWidth(
+                            constraints.maxWidth,
+                          );
+                          _layout = layout;
+                          final border = VerticalDivider(
+                            width: 1,
+                            thickness: 1,
+                            color: colors.border,
+                          );
+                          final membersInline =
+                              layout.membersInline && panelOpen;
+                          return Stack(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(
+                                    key: DesktopShell.railKey,
+                                    width: OcSize.railWidth,
+                                    child: ServerRail(),
+                                  ),
+                                  border,
+                                  if (layout.sidebarInline) ...[
+                                    SizedBox(
+                                      key: DesktopShell.sidebarKey,
+                                      width: layout.sidebarWidth,
+                                      child: homeShown
+                                          ? const HomeSidebar(
+                                              leadingControls: true,
+                                            )
+                                          : const ChannelSidebar(
+                                              leadingControls: true,
+                                            ),
+                                    ),
+                                    border,
+                                  ],
+                                  Expanded(
+                                    key: DesktopShell.mainKey,
+                                    child: homeShown
+                                        ? HomeMain(
+                                            leadingControls:
+                                                !layout.sidebarInline,
+                                            trailingControls: true,
+                                          )
+                                        : ChatArea(
+                                            membersShown: membersActive,
+                                            onToggleMembers: _selectMembers,
+                                            musicShown: musicActive,
+                                            onSelectMusic: _selectMusic,
+                                            onOpenSidebar: layout.sidebarInline
+                                                ? null
+                                                : () => setState(
+                                                    () => _sidebarDrawer = true,
+                                                  ),
+                                            leadingControls:
+                                                !layout.sidebarInline,
+                                            trailingControls: !membersInline,
+                                          ),
+                                  ),
+                                  if (membersInline) ...[
+                                    border,
+                                    _rightPanel(
+                                      music: musicShown,
+                                      onClose: _closeRightPanel,
+                                      trailingControls: true,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if (!layout.sidebarInline && _sidebarDrawer)
+                                _Drawer(
+                                  fromRight: false,
+                                  inset: OcSize.railWidth + 1,
+                                  onClose: () =>
+                                      setState(() => _sidebarDrawer = false),
+                                  child: SizedBox(
                                     key: DesktopShell.sidebarKey,
                                     width: layout.sidebarWidth,
                                     child: homeShown
-                                        ? const HomeSidebar(
-                                            leadingControls: true,
-                                          )
-                                        : const ChannelSidebar(
-                                            leadingControls: true,
-                                          ),
+                                        ? const HomeSidebar()
+                                        : const ChannelSidebar(),
                                   ),
-                                  border,
-                                ],
-                                Expanded(
-                                  key: DesktopShell.mainKey,
-                                  child: homeShown
-                                      ? HomeMain(
-                                          leadingControls:
-                                              !layout.sidebarInline,
-                                          trailingControls: true,
-                                        )
-                                      : ChatArea(
-                                          membersShown: membersActive,
-                                          onToggleMembers: _selectMembers,
-                                          musicShown: musicActive,
-                                          onSelectMusic: _selectMusic,
-                                          onOpenSidebar: layout.sidebarInline
-                                              ? null
-                                              : () => setState(
-                                                  () => _sidebarDrawer = true,
-                                                ),
-                                          leadingControls:
-                                              !layout.sidebarInline,
-                                          trailingControls: !membersInline,
-                                        ),
                                 ),
-                                if (membersInline) ...[
-                                  border,
-                                  _rightPanel(
+                              if (!layout.membersInline && _membersDrawer)
+                                _Drawer(
+                                  fromRight: true,
+                                  onClose: _closeRightPanel,
+                                  child: _rightPanel(
                                     music: musicShown,
                                     onClose: _closeRightPanel,
-                                    trailingControls: true,
+                                    isOverlay: true,
                                   ),
-                                ],
-                              ],
-                            ),
-                            if (!layout.sidebarInline && _sidebarDrawer)
-                              _Drawer(
-                                fromRight: false,
-                                inset: OcSize.railWidth + 1,
-                                onClose: () =>
-                                    setState(() => _sidebarDrawer = false),
-                                child: SizedBox(
-                                  key: DesktopShell.sidebarKey,
-                                  width: layout.sidebarWidth,
-                                  child: homeShown
-                                      ? const HomeSidebar()
-                                      : const ChannelSidebar(),
                                 ),
-                              ),
-                            if (!layout.membersInline && _membersDrawer)
-                              _Drawer(
-                                fromRight: true,
-                                onClose: _closeRightPanel,
-                                child: _rightPanel(
-                                  music: musicShown,
-                                  onClose: _closeRightPanel,
-                                  isOverlay: true,
-                                ),
-                              ),
-                          ],
-                        );
-                      },
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

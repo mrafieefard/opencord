@@ -62,6 +62,14 @@ class FullscreenIntent extends Intent {
   const FullscreenIntent();
 }
 
+class BackIntent extends Intent {
+  const BackIntent();
+}
+
+class ForwardIntent extends Intent {
+  const ForwardIntent();
+}
+
 /// Ctrl+Shift+F12 in debug builds (plan §11).
 class DebugMenuIntent extends Intent {
   const DebugMenuIntent();
@@ -93,10 +101,18 @@ Map<ShortcutActivator, Intent> shellShortcuts(TargetPlatform platform) {
     primary(LogicalKeyboardKey.keyU, shift: true): const ToggleMembersIntent(),
     primary(LogicalKeyboardKey.keyB, shift: true): const OpenSoundboardIntent(),
     const SingleActivator(LogicalKeyboardKey.escape): const MarkReadIntent(),
-    if (mac)
+    const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true):
+        const BackIntent(),
+    const SingleActivator(LogicalKeyboardKey.arrowRight, alt: true):
+        const ForwardIntent(),
+    if (mac) ...{
+      const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true):
+          const BackIntent(),
+      const SingleActivator(LogicalKeyboardKey.bracketRight, meta: true):
+          const ForwardIntent(),
       const SingleActivator(LogicalKeyboardKey.keyF, control: true, meta: true):
-          const FullscreenIntent()
-    else
+          const FullscreenIntent(),
+    } else
       const SingleActivator(LogicalKeyboardKey.f11): const FullscreenIntent(),
     if (kDebugMode)
       primary(LogicalKeyboardKey.f12, shift: true): const DebugMenuIntent(),

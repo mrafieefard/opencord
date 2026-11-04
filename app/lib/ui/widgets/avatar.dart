@@ -27,6 +27,8 @@ class OcAvatar extends StatelessWidget {
     this.speaking = false,
     this.ringColor,
     this.image,
+    this.backgroundColor,
+    this.initialsStyle,
   });
 
   /// Picks the grey, so the same user or server always looks the same.
@@ -51,6 +53,12 @@ class OcAvatar extends StatelessWidget {
   /// and if it can't be read.
   final ImageProvider? image;
 
+  /// Overrides the background color.
+  final Color? backgroundColor;
+
+  /// Overrides the initials text style.
+  final TextStyle? initialsStyle;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -64,11 +72,13 @@ class OcAvatar extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.clip,
       textScaler: TextScaler.noScaling,
-      style: OcText.bodyStrong.copyWith(
-        fontSize: initialsFontSize(size),
-        height: 1,
-        color: inverted ? colors.onAccent : colors.text,
-      ),
+      style:
+          initialsStyle ??
+          OcText.bodyStrong.copyWith(
+            fontSize: initialsFontSize(size),
+            height: 1,
+            color: inverted ? colors.onAccent : colors.text,
+          ),
     );
     final image = this.image;
     final avatar = Container(
@@ -78,7 +88,9 @@ class OcAvatar extends StatelessWidget {
       clipBehavior: image == null ? Clip.none : Clip.antiAlias,
       decoration: ShapeDecoration(
         shape: shape,
-        color: inverted ? colors.accent : colors.avatarShade(id),
+        color:
+            backgroundColor ??
+            (inverted ? colors.accent : colors.avatarShade(id)),
       ),
       foregroundDecoration: speaking
           ? ShapeDecoration(
