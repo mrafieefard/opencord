@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/chat/attachment_drop.dart';
+import 'package:opencord/features/home/private_composer.dart';
+import 'package:opencord/features/home/private_message_list.dart';
+import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_drawer.dart';
@@ -82,6 +86,9 @@ const prototypeFrames = <String, Map<String, Rect>>{
     'composer': Rect.fromLTWH(78, 630, 673, 62),
   },
 };
+
+final _drawerKey = GlobalKey<ShellDrawerState>();
+const _drawerChild = Key('drawer-child');
 
 void main() {
   testWidgets('frames_match_the_prototype', (tester) async {
@@ -299,6 +306,285 @@ void main() {
     final expected120 =
         windowWidth - 8.0 - 264.0 + (1.0 - progress120) * distance;
     expect((x120 - expected120).abs(), lessThanOrEqualTo(2.0));
+  });
+
+  group('drawer motion', () {
+    Widget drawer({required bool fromRight}) => MaterialApp(
+      theme: ThemeData(extensions: const [OcColors.dark]),
+      home: Scaffold(
+        body: Stack(
+          children: [
+            ShellDrawer(
+              key: _drawerKey,
+              fromRight: fromRight,
+              inset: 78,
+              width: 264,
+              onClose: () {},
+              child: const SizedBox.expand(key: _drawerChild),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    double scrimAlpha(WidgetTester tester) => tester
+        .widget<ColoredBox>(
+          find.descendant(
+            of: find.byKey(ShellKeys.scrim),
+            matching: find.byType(ColoredBox),
+          ),
+        )
+        .color
+        .a;
+
+    double opacity(WidgetTester tester) => tester
+        .widget<Opacity>(
+          find.ancestor(
+            of: find.byKey(_drawerChild),
+            matching: find.byType(Opacity),
+          ),
+        )
+        .opacity;
+
+    double left(WidgetTester tester) =>
+        tester.getTopLeft(find.byKey(_drawerChild)).dx;
+
+    testWidgets('scrim_fades_in_over_120_ms', (tester) async {
+      await tester.pumpWidget(drawer(fromRight: true));
+      final full = OcColors.dark.scrim.a * 0.6;
+
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        scrimAlpha(tester),
+        closeTo(full * Curves.easeOut.transform(40 / 120), 0.005),
+      );
+
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(scrimAlpha(tester), closeTo(full, 0.001));
+    });
+
+    testWidgets('left_drawer_fades_in_over_100_ms_on_the_spring', (
+      tester,
+    ) async {
+      await tester.pumpWidget(drawer(fromRight: false));
+
+      await tester.pump(const Duration(milliseconds: 40));
+      final at40 = OcSpring.pane.valueAt(const Duration(milliseconds: 40));
+      expect(opacity(tester), closeTo(Curves.easeOut.transform(0.4), 0.01));
+      expect(left(tester), closeTo(78 - (1 - at40) * 24, 0.5));
+
+      await tester.pump(const Duration(milliseconds: 80));
+      final at120 = OcSpring.pane.valueAt(const Duration(milliseconds: 120));
+      expect(opacity(tester), 1);
+      expect(left(tester), closeTo(78 - (1 - at120) * 24, 0.5));
+    });
+
+    testWidgets('right_drawer_leaves_on_pane_out_and_the_scrim_goes_at_once', (
+      tester,
+    ) async {
+      await tester.pumpWidget(drawer(fromRight: true));
+      await tester.pumpAndSettle();
+      final open = left(tester);
+
+      _drawerKey.currentState!.close();
+      await tester.pump();
+      expect(find.byKey(ShellKeys.scrim), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 40));
+      final at40 = OcSpring.paneOut.valueAt(const Duration(milliseconds: 40));
+      expect(left(tester), closeTo(open + at40 * (264 + 8 + 24), 1));
+
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('left_drawer_leaves_in_120_ms', (tester) async {
+      await tester.pumpWidget(drawer(fromRight: false));
+      await tester.pumpAndSettle();
+
+      _drawerKey.currentState!.close();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      final moved = Curves.easeIn.transform(0.5);
+      expect(opacity(tester), closeTo(1 - moved, 0.01));
+      expect(left(tester), closeTo(78 - moved * 24, 0.5));
+
+      await tester.pumpAndSettle();
+    });
+  });
+
+  Future<void> toggleMembers(WidgetTester tester) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyU);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+  }
+
+  testWidgets('the_panels_x_closes_the_drawer_on_its_spring', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1100, 800));
+    await tester.pumpAndSettle();
+    await toggleMembers(tester);
+    await tester.pumpAndSettle();
+    final open = tester.getTopLeft(find.byKey(ShellKeys.panel)).dx;
+
+    await tester.tap(find.byTooltip('Close member list'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(ShellKeys.panel), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(ShellKeys.panel)).dx,
+      greaterThan(open),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.byKey(ShellKeys.panel), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('going_somewhere_closes_the_drawers', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1100, 800));
+    await tester.pumpAndSettle();
+    await toggleMembers(tester);
+    await tester.pumpAndSettle();
+    expect(find.byKey(ShellKeys.scrim), findsOneWidget);
+
+    final server = app.read(currentServerProvider)!;
+    final other = app
+        .read(serverProvider(server))
+        .data!
+        .channels
+        .values
+        .firstWhere(
+          (c) => c.kind.isTextLike && c.id != app.read(currentChannelProvider),
+        );
+    app.read(navigationProvider.notifier).openChannel(server, other.id);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ShellKeys.scrim), findsNothing);
+    expect(find.byKey(ShellKeys.panel), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('right_drawer_is_at_its_place_at_every_overlay_width', (
+    tester,
+  ) async {
+    const expected = [
+      (Size(1100, 800), Rect.fromLTWH(828, 40, 264, 752)),
+      (Size(980, 800), Rect.fromLTWH(708, 40, 264, 752)),
+      (Size(940, 560), Rect.fromLTWH(668, 40, 264, 512)),
+      (Size(759, 700), Rect.fromLTWH(487, 40, 264, 652)),
+    ];
+    for (final (size, rect) in expected) {
+      final app = await MockApp.pump(tester, size: size);
+      await tester.pumpAndSettle();
+      await toggleMembers(tester);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(ShellKeys.side)),
+        rectMoreOrLessEquals(rect, epsilon: 1),
+      );
+      await app.dispose(tester);
+    }
+  });
+
+  testWidgets('files_dropped_on_the_composer_float_are_taken', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await tester.pumpAndSettle();
+    final server = app.read(currentServerProvider)!;
+    final text = app
+        .read(serverProvider(server))
+        .data!
+        .channels
+        .values
+        .firstWhere((c) => c.kind.isTextLike);
+    app.read(navigationProvider.notifier).openChannel(server, text.id);
+    await tester.pumpAndSettle();
+
+    final zones = find.ancestor(
+      of: find.byKey(ShellKeys.composer),
+      matching: find.byType(AttachmentDropZone),
+    );
+    expect(zones, findsOneWidget);
+    expect(tester.widget<AttachmentDropZone>(zones).channel, (
+      server: server,
+      channel: text.id,
+    ));
+    // One zone for the channel, or a drop would stage its files twice.
+    expect(find.byType(AttachmentDropZone), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('every_header_and_float_has_the_prototypes_colour', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await tester.pumpAndSettle();
+
+    final colors = tester.element(find.byKey(ShellKeys.hd)).oc;
+    final header = tester.widget<PanelHeader>(find.byKey(ShellKeys.hd));
+    expect(header.color ?? colors.sidebar, colors.sidebar);
+
+    final rail = tester.widget<ColoredBox>(
+      find
+          .descendant(
+            of: find.byType(ServerRail),
+            matching: find.byType(ColoredBox),
+          )
+          .first,
+    );
+    expect(rail.color, colors.sidebar);
+    await app.dispose(tester);
+  });
+
+  testWidgets('crumb_is_as_wide_as_the_prototypes', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await tester.pumpAndSettle();
+    final server = app.read(currentServerProvider)!;
+    final general = app
+        .read(serverProvider(server))
+        .data!
+        .channels
+        .values
+        .firstWhere((c) => c.name == 'general');
+    app.read(navigationProvider.notifier).openChannel(server, general.id);
+    await tester.pumpAndSettle();
+
+    // `reference/measure.json`: text@wide-1280.
+    expect(
+      tester.getRect(find.byKey(ShellKeys.crumb)),
+      rectMoreOrLessEquals(
+        const Rect.fromLTWH(537.3, 10, 205.4, 20),
+        epsilon: 1,
+      ),
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('editing_a_private_message_reaches_the_composer_float', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await tester.pumpAndSettle();
+    final peer = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Kai Nakamura')
+        .peer;
+    app.read(navigationProvider.notifier).openConversation(peer);
+    await tester.pumpAndSettle();
+
+    final sent = await app.repository.sendPrivateMessage(peer, 'first words');
+    await tester.pumpAndSettle();
+    tester
+        .widget<PrivateMessageList>(find.byType(PrivateMessageList))
+        .onEditMessage!(sent);
+    await tester.pumpAndSettle();
+
+    final field = find.descendant(
+      of: find.byType(PrivateComposer),
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(field).controller.text, 'first words');
+    await app.dispose(tester);
   });
 
   testWidgets('smallest_window_with_everything_has_no_overflow', (

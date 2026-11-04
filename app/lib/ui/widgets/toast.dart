@@ -17,6 +17,13 @@ const double toastTop = 72;
 
 final _current = Expando<OverlayEntry>('toast');
 
+typedef OcToaster =
+    void Function(
+      String message, {
+      String? actionLabel,
+      VoidCallback? onAction,
+    });
+
 /// Shows an inverted pill at the top of the window. A new toast replaces
 /// the one on screen.
 void showOcToast(
@@ -24,9 +31,27 @@ void showOcToast(
   String message, {
   String? actionLabel,
   VoidCallback? onAction,
-}) {
+}) => ocToaster(context)(message, actionLabel: actionLabel, onAction: onAction);
+
+/// [showOcToast], for later: it keeps working once [context] has gone, as a
+/// toast's action may need.
+OcToaster ocToaster(BuildContext context) {
   final overlay = Overlay.of(context, rootOverlay: true);
   final themes = InheritedTheme.capture(from: context, to: overlay.context);
+  return (message, {actionLabel, onAction}) {
+    if (overlay.mounted) {
+      _showToast(overlay, themes, message, actionLabel, onAction);
+    }
+  };
+}
+
+void _showToast(
+  OverlayState overlay,
+  CapturedThemes themes,
+  String message,
+  String? actionLabel,
+  VoidCallback? onAction,
+) {
   _current[overlay]?.remove();
   late final OverlayEntry entry;
   entry = OverlayEntry(

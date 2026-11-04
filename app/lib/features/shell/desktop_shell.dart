@@ -10,6 +10,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/channels/channel_sidebar.dart';
 import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
+import 'package:opencord/features/chat/attachment_drop.dart';
 import 'package:opencord/features/chat/chat_area.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/composer.dart';
@@ -63,6 +64,8 @@ class DesktopShell extends ConsumerStatefulWidget {
 class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _sidebarDrawer = false;
   bool _membersDrawer = false;
+  final _sidebarDrawerKey = GlobalKey<ShellDrawerState>();
+  final _membersDrawerKey = GlobalKey<ShellDrawerState>();
   ShellLayout _layout = ShellLayout.wide;
 
   @override
@@ -102,6 +105,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       if (mode == RightPanelMode.music && !_layout.membersInline && mounted) {
         setState(() => _membersDrawer = true);
       }
+    });
+    // Going anywhere shuts the drawers, as the prototype's `go` does.
+    ref.listenManual(navigationProvider, (_, _) {
+      _sidebarDrawerKey.currentState?.close();
+      _membersDrawerKey.currentState?.close();
     });
     ref.listenManual(audioNoticeProvider, (_, notice) {
       if (notice != null && mounted) {
@@ -159,7 +167,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     if (_layout.membersInline) {
       ref.read(memberPanelProvider.notifier).close();
     } else {
-      setState(() => _membersDrawer = false);
+      _membersDrawerKey.currentState?.close();
     }
   }
 
@@ -311,7 +319,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(navigationHistoryProvider);
     final colors = context.oc;
     final homeShown = ref.watch(homeShownProvider);
     final panelOpen =
@@ -450,6 +457,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                                 ),
                                 if (!layout.sidebarInline && _sidebarDrawer)
                                   ShellDrawer(
+                                    key: _sidebarDrawerKey,
                                     fromRight: false,
                                     inset: OcFloats.gap * 2 + OcFloats.rail,
                                     width: layout.leftDrawerWidth(
@@ -461,11 +469,13 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                                   ),
                                 if (!layout.membersInline && _membersDrawer)
                                   ShellDrawer(
+                                    key: _membersDrawerKey,
                                     fromRight: true,
                                     width: musicShown
                                         ? OcSize.musicPanelWidth
                                         : OcSize.memberPanelWidth,
-                                    onClose: _closeRightPanel,
+                                    onClose: () =>
+                                        setState(() => _membersDrawer = false),
                                     child: _rightPanel(
                                       music: musicShown,
                                       onClose: _closeRightPanel,
@@ -557,6 +567,12 @@ class _MainColumn extends ConsumerWidget {
     final colors = context.oc;
     final homeShown = ref.watch(homeShownProvider);
     final currentPeer = ref.watch(currentPeerProvider);
+    // Here, above the main float and the composer float: a provider that
+    // first refreshes in one of them can't tell the other during the build.
+    if (currentPeer != null) {
+      ref.watch(contactNameProvider(currentPeer));
+      ref.watch(sharedServersProvider(currentPeer));
+    }
 
     final server = ref.watch(currentServerProvider);
     final channelId = ref.watch(currentChannelProvider);
@@ -613,29 +629,34 @@ class _MainColumn extends ConsumerWidget {
       }
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: NotchedFloat(
-            key: ShellKeys.main,
-            notch: const AlwaysStoppedAnimation(0),
-            color: colors.chat,
-            child: mainContent,
-          ),
-        ),
-        if (isChat && composerContent != null) ...[
-          const SizedBox(height: OcFloats.gap),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: OcFloats.bottom),
-            child: OcFloat(
-              key: ShellKeys.composer,
-              color: colors.sidebar,
-              child: composerContent,
+    final isChannelChat = !homeShown && isChat;
+    return AttachmentDropZone(
+      channel: isChannelChat ? open : null,
+      radius: OcFloats.radius,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: NotchedFloat(
+              key: ShellKeys.main,
+              notch: const AlwaysStoppedAnimation(0),
+              color: colors.chat,
+              child: mainContent,
             ),
           ),
+          if (isChat && composerContent != null) ...[
+            const SizedBox(height: OcFloats.gap),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+              child: OcFloat(
+                key: ShellKeys.composer,
+                color: colors.sidebar,
+                child: composerContent,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

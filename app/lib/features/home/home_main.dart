@@ -143,7 +143,6 @@ class _HomeMainState extends ConsumerState<HomeMain> {
     children: [
       PanelHeader(
         key: ShellKeys.hd,
-        color: context.oc.chat,
         child: widget.onOpenSidebar == null
             ? const SizedBox()
             : Row(

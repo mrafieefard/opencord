@@ -37,7 +37,6 @@ class PrivateChat extends ConsumerStatefulWidget {
 }
 
 class _PrivateChatState extends ConsumerState<PrivateChat> {
-  final _composerKey = GlobalKey<PrivateComposerState>();
   Timer? _readDebounce;
 
   @override
@@ -75,7 +74,9 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
     final colors = context.oc;
     final contact = ref.watch(privateContactsProvider).byPeer[widget.peer];
     final name = ref.watch(contactNameProvider(widget.peer));
-    final sharedServers = ref.watch(sharedServersProvider(widget.peer));
+    // Here, above the header and the bottom bar: a provider that first
+    // refreshes in one of them can't tell the other during the build.
+    ref.watch(sharedServersProvider(widget.peer));
     final isTyping = ref.watch(privateTypingProvider).containsKey(widget.peer);
 
     // Listen for new messages to mark read (§6.3)
@@ -88,91 +89,7 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
     final isBlocked = contact?.blocked ?? false;
     final isRequestMode = contact?.conversation == ConversationStatus.request;
 
-    final anyConnectedSharedServer = sharedServers.any((s) {
-      final srv = ref.watch(serverProvider(s.serverKey));
-      return srv.connection.phase == ConnectionPhase.connected &&
-          srv.data != null;
-    });
-
-    Widget bottomBar;
-    if (isRequestMode) {
-      bottomBar = RequestBar(peer: widget.peer);
-    } else if (isBlocked) {
-      bottomBar = Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'You blocked $name.',
-              style: OcText.body.copyWith(color: colors.textMuted),
-            ),
-            const SizedBox(width: OcSpace.s12),
-            OcButton(
-              label: 'Unblock',
-              onPressed: () async {
-                try {
-                  await ref.read(repositoryProvider).unblockUser(widget.peer);
-                } on RepoException catch (e) {
-                  if (!context.mounted) return;
-                  await showPrivateFailure(context, e, name: name);
-                }
-              },
-            ),
-          ],
-        ),
-      );
-    } else if (sharedServers.isEmpty) {
-      bottomBar = Container(
-        height: 56,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
-        child: Text(
-          'You no longer share a server with $name.',
-          style: OcText.body.copyWith(color: colors.textMuted),
-        ),
-      );
-    } else if (contact != null && !contact.reachable) {
-      bottomBar = Container(
-        height: 56,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
-        child: Text(
-          'Nothing you write would reach $name until you compare the words '
-          'or use the new keys.',
-          style: OcText.body.copyWith(color: colors.textMuted),
-        ),
-      );
-    } else if (!anyConnectedSharedServer) {
-      bottomBar = Container(
-        height: 56,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
-        child: Text(
-          "You don't share a connected server with $name right now.",
-          style: OcText.body.copyWith(color: colors.textMuted),
-        ),
-      );
-    } else {
-      bottomBar = PrivateComposer(key: _composerKey, peer: widget.peer);
-    }
+    final composerKey = ref.watch(privateComposerKeyProvider(widget.peer));
 
     return Column(
       children: [
@@ -183,7 +100,7 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
             key: ValueKey(widget.peer),
             peer: widget.peer,
             onEditMessage: (message) =>
-                _composerKey.currentState?.startEditing(message),
+                composerKey.currentState?.startEditing(message),
           ),
         ),
         if (isTyping)
@@ -204,11 +121,18 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
             ),
           ),
         if (!isRequestMode && !isBlocked) KeyBanners(peer: widget.peer),
-        if (widget.includeComposer) bottomBar,
+        if (widget.includeComposer) PrivateChatBottomBar(peer: widget.peer),
       ],
     );
   }
 }
+
+/// A chat's composer: it sits in the composer float, apart from the message
+/// list that asks it to edit.
+final privateComposerKeyProvider = Provider.autoDispose
+    .family<GlobalKey<PrivateComposerState>, String>(
+      (ref, peer) => GlobalKey<PrivateComposerState>(),
+    );
 
 /// The composer / blocked / request bar for private chat, for the composer float (§2.1).
 class PrivateChatBottomBar extends ConsumerWidget {
@@ -307,7 +231,10 @@ class PrivateChatBottomBar extends ConsumerWidget {
         ),
       );
     } else {
-      return PrivateComposer(peer: peer);
+      return PrivateComposer(
+        key: ref.watch(privateComposerKeyProvider(peer)),
+        peer: peer,
+      );
     }
   }
 }

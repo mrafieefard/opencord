@@ -106,7 +106,6 @@ class PrivateHeader extends ConsumerWidget {
       children: [
         PanelHeader(
           key: ShellKeys.hd,
-          color: colors.chat,
           padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
           child: Row(
             children: [

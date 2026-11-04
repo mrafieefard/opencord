@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/motion/oc_spring.dart';
+import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/oc_float.dart';
@@ -13,6 +14,8 @@ import 'package:opencord/ui/widgets/oc_float.dart';
 /// closes on [OcSpring.paneOut].
 /// Left drawer: floats at [inset] (78 px) from the left, opens on [OcSpring.pane]
 /// from -24 px with a fade (100 ms), leaves on 120 ms easeIn.
+/// The scrim fades in over 120 ms and goes as soon as the drawer starts to
+/// close, as the prototype's does.
 class ShellDrawer extends StatefulWidget {
   const ShellDrawer({
     super.key,
@@ -30,11 +33,13 @@ class ShellDrawer extends StatefulWidget {
   final double inset;
 
   @override
-  State<ShellDrawer> createState() => _ShellDrawerState();
+  State<ShellDrawer> createState() => ShellDrawerState();
 }
 
-class _ShellDrawerState extends State<ShellDrawer>
+class ShellDrawerState extends State<ShellDrawer>
     with SingleTickerProviderStateMixin {
+  static const _leftFade = Duration(milliseconds: 100);
+
   final _scope = FocusScopeNode(debugLabel: 'drawer');
   late final AnimationController _controller;
   bool _closing = false;
@@ -67,10 +72,11 @@ class _ShellDrawerState extends State<ShellDrawer>
     super.dispose();
   }
 
-  void _close() {
-    if (_closing) return;
-    _closing = true;
-    if (!mounted) return;
+  /// Plays the way out, then calls [ShellDrawer.onClose]. Anything that shuts
+  /// a drawer comes through here, or it would vanish.
+  void close() {
+    if (_closing || !mounted) return;
+    setState(() => _closing = true);
     if (MediaQuery.disableAnimationsOf(context)) {
       widget.onClose();
       return;
@@ -106,8 +112,7 @@ class _ShellDrawerState extends State<ShellDrawer>
     final progress = _controller.value;
     final fromRight = widget.fromRight;
 
-    final scrimAlpha = (colors.scrim.a * 0.6 * progress.clamp(0.0, 1.0));
-    final scrimColor = colors.scrim.withValues(alpha: scrimAlpha);
+    final motion = OcMotion.of(context);
 
     final distance = fromRight ? widget.width + OcFloats.gap + 24.0 : 24.0;
     final offset = (1.0 - progress) * distance;
@@ -120,7 +125,7 @@ class _ShellDrawerState extends State<ShellDrawer>
         child: Actions(
           actions: {
             DismissIntent: CallbackAction<DismissIntent>(
-              onInvoke: (_) => _close(),
+              onInvoke: (_) => close(),
             ),
           },
           child: FocusScope(
@@ -128,14 +133,22 @@ class _ShellDrawerState extends State<ShellDrawer>
             child: Stack(
               children: [
                 // Scrim covering full area under titlebar.
-                Positioned.fill(
-                  child: GestureDetector(
-                    key: ShellKeys.scrim,
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _close,
-                    child: ColoredBox(color: scrimColor),
+                if (!_closing)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      key: ShellKeys.scrim,
+                      behavior: HitTestBehavior.opaque,
+                      onTap: close,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: colors.scrim.a * 0.6),
+                        duration: motion.fade,
+                        curve: OcMotion.curve,
+                        builder: (context, alpha, _) => ColoredBox(
+                          color: colors.scrim.withValues(alpha: alpha),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
                 // Drawer float.
                 if (fromRight)
                   Positioned(
@@ -156,8 +169,16 @@ class _ShellDrawerState extends State<ShellDrawer>
                     bottom: OcFloats.gap,
                     left: widget.inset - offset,
                     width: widget.width,
-                    child: Opacity(
-                      opacity: progress.clamp(0.0, 1.0),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: motion.fade == Duration.zero
+                          ? Duration.zero
+                          : _leftFade,
+                      curve: OcMotion.curve,
+                      builder: (context, fade, child) => Opacity(
+                        opacity: _closing ? progress.clamp(0.0, 1.0) : fade,
+                        child: child,
+                      ),
                       child: KeyedSubtree(
                         key: ShellKeys.left,
                         child: widget.child,

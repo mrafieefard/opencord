@@ -60,7 +60,6 @@ class ChatHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.oc;
     final open = channel;
     final target = open == null
         ? null
@@ -72,7 +71,6 @@ class ChatHeader extends ConsumerWidget {
     final pins = ref.read(repositoryProvider).capabilities.pins;
     return PanelHeader(
       key: ShellKeys.hd,
-      color: colors.chat,
       child: Row(
         children: [
           if (onOpenSidebar != null)

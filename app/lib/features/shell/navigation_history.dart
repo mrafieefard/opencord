@@ -255,8 +255,7 @@ class NavigationHistory extends Notifier<HistoryState> {
       case PeerEntry(:final peer):
         final contacts = ref.read(privateContactsProvider);
         final contact = contacts.byPeer[peer];
-        if (contact != null && contact.blocked) return false;
-        return true;
+        return contact == null || !(contact.blocked || contact.hidden);
       case ChannelEntry(:final server, :final channel):
         final servers = ref.read(serverListProvider);
         if (!servers.any((s) => s.key == server)) return false;
@@ -347,7 +346,14 @@ String navTargetTooltip(
       return '$prefix$name';
     case ChannelEntry(:final server, :final channel):
       final serverState = ref.watch(serverProvider(server));
-      final serverName = serverState.data?.info.name ?? server;
+      final serverName =
+          serverState.data?.info.name ??
+          ref
+              .watch(serverListProvider)
+              .where((summary) => summary.key == server)
+              .firstOrNull
+              ?.name ??
+          server;
       final ch = channel != null ? serverState.data?.channels[channel] : null;
       if (ch != null) {
         final label = ch.kind.isTextLike ? '#${ch.name}' : ch.name;
@@ -364,6 +370,14 @@ class HistoryArrows extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(navigationHistoryProvider);
     final colors = context.oc;
+    // A target can go while nothing moves: a chat closed, a channel deleted.
+    ref.watch(privateContactsProvider);
+    for (final server in {
+      for (final entry in history.entries)
+        if (entry is ChannelEntry) entry.server,
+    }) {
+      ref.watch(serverProvider(server).select((s) => s.data?.channels.length));
+    }
 
     final backTip = navTargetTooltip(
       ref,

@@ -16,6 +16,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/features/window/window_mode.dart';
+import 'package:opencord/features/window/native_window.dart';
 
 import '../support/app.dart';
 import '../support/floating_scenes.dart';
@@ -64,6 +66,18 @@ void main() {
               tester,
               size: width.size,
               platform: TargetPlatform.linux,
+              // The prototype draws Linux's window buttons.
+              windowInfo: const WindowInfo(
+                chrome: WindowChrome.custom,
+                buttonLayout: ButtonLayout(
+                  left: [],
+                  right: [
+                    WindowButton.minimize,
+                    WindowButton.maximize,
+                    WindowButton.close,
+                  ],
+                ),
+              ),
               settings: (s) => s.copyWith(theme: theme),
             );
             final driver = SceneDriver(tester);

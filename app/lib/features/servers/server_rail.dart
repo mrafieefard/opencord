@@ -43,7 +43,7 @@ class ServerRail extends ConsumerWidget {
         ref.watch(windowChromeProvider) == WindowChrome.custom &&
         !ref.watch(windowStatusProvider.select((status) => status.fullscreen));
     return ColoredBox(
-      color: colors.rail,
+      color: colors.sidebar,
       child: Column(
         children: [
           if (trafficLights)
@@ -389,7 +389,7 @@ class RailItemView extends StatelessWidget {
                       top: -4,
                       right: -6,
                       child: _Ringed(
-                        ring: colors.rail,
+                        ring: colors.sidebar,
                         radius: 12,
                         child: UnreadBadge(count: mentions),
                       ),
@@ -399,7 +399,7 @@ class RailItemView extends StatelessWidget {
                       right: -4,
                       bottom: -4,
                       child: _Ringed(
-                        ring: colors.rail,
+                        ring: colors.sidebar,
                         radius: 10,
                         child: Container(
                           width: 18,

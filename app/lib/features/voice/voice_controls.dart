@@ -30,12 +30,23 @@ Future<void> joinVoice(
   WidgetRef ref,
   String serverKey,
   int channelId,
+) => _joinOrSay(
+  ref.read(voiceSessionProvider.notifier),
+  ocToaster(context),
+  serverKey,
+  channelId,
+);
+
+Future<void> _joinOrSay(
+  VoiceSessionNotifier session,
+  OcToaster toast,
+  String serverKey,
+  int channelId,
 ) async {
   try {
-    await ref.read(voiceSessionProvider.notifier).join(serverKey, channelId);
+    await session.join(serverKey, channelId);
   } on RepoException catch (error) {
-    if (!context.mounted) return;
-    showOcToast(context, switch (error.kind) {
+    toast(switch (error.kind) {
       RepoErrorKind.voiceChannelFull => 'This voice channel is full.',
       RepoErrorKind.forbidden =>
         "You don't have permission to join this channel.",
@@ -262,24 +273,13 @@ Future<void> leaveVoice(BuildContext context, WidgetRef ref) async {
   final session = ref.read(voiceSessionProvider.notifier);
   if (server == null || channel == null) return;
   final name = ref.read(serverProvider(server)).data?.channels[channel]?.name;
-  // The toast first: leaving may take the button that asked away.
-  showOcToast(
-    context,
+  // The toast first: leaving may take the button that asked, and [context]
+  // with it, away.
+  final toast = ocToaster(context);
+  toast(
     name == null ? 'Left voice' : 'Left $name',
     actionLabel: 'Undo',
-    onAction: () async {
-      try {
-        await session.join(server, channel);
-      } on RepoException catch (error) {
-        if (!context.mounted) return;
-        showOcToast(context, switch (error.kind) {
-          RepoErrorKind.voiceChannelFull => 'This voice channel is full.',
-          RepoErrorKind.forbidden =>
-            "You don't have permission to join this channel.",
-          _ => error.message,
-        });
-      }
-    },
+    onAction: () => _joinOrSay(session, toast, server, channel),
   );
   await session.leave();
 }

@@ -85,9 +85,9 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
     bool unreachable, {
     required bool pins,
     bool? includeComposer,
-  }) => AttachmentDropZone(
-    channel: open,
-    child: Column(
+  }) {
+    final composer = includeComposer ?? widget.includeComposer;
+    final chat = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (pins)
@@ -108,7 +108,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
             ),
           ),
         ),
-        if (includeComposer ?? widget.includeComposer)
+        if (composer)
           MeasuredHeight(
             onChanged: (height) => _composerHeight.value = height,
             child: Composer(
@@ -118,8 +118,10 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
             ),
           ),
       ],
-    ),
-  );
+    );
+    // Without its composer the shell's zone takes the drop, around both floats.
+    return composer ? AttachmentDropZone(channel: open, child: chat) : chat;
+  }
 
   @override
   Widget build(BuildContext context) {

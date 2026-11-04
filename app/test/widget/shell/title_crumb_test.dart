@@ -11,6 +11,7 @@ import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -19,6 +20,7 @@ import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/shell/title_crumb.dart';
 import 'package:opencord/features/window/app_title_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
@@ -368,6 +370,55 @@ void main() {
     } finally {
       await app.dispose(tester);
     }
+  });
+
+  testWidgets('arrows_follow_what_goes_while_nothing_moves', (tester) async {
+    final nav = container.read(navigationProvider.notifier);
+    nav.openConversation('peer-mira');
+    nav.openChannel(serverKey, 1);
+    await tester.pumpWidget(_wrap(const HistoryArrows(), container));
+    await tester.pump();
+
+    OcIconButton back() => tester.widget<OcIconButton>(
+      find.byWidgetPredicate(
+        (w) => w is OcIconButton && w.icon == OcIcons.arrowBack,
+      ),
+    );
+    expect(back().onPressed, isNotNull);
+
+    // Closing the chat is enough: no step, no other rebuild.
+    (container.read(privateContactsProvider.notifier)
+            as _TestPrivateContactsNotifier)
+        .setContacts([
+          const PrivateContact(
+            peer: 'peer-mira',
+            name: 'Mira Okafor',
+            friend: FriendStatus.friends,
+            conversation: ConversationStatus.accepted,
+            hidden: true,
+          ),
+        ]);
+    await tester.pump();
+
+    expect(back().onPressed, isNull);
+  });
+
+  testWidgets('crumb_shows_a_peers_own_picture', (tester) async {
+    final nav = container.read(navigationProvider.notifier);
+    nav.openConversation('peer-mira');
+    await tester.pumpWidget(
+      _wrap(const AppTitleBar(center: TitleCrumb()), container),
+    );
+    await tester.pump();
+
+    final avatars = find.descendant(
+      of: find.byKey(ShellKeys.crumb),
+      matching: find.byType(ContactAvatar),
+    );
+    expect(avatars, findsOneWidget);
+    final avatar = tester.widget<ContactAvatar>(avatars);
+    expect(avatar.size, 20);
+    expect(avatar.presenceDot, isFalse);
   });
 
   testWidgets('crumb_shows_server_and_channel', (tester) async {

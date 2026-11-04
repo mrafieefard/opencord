@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -9,7 +10,6 @@ import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/channel_glyph.dart';
 
 class TitleCrumb extends ConsumerWidget {
@@ -92,17 +92,8 @@ class TitleCrumb extends ConsumerWidget {
     } else {
       final peer = ref.watch(currentPeerProvider);
       if (peer != null) {
-        final name = ref.watch(contactNameProvider(peer));
-        final avatar = ref.watch(contactAvatarProvider(peer));
-        rightIcon = OcAvatar(
-          id: peer,
-          name: name,
-          size: 20,
-          image: avatar != null
-              ? avatarImage(ref, avatar.serverKey, null)
-              : null,
-        );
-        rightName = name;
+        rightIcon = ContactAvatar(peer: peer, size: 20, presenceDot: false);
+        rightName = ref.watch(contactNameProvider(peer));
       } else {
         final tab = ref.watch(friendsTabProvider);
         if (tab == FriendsTab.requests) {

@@ -18,6 +18,8 @@ abstract final class OcText {
   static const _base = TextStyle(
     fontFamily: fontFamily,
     fontFamilyFallback: emojiFamilies,
+    // Or each style inherits Material's 0.25 from the default text style.
+    letterSpacing: 0,
     leadingDistribution: TextLeadingDistribution.even,
     decoration: TextDecoration.none,
   );

@@ -66,7 +66,6 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       children: [
         PanelHeader(
           key: ShellKeys.hd,
-          color: colors.chat,
           padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
           child: Row(
             children: [
