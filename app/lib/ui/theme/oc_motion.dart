@@ -13,11 +13,26 @@ class OcMotion {
 
   static const Curve curve = Curves.easeOut;
 
+  /// For what leaves on its own.
+  static const Curve curveIn = Curves.easeIn;
+
   Duration _maybe(int milliseconds) =>
       _reduced ? Duration.zero : Duration(milliseconds: milliseconds);
 
   /// Hover and press color changes.
   Duration get hover => _maybe(120);
+
+  /// Press scale.
+  Duration get press => _maybe(80);
+
+  /// What leaves on its own: the voice controls, the pane button.
+  Duration get exit => _maybe(130);
+
+  /// A fade in.
+  Duration get fade => _maybe(120);
+
+  /// Small rotations, such as a dropdown's arrow.
+  Duration get turn => _maybe(140);
 
   /// Server icon morph, category arrow, badge appearing.
   Duration get morph => _maybe(150);
