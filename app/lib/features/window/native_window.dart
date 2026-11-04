@@ -208,7 +208,9 @@ abstract interface class NativeWindow {
 
   Future<void> hide();
 
-  Future<void> show();
+  /// Shows the window and brings it forward. [activationToken] is what the
+  /// desktop gave the tray click for that (Wayland's xdg-activation).
+  Future<void> show({String? activationToken});
 
   Future<void> setUrgent(bool urgent);
 
@@ -368,7 +370,8 @@ class ChannelNativeWindow implements NativeWindow {
   Future<void> hide() => _invoke<void>('hide');
 
   @override
-  Future<void> show() => _invoke<void>('show');
+  Future<void> show({String? activationToken}) =>
+      _invoke<void>('show', activationToken);
 
   @override
   Future<void> setUrgent(bool urgent) => _invoke<void>('setUrgent', urgent);
@@ -444,7 +447,7 @@ class NullNativeWindow implements NativeWindow {
   Future<void> hide() async {}
 
   @override
-  Future<void> show() async {}
+  Future<void> show({String? activationToken}) async {}
 
   @override
   Future<void> setUrgent(bool urgent) async {}

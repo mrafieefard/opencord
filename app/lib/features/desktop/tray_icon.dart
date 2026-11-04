@@ -3,40 +3,56 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 
+import 'package:opencord/features/desktop/tray_menu.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 
 /// The sizes offered to tray hosts, which pick the closest.
 const trayIconSizes = [16, 22, 24, 32, 48];
 
-/// The monochrome tray mark (§15): a speech bubble ring, with a dot cut
-/// into its top right while something is unread. Opencord has no logo yet;
-/// this stands in for one.
+/// The monochrome tray mark (§15). Out of voice: a speech bubble ring
+/// (Opencord has no logo yet; this stands in for one). In voice, as
+/// Discord does: a ring, filled while you talk, slashed while muted. A dot
+/// is cut into the top right while something is unread.
 void paintTrayMark(
   Canvas canvas,
   double size,
   Color color, {
   bool dot = false,
+  TrayVoice voice = TrayVoice.none,
 }) {
   final paint = Paint()
     ..color = color
     ..isAntiAlias = true;
+  final stroke = Paint()
+    ..color = color
+    ..isAntiAlias = true
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = size * 0.13;
+  final center = Offset(size * 0.5, size * 0.5);
   canvas.saveLayer(Offset.zero & Size.square(size), Paint());
-  canvas.drawCircle(
-    Offset(size * 0.5, size * 0.47),
-    size * 0.32,
-    Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.13,
-  );
-  canvas.drawPath(
-    Path()
-      ..moveTo(size * 0.16, size * 0.9)
-      ..lineTo(size * 0.22, size * 0.6)
-      ..lineTo(size * 0.42, size * 0.76)
-      ..close(),
-    paint,
-  );
+  switch (voice) {
+    case TrayVoice.none:
+      canvas.drawCircle(Offset(size * 0.5, size * 0.47), size * 0.32, stroke);
+      canvas.drawPath(
+        Path()
+          ..moveTo(size * 0.16, size * 0.9)
+          ..lineTo(size * 0.22, size * 0.6)
+          ..lineTo(size * 0.42, size * 0.76)
+          ..close(),
+        paint,
+      );
+    case TrayVoice.quiet:
+      canvas.drawCircle(center, size * 0.36, stroke);
+    case TrayVoice.speaking:
+      canvas.drawCircle(center, size * 0.42, paint);
+    case TrayVoice.muted:
+      canvas.drawCircle(center, size * 0.36, stroke);
+      canvas.drawLine(
+        Offset(size * 0.18, size * 0.18),
+        Offset(size * 0.82, size * 0.82),
+        stroke..strokeCap = StrokeCap.round,
+      );
+  }
   if (dot) {
     final center = Offset(size * 0.8, size * 0.2);
     canvas.drawCircle(
@@ -59,20 +75,37 @@ Future<Uint8List> renderTrayIcon(
   int size, {
   required bool dark,
   required bool dot,
+  TrayVoice voice = TrayVoice.none,
+}) async => rgbaToArgb(
+  await renderTrayIconRgba(
+    size,
+    color: trayMarkColor(dark: dark),
+    dot: dot,
+    voice: voice,
+  ),
+);
+
+/// The mark at [size] in [color], as straight (not premultiplied) RGBA.
+Future<Uint8List> renderTrayIconRgba(
+  int size, {
+  required Color color,
+  required bool dot,
+  TrayVoice voice = TrayVoice.none,
 }) async {
   final recorder = ui.PictureRecorder();
   paintTrayMark(
     Canvas(recorder),
     size.toDouble(),
-    trayMarkColor(dark: dark),
+    color,
     dot: dot,
+    voice: voice,
   );
   final image = await recorder.endRecording().toImage(size, size);
   final data = await image.toByteData(
     format: ui.ImageByteFormat.rawStraightRgba,
   );
   image.dispose();
-  return rgbaToArgb(data!.buffer.asUint8List());
+  return data!.buffer.asUint8List();
 }
 
 /// Reorders RGBA pixels to ARGB.

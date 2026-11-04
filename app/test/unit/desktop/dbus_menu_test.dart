@@ -45,7 +45,85 @@ Future<({int id, Map<String, DBusValue> props, List<Object> children})> _layout(
   return _node(layout);
 }
 
+/// A menu that keeps the signals it would send.
+class _Recording extends DBusMenu {
+  _Recording() : super(onAction: (_) {});
+
+  final sent = <(String, List<DBusValue>)>[];
+
+  @override
+  void signal(String name, List<DBusValue> values) => sent.add((name, values));
+
+  /// (id, properties) of each item in the ItemsPropertiesUpdated signals.
+  List<(int, Map<String, DBusValue>)> get updatedItems => [
+    for (final (name, values) in sent)
+      if (name == 'ItemsPropertiesUpdated')
+        for (final item in values[0].asArray())
+          (
+            item.asStruct()[0].asInt32(),
+            item.asStruct()[1].asStringVariantDict(),
+          ),
+  ];
+}
+
 void main() {
+  test('a toggle change is sent as a property update, not a new layout', () {
+    final menu = _Recording()..items = trayMenu(const TrayState());
+    menu.sent.clear();
+
+    menu.items = trayMenu(const TrayState(muted: true));
+
+    expect(menu.sent.map((signal) => signal.$1), ['ItemsPropertiesUpdated']);
+    expect(menu.updatedItems, hasLength(1));
+    expect(menu.updatedItems.single.$1, 3);
+    expect(menu.updatedItems.single.$2['toggle-state'], const DBusInt32(1));
+  });
+
+  // The bug: KDE kept Mute checked when only LayoutUpdated said it changed.
+  test('unmuting again sends the cleared check mark', () {
+    final menu = _Recording()
+      ..items = trayMenu(const TrayState())
+      ..items = trayMenu(const TrayState(muted: true));
+    menu.sent.clear();
+
+    menu.items = trayMenu(const TrayState());
+
+    expect(menu.updatedItems.single.$1, 3);
+    expect(menu.updatedItems.single.$2['toggle-state'], const DBusInt32(0));
+  });
+
+  test('a status change updates the radio items in the submenu', () {
+    final menu = _Recording()..items = trayMenu(const TrayState());
+    menu.sent.clear();
+
+    menu.items = trayMenu(const TrayState(presence: SelfPresence.idle));
+
+    final changed = {for (final (id, props) in menu.updatedItems) id: props};
+    final idle = 10 + SelfPresence.values.indexOf(SelfPresence.idle);
+    final online = 10 + SelfPresence.values.indexOf(SelfPresence.online);
+    expect(changed.keys, unorderedEquals([idle, online]));
+    expect(changed[idle]!['toggle-state'], const DBusInt32(1));
+    expect(changed[online]!['toggle-state'], const DBusInt32(0));
+  });
+
+  test('the first menu, or a new shape, is sent as a new layout', () {
+    final menu = _Recording()..items = trayMenu(const TrayState());
+
+    expect(menu.sent.map((signal) => signal.$1), ['LayoutUpdated']);
+    menu.sent.clear();
+    menu.items = trayMenu(const TrayState()).sublist(0, 3);
+    expect(menu.sent.map((signal) => signal.$1), ['LayoutUpdated']);
+  });
+
+  test('the same menu again sends nothing', () {
+    final menu = _Recording()..items = trayMenu(const TrayState());
+    menu.sent.clear();
+
+    menu.items = trayMenu(const TrayState());
+
+    expect(menu.sent, isEmpty);
+  });
+
   test('the layout is the tray menu, with submenus and toggles', () async {
     final menu = DBusMenu(onAction: (_) {})
       ..items = trayMenu(const TrayState(muted: true));

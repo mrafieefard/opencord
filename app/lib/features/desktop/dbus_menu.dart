@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dbus/dbus.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:opencord/features/desktop/tray_menu.dart';
 
@@ -16,17 +17,60 @@ class DBusMenu extends DBusObject {
   var _items = const <TrayMenuItem>[];
   var _revision = 1;
 
-  /// Replaces the menu and tells hosts it changed.
+  /// Replaces the menu and tells hosts what changed: a new layout when
+  /// items came, went or moved, else just the properties that changed.
+  /// KDE applies a check mark reliably only from ItemsPropertiesUpdated; a
+  /// LayoutUpdated alone could leave Mute checked after unmuting.
   set items(List<TrayMenuItem> items) {
+    final before = _items;
     _items = items;
+    if (_shape(before) != _shape(items)) {
+      _revision++;
+      signal('LayoutUpdated', [DBusUint32(_revision), const DBusInt32(0)]);
+      return;
+    }
+    final old = {for (final item in _flatten(before)) item.id: item};
+    final changed = [
+      for (final item in _flatten(items))
+        if (!_sameProperties(_properties(old[item.id]!), _properties(item)))
+          item,
+    ];
+    if (changed.isEmpty) return;
     _revision++;
-    unawaited(
-      emitSignal(_interface, 'LayoutUpdated', [
-        DBusUint32(_revision),
-        const DBusInt32(0),
+    signal('ItemsPropertiesUpdated', [
+      DBusArray(DBusSignature('(ia{sv})'), [
+        for (final item in changed)
+          DBusStruct([
+            DBusInt32(item.id),
+            DBusDict.stringVariant(_properties(item)),
+          ]),
       ]),
-    );
+      DBusArray(DBusSignature('(ias)'), []),
+    ]);
   }
+
+  /// Sends a signal on the menu's interface.
+  @protected
+  void signal(String name, List<DBusValue> values) =>
+      unawaited(emitSignal(_interface, name, values));
+
+  /// The ids in order, with their children: what LayoutUpdated is for.
+  static String _shape(List<TrayMenuItem> items) => [
+    for (final item in items)
+      '${item.id}${item.separator ? '-' : ''}(${_shape(item.children)})',
+  ].join(',');
+
+  static Iterable<TrayMenuItem> _flatten(List<TrayMenuItem> items) sync* {
+    for (final item in items) {
+      yield item;
+      yield* _flatten(item.children);
+    }
+  }
+
+  static bool _sameProperties(
+    Map<String, DBusValue> a,
+    Map<String, DBusValue> b,
+  ) => a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
 
   TrayMenuItem? _find(int id, [List<TrayMenuItem>? items]) {
     for (final item in items ?? _items) {
@@ -330,6 +374,21 @@ class DBusMenu extends DBusObject {
               DBusSignature('i'),
               DBusArgumentDirection.out,
               name: 'parent',
+            ),
+          ],
+        ),
+        DBusIntrospectSignal(
+          'ItemsPropertiesUpdated',
+          args: [
+            DBusIntrospectArgument(
+              DBusSignature('a(ia{sv})'),
+              DBusArgumentDirection.out,
+              name: 'updatedProps',
+            ),
+            DBusIntrospectArgument(
+              DBusSignature('a(ias)'),
+              DBusArgumentDirection.out,
+              name: 'removedProps',
             ),
           ],
         ),
