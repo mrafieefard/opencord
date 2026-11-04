@@ -8,7 +8,7 @@ You are implementing `docs/superpowers/plans/2026-11-04-floating-ui.md`: the des
 - **One draft pull request for the whole plan.** The first milestone opens it into `beta`, later ones push to it. For this plan, that replaces "at the end of each milestone, open a pull request" below.
 - The plan gives behavior, interfaces, names, numbers and tests, not finished code. You write the code, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-- **The owner releases one milestone at a time. Stop at each checkpoint (CP0–CP6) and report.** Claude scores the screens there, and that score decides.
+- **Keep going until CP6 passes; don't wait for the owner between milestones.** At each checkpoint (CP0–CP6) hand the review to Claude and wait for its verdict. That score decides: PASS starts the next milestone, FAIL goes back to fixing. The plan's "UI checkpoints and scoring" says how, and when to stop and ask the owner.
 - **The decisions entry is Claude's** for this plan, at the last review. Don't write one per milestone.
 
 ## Every change is a pull request

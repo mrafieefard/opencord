@@ -79,6 +79,7 @@ Every task has an **Owner** and a **Score** (1–5, how much a mistake costs and
 | 20 | Menus, popovers, dialogs | 2 | Gemini |
 | 21 | Everything left, `HeaderBar` removed | 2 | Gemini |
 | 22 | Docs, showcase, hand-check list | 1 | Gemini |
+| CP0–CP6 | Each checkpoint's review (see "UI checkpoints and scoring") | 4 | Claude |
 
 ### Rules reviews will enforce
 
@@ -132,7 +133,7 @@ Follow `GEMINI.md` → "When you're stuck: ask Claude", with question files in `
 
 ## UI checkpoints and scoring
 
-The owner asked for the look to be scored, part by part, at every breakpoint. Each milestone ends at a checkpoint (CP0–CP6). **Work stops there until Claude's score passes and the owner releases the next milestone.**
+The owner asked for the look to be scored, part by part, at every breakpoint. Each milestone ends at a checkpoint (CP0–CP6). **Work stops there until Claude's score passes, then the next milestone starts without waiting for the owner** (the owner's decision, 2026-11-05). Keep going until CP6 passes.
 
 **The breakpoints:**
 
@@ -169,9 +170,40 @@ Dark at all of them. Light at `wide-1280` and `medium-980`.
    - run the filmstrips;
    - fill in `.superpowers/sdd/floating-ui/scorecard.md`: your own scores, one row per part and one column per breakpoint, with the crop that shows it;
    - run `.github/check.sh client`, push, read the pull request's checks, fix failures;
-   - **stop and report.**
+   - **hand the review to Claude and wait,** as below.
 2. **Claude:** re-renders them, looks at the crops at full size, reads the filmstrips against `film/`, walks every gesture and writes its own scores beside yours. **Claude's score is the one that counts.** It fixes small things itself and sends the rest back.
-3. **The owner** releases the next milestone.
+3. **Gemini** acts on the verdict, as below.
+
+**Handing the review over.** Treat it like an Owner: Claude task, with exactly this text, filling in the checkpoint and the round (1 the first time):
+
+```text
+Review checkpoint CP<n>, round <r>, of docs/superpowers/plans/2026-11-04-floating-ui.md. Follow "Claude, when handed a checkpoint" in its UI checkpoints section. Commit under review: <hash>.
+```
+
+From round 2 on, add what you changed since the last round: each finding by name, with its commit. Don't edit files or run git until the report comes.
+
+**Claude, when handed a checkpoint:** do step 2 for that checkpoint and nothing else.
+
+- Gemini's renders, crops, filmstrips and `compare.py` output are your input, because a handed-over run can't run `compare.py`, `magick` or `.github/check.sh`. Re-render with `flutter test --dart-define`. A part you can't verify with what you have scores 3, with the crop you need named as a finding.
+- Write your scores in `scorecard.md` (git-ignored: never force-add it).
+- Fix small things and anything in a task you own, and commit them. Don't push.
+- End the report with one line, alone: `CP<n> round <r>: PASS` or `CP<n> round <r>: FAIL`. After FAIL, list each finding with its task, part, breakpoint, score and what's wrong. Say so if the owner has to decide something.
+
+**Acting on the verdict:**
+
+- **PASS:**
+  1. If Claude committed anything, run `.github/check.sh client`, push and read the pull request's checks. Fix failures; a job that fails on the runner rather than on the code may be re-run once.
+  2. Record the verdict in the ledger.
+  3. Start the next milestone straight away. Don't ask the owner, and don't wait for them.
+- **FAIL:** fix every finding, redo step 1, and hand it over as the next round.
+- **No verdict line** (Claude ran out of time or budget, or the report was cut short): that isn't a pass. Hand it over as the next round, saying what the report did finish.
+- **After CP6's PASS:** mark the pull request ready, report to the owner and stop. The owner merges.
+
+**Stop and ask the owner only when:**
+
+- a checkpoint is still FAIL after round 3;
+- Claude says the owner has to decide something, or the plan doesn't match the design;
+- the tool you hand work to Claude with tells you to stop: follow its message.
 
 **What each checkpoint scores:**
 
@@ -248,7 +280,7 @@ Nothing here starts until the owner says so. Then, in order. If a check fails, s
   - **One draft pull request for the whole plan.** The first milestone opens it into `beta`, later ones push to it. For this plan, that replaces "at the end of each milestone, open a pull request" below.
   - The plan gives behavior, interfaces, names, numbers and tests, not finished code. You write the code, and the rules below are what the review checks it against.
   - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-  - **The owner releases one milestone at a time. Stop at each checkpoint (CP0–CP6) and report.** Claude scores the screens there, and that score decides.
+  - **Keep going until CP6 passes; don't wait for the owner between milestones.** At each checkpoint (CP0–CP6) hand the review to Claude and wait for its verdict. That score decides: PASS starts the next milestone, FAIL goes back to fixing. The plan's "UI checkpoints and scoring" says how, and when to stop and ask the owner.
   - **The decisions entry is Claude's** for this plan, at the last review. Don't write one per milestone.
   ```
 
