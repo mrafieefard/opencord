@@ -2688,6 +2688,9 @@ class RustRepository implements OpencordRepository {
       _now(() => _core.mediaSetVolume(volume, muted));
 
   @override
+  void mediaSetSpeed(double speed) => _now(() => _core.mediaSetSpeed(speed));
+
+  @override
   void mediaClose() => _now(_core.mediaClose);
 
   @override

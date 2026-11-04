@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,8 @@ import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/attachment_bytes.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/pip_controls.dart';
+import 'package:opencord/features/chat/attachments/video_bar.dart';
 import 'package:opencord/features/chat/attachments/video_player_view.dart';
 import 'package:opencord/features/media_window/media_viewer_session.dart';
 import 'package:opencord/features/media_window/media_window_buttons.dart';
@@ -128,6 +131,12 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   static const double _titleHeight = 32;
   static const double _bottomRow = 54;
 
+  /// Picture-in-picture's rounded corners.
+  static const double _pipRadius = 8;
+
+  /// The bottom-left text needs this much room, or it goes.
+  static const double _textLeast = 120;
+
   late int _currentIndex;
   final TransformationController _transformController =
       TransformationController();
@@ -137,8 +146,20 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   /// The picture shown now: a click beside it closes the viewer.
   final _pictureKey = GlobalKey();
 
+  /// The video's player, kept as the window turns picture-in-picture and
+  /// back, so it plays on.
+  final _playerKey = GlobalKey();
+
   /// What the zoom scales: the whole viewer, the picture in its middle.
   final _zoomedKey = GlobalKey();
+
+  /// A video filling the window, under its bar alone; and whether the
+  /// window was a normal one before, to go back to.
+  bool _videoFullScreen = false;
+  bool _fullScreenFromNormal = false;
+
+  /// Quarter turns of the picture, counter-clockwise ones as three.
+  int _quarterTurns = 0;
 
   bool _controlsShown = true;
   Timer? _fadeTimer;
@@ -152,7 +173,37 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   bool get _normalWindow =>
       widget.inWindow && widget.mode == MediaWindowMode.normal;
 
+  /// The window is picture-in-picture: the video alone, small (D87).
+  bool get _pip => widget.inWindow && widget.mode == MediaWindowMode.pip;
+
   void _close() => widget.onClose();
+
+  /// Esc ends a video's full screen first.
+  void _escape() {
+    if (_pip) return;
+    if (_videoFullScreen) {
+      _setVideoFullScreen(false);
+    } else {
+      _close();
+    }
+  }
+
+  void _setVideoFullScreen(bool on) {
+    if (on == _videoFullScreen) return;
+    setState(() {
+      _videoFullScreen = on;
+      _transformController.value = Matrix4.identity();
+    });
+    if (!widget.inWindow) return;
+    final viewer = ref.read(mediaViewerProvider.notifier);
+    if (on && _normalWindow) {
+      _fullScreenFromNormal = true;
+      viewer.setMode(MediaWindowMode.fullscreen, remember: false);
+    } else if (!on && _fullScreenFromNormal) {
+      _fullScreenFromNormal = false;
+      viewer.setMode(MediaWindowMode.normal, remember: false);
+    }
+  }
 
   /// Whether [global] falls on the picture, as zoomed and moved.
   bool _onPicture(Offset global) {
@@ -170,7 +221,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   /// stays the viewer's (a click beside it, a drag that moves the window).
   /// Unzoomed, the picture keeps clear of the bottom row, so a video's
   /// controls are never over it, and the same at the top keeps it centred.
-  Widget _zoom(Widget picture) => _PictureHits(
+  Widget _zoom(Widget picture, {double clearance = _bottomRow}) => _PictureHits(
     hits: _onPicture,
     child: InteractiveViewer(
       transformationController: _transformController,
@@ -180,8 +231,10 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       boundaryMargin: const EdgeInsets.all(double.infinity),
       child: Padding(
         key: _zoomedKey,
-        padding: const EdgeInsets.symmetric(vertical: _bottomRow),
-        child: Center(child: picture),
+        padding: EdgeInsets.symmetric(vertical: clearance),
+        child: Center(
+          child: RotatedBox(quarterTurns: _quarterTurns, child: picture),
+        ),
       ),
     ),
   );
@@ -252,6 +305,13 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
     });
   }
 
+  /// Shown while the controls are, fading as they do.
+  Widget _fading(Widget child) => AnimatedOpacity(
+    opacity: _controlsShown ? 1 : 0,
+    duration: _controlsShown ? _fadeIn : _fadeOut,
+    child: child,
+  );
+
   /// A control the pointer is over keeps the controls up.
   Widget _control(Widget child) => MouseRegion(
     onEnter: (_) => _overControls++,
@@ -263,29 +323,59 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   );
 
   void _toggleMode() {
-    if (!widget.inWindow) return;
+    if (!widget.inWindow || _pip) return;
     ref.read(mediaViewerProvider.notifier).toggleMode();
   }
 
   void _previous() {
-    if (_currentIndex > 0) {
+    if (!_pip && _currentIndex > 0) {
+      _setVideoFullScreen(false);
       ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex--;
+        _quarterTurns = 0;
         _transformController.value = Matrix4.identity();
       });
     }
   }
 
   void _next() {
-    if (_currentIndex < widget.media.length - 1) {
+    if (!_pip && _currentIndex < widget.media.length - 1) {
+      _setVideoFullScreen(false);
       ref.read(playbackProvider.notifier).mediaClose();
       setState(() {
         _currentIndex++;
+        _quarterTurns = 0;
         _transformController.value = Matrix4.identity();
       });
     }
   }
+
+  /// The window turns into a small one over other apps with the video's
+  /// [aspect], as turned; full screen ends first, and back goes to the
+  /// window it was.
+  void _enterPip(double aspect) {
+    final returnTo = _fullScreenFromNormal ? MediaWindowMode.normal : null;
+    setState(() {
+      _videoFullScreen = false;
+      _fullScreenFromNormal = false;
+      _transformController.value = Matrix4.identity();
+    });
+    ref
+        .read(mediaViewerProvider.notifier)
+        .enterPip(
+          _quarterTurns.isOdd ? 1 / aspect : aspect,
+          returnTo: returnTo,
+        );
+  }
+
+  void _leavePip() => ref.read(mediaViewerProvider.notifier).leavePip();
+
+  /// A quarter turn left, as Telegram's: the zoom starts again.
+  void _rotate() => setState(() {
+    _quarterTurns = (_quarterTurns + 3) % 4;
+    _transformController.value = Matrix4.identity();
+  });
 
   Future<void> _download(Attachment attachment) async {
     final repository = ref.read(repositoryProvider);
@@ -320,11 +410,13 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
   @override
   Widget build(BuildContext context) {
     final current = widget.media[_currentIndex];
-    final closesOnClick = !_normalWindow;
+    // A video's full screen keeps the viewer: a click beside it, as to
+    // bring the controls back, doesn't close.
+    final closesOnClick = !_normalWindow && !_videoFullScreen;
 
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): _close,
+        const SingleActivator(LogicalKeyboardKey.escape): _escape,
         const SingleActivator(LogicalKeyboardKey.arrowLeft): _previous,
         const SingleActivator(LogicalKeyboardKey.arrowRight): _next,
         const SingleActivator(LogicalKeyboardKey.enter, alt: true): _toggleMode,
@@ -352,71 +444,106 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
           },
           child: MouseRegion(
             onHover: (_) => _activity(),
-            child: Material(
-              color: OcMediaColors.background,
-              // Controls take their own clicks; any other click beside
-              // the picture closes the viewer, except in a normal window,
-              // where dragging the background moves it.
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (details) {
-                  if (closesOnClick && !_onPicture(details.globalPosition)) {
-                    _close();
-                  }
-                },
-                onPanStart: _normalWindow
-                    ? (_) => ref.read(mediaWindowServiceProvider).startDrag()
-                    : null,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Center(child: _buildMediaContent(context, current)),
-                    if (widget.inWindow)
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: _titleHeight,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          // On macOS too: the Flutter view covers the
-                          // system's title bar, which never sees the click.
-                          onDoubleTap: _toggleMode,
-                          onPanStart: _normalWindow
-                              ? (_) => ref
-                                    .read(mediaWindowServiceProvider)
-                                    .startDrag()
-                              : null,
-                        ),
-                      ),
-                    Positioned.fill(
-                      child: AnimatedOpacity(
-                        opacity: _controlsShown ? 1 : 0,
-                        duration: _controlsShown ? _fadeIn : _fadeOut,
-                        child: _buildControls(context, current),
+            child: _pip && current.kind == AttachmentKind.video
+                ? _buildPip(context, current)
+                : Material(
+                    color: OcMediaColors.background,
+                    // Controls take their own clicks; any other click beside
+                    // the picture closes the viewer, except in a normal window,
+                    // where dragging the background moves it.
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (details) {
+                        if (closesOnClick &&
+                            !_onPicture(details.globalPosition)) {
+                          _close();
+                        }
+                      },
+                      onPanStart: _normalWindow
+                          ? (_) =>
+                                ref.read(mediaWindowServiceProvider).startDrag()
+                          : null,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Center(child: _buildMediaContent(context, current)),
+                          if (widget.inWindow)
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: _titleHeight,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                // On macOS too: the Flutter view covers the
+                                // system's title bar, which never sees the click.
+                                onDoubleTap: _toggleMode,
+                                onPanStart: _normalWindow
+                                    ? (_) => ref
+                                          .read(mediaWindowServiceProvider)
+                                          .startDrag()
+                                    : null,
+                              ),
+                            ),
+                          Positioned.fill(
+                            child: _fading(_buildControls(context, current)),
+                          ),
+                          if (_note case final note?) _buildNote(context, note),
+                          // The window has no frame on Linux: it resizes from
+                          // its edges.
+                          if (_normalWindow &&
+                              Theme.of(context).platform ==
+                                  TargetPlatform.linux)
+                            ...windowResizeHandles(
+                              onResize: ref
+                                  .read(mediaWindowServiceProvider)
+                                  .startResize,
+                              outside: 0,
+                              band: windowResizeBand,
+                            ),
+                        ],
                       ),
                     ),
-                    if (_note case final note?) _buildNote(context, note),
-                    // The window has no frame on Linux: it resizes from
-                    // its edges.
-                    if (_normalWindow &&
-                        Theme.of(context).platform == TargetPlatform.linux)
-                      ...windowResizeHandles(
-                        onResize: ref
-                            .read(mediaWindowServiceProvider)
-                            .startResize,
-                        outside: 0,
-                        band: windowResizeBand,
-                      ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
           ),
         ),
       ),
     );
   }
+
+  /// Picture-in-picture: the video in a rounded window.
+  Widget _buildPip(BuildContext context, Attachment current) => ClipRRect(
+    borderRadius: BorderRadius.circular(_pipRadius),
+    child: Material(
+      color: OcMediaColors.pipBackground,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _buildMediaContent(context, current),
+          if (Theme.of(context).platform == TargetPlatform.linux)
+            ...windowResizeHandles(
+              onResize: ref.read(mediaWindowServiceProvider).startResize,
+              outside: 0,
+              band: windowResizeBand,
+            ),
+        ],
+      ),
+    ),
+  );
+
+  /// Picture-in-picture's video: dragged to move the window, a double
+  /// click back to the viewer. Under the controls, so their clicks don't
+  /// wait to see whether a second one comes.
+  Widget _pipPicture(Widget picture) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onDoubleTap: _leavePip,
+    onPanStart: (_) => ref.read(mediaWindowServiceProvider).startDrag(),
+    child: SizedBox.expand(
+      child: Center(
+        child: RotatedBox(quarterTurns: _quarterTurns, child: picture),
+      ),
+    ),
+  );
 
   Widget _buildControls(BuildContext context, Attachment current) {
     final colors = context.oc;
@@ -426,9 +553,17 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       ?widget.senderName,
       if (sentAt != null) '${shortDate(sentAt, now)} at ${clockTime(sentAt)}',
     ].join(' · ');
+    // Beside a video's bar the text keeps to its left, or goes.
+    final width = MediaQuery.sizeOf(context).width;
+    final textRight = current.kind == AttachmentKind.video
+        ? max(2 * _navWidth, (width + min(VideoBar.width, width - 16)) / 2 + 8)
+        : 2 * _navWidth;
+    final showsText =
+        !_videoFullScreen && width - _textLeft - textRight >= _textLeast;
+    final steps = !_videoFullScreen;
     return Stack(
       children: [
-        if (_currentIndex > 0)
+        if (steps && _currentIndex > 0)
           Positioned(
             left: 0,
             top: _navInset,
@@ -442,7 +577,7 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
               ),
             ),
           ),
-        if (_currentIndex < widget.media.length - 1)
+        if (steps && _currentIndex < widget.media.length - 1)
           Positioned(
             right: 0,
             top: _navInset,
@@ -456,50 +591,53 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
               ),
             ),
           ),
-        Positioned(
-          left: _textLeft,
-          bottom: 14,
-          right: 2 * _navWidth,
-          child: IgnorePointer(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  mediaHeader(current, _currentIndex, widget.media.length),
-                  style: OcText.bodyStrong.copyWith(color: colors.text),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (from.isNotEmpty) ...[
-                  const SizedBox(height: OcSpace.s4),
+        if (showsText)
+          Positioned(
+            left: _textLeft,
+            bottom: 14,
+            right: textRight,
+            child: IgnorePointer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    from,
-                    style: OcText.small.copyWith(color: colors.textSecondary),
+                    mediaHeader(current, _currentIndex, widget.media.length),
+                    style: OcText.bodyStrong.copyWith(color: colors.text),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (from.isNotEmpty) ...[
+                    const SizedBox(height: OcSpace.s4),
+                    Text(
+                      from,
+                      style: OcText.small.copyWith(color: colors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          right: 0,
-          bottom: 0,
-          child: _control(
-            SizedBox(
-              width: 46,
-              height: _bottomRow,
-              child: IconButton(
-                icon: const Icon(OcIcons.download),
-                color: colors.text,
-                tooltip: 'Download',
-                onPressed: () => _download(current),
               ),
             ),
           ),
-        ),
+        if (!_videoFullScreen)
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: _control(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _bottomButton(
+                    OcIcons.download,
+                    'Download',
+                    () => _download(current),
+                  ),
+                  _bottomButton(OcIcons.rotateLeft, 'Rotate', _rotate),
+                ],
+              ),
+            ),
+          ),
         if (widget.inWindow) ...[
           Positioned(
             top: 0,
@@ -524,6 +662,19 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
       ],
     );
   }
+
+  /// One of the media's own buttons at the bottom right, Telegram's size.
+  Widget _bottomButton(IconData icon, String tooltip, VoidCallback onPressed) =>
+      SizedBox(
+        width: 46,
+        height: _bottomRow,
+        child: IconButton(
+          icon: Icon(icon),
+          color: context.oc.text,
+          tooltip: tooltip,
+          onPressed: onPressed,
+        ),
+      );
 
   Widget _buildNote(BuildContext context, String note) {
     final colors = context.oc;
@@ -556,11 +707,25 @@ class _MediaViewerState extends ConsumerState<MediaViewer> {
 
     if (attachment.kind == AttachmentKind.video) {
       return VideoPlayerView(
+        key: _playerKey,
         serverKey: widget.serverKey,
         attachment: attachment,
         pictureKey: _pictureKey,
-        framePicture: _zoom,
-        controlsInset: _bottomRow,
+        // The video keeps clear of its bar, as Telegram's does; in
+        // picture-in-picture it fills the window.
+        framePicture: (picture) => _pip
+            ? _pipPicture(picture)
+            : _zoom(
+                picture,
+                clearance: _videoFullScreen ? 0 : VideoBar.clearance,
+              ),
+        onPip: widget.inWindow && !_pip ? _enterPip : null,
+        pip: _pip ? PipActions(onBack: _leavePip, onClose: _close) : null,
+        // Picture-in-picture's controls cover the window: they only fade,
+        // or the pointer over them would hold them up and their clicks.
+        frameControls: (bar) => _pip ? _fading(bar) : _fading(_control(bar)),
+        fullScreen: _videoFullScreen,
+        onFullScreen: () => _setVideoFullScreen(!_videoFullScreen),
       );
     }
 

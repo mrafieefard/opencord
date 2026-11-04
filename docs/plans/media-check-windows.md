@@ -2,13 +2,14 @@
 
 > For the owner, or a Claude Code session on the Windows PC (`docs/plans/platforms.md` has the rules for working there). Nothing in this list has been run on Windows yet:
 > - the media uploads plan's Windows task (P1 in `docs/superpowers/plans/2026-10-18-media-uploads.md`), which was never done;
-> - the media viewer's own window (D86, pull request #25), which only CI has compiled.
+> - the media viewer's own window (D86, pull request #25), which only CI has compiled;
+> - the viewer's player, rotate and picture-in-picture (D87, branch `feat/media-viewer-player`), which only CI has compiled.
 >
 > Fix Windows-only problems in Windows files only, on a branch from the one under test, as a pull request into `beta`. Shared problems go back to the Linux session.
 
 ## 0. Get the build
 
-1. Check out `feat/media-viewer-window`, or `beta` once the 2026-11-01 batch is merged.
+1. Check out `feat/media-viewer-player` (it carries `feat/media-viewer-window`), or `beta` once the 2026-11-01 batch is merged.
 2. `flutter build windows`, or run the installer from the pull request's CI artifacts.
 3. Use a server that has uploads switched on: the test server, or `opencord-server` on the LAN. Use one channel with at least:
    - a photo;
@@ -73,6 +74,22 @@
     - At 100 % and 150 % scaling.
     - With two monitors: full screen opens on the main window's monitor.
 
-## 3. Report
+## 3. The viewer's player and picture-in-picture (D87, the pull request after #25)
+
+1. **Rotate.** Beside Download at the bottom right, for photos and videos. Each click turns a quarter left; the next item starts unturned.
+2. **The bar** (a video): narrow, centred at the bottom, see-through, and never over the video. Volume, play, full screen, picture-in-picture and the speed on the first row; the time played, the seek bar and the time left on the second. It fades with the rest when the mouse rests.
+3. **Speed.** 1x, 1.5x, 2x, 3x and round again; voices keep their pitch, and the times stay in the video's own time.
+4. **Full screen.** The video fills the screen at its own shape, only the bar and the title buttons left, fading. Esc ends it first, then closes. From a normal window the window goes full screen and comes back normal, and the next viewer still opens normal.
+5. **Picture-in-picture.**
+   - The button turns the viewer into a small window, 320 wide with the video's shape, at the bottom right of the screen, playing on without a restart.
+   - It stays above other windows, also when another app is active.
+   - Its own controls: volume top left, back and close top right, play in the middle, the times and seek bar at the bottom; they fade.
+   - A drag moves it; its edges resize it, keeping its shape.
+   - Back, or a double click, returns to the window it was, still playing; close stops the video.
+   - Opening another photo or video brings the viewer back with it.
+   - Close it somewhere else and open picture-in-picture again: it comes back there, at that size.
+   - Close from picture-in-picture, with a normal window remembered, then open a photo: a normal window with its borders, and the photo laid out as the viewer, not as picture-in-picture.
+
+## 4. Report
 
 List what failed, with screenshots, in the batch's thread, or as a pull request with the fixes.

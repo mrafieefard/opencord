@@ -457,7 +457,7 @@ void main() {
       await pumpVideo(tester);
       final before = picture(tester);
       // Near its left edge: the zoom would grow it to the right.
-      await wheel(tester, Offset(before.left + 20, before.center.dy), -40);
+      await wheel(tester, Offset(before.left + 20, before.center.dy), -60);
 
       final after = picture(tester);
       expect(after.width, greaterThan(before.width));
@@ -517,6 +517,234 @@ void main() {
       await tester.dragFrom(at, const Offset(60, 0));
       await tester.pump();
       expect(window.calls, contains('startDrag'));
+      await closeViewer(tester);
+    });
+  });
+
+  group('rotate, beside Download', () {
+    Future<(FakeMediaWindow, List<int>)> pumpVideo(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final result = await _pumpWindow(tester, media: const [_video]);
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    int turns(WidgetTester tester) =>
+        tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns;
+
+    testWidgets('rotate_turns_the_picture_a_quarter_left', (tester) async {
+      await pumpVideo(tester);
+      expect(
+        tester.getTopLeft(find.byTooltip('Rotate')).dx,
+        greaterThan(tester.getTopLeft(find.byTooltip('Download')).dx),
+      );
+      await tester.tap(find.byTooltip('Rotate'));
+      await tester.pumpAndSettle();
+      final picture = tester.getRect(find.byType(Texture));
+      expect(picture.height, greaterThan(picture.width));
+      expect(turns(tester), 3, reason: 'counter-clockwise, as Telegram\'s');
+      await closeViewer(tester);
+    });
+
+    testWidgets('rotate_resets_with_the_next_item', (tester) async {
+      await _pumpWindow(tester);
+      await tester.tap(find.byTooltip('Rotate'));
+      await tester.pump();
+      expect(turns(tester), 3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(turns(tester), 0);
+      await closeViewer(tester);
+    });
+
+    testWidgets('clicks_beside_follow_the_turned_picture', (tester) async {
+      // Tall: the turned video reaches where the unturned one wasn't.
+      await tester.binding.setSurfaceSize(const Size(700, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final (_, closes) = await _pumpWindow(tester, media: const [_video]);
+      await tester.pumpAndSettle();
+      final before = tester.getRect(find.byType(Texture));
+      await tester.tap(find.byTooltip('Rotate'));
+      await tester.pumpAndSettle();
+      final turned = tester.getRect(find.byType(Texture));
+      expect(turned.top, lessThan(before.top));
+
+      // On the turned picture, above where the unturned one was.
+      await tester.tapAt(Offset(350, (turned.top + before.top) / 2));
+      await tester.pump();
+      expect(closes, isEmpty);
+      // Below the turned picture.
+      await tester.tapAt(Offset(350, (turned.bottom + 1546) / 2));
+      await tester.pump();
+      expect(closes, [1]);
+      await closeViewer(tester);
+    });
+  });
+
+  group("the video's bar, as Telegram's", () {
+    Future<(FakeMediaWindow, List<int>)> pumpVideo(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final result = await _pumpWindow(tester, media: const [_video]);
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    final bar = find.byKey(const ValueKey('video-bar'));
+
+    testWidgets('the_video_bar_is_telegrams_size', (tester) async {
+      await pumpVideo(tester);
+      final rect = tester.getRect(bar);
+      expect(rect.size, const Size(480, 70));
+      expect(rect.center.dx, 800);
+      expect(rect.bottom, 700 - 7);
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_video_keeps_clear_of_the_bar', (tester) async {
+      await pumpVideo(tester);
+      final picture = tester.getRect(find.byType(Texture));
+      expect(picture.bottom, lessThanOrEqualTo(tester.getRect(bar).top));
+      expect(picture.center.dy, 350, reason: 'still centred');
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_video_bar_fades_with_the_controls', (tester) async {
+      await pumpVideo(tester);
+      double opacity() => tester
+          .widget<AnimatedOpacity>(
+            find.ancestor(of: bar, matching: find.byType(AnimatedOpacity)),
+          )
+          .opacity;
+      expect(opacity(), 1);
+      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(opacity(), 0);
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_bar_shows_the_time_played_and_left', (tester) async {
+      await pumpVideo(tester);
+      final texts = tester
+          .widgetList<Text>(
+            find.descendant(of: bar, matching: find.byType(Text)),
+          )
+          .map((text) => text.data ?? '')
+          .toList();
+      int seconds(String clock) {
+        final parts = clock.replaceFirst('-', '').split(':');
+        return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+      }
+
+      final played = texts.singleWhere(
+        (t) => RegExp(r'^\d\d:\d\d$').hasMatch(t),
+      );
+      final left = texts.singleWhere(
+        (t) => RegExp(r'^-\d\d:\d\d$').hasMatch(t),
+      );
+      // The mock plays a video it doesn't know for 10 s.
+      expect(seconds(played) + seconds(left), inInclusiveRange(9, 10));
+      await closeViewer(tester);
+    });
+
+    testWidgets('speed_cycles_one_to_three_and_back', (tester) async {
+      await pumpVideo(tester);
+      final repository =
+          ProviderScope.containerOf(
+                tester.element(find.byType(MediaViewer)),
+              ).read(repositoryProvider)
+              as MockRepository;
+      expect(find.descendant(of: bar, matching: find.text('1x')), findsOne);
+      for (final label in ['1.5x', '2x', '3x', '1x']) {
+        await tester.tap(find.byTooltip('Speed'));
+        await tester.pump();
+        expect(find.descendant(of: bar, matching: find.text(label)), findsOne);
+      }
+      expect(repository.mediaSpeeds, [1.5, 2, 3, 1]);
+      await closeViewer(tester);
+    });
+
+    testWidgets('the_bottom_left_text_keeps_left_of_the_bar', (tester) async {
+      await pumpVideo(tester);
+      final text = tester.getRect(find.text('clip.mp4'));
+      expect(text.right, lessThanOrEqualTo(tester.getRect(bar).left));
+      await closeViewer(tester);
+    });
+  });
+
+  group("the video's full screen", () {
+    Future<(FakeMediaWindow, List<int>)> pumpVideo(
+      WidgetTester tester, {
+      MediaWindowMode mode = MediaWindowMode.fullscreen,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(1600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final result = await _pumpWindow(
+        tester,
+        media: const [_video],
+        mode: mode,
+      );
+      await tester.pumpAndSettle();
+      return result;
+    }
+
+    testWidgets('full_screen_fills_the_window_with_the_video', (tester) async {
+      await pumpVideo(tester);
+      final before = tester.getRect(find.byType(Texture));
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      final picture = tester.getRect(find.byType(Texture));
+      expect(picture.height, 700);
+      expect(
+        picture.width / picture.height,
+        closeTo(before.width / before.height, 0.01),
+      );
+      // Only the bar and the window's buttons are left.
+      expect(find.text('clip.mp4'), findsNothing);
+      expect(find.byTooltip('Download'), findsNothing);
+      expect(find.byTooltip('Rotate'), findsNothing);
+      expect(find.byType(MediaWindowButtons), findsWidgets);
+      await closeViewer(tester);
+    });
+
+    testWidgets('esc_ends_full_screen_before_closing', (tester) async {
+      final (_, closes) = await pumpVideo(tester);
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(closes, isEmpty);
+      expect(find.text('clip.mp4'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(closes, [1]);
+      await closeViewer(tester);
+    });
+
+    testWidgets('a_click_beside_the_full_screen_video_keeps_the_viewer', (
+      tester,
+    ) async {
+      final (_, closes) = await pumpVideo(tester);
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      final picture = tester.getRect(find.byType(Texture));
+      await tester.tapAt(Offset(picture.left / 2, 300));
+      await tester.pump();
+      expect(closes, isEmpty);
+      await closeViewer(tester);
+    });
+
+    testWidgets('full_screen_from_a_normal_window_comes_back_normal', (
+      tester,
+    ) async {
+      final (window, _) = await pumpVideo(tester, mode: MediaWindowMode.normal);
+      await tester.tap(find.byTooltip('Full screen'));
+      await tester.pumpAndSettle();
+      expect(window.calls, contains('setMode:fullscreen'));
+      await tester.tap(find.byTooltip('Exit full screen'));
+      await tester.pumpAndSettle();
+      expect(window.calls.last, 'setMode:normal');
       await closeViewer(tester);
     });
   });

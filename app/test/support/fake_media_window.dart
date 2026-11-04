@@ -41,6 +41,15 @@ class FakeMediaWindow implements MediaWindowService {
       calls.add('setMode:${mode.name}');
 
   @override
+  Future<void> enterPip({
+    required double aspect,
+    WindowGeometry? frame,
+  }) async => calls.add(
+    'pip:${aspect.toStringAsFixed(2)}'
+    '${frame == null ? '' : ' at ${frame.width}x${frame.height}'}',
+  );
+
+  @override
   Future<void> minimize() async => calls.add('minimize');
 
   @override

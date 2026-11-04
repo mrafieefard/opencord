@@ -1078,6 +1078,9 @@ abstract interface class OpencordRepository {
 
   void mediaSetVolume(double volume, bool muted);
 
+  /// Plays the open media at [speed], its sound's pitch kept (D87).
+  void mediaSetSpeed(double speed);
+
   void mediaClose();
 
   bool mediaSupported();

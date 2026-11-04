@@ -241,6 +241,10 @@ impl CoreMediaPlayer {
         self.with_active(|active| active.player.set_volume(volume, muted));
     }
 
+    pub fn set_speed(&self, speed: f32) {
+        self.with_active(|active| active.player.set_speed(speed));
+    }
+
     pub fn close(&self, now_playing: &NowPlaying) {
         if let Some(active) = self.take() {
             active.player.close();

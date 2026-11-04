@@ -8,6 +8,8 @@ mod ffmpeg;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod sync;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
+mod tempo;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 pub use self::ffmpeg::*;
 
 #[cfg(not(any(target_os = "linux", target_os = "windows")))]

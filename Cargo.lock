@@ -4538,6 +4538,7 @@ dependencies = [
  "wayland-protocols",
  "windows",
  "windows-core",
+ "wsola",
  "x11rb 0.14.0",
  "yuv",
 ]

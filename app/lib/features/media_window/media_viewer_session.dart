@@ -93,6 +93,12 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   MediaWindowPlacement _placement = const MediaWindowPlacement();
   Timer? _save;
 
+  /// The window is in a mode it only passes through, not to remember.
+  bool _modeHeld = false;
+
+  /// The mode picture-in-picture goes back to.
+  MediaWindowMode? _beforePip;
+
   /// A close the runner hasn't been told about yet. An open waits for it,
   /// or the runner would answer the window it is about to destroy.
   Future<void>? _closing;
@@ -119,6 +125,8 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   /// is no window to open: the caller shows the viewer in the app instead.
   Future<bool> open(MediaViewerRequest request) async {
     if (_closing case final closing?) await closing;
+    // Other media brings the viewer back: there is one player.
+    if (state?.status.mode == MediaWindowMode.pip) await leavePip();
     final current = state;
     if (current != null) {
       state = current.copyWith(
@@ -129,6 +137,8 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
       return true;
     }
     _placement = _readPlacement();
+    _modeHeld = false;
+    _beforePip = null;
     final viewId = await _window.open(_placement);
     if (viewId == null) return false;
     state = MediaViewerSession(
@@ -159,22 +169,61 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
   Future<void> toggleMode() async {
     final current = state;
     if (current == null) return;
-    final next = current.status.mode == MediaWindowMode.fullscreen
-        ? MediaWindowMode.normal
-        : MediaWindowMode.fullscreen;
-    state = current.copyWith(
-      status: MediaWindowStatus(mode: next, focused: current.status.focused),
+    await setMode(
+      current.status.mode == MediaWindowMode.fullscreen
+          ? MediaWindowMode.normal
+          : MediaWindowMode.fullscreen,
     );
-    _placement = _placement.copyWith(mode: next);
-    _scheduleSave();
-    await _window.setMode(next);
+  }
+
+  /// Puts the window in [mode]. A mode only passed through, as a video's
+  /// full screen from a normal window, isn't remembered: the window opens
+  /// next time as it was before.
+  Future<void> setMode(MediaWindowMode mode, {bool remember = true}) async {
+    final current = state;
+    if (current == null) return;
+    state = current.copyWith(
+      status: MediaWindowStatus(mode: mode, focused: current.status.focused),
+    );
+    if (remember) {
+      _modeHeld = false;
+      _placement = _placement.copyWith(mode: mode);
+      _scheduleSave();
+    } else {
+      _modeHeld = mode != _placement.mode;
+    }
+    await _window.setMode(mode);
+  }
+
+  /// Turns the window into a small one over other apps, playing on, with
+  /// the video's [aspect]. Leaving goes back to the mode it had, or to
+  /// [returnTo].
+  Future<void> enterPip(double aspect, {MediaWindowMode? returnTo}) async {
+    final current = state;
+    if (current == null || current.status.mode == MediaWindowMode.pip) return;
+    _beforePip = returnTo ?? current.status.mode;
+    _modeHeld = true;
+    state = current.copyWith(
+      status: MediaWindowStatus(
+        mode: MediaWindowMode.pip,
+        focused: current.status.focused,
+      ),
+    );
+    await _window.enterPip(aspect: aspect, frame: _placement.pip);
+  }
+
+  Future<void> leavePip() async {
+    if (state?.status.mode != MediaWindowMode.pip) return;
+    final back = _beforePip ?? _placement.mode;
+    _beforePip = null;
+    await setMode(back, remember: false);
   }
 
   void _onStatus(MediaWindowStatus status) {
     final current = state;
     if (current == null) return;
     state = current.copyWith(status: status);
-    if (status.mode != _placement.mode) {
+    if (!_modeHeld && status.mode != _placement.mode) {
       _placement = _placement.copyWith(mode: status.mode);
       _scheduleSave();
     }
@@ -182,12 +231,15 @@ class MediaViewerNotifier extends Notifier<MediaViewerSession?> {
 
   void _onGeometry(WindowGeometry geometry) {
     final status = state?.status;
-    if (status == null ||
-        status.mode != MediaWindowMode.normal ||
-        status.maximized) {
-      return;
+    if (status == null || status.maximized) return;
+    switch (status.mode) {
+      case MediaWindowMode.normal:
+        _placement = _placement.copyWith(normal: geometry);
+      case MediaWindowMode.pip:
+        _placement = _placement.copyWith(pip: geometry);
+      case MediaWindowMode.fullscreen:
+        return;
     }
-    _placement = _placement.copyWith(normal: geometry);
     _scheduleSave();
   }
 

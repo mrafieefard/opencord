@@ -14,6 +14,17 @@ constexpr int kMinWidth = 480;
 constexpr int kMinHeight = 360;
 constexpr int kDefaultWidth = 800;
 constexpr int kDefaultHeight = 600;
+// Picture-in-picture (D87): this wide at first, at least this small, and
+// this far in from the screen's bottom right corner.
+constexpr int kPipWidth = 320;
+constexpr int kPipMinWidth = 160;
+constexpr int kPipMargin = 24;
+// How often, and how many times, the size asked for on new limits is
+// checked: the compositor's answer can come late.
+constexpr guint kPipSettleMs = 150;
+constexpr int kSizeChecks = 4;
+
+enum class Mode { kFullscreen, kNormal, kPip };
 
 struct MediaWindow {
   GtkWindow* main = nullptr;
@@ -23,9 +34,22 @@ struct MediaWindow {
   GtkWindow* window = nullptr;
   FlView* view = nullptr;
   GdkWindowState state = static_cast<GdkWindowState>(0);
-  bool fullscreen = true;
+  Mode mode = Mode::kFullscreen;
   int normal_width = kDefaultWidth;
   int normal_height = kDefaultHeight;
+  // The normal window's place before picture-in-picture (X11 only).
+  int normal_x = 0;
+  int normal_y = 0;
+  bool normal_placed = false;
+  // A size asked for on a change of limits, asked again while the
+  // compositor's own configure still has the old one (KWin on Wayland).
+  int want_width = 0;
+  int want_height = 0;
+  int want_retries = 0;
+  // Checks left of the size asked for, after the compositor had time,
+  // and the timer making them.
+  int want_checks = 0;
+  guint want_timer = 0;
 };
 
 bool is_wayland(GtkWindow* window) {
@@ -56,7 +80,9 @@ bool has_int(FlValue* args, const char* key) {
 
 FlValue* status_value(const MediaWindow* self) {
   const char* mode = "normal";
-  if (self->state & GDK_WINDOW_STATE_FULLSCREEN) {
+  if (self->mode == Mode::kPip) {
+    mode = "pip";
+  } else if (self->state & GDK_WINDOW_STATE_FULLSCREEN) {
     mode = "fullscreen";
   } else if (self->state & GDK_WINDOW_STATE_MAXIMIZED) {
     mode = "maximized";
@@ -98,16 +124,82 @@ bool on_a_monitor(GdkDisplay* display, int x, int y) {
   return false;
 }
 
+gboolean resize_wanted(gpointer data) {
+  auto* self = static_cast<MediaWindow*>(data);
+  // The compositor's late answer may have come after a configure at the
+  // size asked for: what counts is the size the window has now.
+  if (self->window == nullptr || self->want_checks <= 0) {
+    self->want_timer = 0;
+    return G_SOURCE_REMOVE;
+  }
+  self->want_checks--;
+  gint width = 0, height = 0;
+  gtk_window_get_size(self->window, &width, &height);
+  if (width != self->want_width) {
+    self->want_retries = 2;
+    gtk_window_resize(self->window, self->want_width, self->want_height);
+  }
+  if (self->want_checks > 0) return G_SOURCE_CONTINUE;
+  self->want_timer = 0;
+  return G_SOURCE_REMOVE;
+}
+
+// Asks for a size after the limits changed: KWin (Wayland) answers new
+// limits with the old size, which GTK takes over the one asked, so it is
+// asked again once that has come.
+void resize_after_new_limits(MediaWindow* self, int width, int height) {
+  self->want_width = width;
+  self->want_height = height;
+  self->want_retries = 2;
+  self->want_checks = kSizeChecks;
+  gtk_window_resize(self->window, width, height);
+  if (self->want_timer == 0) {
+    self->want_timer = g_timeout_add(kPipSettleMs, resize_wanted, self);
+  }
+}
+
+// The normal window's size limits, which picture-in-picture changes.
+void set_normal_hints(GtkWindow* window) {
+  GdkGeometry hints = {};
+  hints.min_width = kMinWidth;
+  hints.min_height = kMinHeight;
+  gtk_window_set_geometry_hints(window, nullptr, &hints, GDK_HINT_MIN_SIZE);
+}
+
 void set_mode(MediaWindow* self, bool fullscreen) {
-  self->fullscreen = fullscreen;
+  const bool was_pip = self->mode == Mode::kPip;
+  self->want_retries = 0;
+  // Whatever size was being asked for no longer is.
+  self->want_checks = 0;
+  if (self->want_timer != 0) {
+    g_source_remove(self->want_timer);
+    self->want_timer = 0;
+  }
+  self->mode = fullscreen ? Mode::kFullscreen : Mode::kNormal;
   if (self->window == nullptr) return;
+  if (was_pip) {
+    gtk_window_set_keep_above(self->window, FALSE);
+    set_normal_hints(self->window);
+  }
   if (fullscreen) {
     gtk_window_fullscreen_on_monitor(self->window,
                                      gtk_window_get_screen(self->main),
                                      main_monitor(self));
+  } else if (was_pip) {
+    resize_after_new_limits(self, self->normal_width, self->normal_height);
+    if (self->normal_placed) {
+      gtk_window_move(self->window, self->normal_x, self->normal_y);
+    }
   } else {
     gtk_window_unfullscreen(self->window);
     gtk_window_resize(self->window, self->normal_width, self->normal_height);
+  }
+  // From picture-in-picture to a normal window no window state changes,
+  // so nothing else would say so. Going full screen, the window state
+  // event will.
+  if (was_pip && !fullscreen) {
+    g_autoptr(FlValue) status = status_value(self);
+    send(self, "status", status);
   }
 }
 
@@ -121,13 +213,25 @@ gboolean on_state(GtkWidget*, GdkEventWindowState* event, gpointer data) {
 
 gboolean on_configure(GtkWidget*, GdkEventConfigure* event, gpointer data) {
   auto* self = static_cast<MediaWindow*>(data);
-  if (self->fullscreen ||
+  if (self->mode == Mode::kFullscreen ||
       (self->state & (GDK_WINDOW_STATE_FULLSCREEN | GDK_WINDOW_STATE_MAXIMIZED |
                       GDK_WINDOW_STATE_TILED)) != 0) {
     return FALSE;
   }
-  self->normal_width = event->width;
-  self->normal_height = event->height;
+  if (self->want_retries > 0) {
+    if (event->width == self->want_width) {
+      self->want_retries = 0;
+    } else {
+      // Not the size asked for, nor one to remember.
+      self->want_retries--;
+      gtk_window_resize(self->window, self->want_width, self->want_height);
+      return FALSE;
+    }
+  }
+  if (self->mode == Mode::kNormal) {
+    self->normal_width = event->width;
+    self->normal_height = event->height;
+  }
   g_autoptr(FlValue) geometry = fl_value_new_map();
   fl_value_set_string_take(geometry, "width", fl_value_new_int(event->width));
   fl_value_set_string_take(geometry, "height",
@@ -152,6 +256,12 @@ gboolean on_delete(GtkWidget*, GdkEvent*, gpointer data) {
 
 void on_destroy(GtkWidget*, gpointer data) {
   auto* self = static_cast<MediaWindow*>(data);
+  if (self->want_timer != 0) {
+    g_source_remove(self->want_timer);
+    self->want_timer = 0;
+  }
+  self->want_checks = 0;
+  self->want_retries = 0;
   self->window = nullptr;
   self->view = nullptr;
   self->state = static_cast<GdkWindowState>(0);
@@ -186,10 +296,7 @@ FlValue* open(MediaWindow* self, FlValue* args) {
     gtk_widget_set_visual(GTK_WIDGET(window), visual);
     gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
   }
-  GdkGeometry hints = {};
-  hints.min_width = kMinWidth;
-  hints.min_height = kMinHeight;
-  gtk_window_set_geometry_hints(window, nullptr, &hints, GDK_HINT_MIN_SIZE);
+  set_normal_hints(window);
   gtk_window_set_default_size(window, self->normal_width, self->normal_height);
   if (!is_wayland(window) && has_int(args, "x") && has_int(args, "y") &&
       on_a_monitor(gtk_widget_get_display(GTK_WIDGET(window)),
@@ -214,7 +321,7 @@ FlValue* open(MediaWindow* self, FlValue* args) {
   gtk_widget_realize(GTK_WIDGET(window));
   window_channel_draw_own_frame(window);
 
-  self->fullscreen = fullscreen;
+  self->mode = fullscreen ? Mode::kFullscreen : Mode::kNormal;
   if (fullscreen) {
     gtk_window_fullscreen_on_monitor(window, gtk_window_get_screen(self->main),
                                      main_monitor(self));
@@ -222,6 +329,56 @@ FlValue* open(MediaWindow* self, FlValue* args) {
   gtk_widget_show(GTK_WIDGET(window));
   gtk_window_present(window);
   return fl_value_new_int(fl_view_get_id(view));
+}
+
+
+// Picture-in-picture: the window small, with the video's shape, over other
+// windows where the desktop lets it (not on Wayland, where apps can't), at
+// the bottom right of the main window's screen or where it was.
+void enter_pip(MediaWindow* self, FlValue* args) {
+  if (self->window == nullptr) return;
+  FlValue* aspect_value = fl_value_lookup_string(args, "aspect");
+  double aspect = aspect_value != nullptr &&
+                          fl_value_get_type(aspect_value) == FL_VALUE_TYPE_FLOAT
+                      ? fl_value_get_float(aspect_value)
+                      : 16.0 / 9.0;
+  if (!(aspect > 0.1 && aspect < 10)) aspect = 16.0 / 9.0;
+  const int width = MAX(int_arg(args, "width", kPipWidth), kPipMinWidth);
+  const int height = static_cast<int>(width / aspect + 0.5);
+
+  GtkWindow* window = self->window;
+  // Where the normal window was, to go back to (Wayland doesn't say).
+  self->normal_placed = self->mode == Mode::kNormal && !is_wayland(window);
+  if (self->normal_placed) {
+    gtk_window_get_position(window, &self->normal_x, &self->normal_y);
+  }
+  self->mode = Mode::kPip;
+  gtk_window_unfullscreen(window);
+  gtk_window_unmaximize(window);
+  GdkGeometry hints = {};
+  hints.min_width = kPipMinWidth;
+  hints.min_height = static_cast<int>(kPipMinWidth / aspect + 0.5);
+  hints.min_aspect = aspect;
+  hints.max_aspect = aspect;
+  gtk_window_set_geometry_hints(
+      window, nullptr, &hints,
+      static_cast<GdkWindowHints>(GDK_HINT_MIN_SIZE | GDK_HINT_ASPECT));
+  resize_after_new_limits(self, width, height);
+  gtk_window_set_keep_above(window, TRUE);
+
+  GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
+  if (has_int(args, "x") && has_int(args, "y") &&
+      on_a_monitor(display, int_arg(args, "x", 0), int_arg(args, "y", 0))) {
+    gtk_window_move(window, int_arg(args, "x", 0), int_arg(args, "y", 0));
+  } else {
+    GdkRectangle area;
+    gdk_monitor_get_workarea(
+        gdk_display_get_monitor(display, main_monitor(self)), &area);
+    gtk_window_move(window, area.x + area.width - width - kPipMargin,
+                    area.y + area.height - height - kPipMargin);
+  }
+  g_autoptr(FlValue) status = status_value(self);
+  send(self, "status", status);
 }
 
 void method_call_cb(FlMethodChannel*, FlMethodCall* call, gpointer data) {
@@ -239,6 +396,9 @@ void method_call_cb(FlMethodChannel*, FlMethodCall* call, gpointer data) {
   } else if (strcmp(method, "setMode") == 0 && args != nullptr &&
              fl_value_get_type(args) == FL_VALUE_TYPE_STRING) {
     set_mode(self, strcmp(fl_value_get_string(args), "fullscreen") == 0);
+  } else if (strcmp(method, "pip") == 0 && args != nullptr &&
+             fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+    enter_pip(self, args);
   } else if (strcmp(method, "minimize") == 0) {
     if (self->window != nullptr) gtk_window_iconify(self->window);
   } else if (strcmp(method, "focus") == 0) {

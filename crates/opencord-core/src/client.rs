@@ -931,6 +931,10 @@ impl Client {
         self.inner.media_player.set_volume(volume, muted);
     }
 
+    pub fn media_set_speed(&self, speed: f32) {
+        self.inner.media_player.set_speed(speed);
+    }
+
     pub fn media_close(&self) {
         self.inner.media_player.close(&self.inner.now_playing);
     }

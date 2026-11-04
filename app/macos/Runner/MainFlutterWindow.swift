@@ -469,18 +469,30 @@ final class MediaViewerNSWindow: NSWindow {
 /// viewer's own window, a second Flutter view on the app's engine in a
 /// see-through window. Full screen, as Telegram's: above the menu bar and
 /// the Dock on the active Space, not macOS's own full screen. Green
-/// switches between that and a normal window; the app draws the rest.
+/// switches between that and a normal window; picture-in-picture (D87) is a
+/// small floating window with the video's shape. The app draws the rest.
 final class MediaWindowChannel: NSObject, NSWindowDelegate {
+  private enum Mode: String {
+    case fullscreen, normal, pip
+  }
+
   private static let minSize = NSSize(width: 480, height: 360)
   private static let defaultSize = NSSize(width: 800, height: 600)
+  /// Picture-in-picture: this wide at first, at least this small, and this
+  /// far in from the screen's bottom right corner.
+  private static let pipWidth: CGFloat = 320
+  private static let pipMinWidth: CGFloat = 160
+  private static let pipMargin: CGFloat = 24
 
   private weak var main: NSWindow?
   private let engine: FlutterEngine
   private let channel: FlutterMethodChannel
   private var window: MediaViewerNSWindow?
   private var controller: FlutterViewController?
-  private var fullscreen = true
+  private var mode = Mode.fullscreen
   private var normalFrame: NSRect?
+  private var pipFrame: NSRect?
+  private var pipAspect: CGFloat = 16 / 9
   private var multiView = false
 
   init(main: NSWindow, engine: FlutterEngine) {
@@ -517,15 +529,17 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
     case "close":
       close()
     case "setMode":
-      fullscreen = (call.arguments as? String) == "fullscreen"
+      mode = (call.arguments as? String) == "fullscreen" ? .fullscreen : .normal
       apply()
+    case "pip":
+      enterPip(call.arguments as? [String: Any] ?? [:])
     case "minimize":
       window?.miniaturize(nil)
     case "focus":
       window?.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)
     case "startDrag":
-      if let window, !fullscreen, let event = NSApp.currentEvent {
+      if let window, mode != .fullscreen, let event = NSApp.currentEvent {
         window.performDrag(with: event)
       }
     case "startResize":
@@ -576,7 +590,8 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
       frame.origin = NSPoint(x: area.midX - width / 2, y: area.midY - height / 2)
     }
     normalFrame = frame
-    fullscreen = (args["mode"] as? String) != "normal"
+    pipFrame = nil
+    mode = (args["mode"] as? String) == "normal" ? .normal : .fullscreen
     apply()
     viewer.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
@@ -595,9 +610,53 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
     controller = nil
   }
 
+  /// Picture-in-picture where it was, or at the bottom right of the main
+  /// window's screen the first time, with the video's shape.
+  private func enterPip(_ args: [String: Any]) {
+    guard let window else { return }
+    let aspect = CGFloat(args["aspect"] as? Double ?? 16 / 9)
+    pipAspect = aspect > 0.1 && aspect < 10 ? aspect : 16 / 9
+    let width = CGFloat(max(args["width"] as? Int ?? Int(Self.pipWidth), Int(Self.pipMinWidth)))
+    var frame = NSRect(x: 0, y: 0, width: width, height: (width / pipAspect).rounded())
+    if let x = args["x"] as? Int, let y = args["y"] as? Int {
+      frame.origin = NSPoint(x: x, y: y)
+    }
+    if args["x"] == nil || !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(frame) }) {
+      let area = (main?.screen ?? NSScreen.main)?.visibleFrame ?? .zero
+      frame.origin = NSPoint(
+        x: area.maxX - Self.pipMargin - frame.width, y: area.minY + Self.pipMargin)
+    }
+    if mode == .normal { normalFrame = window.frame }
+    pipFrame = frame
+    mode = .pip
+    apply()
+  }
+
   private func apply() {
     guard let window else { return }
-    if fullscreen {
+    let pip = mode == .pip
+    // Picture-in-picture has its own close and back buttons.
+    for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+      window.standardWindowButton(button)?.isHidden = pip
+    }
+    if pip {
+      window.contentAspectRatio = NSSize(width: pipAspect, height: 1)
+      window.contentMinSize = NSSize(
+        width: Self.pipMinWidth, height: (Self.pipMinWidth / pipAspect).rounded())
+    } else {
+      // Any shape again.
+      window.contentResizeIncrements = NSSize(width: 1, height: 1)
+      window.contentMinSize = Self.minSize
+    }
+    if pip {
+      // Above other apps' windows, on every Space, beside their full screen.
+      window.coversScreen = false
+      window.level = .floating
+      window.hasShadow = true
+      window.hidesOnDeactivate = false
+      window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+      if let pipFrame { window.setFrame(pipFrame, display: true) }
+    } else if mode == .fullscreen {
       window.coversScreen = true
       window.level = .popUpMenu
       window.hasShadow = false
@@ -620,16 +679,20 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
   private func sendStatus() {
     guard let window else { return }
     let status: [String: Any] = [
-      "mode": fullscreen ? "fullscreen" : "normal",
+      "mode": mode.rawValue,
       "focused": window.isKeyWindow,
     ]
     channel.invokeMethod("status", arguments: status)
   }
 
   private func sendGeometry() {
-    guard let window, !fullscreen else { return }
+    guard let window, mode != .fullscreen else { return }
     let frame = window.frame
-    normalFrame = frame
+    if mode == .pip {
+      pipFrame = frame
+    } else {
+      normalFrame = frame
+    }
     channel.invokeMethod(
       "geometry",
       arguments: [
@@ -649,7 +712,11 @@ final class MediaWindowChannel: NSObject, NSWindowDelegate {
 
   /// Green switches between full screen and the normal window.
   func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
-    fullscreen.toggle()
+    switch mode {
+    case .fullscreen: mode = .normal
+    case .normal: mode = .fullscreen
+    case .pip: return false
+    }
     apply()
     return false
   }

@@ -648,6 +648,8 @@ abstract interface class CoreApi {
 
   void mediaSetVolume(double volume, bool muted);
 
+  void mediaSetSpeed(double speed);
+
   void mediaClose();
 
   bool mediaSupported();
@@ -1893,6 +1895,10 @@ class FrbCoreApi implements CoreApi {
   @override
   void mediaSetVolume(double volume, bool muted) =>
       frb_attachments.mediaSetVolume(volume: volume, muted: muted);
+
+  @override
+  void mediaSetSpeed(double speed) =>
+      frb_attachments.mediaSetSpeed(speed: speed);
 
   @override
   void mediaClose() => frb_attachments.mediaClose();
