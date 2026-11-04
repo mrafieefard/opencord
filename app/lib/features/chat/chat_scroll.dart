@@ -47,9 +47,29 @@ class SavedScroll {
   int get hashCode => Object.hash(messageId, fromTop);
 }
 
-/// Where each channel was left (§16 "remember everything"): in memory while
-/// the app runs, and in [KeyValueStore] shortly after the reader stops
-/// scrolling, so it survives a restart. Keeps the [limit] most recent.
+/// Where the reader left a private chat: as [SavedScroll], for its
+/// messages' text ids.
+@immutable
+class PrivateScroll {
+  const PrivateScroll({required this.messageId, required this.fromTop});
+
+  final String messageId;
+  final double fromTop;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PrivateScroll &&
+      other.messageId == messageId &&
+      other.fromTop == fromTop;
+
+  @override
+  int get hashCode => Object.hash(messageId, fromTop);
+}
+
+/// Where each channel and private chat was left (§16 "remember
+/// everything"): in memory while the app runs, and in [KeyValueStore]
+/// shortly after the reader stops scrolling, so it survives a restart.
+/// Keeps the [limit] most recent.
 class ScrollMemory {
   ScrollMemory([this._store]) {
     _load();
@@ -61,16 +81,47 @@ class ScrollMemory {
 
   final KeyValueStore? _store;
 
-  /// By `server|channel`, oldest first.
-  final _saved = <String, SavedScroll>{};
+  /// By `server|channel` or `private|peer`, oldest first: the topmost
+  /// message's id (an int in a channel, text in a private chat) and how
+  /// far below the top it started.
+  final _saved = <String, (Object, double)>{};
   Timer? _flush;
 
   static String _key(ChannelRef channel) =>
       '${channel.server}|${channel.channel}';
 
+  static String _privateKey(String peer) => 'private|$peer';
+
   /// [position] null: the reader is at the newest message.
-  void save(ChannelRef channel, SavedScroll? position) {
-    final key = _key(channel);
+  void save(ChannelRef channel, SavedScroll? position) => _put(
+    _key(channel),
+    position == null ? null : (position.messageId, position.fromTop),
+  );
+
+  SavedScroll? read(ChannelRef channel) => switch (_saved[_key(channel)]) {
+    (final int id, final fromTop) => SavedScroll(
+      messageId: id,
+      fromTop: fromTop,
+    ),
+    _ => null,
+  };
+
+  /// [position] null: the reader is at the newest message.
+  void savePrivate(String peer, PrivateScroll? position) => _put(
+    _privateKey(peer),
+    position == null ? null : (position.messageId, position.fromTop),
+  );
+
+  PrivateScroll? readPrivate(String peer) =>
+      switch (_saved[_privateKey(peer)]) {
+        (final String id, final fromTop) => PrivateScroll(
+          messageId: id,
+          fromTop: fromTop,
+        ),
+        _ => null,
+      };
+
+  void _put(String key, (Object, double)? position) {
     final previous = _saved.remove(key);
     if (position != null) _saved[key] = position;
     while (_saved.length > limit) {
@@ -81,8 +132,6 @@ class ScrollMemory {
     _flush = Timer(_settle, flush);
   }
 
-  SavedScroll? read(ChannelRef channel) => _saved[_key(channel)];
-
   /// Writes what is remembered now.
   void flush() {
     _flush?.cancel();
@@ -90,8 +139,8 @@ class ScrollMemory {
     _store?.write(
       storeKey,
       jsonEncode({
-        for (final MapEntry(:key, :value) in _saved.entries)
-          key: [value.messageId, value.fromTop],
+        for (final MapEntry(:key, value: (id, fromTop)) in _saved.entries)
+          key: [id, fromTop],
       }),
     );
   }
@@ -107,8 +156,11 @@ class ScrollMemory {
     }
     if (json is! Map) return;
     for (final MapEntry(:key, :value) in json.entries) {
-      if (value case [final int id, final num fromTop] when key is String) {
-        _saved[key] = SavedScroll(messageId: id, fromTop: fromTop.toDouble());
+      if (value case [
+        final Object id,
+        final num fromTop,
+      ] when key is String && (id is int || id is String)) {
+        _saved[key] = (id, fromTop.toDouble());
       }
     }
   }

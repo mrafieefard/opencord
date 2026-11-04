@@ -357,6 +357,10 @@ class MockRepository implements OpencordRepository {
     );
   }
 
+  /// A channel's messages as the server holds them, oldest first.
+  List<Message> debugMessages(String serverKey, int channelId) =>
+      List.unmodifiable(_server(serverKey).messages[channelId] ?? const []);
+
   /// A message from someone other than the current user.
   void debugPostAs(
     String serverKey,

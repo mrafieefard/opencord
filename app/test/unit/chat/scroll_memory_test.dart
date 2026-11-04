@@ -73,6 +73,39 @@ void main() {
     );
   });
 
+  test('where a private chat was left survives a restart, apart from '
+      'channels', () {
+    fakeAsync((async) {
+      final store = MemoryKeyValueStore();
+      ScrollMemory(store)
+        ..savePrivate(
+          'peer-a',
+          const PrivateScroll(messageId: '00af', fromTop: 64),
+        )
+        ..save(_general, const SavedScroll(messageId: 42, fromTop: 8));
+      async.elapse(const Duration(seconds: 2));
+
+      final restarted = ScrollMemory(store);
+      expect(
+        restarted.readPrivate('peer-a'),
+        const PrivateScroll(messageId: '00af', fromTop: 64),
+      );
+      expect(restarted.readPrivate('peer-b'), isNull);
+      expect(restarted.read(_general)?.messageId, 42);
+    });
+  });
+
+  test('reaching the newest private message forgets the place', () {
+    final store = MemoryKeyValueStore();
+    final memory = ScrollMemory(store)
+      ..savePrivate('peer-a', const PrivateScroll(messageId: '01', fromTop: 0))
+      ..savePrivate('peer-a', null)
+      ..flush();
+
+    expect(ScrollMemory(store).readPrivate('peer-a'), isNull);
+    expect(memory.readPrivate('peer-a'), isNull);
+  });
+
   test('damaged data is ignored', () {
     final store = MemoryKeyValueStore()
       ..write(ScrollMemory.storeKey, '{"s:1|3": "x", "broken');

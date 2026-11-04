@@ -183,6 +183,8 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
         ),
         Expanded(
           child: PrivateMessageList(
+            // Each chat scrolls on its own.
+            key: ValueKey(widget.peer),
             peer: widget.peer,
             onEditMessage: (message) =>
                 _composerKey.currentState?.startEditing(message),
