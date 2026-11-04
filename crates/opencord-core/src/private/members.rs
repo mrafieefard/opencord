@@ -84,7 +84,7 @@ impl MemberIndex {
                 .map(|server| server.name.clone())
                 .unwrap_or_default(),
             connected: true,
-            private_messages: ready.private_messages,
+            private_messages: ready.private_messages_v2,
             friends_only: ready
                 .private_settings
                 .is_some_and(|settings| settings.friends_only),
@@ -250,7 +250,7 @@ mod tests {
                     ..proto::Member::default()
                 })
                 .collect(),
-            private_messages,
+            private_messages_v2: private_messages,
             ..proto::Ready::default()
         }
     }

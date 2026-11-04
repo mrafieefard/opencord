@@ -68,16 +68,6 @@ impl Identity {
         auth::sign(&self.key, challenge)
     }
 
-    /// Vouches for one of this person's private messages devices.
-    pub fn sign_device(
-        &self,
-        device_id: &[u8; 16],
-        curve25519: &[u8; 32],
-        ed25519: &[u8; 32],
-    ) -> [u8; 64] {
-        private::sign_device(&self.key, device_id, curve25519, ed25519)
-    }
-
     /// This person's permission for `grantee` to message them.
     pub fn slip_for(&self, grantee: &[u8; 32]) -> [u8; 64] {
         private::sign_slip(&self.key, grantee)
@@ -178,28 +168,12 @@ mod tests {
     }
 
     #[test]
-    fn device_signatures_and_slips_verify_with_the_public_key() {
+    fn slips_verify_with_the_public_key() {
         let identity = Identity::generate();
         let other = Identity::generate();
-        let (device_id, curve25519, ed25519) = ([1; 16], [2; 32], [3; 32]);
 
-        let signature = identity.sign_device(&device_id, &curve25519, &ed25519);
         let slip = identity.slip_for(&other.public_key());
 
-        assert!(private::verify_device(
-            &identity.public_key(),
-            &device_id,
-            &curve25519,
-            &ed25519,
-            &signature
-        ));
-        assert!(!private::verify_device(
-            &other.public_key(),
-            &device_id,
-            &curve25519,
-            &ed25519,
-            &signature
-        ));
         assert!(private::verify_slip(
             &identity.public_key(),
             &other.public_key(),

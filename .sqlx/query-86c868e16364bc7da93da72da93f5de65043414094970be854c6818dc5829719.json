@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO private_devices (user_id, device_id, curve25519, ed25519, signature,\n                                      chat_key, fallback_key, fallback_signature, created_at,\n                                      last_seen_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)\n         ON CONFLICT (user_id, device_id) DO UPDATE SET\n             curve25519 = excluded.curve25519,\n             ed25519 = excluded.ed25519,\n             signature = excluded.signature,\n             chat_key = excluded.chat_key,\n             fallback_key = excluded.fallback_key,\n             fallback_signature = excluded.fallback_signature,\n             last_seen_at = excluded.last_seen_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "86c868e16364bc7da93da72da93f5de65043414094970be854c6818dc5829719"
+}

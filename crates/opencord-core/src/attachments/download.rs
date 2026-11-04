@@ -78,9 +78,9 @@ fn path_of(attachment_id: i64, variant: AttachmentVariant) -> String {
     }
 }
 
-/// Streams the attachment to `path`, through `path.part` until it is all
-/// there. `DownloadProgress` events follow it, the last with `done` or
-/// `error`.
+/// Streams the attachment to `path`, through a part file (`part_for`)
+/// until it is all there. `DownloadProgress` events follow it, the last
+/// with `done` or `error`.
 pub(crate) async fn save(
     client: &Client,
     key: &str,
@@ -95,14 +95,14 @@ pub(crate) async fn save(
         attachment_id,
         last: Mutex::new(None),
     };
-    let part = PathBuf::from(format!("{path}.part"));
+    let part = part_for(&path);
     let streamed = tokio::select! {
         () = guard.token.cancelled() => Err(CoreError::Cancelled),
         result = stream_to(client, key, attachment_id, &part, &progress) => result,
     };
     drop(guard);
     let saved = match streamed {
-        Ok(total) => tokio::fs::rename(&part, &path)
+        Ok(total) => move_into_place(&part, Path::new(&path))
             .await
             .map(|()| total)
             .map_err(|error| CoreError::Storage {
@@ -124,6 +124,35 @@ pub(crate) async fn save(
             progress.end(0, 0, Some(error.to_string()));
             Err(error)
         }
+    }
+}
+
+/// Where a save to `path` streams until it is all there: `path.part`,
+/// beside it. On macOS the sandbox lets the app write only the file the
+/// save panel picked, nothing beside it, so there it is in the app's own
+/// temporary folder, named apart from other saves' parts.
+#[cfg(not(target_os = "macos"))]
+fn part_for(path: &str) -> PathBuf {
+    PathBuf::from(format!("{path}.part"))
+}
+
+#[cfg(target_os = "macos")]
+fn part_for(_path: &str) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("opencord-save-{}-{n}.part", std::process::id()))
+}
+
+/// Renames the finished `part` to `path`; across disks, where a rename
+/// can't go, copies it there and removes it.
+async fn move_into_place(part: &Path, path: &Path) -> std::io::Result<()> {
+    match tokio::fs::rename(part, path).await {
+        Err(error) if error.kind() == std::io::ErrorKind::CrossesDevices => {
+            tokio::fs::copy(part, path).await?;
+            tokio::fs::remove_file(part).await
+        }
+        result => result,
     }
 }
 
@@ -287,4 +316,16 @@ pub(crate) async fn cache_clear(cache: Option<Arc<MediaCache>>) -> Result<(), Co
         })
     })
     .await
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::part_for;
+
+    #[test]
+    fn a_part_stays_out_of_the_folder_saved_to() {
+        let part = part_for("/Users/someone/Downloads/file.pdf");
+        assert!(part.starts_with(std::env::temp_dir()), "{part:?}");
+        assert_ne!(part, part_for("/Users/someone/Downloads/file.pdf"));
+    }
 }

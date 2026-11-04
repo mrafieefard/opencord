@@ -1,0 +1,23 @@
+name: Free disk space
+description: >
+  Removes the Ubuntu runner's preinstalled tools that this project doesn't
+  use. Linking every test binary can otherwise fill the disk: rustc reports
+  "No space left on device", or the linker dies with a bus error.
+inputs:
+  android:
+    description: Also removes the Android SDK. Set to false for jobs that build for Android.
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Free disk space
+      shell: bash
+      env:
+        REMOVE_ANDROID: ${{ inputs.android }}
+      run: |
+        df -h /
+        sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+        if [ "$REMOVE_ANDROID" = true ]; then
+          sudo rm -rf /usr/local/lib/android
+        fi
+        df -h /

@@ -97,6 +97,10 @@ abstract final class OcIcons {
   static const IconData folderZip = IconData(0xeb2c, fontFamily: fontFamily);
   static const IconData forum = IconData(0xe8af, fontFamily: fontFamily);
   static const IconData fullscreen = IconData(0xe5d0, fontFamily: fontFamily);
+  static const IconData fullscreenExit = IconData(
+    0xe5d1,
+    fontFamily: fontFamily,
+  );
   static const IconData gavel = IconData(0xe90e, fontFamily: fontFamily);
   static const IconData graphicEq = IconData(0xe1b8, fontFamily: fontFamily);
   static const IconData group = IconData(0xea21, fontFamily: fontFamily);
@@ -149,6 +153,10 @@ abstract final class OcIcons {
   static const IconData person = IconData(0xf0d3, fontFamily: fontFamily);
   static const IconData personAdd = IconData(0xea4d, fontFamily: fontFamily);
   static const IconData personRemove = IconData(0xef66, fontFamily: fontFamily);
+  static const IconData pictureInPictureAlt = IconData(
+    0xe911,
+    fontFamily: fontFamily,
+  );
   static const IconData playArrow = IconData(0xe037, fontFamily: fontFamily);
   static const IconData pushPin = IconData(0xf10d, fontFamily: fontFamily);
   static const IconData queueMusic = IconData(0xe03d, fontFamily: fontFamily);
@@ -157,6 +165,7 @@ abstract final class OcIcons {
   static const IconData repeat = IconData(0xe040, fontFamily: fontFamily);
   static const IconData repeatOne = IconData(0xe041, fontFamily: fontFamily);
   static const IconData reply = IconData(0xe15e, fontFamily: fontFamily);
+  static const IconData rotateLeft = IconData(0xe419, fontFamily: fontFamily);
   static const IconData schedule = IconData(0xefd6, fontFamily: fontFamily);
   static const IconData screenShare = IconData(0xe0e2, fontFamily: fontFamily);
   static const IconData search = IconData(0xef7a, fontFamily: fontFamily);

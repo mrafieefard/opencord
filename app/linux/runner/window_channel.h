@@ -4,27 +4,35 @@
 #include <flutter_linux/flutter_linux.h>
 #include <gtk/gtk.h>
 
-// Who draws the window frame (desktop UI plan §3.1).
-enum class WindowChrome { kCustom, kSystem, kBare };
-
-// The chrome to create the window with. GTK decides about client-side
-// decorations when the window is realized, before the app runs, so the app
-// saves the user's choice (auto, custom or system) in "window-chrome" in its
-// data directory for the next start. Auto, or no file yet, applies the
-// plan's Auto rules for the desktop found at this start: KDE keeps its own
-// frame, tiling compositors get none, everything else gets the custom one.
-WindowChrome window_chrome_at_startup();
-
 // Connects the "dev.opencord/window" method channel to `window`, so the app
 // can draw its own title bar: drag, resize, the window menu, window state
 // and geometry.
-void window_channel_register(GtkWindow* window, FlView* view,
-                             WindowChrome chrome);
+void window_channel_register(GtkWindow* window, FlView* view);
 
 // Brings the window back, from the tray or from behind other windows, and
 // passes `link` (an opencord:// link, or null) to the app. A later launch of
 // the app lands here (desktop UI plan §15).
 void window_channel_present(const gchar* link);
+
+// Watches the window's close button. Call it before the Flutter view is
+// realized: the view then connects its own handler, which asks the app
+// whether to exit and ends the signal, so a handler connected later never
+// runs and closing quits instead of hiding to the tray.
+void window_channel_watch_close(GtkWindow* window);
+
+// The latest button press in any of the app's windows: moving and resizing
+// need it (on Wayland the compositor checks it belongs to a real click).
+// Null before the first press.
+GdkEvent* window_channel_last_press();
+
+// The GDK edge for a resize edge's name from the app ("top", "bottomLeft").
+GdkWindowEdge window_channel_edge(const gchar* name);
+
+// Tells the compositor the app draws `window`'s frame itself. On Wayland an
+// undecorated GTK window is not enough: GTK asks KWin for a server-side
+// frame, so KDE showed its own title bar above the app's. Call it once
+// the window is realized.
+void window_channel_draw_own_frame(GtkWindow* window);
 
 // Whether the app asked to start minimized to the tray, so the first frame
 // should not show the window.

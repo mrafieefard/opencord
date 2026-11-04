@@ -35,12 +35,12 @@ class LinuxWindowButtons extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (final button in buttons)
-          _GnomeButton(
+          GnomeWindowButton(
             glyph: switch (button) {
-              WindowButton.minimize => _Glyph.minimize,
+              WindowButton.minimize => WindowGlyph.minimize,
               WindowButton.maximize =>
-                maximized ? _Glyph.restore : _Glyph.maximize,
-              WindowButton.close => _Glyph.close,
+                maximized ? WindowGlyph.restore : WindowGlyph.maximize,
+              WindowButton.close => WindowGlyph.close,
             },
             onPressed: switch (button) {
               WindowButton.minimize => window.minimize,
@@ -77,33 +77,44 @@ class OverlayWindowButtons extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (frameButtons) ...[
-          _GnomeButton(glyph: _Glyph.minimize, onPressed: window.minimize),
-          _GnomeButton(
-            glyph: status.maximized ? _Glyph.restore : _Glyph.maximize,
+          GnomeWindowButton(
+            glyph: WindowGlyph.minimize,
+            onPressed: window.minimize,
+          ),
+          GnomeWindowButton(
+            glyph: status.maximized
+                ? WindowGlyph.restore
+                : WindowGlyph.maximize,
             onPressed: window.toggleMaximize,
           ),
         ],
-        _GnomeButton(glyph: _Glyph.close, onPressed: onClose),
+        GnomeWindowButton(glyph: WindowGlyph.close, onPressed: onClose),
       ],
     );
   }
 }
 
-enum _Glyph {
+/// The window buttons' glyphs, and what they say to a screen reader.
+enum WindowGlyph {
   minimize('Minimize'),
   maximize('Maximize'),
   restore('Restore'),
   close('Close');
 
-  const _Glyph(this.label);
+  const WindowGlyph(this.label);
 
   final String label;
 }
 
-class _GnomeButton extends StatelessWidget {
-  const _GnomeButton({required this.glyph, required this.onPressed});
+/// One GNOME-style round window button (§3.1).
+class GnomeWindowButton extends StatelessWidget {
+  const GnomeWindowButton({
+    super.key,
+    required this.glyph,
+    required this.onPressed,
+  });
 
-  final _Glyph glyph;
+  final WindowGlyph glyph;
   final VoidCallback onPressed;
 
   @override
@@ -152,7 +163,7 @@ class _GnomeButton extends StatelessWidget {
 class _GlyphPainter extends CustomPainter {
   const _GlyphPainter(this.glyph, this.color);
 
-  final _Glyph glyph;
+  final WindowGlyph glyph;
   final Color color;
 
   @override
@@ -165,13 +176,13 @@ class _GlyphPainter extends CustomPainter {
     final c = size.center(Offset.zero);
     const half = 4.5;
     switch (glyph) {
-      case _Glyph.minimize:
+      case WindowGlyph.minimize:
         canvas.drawLine(
           c + const Offset(-half, half - 1),
           c + const Offset(half, half - 1),
           paint,
         );
-      case _Glyph.maximize:
+      case WindowGlyph.maximize:
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromCenter(center: c, width: half * 2, height: half * 2),
@@ -179,7 +190,7 @@ class _GlyphPainter extends CustomPainter {
           ),
           paint,
         );
-      case _Glyph.restore:
+      case WindowGlyph.restore:
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTWH(c.dx - half, c.dy - half + 2.5, 6.5, 6.5),
@@ -196,7 +207,7 @@ class _GlyphPainter extends CustomPainter {
             ..lineTo(c.dx + half - 0.5, c.dy + half - 2.5),
           paint,
         );
-      case _Glyph.close:
+      case WindowGlyph.close:
         final d = half * math.cos(math.pi / 4) * 1.3;
         canvas.drawLine(c + Offset(-d, -d), c + Offset(d, d), paint);
         canvas.drawLine(c + Offset(d, -d), c + Offset(-d, d), paint);

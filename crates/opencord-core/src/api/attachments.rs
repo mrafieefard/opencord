@@ -240,6 +240,13 @@ pub fn media_set_volume(volume: f32, muted: bool) -> Result<(), CoreError> {
     Ok(())
 }
 
+/// Plays the open media at `speed`, its sound's pitch kept (D87).
+#[frb(sync)]
+pub fn media_set_speed(speed: f32) -> Result<(), CoreError> {
+    client()?.media_set_speed(speed);
+    Ok(())
+}
+
 #[frb(sync)]
 pub fn media_close() -> Result<(), CoreError> {
     client()?.media_close();

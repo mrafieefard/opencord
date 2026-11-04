@@ -827,6 +827,17 @@ async fn a_refused_rejoin_tells_the_app_this_device_left() {
     member.client.retry_now(&server.address()).await.ok();
     member.ready().await;
 
+    let (channel_id, message) = member
+        .wait_for(|payload| match payload {
+            CoreEventPayload::VoiceRejoinFailed {
+                channel_id,
+                message,
+            } => Some((*channel_id, message.clone())),
+            _ => None,
+        })
+        .await;
+    assert_eq!(channel_id, voice);
+    assert!(!message.is_empty());
     let left = member.wait_for(voice_of(member_id)).await;
     assert_eq!((left.channel_id, left.this_device), (None, true));
     drop(owner);

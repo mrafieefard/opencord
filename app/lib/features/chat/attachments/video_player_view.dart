@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/providers/playback_state.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
+import 'package:opencord/features/chat/attachments/pip_controls.dart';
+import 'package:opencord/features/chat/attachments/video_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
-import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 class VideoPlayerView extends ConsumerStatefulWidget {
   const VideoPlayerView({
@@ -19,6 +19,12 @@ class VideoPlayerView extends ConsumerStatefulWidget {
     required this.serverKey,
     required this.attachment,
     this.pictureKey,
+    this.framePicture = _unframed,
+    this.frameControls = _unframed,
+    this.fullScreen = false,
+    this.onFullScreen,
+    this.onPip,
+    this.pip,
   });
 
   final String serverKey;
@@ -26,6 +32,26 @@ class VideoPlayerView extends ConsumerStatefulWidget {
 
   /// Marks the picture, for a viewer that closes on clicks beside it.
   final GlobalKey? pictureKey;
+
+  /// Wraps the playing picture alone, as the viewer's zoom does, so the
+  /// controls stay where they are.
+  final Widget Function(Widget picture) framePicture;
+
+  /// Wraps the controls, as the viewer's fade does.
+  final Widget Function(Widget bar) frameControls;
+
+  /// The bar's full screen button: whether the video fills the window,
+  /// and what switches it.
+  final bool fullScreen;
+  final VoidCallback? onFullScreen;
+
+  /// The bar's picture-in-picture button, given the video's shape.
+  final ValueChanged<double>? onPip;
+
+  /// Shown as picture-in-picture: its own controls instead of the bar.
+  final PipActions? pip;
+
+  static Widget _unframed(Widget child) => child;
 
   @override
   ConsumerState<VideoPlayerView> createState() => _VideoPlayerViewState();
@@ -37,6 +63,10 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
   String? _error;
   bool _unsupported = false;
   double _volume = 1.0;
+
+  /// The speeds the bar's button goes through, Telegram's.
+  static const _speeds = [1.0, 1.5, 2.0, 3.0];
+  double _speed = 1.0;
   bool _muted = false;
   bool _draggingSeek = false;
   double _dragPositionMs = 0;
@@ -64,6 +94,7 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.attachment.id != widget.attachment.id ||
         oldWidget.serverKey != widget.serverKey) {
+      _speed = 1.0;
       _playbackNotifier?.mediaClose();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _initPlayer();
@@ -122,6 +153,24 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
     } else {
       notifier.mediaPlay(_item);
     }
+  }
+
+  void _seekStart(double ms) => setState(() {
+    _draggingSeek = true;
+    _dragPositionMs = ms;
+  });
+
+  void _seekMove(double ms) => setState(() => _dragPositionMs = ms);
+
+  void _seekEnd(double ms) {
+    setState(() => _draggingSeek = false);
+    ref.read(playbackProvider.notifier).seek(_item, ms.toInt());
+  }
+
+  void _nextSpeed() {
+    final next = _speeds[(_speeds.indexOf(_speed) + 1) % _speeds.length];
+    setState(() => _speed = next);
+    ref.read(playbackProvider.notifier).mediaSetSpeed(next);
   }
 
   void _toggleMute() {
@@ -240,30 +289,31 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
           alignment: Alignment.center,
           children: [
             // Video display or audio surface
-            if (hasVideo && textureId != null)
-              Center(
-                child: AspectRatio(
-                  key: widget.pictureKey,
-                  aspectRatio: aspectRatio,
-                  child: Texture(textureId: textureId),
-                ),
-              )
-            else
-              Center(
-                child: Container(
-                  key: widget.pictureKey,
-                  width: 320,
-                  height: 240,
-                  color: colors.surface,
-                  child: Center(
-                    child: Icon(
-                      hasVideo ? OcIcons.movie : OcIcons.musicNote,
-                      size: 64,
-                      color: colors.textSecondary,
+            widget.framePicture(
+              hasVideo && textureId != null
+                  ? Center(
+                      child: AspectRatio(
+                        key: widget.pictureKey,
+                        aspectRatio: aspectRatio,
+                        child: Texture(textureId: textureId),
+                      ),
+                    )
+                  : Center(
+                      child: Container(
+                        key: widget.pictureKey,
+                        width: 320,
+                        height: 240,
+                        color: colors.surface,
+                        child: Center(
+                          child: Icon(
+                            hasVideo ? OcIcons.movie : OcIcons.musicNote,
+                            size: 64,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
+            ),
 
             if (playback.buffering)
               const SizedBox(
@@ -272,129 +322,56 @@ class _VideoPlayerViewState extends ConsumerState<VideoPlayerView> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
 
-            // Bottom control bar; a click on it stays on it.
-            Positioned(
-              left: OcSpace.s16,
-              right: OcSpace.s16,
-              bottom: OcSpace.s16,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {},
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: OcSpace.s12,
-                    vertical: OcSpace.s8,
+            if (widget.pip case final pip?)
+              Positioned.fill(
+                child: widget.frameControls(
+                  PipControls(
+                    actions: pip,
+                    playing: playback.playing,
+                    positionMs: currentPosMs,
+                    durationMs: durationMs,
+                    volume: _volume,
+                    muted: _muted,
+                    onTogglePlay: _togglePlay,
+                    onToggleMute: _toggleMute,
+                    onVolume: _onVolumeChanged,
+                    onSeekStart: _seekStart,
+                    onSeek: _seekMove,
+                    onSeekEnd: _seekEnd,
                   ),
-                  decoration: BoxDecoration(
-                    color: colors.scrim.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(OcRadius.bubble),
-                    border: Border.all(
-                      color: colors.border.withValues(alpha: 0.3),
+                ),
+              )
+            else
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: VideoBar.bottom,
+                child: Center(
+                  child: widget.frameControls(
+                    VideoBar(
+                      playing: playback.playing,
+                      positionMs: currentPosMs,
+                      durationMs: durationMs,
+                      volume: _volume,
+                      muted: _muted,
+                      onTogglePlay: _togglePlay,
+                      onToggleMute: _toggleMute,
+                      fullScreen: widget.fullScreen,
+                      onFullScreen: widget.onFullScreen,
+                      onPip: switch (widget.onPip) {
+                        final onPip? => () => onPip(aspectRatio),
+                        null => null,
+                      },
+                      speed: _speed,
+                      onSpeed: _nextSpeed,
+                      onVolume: _onVolumeChanged,
+                      onSeekStart: _seekStart,
+                      onSeek: _seekMove,
+                      onSeekEnd: _seekEnd,
                     ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Seek slider
-                      SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 3,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 6,
-                          ),
-                          activeTrackColor: colors.text,
-                          inactiveTrackColor: colors.textSecondary.withValues(
-                            alpha: 0.4,
-                          ),
-                          thumbColor: colors.text,
-                        ),
-                        child: Slider(
-                          value: durationMs > 0
-                              ? currentPosMs.toDouble().clamp(
-                                  0.0,
-                                  durationMs.toDouble(),
-                                )
-                              : 0.0,
-                          max: durationMs > 0 ? durationMs.toDouble() : 1.0,
-                          onChangeStart: (v) {
-                            setState(() {
-                              _draggingSeek = true;
-                              _dragPositionMs = v;
-                            });
-                          },
-                          onChanged: (v) {
-                            setState(() {
-                              _dragPositionMs = v;
-                            });
-                          },
-                          onChangeEnd: (v) {
-                            setState(() {
-                              _draggingSeek = false;
-                            });
-                            ref
-                                .read(playbackProvider.notifier)
-                                .seek(_item, v.toInt());
-                          },
-                        ),
-                      ),
-
-                      Row(
-                        children: [
-                          // Play/Pause
-                          OcIconButton(
-                            icon: playback.playing
-                                ? OcIcons.pause
-                                : OcIcons.playArrow,
-                            tooltip: playback.playing ? 'Pause' : 'Play',
-                            onPressed: _togglePlay,
-                          ),
-                          const SizedBox(width: OcSpace.s8),
-
-                          // m:ss / m:ss
-                          Text(
-                            '${formatDurationMs(currentPosMs)} / ${formatDurationMs(durationMs)}',
-                            style: OcText.small.copyWith(color: colors.text),
-                          ),
-
-                          const Spacer(),
-
-                          // Mute toggle
-                          OcIconButton(
-                            icon: _muted || _volume == 0
-                                ? OcIcons.volumeOff
-                                : OcIcons.volumeUp,
-                            size: OcIconButtonSize.compact,
-                            tooltip: _muted ? 'Unmute' : 'Mute',
-                            onPressed: _toggleMute,
-                          ),
-
-                          // Volume slider
-                          SizedBox(
-                            width: 80,
-                            child: SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                trackHeight: 3,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 5,
-                                ),
-                                activeTrackColor: colors.text,
-                                inactiveTrackColor: colors.textSecondary
-                                    .withValues(alpha: 0.4),
-                                thumbColor: colors.text,
-                              ),
-                              child: Slider(
-                                value: _muted ? 0.0 : _volume,
-                                onChanged: _onVolumeChanged,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

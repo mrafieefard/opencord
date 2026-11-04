@@ -29,7 +29,6 @@ PrivateContact _contact({
   int unread = 0,
 }) => PrivateContact(
   peer: peer,
-  fingerprint: 'AAAA-BBBB-CCCC-DDDD',
   name: name,
   friend: FriendStatus.friends,
   conversation: conversation,

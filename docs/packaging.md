@@ -32,12 +32,14 @@ V4L2 cameras without the camera portal would need `--device=all`; the camera por
 
 The release is a universal (x86_64 and arm64) `Opencord.app`, zipped, needing macOS 13 (D34).
 
+- **Carried:** the five FFmpeg 9.0.2 LGPL dylibs (avcodec, avformat, avutil, swresample, swscale; 18 MB, universal) in `Contents/Frameworks`, with static dav1d 1.5.4 (BSD-2) in libavcodec and FFmpeg's licence as `Resources/FFMPEG-LICENSE.txt`. They decode only, for the media player; calls use VideoToolbox (D89). Built by `app/tool/macos/build_ffmpeg.sh`; the app builds with `FFMPEG_DIR` pointing at its result.
+
 - **Usage strings** (`app/macos/Runner/Info.plist`), which macOS shows when it asks:
   - microphone: "Opencord uses your microphone in voice channels.";
   - camera: "Opencord uses your camera when you turn it on in a voice channel.";
   - other apps' sound: "Opencord records other apps' sound when you share your screen with sound."
   - Screen recording and Input Monitoring have no usage string; macOS asks with its own words when a share starts and when the first keybind is set.
-- **Entitlements** (`Release.entitlements`): the app sandbox, `device.audio-input`, `device.camera`, `network.client` and `network.server` (the sandbox stops voice's UDP socket without it), and read-only access to files the user picks (sound uploads).
+- **Entitlements** (`Release.entitlements`): the app sandbox, `device.audio-input`, `device.camera`, `network.client` and `network.server` (the sandbox stops voice's UDP socket without it), read and write access to files the user picks (uploads, and Download's save panel), and to Downloads (the media viewer saves there without asking).
 - **Not done:**
   - **Signing and notarization.** The release is signed ad hoc and not notarized: the first launch needs System Settings → Privacy & Security → Open Anyway, and macOS asks for every permission again after each update. A Developer ID certificate, notarization in CI and the hardened runtime fix both; that is the owner's decision (it costs an Apple Developer membership).
   - **The hardened runtime** (`ENABLE_HARDENED_RUNTIME`) is off. It goes with the Developer ID signature: under an ad hoc signature, its library validation may refuse the app's own embedded frameworks, which has to be checked on a Mac before turning it on. With it on, the same `device.audio-input` and `device.camera` entitlements serve it.

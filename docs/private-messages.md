@@ -20,12 +20,23 @@ All message bodies, edits, deletions, relay move notifications, and acceptance s
 - **Multi-device fan-out:** A sender encrypts an outgoing message individually for every verified device belonging to the recipient, as well as for each of the sender's other registered devices.
 - **Session management:** Clients maintain up to 5 active Olm sessions per peer identity key (`PeerSessions`), pruning oldest inactive sessions.
 
-### Identity and device verification
+### Chat keys, apart from the identity key
 
-- **Root identity:** Each user is identified across servers by their root Ed25519 identity key.
-- **Device keys:** Each device generates its own Curve25519 (for Olm Diffie-Hellman exchanges) and Ed25519 (for signing prekeys) key pair.
-- **Device signatures:** When registering, the device presents a 64-byte Ed25519 signature from the user's root identity key over `device_payload` (`"opencord-device-v1"` || `device_id` || `curve25519` || `ed25519`). Clients reject any device key bundle not signed by the peer's root identity.
+Design: `docs/superpowers/specs/2026-11-01-private-message-keys-design.md` (D84).
+
+- **The identity key** identifies a person on every server and signs them in. It has nothing to do with who can read private messages: stealing it lets someone sign in as you, not read your chats.
+- **The chat key:** each person has an Ed25519 chat key, made on their first device and kept sealed in the private database. Its private half never reaches a server; it moves from one of your devices to another only inside an Olm message, after you compared words on both (`ChatKeyShare`).
+- **Device keys:** each device generates its own Curve25519 (for Olm Diffie-Hellman exchanges) and Ed25519 (for signing prekeys) key pair. The chat key signs them over `"opencord-device-v2"` || `device_id` || `curve25519` || `ed25519`, and every listing carries the chat key (`DeviceKeys.chat_key`). A server checks only that the signature matches the chat key named; apps decide which chat keys they trust.
+- **Whose key you trust:** each contact has one pinned chat key on your device, the one on most of their devices the first time you talk. Only their devices signed by it get your messages; any other is held, listed in `SendPrivateMessage.withheld`, and what it sends shows as *"A message from keys you haven't accepted."*
+- **Your own devices:** copies of your messages go only to your devices signed by your chat key. A device signed in as you with another key shows a notice on your other devices (**Approve** / **Not mine**); approving compares 16 pairing words on both devices and hands it the chat key.
 - **Prekeys:** Devices upload one-time Curve25519 prekeys and a fallback prekey, signed by the device's Ed25519 key over `prekey_payload` (`"opencord-prekey-v1"` || `device_id` || `key` || `fallback`). Fallback prekeys are rotated every 30 days (`FALLBACK_ROTATION_MS`).
+
+### Comparing words
+
+- The lock in a chat's header opens **End-to-end encryption**: 16 words in a 4×4 grid, made from your chat key and theirs (SHA-512 of `"opencord-words-v1"` and the two keys in byte order; 11 bits per word from the BIP-39 English list, `bitcoin/bips` `bip-0039/english.txt`). You both see the same words exactly when each app holds the other's real chat key.
+- **They match** marks the chat verified (the lock becomes a shield); it stays verified until either chat key changes. **They don't match** shows a warning and asks you not to send anything private.
+- **When their key changes** (a reinstall, or a thief or a server trying something), a banner says so. Nothing goes to the new key until you **Compare words** or **Use new keys anyway**; with none of their trusted devices left, you can't send at all. Whichever you pick, the old key's devices get nothing more.
+- A new device of theirs signed by the same key needed their own approval on another device, so it's trusted at once: the chat shows *"Name signed in on a new device."*
 
 ### What servers see, and what they cannot do
 
@@ -40,7 +51,7 @@ All message bodies, edits, deletions, relay move notifications, and acceptance s
 - **What servers cannot do:**
   - Read message content, edits, deletions, or relay move notices.
   - Forge messages from a device or alter message payloads without detection.
-  - Register rogue devices on behalf of a user (the device must be signed by the user's root identity key).
+  - Make your app send to a device it made up: a device under a chat key you haven't accepted is held, and the chat says the keys changed.
   - Impersonate a user or fabricate friendships.
 - **What servers can do:**
   - Servers can drop, delay, or reorder deliveries, or refuse to relay.
@@ -134,6 +145,7 @@ Each identity stores private conversations and cryptographic keys in a local SQL
 
 ### Key management and sealing
 
+- **Chat key:** this person's chat key (§ Chat keys) is kept in the `chat_key` table, its private half sealed with the `seal` key under the label `chat_key.secret`. A chat key another device offered waits sealed in `own_devices` until **They match**.
 - **Master key:** A 32-byte cryptographically secure random key generated via `Random.secure()` and stored in the system keychain via `FlutterSecureStorage` under `opencord.private.key` (or profile-isolated `opencord.<profile>.private.key`).
 - **Key derivation:** Two 32-byte keys are derived via HMAC-SHA256 from the master key:
   - `pickle` key (label `b"opencord-private-pickle-v1"`): encrypts vodozemac account and Olm session states.
@@ -197,10 +209,19 @@ You can test private messages end-to-end on a single development machine using t
    OPENCORD_PROFILE=alice-laptop flutter run -d linux
    ```
 2. In `alice-laptop`, restore or import Alice's identity secret.
-3. Send a message from Bob to Alice.
-4. Both Alice's main instance and `alice-laptop` receive and decrypt the message.
-5. Send a reply from `alice-laptop` to Bob.
-6. The outgoing message appears on both `alice-laptop` and Alice's main instance as a sent copy, and on Bob's app.
+3. Before approving: send a message from Bob to Alice. Only Alice's main instance gets it; Bob's chat says Alice's keys changed. Alice's main instance shows *"A device signed in as you with different keys."* on the Friends page.
+4. On Alice's main instance click **Approve**; check `alice-laptop` shows the same 16 words when it offers **Compare words**; tap **They match** on both.
+5. Send a message from Bob to Alice.
+6. Both Alice's main instance and `alice-laptop` receive and decrypt the message; Bob's chat shows *"Alice signed in on a new device."*
+7. Send a reply from `alice-laptop` to Bob.
+8. The outgoing message appears on both `alice-laptop` and Alice's main instance as a sent copy, and on Bob's app.
+
+### Scenario 3b: Comparing words, and a stolen identity
+
+1. In Alice's chat with Bob and in Bob's chat with Alice, click the lock. Both show the same 16 words. Tap **They match** on both; the lock becomes a shield.
+2. Start a third profile with Alice's identity imported (`OPENCORD_PROFILE=thief`), and don't approve it.
+3. Bob writes to Alice: only Alice's approved devices get it, and Bob's chat says Alice's keys changed, offering **Compare words** and **Use new keys anyway**. The thief's profile shows nothing.
+4. The thief writes to Bob: Bob's chat shows *"A message from keys you haven't accepted."*, not the text.
 
 ### Scenario 4: Moving a chat and Move too
 

@@ -105,6 +105,40 @@ fn opens_and_reports_duration_and_size() {
 }
 
 #[test]
+fn at_2x_it_plays_to_the_end_in_half_the_time() {
+    if !supported() {
+        return;
+    }
+    let file = std::fs::File::open(fixture_path("h264_aac.mp4")).expect("open fixture");
+    let (event_tx, event_rx) = std::sync::mpsc::channel();
+    let audio = Box::new(RealTimeAudioOut::new(2880));
+    let player = MediaPlayer::open(Box::new(file), None, audio, move |event| {
+        let _ = event_tx.send(event);
+    })
+    .expect("media player open");
+
+    let start = Instant::now();
+    player.set_speed(2.0);
+    player.play();
+    let mut last_position = 0;
+    loop {
+        match event_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("event")
+        {
+            PlayerEvent::Ended => break,
+            PlayerEvent::Failed(reason) => panic!("playback failed: {reason}"),
+            PlayerEvent::Position { position_ms, .. } => last_position = position_ms,
+            _ => {}
+        }
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    // The 2 s file in about a second; the position in the file's own time.
+    assert!((0.8..=1.25).contains(&elapsed), "elapsed {elapsed} s");
+    assert!(last_position >= 1_700, "last position {last_position} ms");
+}
+
+#[test]
 fn plays_to_the_end_in_real_time() {
     if !supported() {
         return;
@@ -398,7 +432,7 @@ fn probe_and_poster_makes_a_jpeg() {
 }
 
 /// What Task 32 builds FFmpeg with: CI runs this against that build.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 #[test]
 fn the_planned_decoders_are_there() {
     if !supported() {

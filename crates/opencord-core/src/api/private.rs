@@ -5,8 +5,8 @@ use crate::frb_generated::StreamSink;
 
 use super::client::{client, on_runtime, runtime};
 use super::types::{
-    CoreError, PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened,
-    PrivateSettings, SharedServer,
+    CoreError, KeyWords, OwnDevice, PrivacySettingsData, PrivateContact, PrivateEvent,
+    PrivateMessage, PrivateOpened, PrivateSettings, SharedServer,
 };
 
 /// Opens private messages for the identity using the master key from the
@@ -161,4 +161,80 @@ pub async fn private_set_muted(peer: String, muted: bool) -> Result<(), CoreErro
 
 pub async fn private_hide(peer: String) -> Result<(), CoreError> {
     on_runtime(move |client| async move { client.private_hide(&peer).await }).await
+}
+
+// Chat keys (design 2026-11-01).
+
+/// This person's other devices with chat keys of their own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnDevices {
+    pub devices: Vec<OwnDevice>,
+    /// This device has private chats.
+    pub has_chats: bool,
+}
+
+/// The 16 words for the chat with `peer` and the keys they were made from;
+/// with `new_keys`, for the other chat key their devices offer.
+pub async fn private_words(peer: String, new_keys: bool) -> Result<KeyWords, CoreError> {
+    on_runtime(move |client| async move { client.private_words(&peer, new_keys).await }).await
+}
+
+/// They match or They don't match, for the chat with `peer`, on the words
+/// made from `keys`.
+pub async fn private_verify(
+    peer: String,
+    new_keys: bool,
+    matched: bool,
+    keys: String,
+) -> Result<(), CoreError> {
+    on_runtime(
+        move |client| async move { client.private_verify(&peer, new_keys, matched, &keys).await },
+    )
+    .await
+}
+
+/// Use new keys anyway.
+pub async fn private_accept_new_keys(peer: String) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.private_accept_new_keys(&peer).await }).await
+}
+
+pub async fn private_own_devices() -> Result<OwnDevices, CoreError> {
+    on_runtime(move |client| async move {
+        let (devices, has_chats) = client.private_own_devices().await?;
+        Ok(OwnDevices { devices, has_chats })
+    })
+    .await
+}
+
+/// The 16 words this device and `device_id` both show, and the keys they
+/// were made from.
+pub async fn private_pairing_words(device_id: String) -> Result<KeyWords, CoreError> {
+    on_runtime(move |client| async move { client.private_pairing_words(&device_id).await }).await
+}
+
+/// They match, on the device giving its chat key to `device_id`, on the
+/// words made from `keys`.
+pub async fn private_approve_device(device_id: String, keys: String) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.private_approve_device(&device_id, &keys).await })
+        .await
+}
+
+/// They match or They don't match, for the chat key `device_id` offered, on
+/// the words made from `keys`.
+pub async fn private_accept_keys_from(
+    device_id: String,
+    matched: bool,
+    keys: String,
+) -> Result<(), CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .private_accept_keys_from(&device_id, matched, &keys)
+            .await
+    })
+    .await
+}
+
+/// Not mine.
+pub async fn private_reject_device(device_id: String) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.private_reject_device(&device_id).await }).await
 }

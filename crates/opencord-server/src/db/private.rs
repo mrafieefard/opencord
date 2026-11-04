@@ -141,6 +141,7 @@ pub struct DeviceRow {
     pub curve25519: Vec<u8>,
     pub ed25519: Vec<u8>,
     pub signature: Vec<u8>,
+    pub chat_key: Vec<u8>,
     pub fallback_key: Vec<u8>,
     pub fallback_signature: Vec<u8>,
 }
@@ -152,7 +153,8 @@ pub async fn device(
 ) -> Result<Option<DeviceRow>, sqlx::Error> {
     sqlx::query_as!(
         DeviceRow,
-        "SELECT device_id, curve25519, ed25519, signature, fallback_key, fallback_signature
+        "SELECT device_id, curve25519, ed25519, signature, chat_key, fallback_key,
+                fallback_signature
          FROM private_devices WHERE user_id = $1 AND device_id = $2",
         user_id,
         device_id
@@ -168,7 +170,8 @@ pub async fn devices(
 ) -> Result<Vec<DeviceRow>, sqlx::Error> {
     sqlx::query_as!(
         DeviceRow,
-        "SELECT device_id, curve25519, ed25519, signature, fallback_key, fallback_signature
+        "SELECT device_id, curve25519, ed25519, signature, chat_key, fallback_key,
+                fallback_signature
          FROM private_devices WHERE user_id = $1 ORDER BY created_at, rowid",
         user_id
     )
@@ -209,12 +212,14 @@ pub async fn upsert_device(
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO private_devices (user_id, device_id, curve25519, ed25519, signature,
-                                      fallback_key, fallback_signature, created_at, last_seen_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+                                      chat_key, fallback_key, fallback_signature, created_at,
+                                      last_seen_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
          ON CONFLICT (user_id, device_id) DO UPDATE SET
              curve25519 = excluded.curve25519,
              ed25519 = excluded.ed25519,
              signature = excluded.signature,
+             chat_key = excluded.chat_key,
              fallback_key = excluded.fallback_key,
              fallback_signature = excluded.fallback_signature,
              last_seen_at = excluded.last_seen_at",
@@ -223,6 +228,7 @@ pub async fn upsert_device(
         device.curve25519,
         device.ed25519,
         device.signature,
+        device.chat_key,
         device.fallback_key,
         device.fallback_signature,
         now_ms

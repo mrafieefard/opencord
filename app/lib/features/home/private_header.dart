@@ -1,75 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/home/encryption_dialog.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/members/member_avatar.dart';
+import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
-import 'package:opencord/ui/widgets/oc_button.dart';
-import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popup_route.dart';
-import 'package:opencord/ui/widgets/toast.dart';
 
 /// Top header in a private conversation (§6.3).
 class PrivateHeader extends ConsumerWidget {
-  const PrivateHeader({super.key, required this.peer});
+  const PrivateHeader({
+    super.key,
+    required this.peer,
+    this.leadingControls = false,
+    this.trailingControls = false,
+  });
 
   final String peer;
-
-  void _showFingerprint(BuildContext context, String name, String fingerprint) {
-    final colors = context.oc;
-    showOcDialog<void>(
-      context: context,
-      builder: (context) => OcDialog(
-        title: 'End-to-end encryption',
-        actions: [
-          OcButton.primary(
-            label: 'Done',
-            autofocus: true,
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Only you and $name can read these messages.'),
-            const SizedBox(height: OcSpace.s12),
-            Row(
-              children: [
-                Expanded(
-                  child: SelectableText(
-                    fingerprint.replaceAll('-', ' '),
-                    style: OcText.mono.copyWith(color: colors.text),
-                  ),
-                ),
-                OcIconButton(
-                  icon: OcIcons.contentCopy,
-                  tooltip: 'Copy fingerprint',
-                  size: OcIconButtonSize.compact,
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: fingerprint));
-                    showOcToast(context, 'Fingerprint copied');
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  final bool leadingControls;
+  final bool trailingControls;
 
   void _showRelayMenu(
     BuildContext context,
@@ -113,6 +74,8 @@ class PrivateHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     final contact = ref.watch(privateContactsProvider).byPeer[peer];
+    final verification =
+        contact?.verification ?? PrivateVerification.unverified;
     final name = ref.watch(contactNameProvider(peer));
     final presence = ref.watch(contactPresenceProvider(peer));
     final sharedServers = ref.watch(sharedServersProvider(peer));
@@ -146,47 +109,59 @@ class PrivateHeader extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          height: 60,
+        HeaderBar(
+          leadingControls: leadingControls,
+          trailingControls: trailingControls,
           padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: colors.border)),
-          ),
           child: Row(
             children: [
               ContactAvatar(peer: peer, presence: presence),
               const SizedBox(width: OcSpace.s12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      name,
-                      style: OcText.header.copyWith(color: colors.text),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      presenceLabel,
-                      style: OcText.small.copyWith(color: colors.textMuted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                child: IgnorePointer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        name,
+                        style: OcText.header.copyWith(color: colors.text),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        presenceLabel,
+                        style: OcText.small.copyWith(color: colors.textMuted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
-              // End-to-end encryption lock button (§6.3)
+              // End-to-end encryption (design 2026-11-01 §9.3)
               OcIconButton(
-                icon: OcIcons.lock,
-                tooltip:
-                    'End-to-end encrypted. Only you and $name can read these messages.',
-                onPressed: () => _showFingerprint(
-                  context,
-                  name,
-                  contact?.fingerprint ?? peer,
-                ),
+                icon: switch (verification) {
+                  PrivateVerification.unverified => OcIcons.lock,
+                  PrivateVerification.verified => OcIcons.verifiedUser,
+                  PrivateVerification.mismatch => OcIcons.warning,
+                },
+                color: switch (verification) {
+                  PrivateVerification.unverified => null,
+                  PrivateVerification.verified => colors.accent,
+                  PrivateVerification.mismatch => colors.recording,
+                },
+                tooltip: switch (verification) {
+                  PrivateVerification.unverified =>
+                    'End-to-end encrypted. Not verified: compare the words with $name.',
+                  PrivateVerification.verified =>
+                    'End-to-end encrypted. Verified with $name.',
+                  PrivateVerification.mismatch =>
+                    "End-to-end encrypted. The words didn't match.",
+                },
+                onPressed: () =>
+                    showEncryptionDialog(context, ref, peer: peer, name: name),
               ),
 
               const SizedBox(width: OcSpace.s8),

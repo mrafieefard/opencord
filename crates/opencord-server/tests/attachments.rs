@@ -39,6 +39,9 @@ async fn room() -> Room {
 #[tokio::test]
 async fn create_upload_checks_permissions_and_size() {
     let Room {
+        // Kept for the whole test: dropped, it deletes the server's database
+        // folder, and the next database connection can't open.
+        server: _server,
         mut owner,
         mut member,
         everyone,

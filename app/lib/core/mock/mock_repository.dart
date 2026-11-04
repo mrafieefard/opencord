@@ -85,6 +85,12 @@ class MockRepository implements OpencordRepository {
   void emit(RepoEvent event) => _emit(event);
   RepoException? _privateUnavailable;
   var _privateStartedFresh = false;
+  var _privateKeysReset = false;
+
+  void debugSetPrivateKeysReset(bool value) {
+    _privateKeysReset = value;
+    _emit(const PrivateStateChanged());
+  }
 
   void debugSetPrivateUnavailable(RepoException? error) {
     _privateUnavailable = error;
@@ -350,6 +356,10 @@ class MockRepository implements OpencordRepository {
       ),
     );
   }
+
+  /// A channel's messages as the server holds them, oldest first.
+  List<Message> debugMessages(String serverKey, int channelId) =>
+      List.unmodifiable(_server(serverKey).messages[channelId] ?? const []);
 
   /// A message from someone other than the current user.
   void debugPostAs(
@@ -3779,6 +3789,24 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceConnectionChanged(session.server, channelId, _connected));
   }
 
+  /// As another of the user's devices would: takes the call over.
+  void debugVoiceElsewhere() {
+    final session = _voice;
+    if (session == null) return;
+    _leaveVoiceNow();
+    _emit(OwnVoiceChanged(session.server, null, elsewhere: true));
+  }
+
+  /// As the core would when getting back into the call after a fresh
+  /// session is refused, for [message].
+  void debugRejoinRefused(String message) {
+    final session = _voice;
+    if (session == null) return;
+    _leaveVoiceNow();
+    _emit(VoiceRejoinFailed(session.server, session.channel, message));
+    _emit(OwnVoiceChanged(session.server, null));
+  }
+
   static const _connected = VoiceConnectionStatus(
     VoiceConnectionPhase.connected,
   );
@@ -5041,6 +5069,14 @@ class MockRepository implements OpencordRepository {
     if (_media != null) lastMediaVolume = (volume, muted);
   }
 
+  /// Every speed asked for, in order.
+  final mediaSpeeds = <double>[];
+
+  @override
+  void mediaSetSpeed(double speed) {
+    if (_media != null) mediaSpeeds.add(speed);
+  }
+
   @override
   void mediaClose() {
     if (_media == null) return;
@@ -5063,6 +5099,14 @@ class MockRepository implements OpencordRepository {
   @override
   void acknowledgePrivateStartedFresh() {
     _privateStartedFresh = false;
+  }
+
+  @override
+  bool get privateKeysReset => _privateKeysReset;
+
+  @override
+  void acknowledgePrivateKeysReset() {
+    _privateKeysReset = false;
   }
 
   @override
@@ -5187,6 +5231,50 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> hideConversation(String peer) =>
       _privateWorld.hideConversation(peer);
+
+  @override
+  Future<KeyWords> privateWords(String peer, {bool newKeys = false}) =>
+      _privateWorld.privateWords(peer, newKeys: newKeys);
+
+  @override
+  Future<void> verifyPrivate(
+    String peer, {
+    required bool matched,
+    required String keys,
+    bool newKeys = false,
+  }) => _privateWorld.verifyPrivate(
+    peer,
+    matched: matched,
+    keys: keys,
+    newKeys: newKeys,
+  );
+
+  @override
+  Future<void> acceptNewPrivateKeys(String peer) =>
+      _privateWorld.acceptNewPrivateKeys(peer);
+
+  @override
+  Future<({List<OwnDevice> devices, bool hasChats})> ownDevices() =>
+      _privateWorld.listOwnDevices();
+
+  @override
+  Future<KeyWords> pairingWords(String deviceId) =>
+      _privateWorld.pairingWords(deviceId);
+
+  @override
+  Future<void> approveOwnDevice(String deviceId, {required String keys}) =>
+      _privateWorld.approveOwnDevice(deviceId, keys: keys);
+
+  @override
+  Future<void> acceptKeysFrom(
+    String deviceId, {
+    required bool matched,
+    required String keys,
+  }) => _privateWorld.acceptKeysFrom(deviceId, matched: matched, keys: keys);
+
+  @override
+  Future<void> rejectOwnDevice(String deviceId) =>
+      _privateWorld.rejectOwnDevice(deviceId);
 }
 
 /// [domain] with some fields changed.

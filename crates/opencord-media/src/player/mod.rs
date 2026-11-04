@@ -1,18 +1,20 @@
 //! Plays a video or audio file from any `Read + Seek` source (media uploads
-//! plan, Task 33): FFmpeg on Linux and Windows, nothing elsewhere yet.
+//! plan, Task 33): FFmpeg on Linux, macOS and Windows, nothing elsewhere.
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 mod decode;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 mod ffmpeg;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 mod sync;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+mod tempo;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 pub use self::ffmpeg::*;
 
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 mod unsupported;
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 pub use self::unsupported::*;
 
 pub trait MediaSource: std::io::Read + std::io::Seek + Send + 'static {}

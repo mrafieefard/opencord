@@ -3,6 +3,7 @@
 #include <flutter_linux/flutter_linux.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "media_window.h"
 #include "window_channel.h"
 
 struct _MyApplication {
@@ -33,6 +34,8 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->window = window;
   gtk_window_set_title(window, "Opencord");
+  // Before the view: its close handler would otherwise run first and quit.
+  window_channel_watch_close(window);
 
   // Decorations and the RGBA visual (for the custom frame's rounded corners
   // and shadow) have to be set before the window is realized
@@ -44,8 +47,8 @@ static void my_application_activate(GApplication* application) {
     gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
   }
 
-  const WindowChrome chrome = window_chrome_at_startup();
-  if (chrome != WindowChrome::kSystem) gtk_window_set_decorated(window, FALSE);
+  // The app draws its own title bar on every desktop.
+  gtk_window_set_decorated(window, FALSE);
   gtk_window_set_default_size(window, 1280, 800);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
@@ -65,9 +68,11 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
                            self);
   gtk_widget_realize(GTK_WIDGET(view));
+  window_channel_draw_own_frame(window);
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
-  window_channel_register(window, view, chrome);
+  window_channel_register(window, view);
+  media_window_register(window, view);
 
   // Dropped files (desktop_drop) come as a file list first. The plugin asks
   // for the document portal's transfer key first, then STRING. Plasma's

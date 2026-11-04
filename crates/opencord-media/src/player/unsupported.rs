@@ -35,6 +35,10 @@ impl MediaPlayer {
         match self.0 {}
     }
 
+    pub fn set_speed(&self, _speed: f32) {
+        match self.0 {}
+    }
+
     pub fn set_volume(&self, _volume: f32, _muted: bool) {
         match self.0 {}
     }

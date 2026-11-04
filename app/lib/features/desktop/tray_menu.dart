@@ -2,6 +2,22 @@ import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/repository/repository.dart';
 
+/// The icon's voice state: like Discord's, a ring in a voice channel that
+/// fills while you talk, and the chat bubble outside one.
+enum TrayVoice {
+  /// Not in a voice channel: the chat bubble.
+  none,
+
+  /// In voice, not talking: a ring.
+  quiet,
+
+  /// In voice and talking: a filled circle.
+  speaking,
+
+  /// In voice, muted or deafened: the ring with a slash.
+  muted,
+}
+
 /// What the tray icon shows (§15).
 @immutable
 class TrayState {
@@ -12,6 +28,7 @@ class TrayState {
     this.deafened = false,
     this.presence = SelfPresence.online,
     this.dark = true,
+    this.voice = TrayVoice.none,
   });
 
   /// Unread messages in channels that are not muted, as in the title.
@@ -23,6 +40,8 @@ class TrayState {
 
   /// The desktop is dark, so the monochrome icon is white.
   final bool dark;
+
+  final TrayVoice voice;
 
   String get tooltip {
     if (unread == 0) return 'No unread messages';
@@ -39,11 +58,12 @@ class TrayState {
       other.muted == muted &&
       other.deafened == deafened &&
       other.presence == presence &&
-      other.dark == dark;
+      other.dark == dark &&
+      other.voice == voice;
 
   @override
   int get hashCode =>
-      Object.hash(unread, mentions, muted, deafened, presence, dark);
+      Object.hash(unread, mentions, muted, deafened, presence, dark, voice);
 }
 
 /// What the tray asks the app to do.
@@ -53,13 +73,18 @@ sealed class TrayAction {
 }
 
 final class OpenWindow extends TrayAction {
-  const OpenWindow();
+  const OpenWindow({this.activationToken});
+
+  /// What the desktop gave for bringing the window forward (Wayland's
+  /// xdg-activation), when it gave one.
+  final String? activationToken;
 
   @override
-  bool operator ==(Object other) => other is OpenWindow;
+  bool operator ==(Object other) =>
+      other is OpenWindow && other.activationToken == activationToken;
 
   @override
-  int get hashCode => (OpenWindow).hashCode;
+  int get hashCode => Object.hash(OpenWindow, activationToken);
 }
 
 final class ToggleMute extends TrayAction {

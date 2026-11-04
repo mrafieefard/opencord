@@ -6,6 +6,8 @@
 
 #include <memory>
 
+#include "media_window.h"
+#include "tray_channel.h"
 #include "win32_window.h"
 #include "window_channel.h"
 
@@ -32,6 +34,12 @@ class FlutterWindow : public Win32Window {
 
   // The app-drawn title bar (desktop UI plan §3.1).
   std::unique_ptr<WindowChannel> window_channel_;
+
+  // The notification area icon and its menu (desktop UI plan §15).
+  std::unique_ptr<TrayChannel> tray_channel_;
+
+  // The media viewer's own window (D86).
+  std::unique_ptr<MediaWindowChannel> media_window_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

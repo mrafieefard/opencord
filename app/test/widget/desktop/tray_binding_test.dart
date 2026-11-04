@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/providers/voice_reconnect.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/tray.dart';
@@ -9,6 +11,8 @@ import 'package:opencord/features/desktop/tray_menu.dart';
 import '../../support/app.dart';
 import '../../support/fake_tray.dart';
 import '../../support/fake_window.dart';
+
+const _dev = 'opencord.example:7710';
 
 Future<MockApp> _pump(
   WidgetTester tester, {
@@ -63,6 +67,78 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('the tray shows whether you are in voice and talking', (
+    tester,
+  ) async {
+    final tray = FakeTray();
+    final app = await _pump(tester, tray: tray);
+    await tester.pump();
+    expect(tray.shown.last.voice, TrayVoice.none);
+
+    final channel = app
+        .read(serverProvider(_dev))
+        .data!
+        .channels
+        .values
+        .firstWhere((channel) => channel.name == 'General')
+        .id;
+    await app.read(voiceSessionProvider.notifier).join(_dev, channel);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tray.shown.last.voice, TrayVoice.quiet);
+
+    final me = app.read(serverProvider(_dev)).data!.self.id;
+    app.read(speakingProvider(_dev).notifier).set({me});
+    await tester.pump();
+    expect(tray.shown.last.voice, TrayVoice.speaking);
+
+    await app.read(voiceSessionProvider.notifier).toggleMute();
+    await tester.pump();
+    expect(tray.shown.last.voice, TrayVoice.muted);
+
+    await app.read(voiceSessionProvider.notifier).leave();
+    await tester.pump();
+    expect(tray.shown.last.voice, TrayVoice.none);
+    // Leaving's own timers run out.
+    await tester.pump(const Duration(seconds: 1));
+    await app.dispose(tester);
+  });
+
+  testWidgets('quitting in a call forgets it, so no reconnect is offered', (
+    tester,
+  ) async {
+    final tray = FakeTray();
+    final app = await _pump(tester, tray: tray, window: FakeNativeWindow());
+    final server = app.repository.servers.first.key;
+    final voice = app
+        .read(serverProvider(server))
+        .data!
+        .channels
+        .values
+        .firstWhere((channel) => channel.kind == ChannelKind.voice);
+    await app.read(voiceSessionProvider.notifier).join(server, voice.id);
+    await tester.pump();
+    expect(app.store.read(lastCallKey), isNotNull);
+
+    tray.click(const QuitApp());
+    await tester.pump();
+
+    expect(app.store.read(lastCallKey), isNull);
+    await tester.pump(const Duration(seconds: 1));
+    await app.dispose(tester);
+  });
+
+  testWidgets('a click on the icon brings the window forward', (tester) async {
+    final tray = FakeTray();
+    final window = FakeNativeWindow();
+    final app = await _pump(tester, tray: tray, window: window);
+
+    tray.click(const OpenWindow(activationToken: 'token-1'));
+    await tester.pump();
+
+    expect(window.calls, contains('show:token-1'));
+    await app.dispose(tester);
+  });
+
   group('closing the window', () {
     testWidgets('hides it to the tray when there is one', (tester) async {
       final window = FakeNativeWindow();
@@ -76,7 +152,8 @@ void main() {
       await app.dispose(tester);
     });
 
-    testWidgets('quits when no tray shows the icon', (tester) async {
+    // Launching the app again brings the hidden window back.
+    testWidgets('keeps running in the background with no tray', (tester) async {
       final window = FakeNativeWindow();
       final app = await _pump(
         tester,
@@ -87,8 +164,8 @@ void main() {
       window.closeEvents.add(null);
       await tester.pump();
 
-      expect(window.calls, contains('quit'));
-      expect(window.calls, isNot(contains('hide')));
+      expect(window.calls, contains('hide'));
+      expect(window.calls, isNot(contains('quit')));
       await app.dispose(tester);
     });
 
@@ -121,10 +198,12 @@ void main() {
         closeToTray: false,
       );
 
+      app.store.write(lastCallKey, '{"server": "a.example", "channel": 7}');
       window.closeEvents.add(null);
       await tester.pump();
 
       expect(window.calls, contains('quit'));
+      expect(app.store.read(lastCallKey), isNull);
       await app.dispose(tester);
     });
   });

@@ -13,7 +13,6 @@ constexpr int kTiled = GDK_WINDOW_STATE_TILED | GDK_WINDOW_STATE_TOP_TILED |
                        GDK_WINDOW_STATE_LEFT_TILED;
 
 struct WindowChannel {
-  WindowChrome chrome = WindowChrome::kCustom;
   GtkWindow* window = nullptr;
   FlView* view = nullptr;
   FlMethodChannel* channel = nullptr;
@@ -135,9 +134,11 @@ gboolean on_configure(GtkWidget*, GdkEventConfigure* event, gpointer data) {
   return FALSE;
 }
 
-gboolean on_delete(GtkWidget*, GdkEvent*, gpointer data) {
-  auto* self = static_cast<WindowChannel*>(data);
-  if (!self->intercept_close) return FALSE;
+gboolean on_delete(GtkWidget*, GdkEvent*, gpointer) {
+  // Not intercepting (quitting, or before the app configured the window):
+  // Flutter's own handler asks the app to exit.
+  WindowChannel* self = channel_state;
+  if (self == nullptr || !self->intercept_close) return FALSE;
   send(self, "closeRequested", nullptr);
   return TRUE;
 }
@@ -179,18 +180,6 @@ bool visible_on_some_monitor(GdkDisplay* display, int x, int y, int width,
   return false;
 }
 
-const char* chrome_name(WindowChrome chrome) {
-  switch (chrome) {
-    case WindowChrome::kCustom:
-      return "custom";
-    case WindowChrome::kSystem:
-      return "system";
-    case WindowChrome::kBare:
-      return "bare";
-  }
-  return "custom";
-}
-
 // Applies the app's startup settings. Sizes are of the visible window; on
 // the custom frame the transparent margin is added around them.
 FlValue* configure(WindowChannel* self, FlValue* args) {
@@ -201,7 +190,7 @@ FlValue* configure(WindowChannel* self, FlValue* args) {
   const bool transparent = gtk_widget_get_visual(GTK_WIDGET(self->window)) ==
                                gdk_screen_get_rgba_visual(screen) &&
                            gdk_screen_is_composited(screen);
-  const bool frame = self->chrome == WindowChrome::kCustom && transparent;
+  const bool frame = transparent;
   self->frame_margin = frame ? int_arg(args, "frameMargin", 0) : 0;
   self->resize_band = frame ? int_arg(args, "resizeBand", 0) : 0;
   const int margin = self->frame_margin;
@@ -245,7 +234,7 @@ FlValue* configure(WindowChannel* self, FlValue* args) {
   g_autofree gchar* layout = decoration_layout();
   FlValue* info = fl_value_new_map();
   fl_value_set_string_take(info, "chrome",
-                           fl_value_new_string(chrome_name(self->chrome)));
+                           fl_value_new_string("custom"));
   fl_value_set_string_take(info, "transparent", fl_value_new_bool(transparent));
   fl_value_set_string_take(info, "frameMargin", fl_value_new_int(margin));
   fl_value_set_string_take(info, "wayland",
@@ -339,6 +328,13 @@ void method_call_cb(FlMethodChannel*, FlMethodCall* call, gpointer data) {
   } else if (strcmp(method, "hide") == 0) {
     gtk_widget_hide(GTK_WIDGET(self->window));
   } else if (strcmp(method, "show") == 0) {
+    // A tray click on Wayland comes with an xdg-activation token (KDE sends
+    // it through ProvideXdgActivationToken); without it the compositor
+    // won't bring the window forward.
+    if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_STRING) {
+      gtk_window_set_startup_id(self->window, fl_value_get_string(args));
+    }
+    gtk_widget_show(GTK_WIDGET(self->window));
     gtk_window_present(self->window);
   } else if (strcmp(method, "setUrgent") == 0 &&
              fl_value_get_type(args) == FL_VALUE_TYPE_BOOL) {
@@ -354,43 +350,10 @@ void method_call_cb(FlMethodChannel*, FlMethodCall* call, gpointer data) {
 
 }  // namespace
 
-WindowChrome window_chrome_at_startup() {
-  g_autofree gchar* path = g_build_filename(g_get_user_data_dir(),
-                                            APPLICATION_ID, "window-chrome",
-                                            nullptr);
-  // The user's choice; Auto (or anything else) is settled here, for the
-  // desktop this start finds.
-  g_autofree gchar* saved = nullptr;
-  if (g_file_get_contents(path, &saved, nullptr, nullptr)) {
-    g_strstrip(saved);
-    if (strcmp(saved, "system") == 0) return WindowChrome::kSystem;
-    if (strcmp(saved, "custom") == 0) return WindowChrome::kCustom;
-  }
-  static const char* const tiling[] = {"hyprland", "sway", "i3",  "river",
-                                       "niri",     "bspwm", "dwm"};
-  g_autofree gchar* desktop =
-      g_ascii_strdown(g_getenv("XDG_CURRENT_DESKTOP") != nullptr
-                          ? g_getenv("XDG_CURRENT_DESKTOP")
-                          : "",
-                      -1);
-  g_auto(GStrv) names = g_strsplit(desktop, ":", -1);
-  bool kde = false;
-  for (gchar** name = names; *name != nullptr; name++) {
-    g_strstrip(*name);
-    for (const char* compositor : tiling) {
-      if (strcmp(*name, compositor) == 0) return WindowChrome::kBare;
-    }
-    kde = kde || strcmp(*name, "kde") == 0;
-  }
-  return kde ? WindowChrome::kSystem : WindowChrome::kCustom;
-}
-
-void window_channel_register(GtkWindow* window, FlView* view,
-                             WindowChrome chrome) {
+void window_channel_register(GtkWindow* window, FlView* view) {
   // Lives as long as the process, like the window it serves.
   static WindowChannel instance;
   WindowChannel* self = &instance;
-  self->chrome = chrome;
   self->window = window;
   self->view = view;
   channel_state = self;
@@ -407,9 +370,12 @@ void window_channel_register(GtkWindow* window, FlView* view,
   gtk_widget_add_events(GTK_WIDGET(window), GDK_STRUCTURE_MASK);
   g_signal_connect(window, "window-state-event", G_CALLBACK(on_state), self);
   g_signal_connect(window, "configure-event", G_CALLBACK(on_configure), self);
-  g_signal_connect(window, "delete-event", G_CALLBACK(on_delete), self);
   g_signal_connect(gtk_settings_get_default(), "notify::gtk-decoration-layout",
                    G_CALLBACK(on_layout_changed), self);
+}
+
+void window_channel_watch_close(GtkWindow* window) {
+  g_signal_connect(window, "delete-event", G_CALLBACK(on_delete), nullptr);
 }
 
 void window_channel_present(const gchar* link) {
@@ -420,6 +386,23 @@ void window_channel_present(const gchar* link) {
   if (link == nullptr) return;
   g_autoptr(FlValue) value = fl_value_new_string(link);
   send(self, "openLink", value);
+}
+
+GdkEvent* window_channel_last_press() {
+  return channel_state != nullptr ? channel_state->last_press : nullptr;
+}
+
+GdkWindowEdge window_channel_edge(const gchar* name) { return edge_from(name); }
+
+void window_channel_draw_own_frame(GtkWindow* window) {
+#ifdef GDK_WINDOWING_WAYLAND
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (is_wayland(window) && gdk_window != nullptr) {
+    gdk_wayland_window_announce_csd(gdk_window);
+  }
+#else
+  (void)window;
+#endif
 }
 
 bool window_channel_starts_hidden() {

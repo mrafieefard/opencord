@@ -103,9 +103,13 @@ message Ready {
   // The chat commands this user may see (Phase 3 plan §17.1).
   Commands commands = 19;
   UploadSettings upload_settings = 20;
-  // Whether this server relays private messages (design 2026-10-22).
+  // Always false: apps from before chat keys (design 2026-11-01) see
+  // private messages as off.
   bool private_messages = 21;
   PrivateSettings private_settings = 22;
+  // Whether this server relays private messages with chat keys (design
+  // 2026-11-01).
+  bool private_messages_v2 = 23;
 }
 
 // Sent after the missed events have been replayed.

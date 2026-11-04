@@ -32,6 +32,7 @@ import 'package:opencord/core/providers/sound_state.dart';
 import 'package:opencord/core/providers/stream_state.dart';
 import 'package:opencord/core/providers/typing_state.dart';
 import 'package:opencord/core/providers/user_audio.dart';
+import 'package:opencord/core/providers/voice_reconnect.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -360,6 +361,14 @@ void _route(Ref ref, RepoEvent event) {
       return;
     case PrivateStateChanged():
       ref.read(privateContactsProvider.notifier).onStateChanged();
+      if (ref.exists(ownDevicesProvider)) {
+        ref.read(ownDevicesProvider.notifier).reload();
+      }
+      return;
+    case OwnDevicesChanged(:final devices, :final hasChats):
+      ref
+          .read(ownDevicesProvider.notifier)
+          .onChanged(devices, hasChats: hasChats);
       return;
     case PrivateMessageAdded(:final message):
       final conversation = privateConversationProvider(message.peer);
@@ -408,7 +417,10 @@ void _route(Ref ref, RepoEvent event) {
     case UploadProgressEvent(:final channelId):
       _toChannel(ref, key, channelId, event);
     case OwnVoiceChanged():
+      ref.read(voiceReconnectProvider.notifier).ownVoiceChanged(event);
       ref.read(voiceSessionProvider.notifier).apply(event);
+    case VoiceRejoinFailed():
+      ref.read(voiceReconnectProvider.notifier).rejoinFailed(event);
     case VoiceConnectionChanged():
       ref.read(voiceConnectionProvider.notifier).apply(event);
     case PlaybackUpdate() || PlaybackEnded() || PlaybackFailed():

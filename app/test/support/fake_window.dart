@@ -33,7 +33,6 @@ class FakeNativeWindow implements NativeWindow {
 
   @override
   Future<WindowInfo> configure({
-    required WindowChrome chrome,
     required int background,
     required double minWidth,
     required double minHeight,
@@ -43,7 +42,7 @@ class FakeNativeWindow implements NativeWindow {
     bool interceptClose = false,
     bool hidden = false,
   }) async {
-    calls.add('configure:${chrome.name}${hidden ? ':hidden' : ''}');
+    calls.add('configure${hidden ? ':hidden' : ''}');
     return WindowInfo.none;
   }
 
@@ -80,7 +79,8 @@ class FakeNativeWindow implements NativeWindow {
   Future<void> hide() async => calls.add('hide');
 
   @override
-  Future<void> show() async => calls.add('show');
+  Future<void> show({String? activationToken}) async =>
+      calls.add(activationToken == null ? 'show' : 'show:$activationToken');
 
   @override
   Future<void> setUrgent(bool urgent) async => calls.add('setUrgent:$urgent');

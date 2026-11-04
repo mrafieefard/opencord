@@ -9,6 +9,7 @@ import 'package:irondash_engine_context/irondash_engine_context.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:opencord/app.dart';
+import 'package:opencord/app_views.dart';
 import 'package:opencord/core/app_info.dart';
 import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/logs/session_log.dart';
@@ -28,6 +29,7 @@ import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/hotkey_binding.dart';
 import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/desktop/linux_notifications.dart';
+import 'package:opencord/features/desktop/channel_tray.dart';
 import 'package:opencord/features/desktop/linux_tray.dart';
 import 'package:opencord/features/desktop/login_item.dart';
 import 'package:opencord/features/desktop/notification_binding.dart';
@@ -35,6 +37,7 @@ import 'package:opencord/features/desktop/notifications.dart';
 import 'package:opencord/features/desktop/tray.dart';
 import 'package:opencord/features/desktop/tray_binding.dart';
 import 'package:opencord/features/links/app_links.dart';
+import 'package:opencord/features/media_window/media_window_service.dart';
 import 'package:opencord/features/onboarding/startup_failed_app.dart';
 import 'package:opencord/features/window/native_window.dart';
 import 'package:opencord/features/window/window_providers.dart';
@@ -100,14 +103,20 @@ Future<ProviderContainer> startApp({
   final settings = loadAppSettings(store, defaultTargetPlatform);
   // The tray before the window: starting minimized needs one (§15).
   final linux = desktop && defaultTargetPlatform == TargetPlatform.linux;
-  final tray = linux ? await LinuxTray.start() : null;
+  final TrayService? tray = switch (defaultTargetPlatform) {
+    _ when !desktop => null,
+    TargetPlatform.linux => await LinuxTray.start(),
+    // The runner draws these; the first show says whether it took.
+    TargetPlatform.windows ||
+    TargetPlatform.macOS => ChannelTray(platform: defaultTargetPlatform),
+    _ => null,
+  };
   final notifications = linux ? await LinuxNotifications.start() : null;
   final window = ChannelNativeWindow();
   final windowInfo = await startWindow(
     window: window,
     store: store,
     settings: settings,
-    dataDir: dataDir,
     hidden: startsHidden(
       atLogin: atLogin,
       settings: settings,
@@ -135,9 +144,14 @@ Future<ProviderContainer> startApp({
       repositoryProvider.overrideWithValue(repository),
       nativeWindowProvider.overrideWithValue(window),
       windowInfoProvider.overrideWithValue(windowInfo),
-      frameChoiceSaverProvider.overrideWithValue(frameChoiceSaver(dataDir)),
       if (mock) defaultMutedServersProvider.overrideWithValue(mockMutedServers),
       if (tray != null) trayServiceProvider.overrideWithValue(tray),
+      // The media viewer's own window (D86); the runners all have it.
+      if (desktop &&
+          (defaultTargetPlatform == TargetPlatform.linux ||
+              defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS))
+        mediaWindowServiceProvider.overrideWithValue(ChannelMediaWindow()),
       if (notifications != null)
         notificationServiceProvider.overrideWithValue(notifications),
       // Profiles are for testing and leave the login item alone.
@@ -155,7 +169,9 @@ Future<ProviderContainer> startApp({
     ],
   );
   container.read(eventPumpProvider);
-  container.read(trayBindingProvider);
+  // Listened, not read: a provider nobody listens to is paused, and the
+  // tray would stop following the app.
+  container.listen(trayBindingProvider, (_, _) {});
   container.read(hotkeyBindingProvider);
   container.read(notificationBindingProvider);
   container.read(loginItemBindingProvider);
@@ -169,16 +185,21 @@ Future<ProviderContainer> startApp({
 }
 
 /// The app once started, or a screen saying why it could not start, in
-/// the [window] shown even if it was to start hidden.
+/// the [window] shown even if it was to start hidden. [multiView] gives the
+/// root `runWidget` needs: the main window's view, and the media viewer's
+/// own while it is open (D86).
 Future<Widget> startupWidget(
   Future<ProviderContainer> Function() start, {
   required NativeWindow Function() window,
+  bool multiView = false,
 }) async {
   try {
     final container = await start();
     return UncontrolledProviderScope(
       container: container,
-      child: const OpencordApp(),
+      child: multiView
+          ? const AppViews(app: OpencordApp())
+          : const OpencordApp(),
     );
   } on Exception catch (error, stack) {
     appLog(
@@ -190,13 +211,18 @@ Future<Widget> startupWidget(
     );
     final shown = window();
     unawaited(shown.show());
-    return StartupFailedApp(
+    final failed = StartupFailedApp(
       reason: switch (error) {
         RepoException(:final message) => message,
         CoreError() => errorFrom(error).message,
         _ => '$error',
       },
       onQuit: shown.quit,
+    );
+    if (!multiView) return failed;
+    return View(
+      view: WidgetsBinding.instance.platformDispatcher.implicitView!,
+      child: failed,
     );
   }
 }

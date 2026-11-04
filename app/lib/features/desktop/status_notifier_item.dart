@@ -11,8 +11,11 @@ class StatusNotifierItem extends DBusObject {
   StatusNotifierItem({required this.onActivate})
     : super(DBusObjectPath('/StatusNotifierItem'));
 
-  /// A click on the icon.
-  final void Function() onActivate;
+  /// A click on the icon, with the token the desktop gave for bringing a
+  /// window forward (KDE on Wayland sends one just before), if any.
+  final void Function(String? activationToken) onActivate;
+
+  String? _activationToken;
 
   var _icons = const <int, Uint8List>{};
   var _tooltip = '';
@@ -68,11 +71,18 @@ class StatusNotifierItem extends DBusObject {
     switch (methodCall.name) {
       case 'Activate':
       case 'SecondaryActivate':
-        onActivate();
+        // A token works once.
+        final token = _activationToken;
+        _activationToken = null;
+        onActivate(token);
+        return DBusMethodSuccessResponse();
+      case 'ProvideXdgActivationToken':
+        if (methodCall.values case [DBusString(:final value)]) {
+          _activationToken = value;
+        }
         return DBusMethodSuccessResponse();
       case 'ContextMenu':
       case 'Scroll':
-      case 'ProvideXdgActivationToken':
         // The host shows the menu itself; scrolling means nothing here.
         return DBusMethodSuccessResponse();
       default:
@@ -127,6 +137,16 @@ class StatusNotifierItem extends DBusObject {
                 DBusSignature('s'),
                 DBusArgumentDirection.in_,
                 name: 'orientation',
+              ),
+            ],
+          ),
+          DBusIntrospectMethod(
+            'ProvideXdgActivationToken',
+            args: [
+              DBusIntrospectArgument(
+                DBusSignature('s'),
+                DBusArgumentDirection.in_,
+                name: 'token',
               ),
             ],
           ),

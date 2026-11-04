@@ -1589,3 +1589,192 @@ The owner asked for a log a user can export after an error and send them, so Cla
   - a share on Windows 10 and on Windows 11, with the exported log read back;
   - a crash on Windows showing its line;
   - the macOS log folder inside the sandbox.
+
+## D83: The app's own title bar everywhere (2026-11-01)
+
+The owner asked for the custom title bar on every platform, with the system or custom choice gone and the system title bar never drawn.
+
+- **Decision.** Every window gets the app's title bar (§3.1): GNOME-style buttons on every Linux desktop, the caption buttons on Windows, and on macOS the native traffic lights over the rail, as Discord has them. The owner made macOS the exception: its red, yellow and green buttons stay native, on the left.
+- **Gone.** The **Appearance → Window frame** setting (Auto · Custom · System), the `window-chrome` file the Linux runner read at start (D19's first point), Linux's Auto rules (KDE kept its own frame, tiling compositors got none), and the `bare` mode. `configure` no longer takes a frame; each runner sets up its own and reports `custom`. `WindowChrome.system` is left only for when there is no native window (tests, the null window).
+- **Tiling compositors** now show the header bar's buttons too. GTK reports a tiled window as tiled, so it has no margin, shadow or resize handles. A tiling X11 window manager that doesn't report tiling gets the frame only with a compositor running, since the margin needs transparency.
+- **Left over.** An old `window-chrome` file in the data folder is no longer read and does no harm. A saved `windowFrame` in the settings is ignored.
+
+## D84: Private message keys apart from the identity key (2026-11-01)
+
+- **Why.** The identity key signed every device that could read a person's private messages, and the chat's lock showed that same key's fingerprint. Whoever stole it (it can be exported to a file) could sign a device and silently get every new message. The owner asked for private message keys kept apart from it, never on a server, checked by comparing a 4×4 grid of real words; the threats named are the server owner reading chats and a stolen identity key. Design: `docs/superpowers/specs/2026-11-01-private-message-keys-design.md`; plan: `docs/superpowers/plans/2026-11-01-private-message-keys.md`. Desktop only: the phone app has no private messages yet.
+- **What changed.**
+  - **A chat key per person** (Ed25519), made on the first device, sealed in the private database, never sent to a server. It signs each device's keys over `"opencord-device-v2"`; `DeviceKeys.chat_key` names it. Servers check only that the signature matches; the identity key signs no device any more.
+  - **Your own devices** approve each other: both show 16 pairing words (`"opencord-own-words-v1"`), and They match sends the chat key in an Olm `ChatKeyShare` to the new device, which keeps it sealed until its own They match, then registers again. Servers now take a `SendPrivateMessage` addressed to oneself, delivered to one's other devices only. Copies of your messages go only to your devices with your chat key.
+  - **Other people:** one pinned chat key per contact (the most used at first contact, ties the lowest). Other keys' devices are withheld (`SendPrivateMessage.withheld`, field 5; the server takes a send when copies and withheld devices are exactly its list), their messages show as from unaccepted keys, and a banner offers Compare words or Use new keys anyway. With no trusted device left a send is refused (`KeysNotAccepted`) before anything is stored. The key replaced is remembered so its devices are never offered again.
+  - **Words:** SHA-512 of `"opencord-words-v1"` and the two chat keys in byte order; 176 bits as 16 BIP-39 English words in a 4×4 grid. They match records the two keys; the chat is verified while neither changes.
+  - **Fresh start:** server migration 0013 drops devices, one-time keys, recent sends and waiting events; the app's migration 0002 drops its device, sessions, known devices and chats and says once that old chats were removed; friends, requests, blocks and settings stay. `Ready.private_messages` is now always false and `private_messages_v2` (field 23) says whether the server relays them, so apps from before don't half-work.
+- **Calls made without the owner** (each in the plan's ledger):
+  - one chat key per person rather than per-device approvals (the approved version's words would have differed whenever servers listed different devices; §13 of the design);
+  - held devices in every chat (Q1, the recommendation, after "build it");
+  - the shield and warning use the accent and recording colours, since the app allows no other hues;
+  - "Keep new keys" lasts until the app restarts.
+- **Verified.** Common: words in either order, a pinned vector, pairing words differ, v2 signatures bind every field and refuse a v1 one. Server: a send to oneself, withheld devices, a device both sent and withheld, an identity signature refused, the migration keeping friends. Core: a stolen identity gets nothing and its messages aren't shown; approving shares the key and copies flow both ways; a share from someone else or before They match is ignored and one survives a restart; old keys keep working until new ones are accepted; sending with only held devices stores nothing; verifying, mismatch and the words on both sides. App: the dialog's 4 rows of 16 words, the lock's states, both banners, the disabled composer, the device notices and the one-time notice.
+- **Fixed after the whole-branch review.**
+  - **Pairing words** now cover each device's Curve25519 and Ed25519 keys (§9.2 changed), and approving, accepting a share and They match all hand back the keys their words were made from; anything listed differently is refused. A share keeps the keys it came from and is dropped when its sender is listed with other keys; it's taken only if the key given is the one that device was listed with.
+  - **No dead ends:** when none of their devices has the pinned key, the key replaced before is offered again; a peer with no devices listed gives "can't get private messages on this server" again, not "keys changed"; a message from a pinned device, or pinning a key, marks them reachable.
+  - **Fresh lists:** a cached device list holding a device under a key not trusted here is fetched again, so an approved device gets messages at once; "signed in on a new device" also shows for a device first seen while it was held.
+  - **The public chat key** is kept beside its lock, so contact views don't take it while holding a database connection.
+- **Owed by hand:** the scenarios in `docs/private-messages.md` (3, 3b) on two machines; Windows and macOS. The test `closed_friend_requests_give_their_error` flaked once under load: registration's privacy sync can overwrite a newer setting sent at the same moment (older than this change).
+
+## D85: The tray on every desktop, and running in the background (2026-11-01)
+
+(D83 and D84 are taken by pull requests #22 and #23 in the same batch.)
+
+- **Why.** The owner found the tray and running in the background broken everywhere:
+  - Windows and macOS had no tray at all (D21 left them unbuilt);
+  - on KDE, the tray's Mute check mark stayed checked after unmuting;
+  - a click on the icon didn't bring the window forward;
+  - closing quit the app wherever no tray showed the icon.
+- **The check mark.** The menu sent only `LayoutUpdated`. KDE's dbusmenu importer (plasma-workspace `libdbusmenuqt`) defers that, drops one after a menu refresh it asked for, and refreshes only the menu's first level. It applies a property reliably only from `ItemsPropertiesUpdated`. The menu now sends `ItemsPropertiesUpdated` for changed items, and `LayoutUpdated` only when items come, go or move.
+- **Focus.** KDE on Wayland sends an xdg-activation token through `ProvideXdgActivationToken` just before `Activate`. The tray passes it to `NativeWindow.show`, and the GTK runner hands it to `gtk_window_set_startup_id` before presenting. On Windows the runner brings the window forward itself on the click, while the click still gives the process the foreground; on macOS it activates the app.
+- **Windows and macOS trays.** The `dev.opencord/tray` channel (`ChannelTray`): the app draws the icon and lays out the menu, and the runner shows them.
+  - **Windows:** `Shell_NotifyIconW` with `NOTIFYICON_VERSION_4`, the size nearest `SM_CXSMICON` at the window's DPI, a popup menu with check and radio marks, and the icon added again when Explorer restarts.
+  - **macOS:** an `NSStatusItem` with a template image; a click opens the window and a right click shows the menu.
+  - The UI plan had the macOS menu bar icon off by default. It's on now, since the owner asked for the tray on every platform.
+- **The icon in voice**, as Discord's (the owner's ask):
+  - out of voice: the chat bubble (until there's a logo);
+  - in a voice channel: a ring;
+  - talking: a filled circle;
+  - muted or deafened: the ring with a slash (my call).
+  The unread dot stays. Each look is drawn once and reused, since talking flips it many times a second.
+- **Why closing quit on Linux even with the tray up.** The Flutter Linux embedder connects its own `delete-event` handler to the window when the view is realized. That handler asks the framework through `System.requestAppExit`, which says yes, and it ends the signal there. The runner's handler was connected after it, so it never ran: no `closeRequested` ever reached the app, and the app exited cleanly (code 0, after leaving voice). The runner now connects its handler right after creating the window (`window_channel_watch_close`), before the view, and lets Flutter's run only when it isn't intercepting, as when quitting. Checked on this KDE session through KWin's scripting: closing left the process running with no window, a tray click brought the window back active, and Quit from the tray menu exited with code 0.
+- **Closing** hides the window everywhere unless "Close button minimizes to the tray" is off; Windows now shows that switch too. With no tray it still keeps running: launching Opencord again brings the window back (D21's single instance), so it's never out of reach.
+- **The binding is listened to, not read.** A Riverpod 3 provider nobody listens to is paused, so the tray didn't follow the app. All of the tray's state now comes from one `trayStateProvider`.
+- **Checked:**
+  - Dart tests for the menu's property updates (the unmute case), the activation token, the voice states, the icon's shapes, the channel protocol, and closing with and without a tray;
+  - on this KDE Plasma 6 Wayland session, two Mute clicks sent `ItemsPropertiesUpdated` with toggle-state 1, then 0.
+- **Owed by hand:**
+  - KDE: the check mark following Mute in the real menu, and a click bringing the hidden window forward;
+  - GNOME with AppIndicator, Waybar on Hyprland;
+  - Windows 10 and 11: the icon, its menu, a click, close and come back, Explorer restarting;
+  - macOS: the menu bar icon, a right click, and dark and light menu bars.
+
+## D86: The media viewer in its own window (2026-11-02)
+
+(D83 to D85 are taken by pull requests #22 to #24 in the same batch. This one is built on #22 and #24.)
+
+- **Why.** The owner asked for the viewer in a window of its own, as Telegram Desktop's: a new, see-through window, full screen by default, with the system's own title buttons except on macOS, which keeps its real traffic lights. The overlay inside the main window wasn't that, and on Windows it showed GNOME-style buttons. Spec and plan: `docs/superpowers/specs/2026-11-02-media-viewer-window-design.md`, `docs/superpowers/plans/2026-11-02-media-viewer-window.md`.
+- **Telegram's behaviour, copied, not its code** (it's GPL):
+  - **Two modes.** Full screen covers the monitor: Windows' taskbar, or macOS's menu bar and Dock. The normal window is at least 480×360 and starts at 800×600. Maximize, green, a double click on the top 32 px, Alt+Enter and Ctrl+Enter switch between them. On Windows, Aero Snap and Win+Up turn into full screen. The mode and the normal size are kept under `ui.mediaViewer`.
+  - **Background.** `#222222` at 92 %.
+  - **Layout.** Previous and next along the sides. "Photo 3 of 7" and "sender · time" at the bottom left, and Download at the bottom right. The controls fade after 1.1 s without movement.
+  - **Closing.** In full screen, a click beside the picture closes the viewer. In the normal window it doesn't: a drag there moves the window. Esc closes in both.
+  - **Download.** It saves straight into the downloads folder, beside a file of the same name. It can't open a dialog: every save dialog attaches to the main window, which is under the viewer or hidden in the tray.
+- **One engine, a second view.** The viewer shares the running app: its providers, the repository, and video textures. `main.dart` uses `runWidget` with `AppViews`: the implicit view, and the viewer's view while it's open. Flutter 3.44's multi-window API is `@internal` and master-only, so each runner adds the view itself:
+  - **Linux:** `fl_view_new_for_engine`. Its close handler is connected before the view's, which would quit the app. The window announces it draws its own frame (`gdk_wayland_window_announce_csd`); without that, KWin added a title bar (frame 808×634 around an 800×600 client).
+  - **Windows:** `FlutterDesktopEngineCreateViewController` with `FlutterDesktopEngineForId(PlatformDispatcher.engineId)`. Both are exported by `flutter_windows.dll` but declared only in the engine's internal header, so a Flutter upgrade may move them, and CI's Windows build would say so. The window is see-through through the accent policy flutter_acrylic uses.
+  - **macOS:** `FlutterViewController(engine:)`. The engine allows a second view only in multi-view mode, and its own switch asserts once the main view exists. So the runner sets the `_multiViewEnabled` flag directly, after checking it's there. Without it, the viewer opens in the app.
+- **Fallback.** Wherever the runner has no window, the viewer is today's overlay in the main window.
+- **The close button on Windows** hovers inverted, as the main window's does. The spec said Windows' red, but the app has no hues (desktop UI plan §1).
+- **Checked:**
+  - Dart tests for the channel, the session (reused window, the system's close, the view removed before the window, the remembered mode and size), the layout, fading, the mode rules, keys, each platform's buttons and Download.
+  - On KDE Plasma 6 Wayland, `integration_test/linux/media_window_test.dart` and KWin scripting:
+    - a second window of the same process with its own taskbar entry;
+    - 1920×1080 at 0,0 full screen, over the panel;
+    - 800×600 normal, with no KWin frame;
+    - KWin's close reaching the app, which kept running;
+    - the second view gone on close.
+- **Owed by hand:**
+  - the see-through background on Linux (the screen was locked);
+  - everything on Windows and macOS: `docs/plans/check-windows.md`, `docs/plans/check-macos.md`.
+- **Later, on Windows (#39):** closing the viewer hides its window and keeps the view built, and the next open shows the same one. The embedder's only teardown, `FlutterDesktopViewControllerDestroy`, shuts down the engine the main window is still running on, so destroying the view crashed the app on every close. The view now lives as long as the process.
+
+## D87: The media viewer's player, rotate and picture-in-picture (2026-11-02)
+
+(Built on D86, pull request #25.)
+
+- **Why.** The owner's list after their first look at the viewer's window:
+  - a rotate button;
+  - the video's controls as Telegram's player;
+  - speed with the pitch kept;
+  - a full screen for the video;
+  - picture-in-picture.
+
+  The model is their screenshots of Telegram Desktop. Spec and plan: `docs/superpowers/specs/2026-11-02-media-viewer-player-design.md`, `docs/superpowers/plans/2026-11-02-media-viewer-player.md`.
+- **Rotate** is a general viewer button beside Download (owner: the same place for photos and videos), not in the player. It turns a quarter left, as Telegram's ↺, and the zoom and the click beside the picture follow the turned shape.
+- **The bar**
+  - **Box:** 480 × 70, 7 above the bottom, black at half.
+  - **First row:** the volume and play, then full screen, picture-in-picture and the speed.
+  - **Second row:** the time played, the seek bar and the time left.
+  - **Space:** a video keeps 84 clear above and below, so it's never under the bar. The bottom-left text keeps to its left or goes.
+  - **Fading:** the bar fades with the viewer's controls.
+- **Speed**
+  - 1x, 1.5x, 2x, 3x, where Telegram has its settings.
+  - **The sound:** `opencord-media`'s FFmpeg player stretches its sound with `wsola` (as voice messages do), so the pitch stays.
+  - **The clock:** it counts the media's own time at the speed, so the position and seeking stay true.
+  - **A wsola trap:** a flushed `TimeStretch` keeps its input and plays it again on the next pull, so every flush is followed by a reset.
+  - **Each video starts at 1x**, apart from voice messages' speed, which carries from message to message.
+- **Full screen**
+  - The video fills the window under the bar; Esc ends it before it closes.
+  - From a normal window the window goes full screen too. The session's `setMode(…, remember: false)` keeps that out of `ui.mediaViewer`.
+- **Picture-in-picture**
+  - **The window:** a third mode of D86's window, 320 wide with the video's shape, at the bottom right of the main window's screen, 24 in. It plays on: the viewer keeps the same `VideoPlayerView` under a `GlobalKey` as the window changes.
+  - **Remembered:** its frame is kept under `ui.mediaViewer` as `pip`, apart from the mode, which never becomes picture-in-picture.
+  - **Its controls:** volume, back, close, play and the seek bar. They sit over a drag area that also takes a double click back, so their clicks don't wait for a second one. Other media brings the viewer back.
+  - **Linux:**
+    - GTK keep-above and its size hints. Wayland ignores keep-above and the position, so there it's an ordinary small window wherever KWin puts it (owner: acceptable).
+    - KWin answers new size limits with the old size, which GTK takes, so the runner asks for the size again 100 ms later.
+    - Leaving changes no window state, so the runner reports the mode itself.
+  - **Windows:** a topmost popup, resized from its own edges with its shape kept (`WM_SIZING`).
+  - **macOS:** the floating level on every Space. The traffic lights are hidden, and `contentAspectRatio` keeps the shape.
+- **Checked:**
+  - **Dart tests:** rotate, the bar, full screen, speed, and picture-in-picture: the same player, its controls, back, close, drag, a double click, photos without it, and the remembered frame.
+  - **Rust tests:** the tempo stage (the pitch kept at 2x and 3x by zero crossings, nothing played twice across speed changes), the clock at a speed, and the 2 s fixture ending in about a second at 2x.
+  - **On KDE Plasma 6 Wayland:** `integration_test/linux/media_window_test.dart` goes 320×180 and back on the real runner.
+- **Owed by hand:**
+  - **Linux:** a real video's bar, speed and picture-in-picture, looked at, not only measured.
+  - **Windows and macOS:** everything, in `docs/plans/check-windows.md` §7 and `docs/plans/check-macos.md` §8.
+
+## D88: The reconnect bar (2026-11-02)
+
+**Decision:** a bar across the top of the desktop app, as Discord's, offers to get back into a call this device is out of without having left it. It says why and has a Reconnect button and a ×.
+
+- **When it shows:**
+  - **The app closed in a call.** The call is kept under `voice.lastCall` while this device is in it, and offered once at the next start.
+  - **Another of the user's devices took the call over.** The repository marks its `OwnVoiceChanged` as `elsewhere`: the user's own voice state, from another session, in a channel.
+  - **Getting back in was refused.** After a fresh session the core rejoins by itself; when the server says no, the core now sends `VoiceRejoinFailed` with the server's reason, before the state saying this device left.
+- **When it doesn't:** leaving, a moderator's disconnect or move, and quitting on purpose (the tray's Quit, or closing the window with **Close button minimizes to the tray** off). Quitting forgets the call.
+- **What goes:** joining any call, Reconnect succeeding, or the ×. A refused Reconnect keeps the bar and shows the server's reason in a toast.
+- **A dropped voice connection that the core is still retrying** shows in the voice panel's status, as before, not in the bar: the core never gives up on it.
+- **Reconnect** joins the call again through the voice session, so the saved per-user volumes go to the new call as with any join, and another device's call is taken back.
+- **A channel the server no longer has** shows no bar.
+- **Limits:**
+  - ⌘Q on macOS quits without forgetting the call, so the next start offers it.
+  - The stale session of an app that died may stay in the channel until the voice node drops it; Reconnect replaces it.
+- **Checks:** a core test for the refused rejoin; Dart unit tests for the offer and the repository's mapping, and widget tests for the bar and quitting.
+
+## D89: FFmpeg plays videos on macOS (2026-11-03)
+
+(For the media uploads plan's P2, steps 1 to 3; built on D87, pull request #26.)
+
+- **Why.** The media player (`opencord-media`'s `player`) is FFmpeg's, and D34 kept FFmpeg off macOS: the viewer said "This video can't play on this computer yet". Videos, voice messages' speed and picture-in-picture all need it.
+- **For playback only.** Calls keep VideoToolbox through `video/codec/macos/` (D34); nothing in a call loads FFmpeg's codecs.
+- **The build** (`app/tool/macos/build_ffmpeg.sh`):
+  - FFmpeg 9.0.2 and dav1d 1.5.4, the versions and checksums of `app/tool/build_ffmpeg.sh`, with its decoders, demuxers, parsers and bitstream filters, and no encoders or protocols;
+  - VideoToolbox decoding for H.264 and HEVC;
+  - dav1d static, inside libavcodec;
+  - universal: x86_64 and arm64 built apart (one is a cross build) and merged with `lipo`; macOS 13 and newer (D34);
+  - LGPL only: no `--enable-gpl` or `--enable-nonfree`.
+- **In the app.**
+  - The five dylibs are named `@rpath/libavcodec.63.dylib` and so on.
+  - The podspec links them from `FFMPEG_DIR`. A Runner build phase, "Bundle FFmpeg", copies them into `Contents/Frameworks`, signs each with the app's identity, and copies FFmpeg's licence to `Resources/FFMPEG-LICENSE.txt`.
+  - Building the app needs `FFMPEG_DIR`. The tests find the dylibs through an rpath: `RUSTFLAGS="-C link-arg=-Wl,-rpath,$FFMPEG_DIR/lib"`. `DYLD_LIBRARY_PATH` doesn't do: macOS drops it whenever a system binary such as `/bin/bash` or `/usr/bin/env` starts, so a script or a CI step loses it.
+- **CI.** The macOS client job builds FFmpeg with Homebrew's nasm, meson and ninja, and caches it by the script's hash, as the Linux and Windows jobs do.
+- **Checked on the Intel Mac** (macOS 15.8.1):
+  - the build takes about 6 minutes; the dylibs come to 18 MB;
+  - `cargo test -p opencord-media --test player`: 10 passed, none skipped, `the_planned_decoders_are_there` included;
+  - `otool -L` on the app's binary, the core and the dylibs shows only `@rpath` and system paths;
+  - in the app: a 75 s H.264 and AAC video plays in the viewer, seeks, runs at 1.5x and 3x on the video's own clock, and plays on in picture-in-picture.
+- **Owed:** the app on a Mac without MacPorts or Homebrew (or another user account), and on Apple silicon.
+
+## D90: Windows' clipboard images on the Win32 API (2026-11-03)
+
+**Decision:** on Windows, pasting and copying images (media uploads plan, Task 21) use the Win32 clipboard API directly, through the `windows` crate already in `opencord-core`. Linux and macOS use `arboard`.
+
+- **Why.** On Windows `arboard` brings `clipboard-win` and `error-code`, both BSL-1.0, which the plan's licence list doesn't allow. The owner chose this over widening the list. It adds no crate and no licence.
+- **Formats.** Reading prefers the registered `PNG` format, then `CF_DIBV5`, then `CF_DIB`. Writing offers both a `CF_DIBV5` and a `PNG`.
