@@ -163,10 +163,20 @@ mod tests {
     fn the_wall_clock_runs_at_the_speed() {
         let mut clock = MediaClock::new(false);
         clock.set_speed(2.0, 0);
+        // A busy machine sleeps for longer than it was asked to, so the limits
+        // come from how long this really took: the clock ran for at least the
+        // sleep and at most the whole test.
+        let test = Instant::now();
         clock.play();
+        let sleep = Instant::now();
         std::thread::sleep(Duration::from_millis(100));
+        let slept = millis(sleep.elapsed());
         let now = clock.now_ms(0);
-        assert!((195..300).contains(&now), "{now}");
+        let total = millis(test.elapsed());
+        assert!(
+            (2 * slept..=2 * total).contains(&now),
+            "{now}, slept {slept}, total {total}"
+        );
     }
 
     #[test]
