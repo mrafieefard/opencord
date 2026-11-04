@@ -108,11 +108,6 @@ final contactNameProvider = Provider.family<String, String>((ref, peer) {
     return contact.name!;
   }
 
-  // 4. Fingerprint
-  if (contact?.fingerprint != null && contact!.fingerprint.isNotEmpty) {
-    return contact.fingerprint;
-  }
-
   return peer;
 });
 
@@ -513,4 +508,55 @@ class PrivateTypingNotifier extends Notifier<Map<String, DateTime>> {
 final privateTypingProvider =
     NotifierProvider<PrivateTypingNotifier, Map<String, DateTime>>(
       PrivateTypingNotifier.new,
+    );
+
+/// This person's other devices with other chat keys (design 2026-11-01
+/// §7.1), and whether this device has chats.
+@immutable
+class OwnDevicesState {
+  const OwnDevicesState({this.devices = const [], this.hasChats = false});
+
+  final List<OwnDevice> devices;
+  final bool hasChats;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OwnDevicesState &&
+      listEquals(other.devices, devices) &&
+      other.hasChats == hasChats;
+
+  @override
+  int get hashCode => Object.hash(Object.hashAll(devices), hasChats);
+}
+
+class OwnDevicesNotifier extends Notifier<OwnDevicesState> {
+  var _loads = 0;
+
+  @override
+  OwnDevicesState build() {
+    reload();
+    return const OwnDevicesState();
+  }
+
+  /// Asks the servers again.
+  Future<void> reload() async {
+    final load = ++_loads;
+    try {
+      final own = await ref.read(repositoryProvider).ownDevices();
+      if (!ref.mounted || load != _loads) return;
+      state = OwnDevicesState(devices: own.devices, hasChats: own.hasChats);
+    } on RepoException {
+      // Private messages aren't open yet; PrivateStateChanged reloads.
+    }
+  }
+
+  void onChanged(List<OwnDevice> devices, {required bool hasChats}) {
+    _loads++;
+    state = OwnDevicesState(devices: devices, hasChats: hasChats);
+  }
+}
+
+final ownDevicesProvider =
+    NotifierProvider<OwnDevicesNotifier, OwnDevicesState>(
+      OwnDevicesNotifier.new,
     );

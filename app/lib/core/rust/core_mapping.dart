@@ -597,6 +597,7 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
   core.ErrorCode.privateMessagesUnavailable =>
     RepoErrorKind.privateMessagesUnavailable,
   core.ErrorCode.friendsOnly => RepoErrorKind.friendsOnly,
+  core.ErrorCode.keysNotAccepted => RepoErrorKind.keysNotAccepted,
   core.ErrorCode.deviceListChanged => RepoErrorKind.other,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };

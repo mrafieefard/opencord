@@ -177,6 +177,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn chat_keys_drop_private_devices_and_keep_friends() {
+        let dir = tempfile::tempdir().unwrap();
+        let options = SqliteConnectOptions::new()
+            .filename(dir.path().join(DATABASE_FILE))
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let pool = SqlitePool::connect_with(options).await.unwrap();
+        let full_migrator = sqlx::migrate!("./migrations");
+        let before = sqlx::migrate::Migrator {
+            migrations: std::borrow::Cow::Owned(
+                full_migrator
+                    .migrations
+                    .iter()
+                    .filter(|m| m.version <= 12)
+                    .cloned()
+                    .collect(),
+            ),
+            ignore_missing: full_migrator.ignore_missing,
+            locking: full_migrator.locking,
+            create_schemas: full_migrator.create_schemas.clone(),
+            no_tx: full_migrator.no_tx,
+            table_name: full_migrator.table_name.clone(),
+        };
+        before.run(&pool).await.unwrap();
+        for statement in [
+            "INSERT INTO users (id, public_key, display_name, created_at) \
+             VALUES (1, X'01', 'A', 0), (2, X'02', 'B', 0)",
+            "INSERT INTO private_devices (user_id, device_id, curve25519, ed25519, signature, \
+             fallback_key, fallback_signature, created_at, last_seen_at) \
+             VALUES (1, X'0A', X'00', X'00', X'00', X'00', X'00', 0, 0)",
+            "INSERT INTO private_one_time_keys (user_id, device_id, key, signature) \
+             VALUES (1, X'0A', X'01', X'00')",
+            "INSERT INTO private_pending (user_id, device_id, event, created_at) \
+             VALUES (1, X'0A', X'00', 0)",
+            "INSERT INTO private_recent_sends (user_id, device_id, send_id, created_at) \
+             VALUES (1, X'0A', X'01', 0)",
+            "INSERT INTO private_friends (owner_id, friend_id) VALUES (1, 2)",
+            "INSERT INTO private_friend_requests (from_id, to_id, created_at) VALUES (2, 1, 0)",
+        ] {
+            sqlx::query(statement).execute(&pool).await.unwrap();
+        }
+
+        full_migrator.run(&pool).await.unwrap();
+
+        for (table, rows) in [
+            ("private_devices", 0),
+            ("private_one_time_keys", 0),
+            ("private_pending", 0),
+            ("private_recent_sends", 0),
+            ("private_friends", 1),
+            ("private_friend_requests", 1),
+        ] {
+            let count: i64 =
+                sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT COUNT(*) FROM {table}")))
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(count, rows, "{table}");
+        }
+        let chat_key: Option<Vec<u8>> =
+            sqlx::query_scalar("SELECT chat_key FROM private_devices LIMIT 1")
+                .fetch_optional(&pool)
+                .await
+                .unwrap();
+        assert_eq!(chat_key, None);
+    }
+
+    #[tokio::test]
     async fn migration_gives_everyone_attach_files_voice_and_50_mb() {
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join(DATABASE_FILE);

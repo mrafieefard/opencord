@@ -372,7 +372,9 @@ fn ready(
                 .upload_settings
                 .to_proto(state.attachments.max_file_bytes()),
         ),
-        private_messages: state.private.enabled(),
+        // Apps from before chat keys see private messages as off.
+        private_messages: false,
+        private_messages_v2: state.private.enabled(),
         private_settings: Some(state.private.settings_proto()),
     }
 }

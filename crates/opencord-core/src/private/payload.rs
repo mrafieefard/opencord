@@ -82,6 +82,10 @@ pub fn parse(bytes: &[u8]) -> Result<Parsed, PrivateError> {
             Body::RelayMoved(moved)
         }
         Some(body @ (Body::RequestAccepted(_) | Body::SessionReset(_))) => body,
+        Some(Body::ChatKeyShare(share)) => {
+            array::<KEY_LEN>(&share.secret, "a chat key share's secret")?;
+            Body::ChatKeyShare(share)
+        }
     };
     Ok(Parsed {
         message_id,

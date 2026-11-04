@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use opencord_common::private::{
     DEVICE_ID_LEN, DEVICE_LIST_TTL_MS, KEY_LEN, MESSAGE_ID_LEN, SIGNATURE_LEN, UNSENT_RESEND_MS,
-    verify_device, verify_prekey,
+    verify_device_v2, verify_prekey,
 };
 use opencord_common::validation;
 use opencord_proto::v1 as proto;
@@ -21,11 +21,13 @@ use proto::response::Result as Response;
 
 use super::PrivateError;
 use super::contacts::{self, Contact, Conversation};
+use super::own_devices;
 use super::payload;
 use super::service::{
     MESSAGE_BODY_LABEL, MessageRow, Open, PrivateService, now_ms, open_text, warn_core,
 };
 use super::sessions::PeerSessions;
+use super::trust;
 use crate::api::types::{CoreError, ErrorCode, PrivateEvent, PrivateMessage};
 
 /// The label a message's saved request is sealed with (its id is the row).
@@ -44,6 +46,9 @@ pub(super) const TEXT: i64 = 0;
 pub(super) const DIVIDER: i64 = 1;
 pub(super) const MOVED: i64 = 2;
 pub(super) const UNDECRYPTABLE: i64 = 3;
+pub(super) const KEYS_CHANGED: i64 = 4;
+pub(super) const NEW_DEVICE: i64 = 5;
+pub(super) const UNACCEPTED: i64 = 6;
 
 #[derive(Debug, Clone, Default)]
 pub struct SendOptions {
@@ -60,12 +65,13 @@ pub struct Sent {
     pub sent_at_ms: Option<i64>,
 }
 
-/// One device whose keys its owner's identity key signed.
+/// One device whose keys the chat key it names signed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedDevice {
     pub device_id: [u8; DEVICE_ID_LEN],
     pub curve25519: [u8; KEY_LEN],
     pub ed25519: [u8; KEY_LEN],
+    pub chat_key: [u8; KEY_LEN],
 }
 
 /// Verified device lists by (server key, user id).
@@ -100,6 +106,11 @@ impl DeviceCache {
         self.lock().remove(&(key.to_owned(), user_id));
     }
 
+    /// Every list: this device's chat key changed.
+    pub fn clear(&self) {
+        self.lock().clear();
+    }
+
     /// The server was removed.
     pub fn forget_server(&self, key: &str) {
         self.lock().retain(|(server, _), _| server != key);
@@ -126,6 +137,16 @@ pub(crate) struct Relay {
 struct Target {
     user_id: i64,
     device: VerifiedDevice,
+}
+
+/// A device id with the Curve25519 and Ed25519 keys it must be listed with.
+pub(super) type OnlyDevice = ([u8; DEVICE_ID_LEN], [u8; KEY_LEN], [u8; KEY_LEN]);
+
+/// Who a payload is encrypted for, and the listed devices it deliberately
+/// isn't (design 2026-11-01 §10).
+struct Devices {
+    targets: Vec<Target>,
+    withheld: Vec<Target>,
 }
 
 /// How one send ended.
@@ -190,6 +211,7 @@ pub async fn send_timed(
                 their_slip,
                 text: false,
                 fresh: None,
+                only: None,
             },
             None,
         )
@@ -203,6 +225,9 @@ pub async fn send_timed(
         };
     };
     let content = checked_content(&text.content)?;
+    // Nothing is stored when none of their devices can get it.
+    let this_device = open.device().lock().await.id();
+    devices(service, &open, &relay, &peer, this_device, None).await?;
     let has_any: bool =
         sqlx::query_scalar::<_, i64>("SELECT 1 FROM messages WHERE peer = $1 LIMIT 1")
             .bind(peer.as_slice())
@@ -249,6 +274,7 @@ pub async fn send_timed(
             their_slip,
             text: true,
             fresh: None,
+            only: None,
         },
         None,
     )
@@ -321,6 +347,7 @@ pub async fn retry(
             their_slip: contact.and_then(|contact| contact.their_slip),
             text: true,
             fresh: None,
+            only: None,
         },
         first,
     )
@@ -462,6 +489,9 @@ struct Encrypting<'a> {
     /// A session reset: the device with this Curve25519 key gets it on a
     /// new session.
     fresh: Option<[u8; KEY_LEN]>,
+    /// Only this device of this person's own gets it, and only while listed
+    /// with these Curve25519 and Ed25519 keys: a chat key share.
+    only: Option<OnlyDevice>,
 }
 
 /// A session reset (design 2026-10-22 §10.8), after a message from the
@@ -498,6 +528,7 @@ pub async fn reset_session(
             their_slip: contact.and_then(|contact| contact.their_slip),
             text: false,
             fresh: Some(device),
+            only: None,
         },
         None,
     )
@@ -567,7 +598,15 @@ async fn encrypt(
 ) -> Result<proto::SendPrivateMessage, CoreError> {
     let this_device = open.device().lock().await.id();
     // 3.
-    let targets = devices(service, open, relay, &encrypting.peer, this_device).await?;
+    let Devices { targets, withheld } = devices(
+        service,
+        open,
+        relay,
+        &encrypting.peer,
+        this_device,
+        encrypting.only,
+    )
+    .await?;
     // 4.
     let prekeys = claim(service, open, relay, &targets, encrypting.fresh).await?;
     // 5.
@@ -625,6 +664,13 @@ async fn encrypt(
             .their_slip
             .map(|slip| slip.to_vec())
             .unwrap_or_default(),
+        withheld: withheld
+            .iter()
+            .map(|target| proto::DeviceRef {
+                user_id: target.user_id,
+                device_id: target.device.device_id.to_vec(),
+            })
+            .collect(),
     };
     let mut tx = open
         .store()
@@ -665,58 +711,218 @@ async fn encrypt(
 }
 
 /// The peer's devices and this person's other ones on the relay, from the
-/// cache or fetched. Only devices whose signature verifies against their
-/// owner's key are kept, and stored as known.
+/// cache or fetched. Only devices whose signature verifies against the chat
+/// key they name are kept, and stored as known. This person's devices with
+/// another chat key are withheld (design 2026-11-01 §7.3), and with `only`,
+/// every one but that.
 async fn devices(
     service: &PrivateService,
     open: &Open,
     relay: &Relay,
     peer: &[u8; KEY_LEN],
     this_device: [u8; DEVICE_ID_LEN],
-) -> Result<Vec<Target>, CoreError> {
+    only: Option<OnlyDevice>,
+) -> Result<Devices, CoreError> {
     let cache = service.device_cache();
     let now = Instant::now();
     let me = open.identity();
     let cached = cache
         .get(&relay.key, relay.recipient_id, now)
         .zip(cache.get(&relay.key, relay.self_id, now));
-    let (theirs, mine) = match cached {
-        Some(lists) => lists,
+    // A cached list holding a device under a key not trusted here is asked
+    // for again: that device may have been approved since.
+    let cached = match cached {
+        Some((theirs, mine)) if !holds_others(open, peer, &theirs, &mine).await? => {
+            Some((theirs, mine))
+        }
+        _ => None,
+    };
+    let (theirs, mine, fresh) = match cached {
+        Some((theirs, mine)) => (theirs, mine, Vec::new()),
         None => {
             let response = service
                 .request(
                     &relay.key,
                     Request::FetchDevices(proto::FetchDevices {
-                        user_ids: vec![relay.recipient_id, relay.self_id],
+                        user_ids: if relay.recipient_id == relay.self_id {
+                            vec![relay.self_id]
+                        } else {
+                            vec![relay.recipient_id, relay.self_id]
+                        },
                     }),
                 )
                 .await?;
             let Response::DeviceLists(lists) = response else {
                 return Err(crate::client::unexpected(&response));
             };
-            let theirs = verified(&relay.key, listed(&lists, relay.recipient_id), peer, None);
-            let mine = verified(
-                &relay.key,
-                listed(&lists, relay.self_id),
-                &me,
-                Some(this_device),
-            );
+            let theirs = verified(&relay.key, listed(&lists, relay.recipient_id), None);
+            let mine = verified(&relay.key, listed(&lists, relay.self_id), Some(this_device));
+            let fresh = unknown(open, peer, &theirs).await?;
             remember(open, peer, &theirs).await?;
             remember(open, &me, &mine).await?;
+            own_devices::observe(service, open, &mine).await?;
             cache.put(&relay.key, relay.recipient_id, theirs.clone(), now);
             cache.put(&relay.key, relay.self_id, mine.clone(), now);
-            (theirs, mine)
+            (theirs, mine, fresh)
         }
     };
-    let theirs = theirs.into_iter().map(|device| Target {
-        user_id: relay.recipient_id,
-        device,
-    });
-    let mine = mine.into_iter().map(|device| Target {
-        user_id: relay.self_id,
-        device,
-    });
-    Ok(theirs.chain(mine).collect())
+    let mut targets = Vec::new();
+    let mut withheld = Vec::new();
+    // To oneself, the recipient's devices are one's own. Others' devices
+    // get it only under the chat key pinned for them (design 2026-11-01
+    // §8.1).
+    if relay.recipient_id != relay.self_id {
+        if theirs.is_empty() {
+            return Err(CoreError::Server {
+                code: ErrorCode::PrivateMessagesUnavailable,
+                message: "they can't get private messages on this server".to_owned(),
+                retry_after_ms: None,
+            });
+        }
+        let sorted = trust::observe(service, open, peer, &theirs, &fresh).await?;
+        if sorted.trusted.is_empty() {
+            return Err(keys_not_accepted());
+        }
+        let theirs = |device| Target {
+            user_id: relay.recipient_id,
+            device,
+        };
+        targets.extend(sorted.trusted.into_iter().map(theirs));
+        withheld.extend(sorted.held.into_iter().map(theirs));
+    }
+    let chat_key = open.chat_key_public();
+    for device in mine {
+        let wanted = match only {
+            Some((id, curve25519, ed25519)) => {
+                device.device_id == id
+                    && device.curve25519 == curve25519
+                    && device.ed25519 == ed25519
+            }
+            None => device.chat_key == chat_key,
+        };
+        let target = Target {
+            user_id: relay.self_id,
+            device,
+        };
+        if wanted {
+            targets.push(target);
+        } else {
+            withheld.push(target);
+        }
+    }
+    if only.is_some() && targets.is_empty() {
+        return Err(CoreError::InvalidInput {
+            message: "That device's keys changed. Compare the words again.".to_owned(),
+        });
+    }
+    Ok(Devices { targets, withheld })
+}
+
+/// Gives this person's `device` the chat key `secret`, through
+/// `server_key`, after both showed the same words (design 2026-11-01 §7.2):
+/// only to that id listed with exactly the compared keys, so its Olm
+/// session (old or new) is with the device the words were made from.
+pub(super) async fn share_chat_key(
+    service: &PrivateService,
+    open: &Open,
+    server_key: &str,
+    device: OnlyDevice,
+    secret: [u8; KEY_LEN],
+) -> Result<(), CoreError> {
+    let members = service.members();
+    let self_id = members.self_id(server_key).ok_or(CoreError::NotConnected)?;
+    // A list cached before that device signed in would leave it out.
+    service.device_cache().forget(server_key, self_id);
+    let relay = Relay {
+        key: server_key.to_owned(),
+        server_id: members
+            .server_id(server_key)
+            .or_else(|| service.transport().server_id_of(server_key))
+            .ok_or(CoreError::NotConnected)?,
+        recipient_id: self_id,
+        self_id,
+    };
+    let me = open.identity();
+    let message_id = new_message_id()?;
+    let payload = payload::build(
+        message_id,
+        &me,
+        None,
+        Body::ChatKeyShare(proto::ChatKeyShare {
+            secret: secret.to_vec(),
+        }),
+        now_ms(),
+    );
+    let outcome = deliver(
+        service,
+        open,
+        &relay,
+        &Encrypting {
+            message_id,
+            peer: me,
+            payload: &payload,
+            their_slip: None,
+            text: false,
+            fresh: None,
+            only: Some(device),
+        },
+        None,
+    )
+    .await;
+    match outcome {
+        Outcome::Sent(_) => Ok(()),
+        Outcome::Unsent(error) | Outcome::Failed(error) => Err(error),
+    }
+}
+
+/// Whether a device in these lists is signed by a chat key other than this
+/// person's (for `mine`) or the one pinned for `peer` (for `theirs`).
+async fn holds_others(
+    open: &Open,
+    peer: &[u8; KEY_LEN],
+    theirs: &[VerifiedDevice],
+    mine: &[VerifiedDevice],
+) -> Result<bool, PrivateError> {
+    let chat_key = open.chat_key_public();
+    if mine.iter().any(|device| device.chat_key != chat_key) {
+        return Ok(true);
+    }
+    let mut conn = open.store().pool().acquire().await?;
+    let pinned = trust::load(&mut conn, peer).await?.map(|keys| keys.pinned);
+    Ok(theirs.iter().any(|device| Some(device.chat_key) != pinned))
+}
+
+/// The listed devices of `owner` this device hadn't seen before, or had
+/// seen under another chat key.
+async fn unknown(
+    open: &Open,
+    owner: &[u8; KEY_LEN],
+    listed: &[VerifiedDevice],
+) -> Result<Vec<[u8; DEVICE_ID_LEN]>, PrivateError> {
+    let mut conn = open.store().pool().acquire().await?;
+    let mut fresh = Vec::new();
+    for device in listed {
+        let known: Option<Vec<u8>> = sqlx::query_scalar(
+            "SELECT chat_key FROM peer_devices WHERE public_key = $1 AND device_id = $2",
+        )
+        .bind(owner.as_slice())
+        .bind(device.device_id.as_slice())
+        .fetch_optional(&mut *conn)
+        .await?;
+        if known.as_deref() != Some(device.chat_key.as_slice()) {
+            fresh.push(device.device_id);
+        }
+    }
+    Ok(fresh)
+}
+
+fn keys_not_accepted() -> CoreError {
+    CoreError::Server {
+        code: ErrorCode::KeysNotAccepted,
+        message: "Their keys changed. Compare the words, or use the new keys, to write to them."
+            .to_owned(),
+        retry_after_ms: None,
+    }
 }
 
 pub(super) fn listed(
@@ -730,18 +936,18 @@ pub(super) fn listed(
         .flat_map(|user| &user.devices)
 }
 
-/// The devices `owner`'s identity key signed, but not `skip`.
+/// The devices the chat key they name signed, but not `skip`. Whose chat
+/// keys to trust is decided later (design 2026-11-01 §8).
 pub(super) fn verified<'a>(
     key: &str,
     listed: impl Iterator<Item = &'a proto::DeviceKeys>,
-    owner: &[u8; KEY_LEN],
     skip: Option<[u8; DEVICE_ID_LEN]>,
 ) -> Vec<VerifiedDevice> {
     let mut unverified = 0;
     let mut devices = Vec::new();
     for keys in listed {
-        let device = verify_device(
-            owner,
+        let device = verify_device_v2(
+            &keys.chat_key,
             &keys.device_id,
             &keys.curve25519,
             &keys.ed25519,
@@ -752,11 +958,16 @@ pub(super) fn verified<'a>(
                 device_id: keys.device_id.as_slice().try_into().ok()?,
                 curve25519: keys.curve25519.as_slice().try_into().ok()?,
                 ed25519: keys.ed25519.as_slice().try_into().ok()?,
+                chat_key: keys.chat_key.as_slice().try_into().ok()?,
             })
         })
         .flatten();
         match device {
             Some(device) if Some(device.device_id) == skip => {}
+            Some(device)
+                if devices
+                    .iter()
+                    .any(|known: &VerifiedDevice| known.device_id == device.device_id) => {}
             Some(device) => devices.push(device),
             None => unverified += 1,
         }
@@ -784,15 +995,18 @@ pub(super) async fn remember(
     let mut tx = open.store().pool().begin().await?;
     for device in devices {
         sqlx::query(
-            "INSERT INTO peer_devices (public_key, device_id, curve25519, ed25519, first_seen_at) \
-             VALUES ($1, $2, $3, $4, $5) \
+            "INSERT INTO peer_devices \
+             (public_key, device_id, curve25519, ed25519, chat_key, first_seen_at) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
              ON CONFLICT (public_key, device_id) DO UPDATE SET \
-             curve25519 = excluded.curve25519, ed25519 = excluded.ed25519",
+             curve25519 = excluded.curve25519, ed25519 = excluded.ed25519, \
+             chat_key = excluded.chat_key",
         )
         .bind(owner.as_slice())
         .bind(device.device_id.as_slice())
         .bind(device.curve25519.as_slice())
         .bind(device.ed25519.as_slice())
+        .bind(device.chat_key.as_slice())
         .bind(now)
         .execute(&mut *tx)
         .await?;
@@ -1018,6 +1232,7 @@ async fn resend(
             their_slip,
             text: true,
             fresh: None,
+            only: None,
         },
         Some(first),
     )
@@ -1243,6 +1458,7 @@ mod tests {
             device_id: [byte; 16],
             curve25519: [byte; 32],
             ed25519: [byte; 32],
+            chat_key: [byte; 32],
         }
     }
 

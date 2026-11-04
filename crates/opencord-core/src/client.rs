@@ -20,14 +20,14 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::api::types::{
     AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
-    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, MediaEvent, MediaHandle, Member,
-    Message, OutgoingFile, OverwriteTargetKind, PermissionOverwrite, PlaybackItem, PresenceStatus,
-    PrivacySettingsData, PrivateContact, PrivateEvent, PrivateMessage, PrivateOpened,
-    PrivateSettings, Role, RoleChanges, S3Config, ScreenProblem, ScreenShareRequest,
-    ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo, SharedServer, SoundDraft,
-    SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo, StorageTestResult,
-    StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant, VoiceCue, VoiceDraft,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, KeyWords, MediaEvent,
+    MediaHandle, Member, Message, OutgoingFile, OverwriteTargetKind, OwnDevice,
+    PermissionOverwrite, PlaybackItem, PresenceStatus, PrivacySettingsData, PrivateContact,
+    PrivateEvent, PrivateMessage, PrivateOpened, PrivateSettings, Role, RoleChanges, S3Config,
+    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
+    ServerInfo, SharedServer, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
+    StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User,
+    VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -47,7 +47,9 @@ use crate::music_listening::MusicListening;
 use crate::now_playing::{NowPlaying, Player};
 use crate::private::actions;
 use crate::private::outbox::{self, SendOptions};
+use crate::private::own_devices;
 use crate::private::service::{PrivateService, Transport, parse_hex};
+use crate::private::trust;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
 use crate::voice::VoiceServer;
@@ -641,6 +643,69 @@ impl Client {
 
     pub async fn private_hide(&self, peer: &str) -> Result<(), CoreError> {
         actions::private_hide(&self.inner.private, peer).await
+    }
+
+    /// This person's other devices with chat keys of their own, and whether
+    /// this device has chats (design 2026-11-01 §7.1).
+    pub async fn private_own_devices(&self) -> Result<(Vec<OwnDevice>, bool), CoreError> {
+        own_devices::own_devices(&self.inner.private).await
+    }
+
+    /// The 16 words this device and `device_id` both show, and the keys
+    /// they were made from.
+    pub async fn private_pairing_words(&self, device_id: &str) -> Result<KeyWords, CoreError> {
+        own_devices::pairing_words(&self.inner.private, device_id).await
+    }
+
+    /// They match, here: `device_id` is given this device's chat key, only
+    /// while listed with `keys` (as `private_pairing_words` gave them).
+    pub async fn private_approve_device(
+        &self,
+        device_id: &str,
+        keys: &str,
+    ) -> Result<(), CoreError> {
+        own_devices::approve(&self.inner.private, device_id, keys).await
+    }
+
+    /// They match or They don't match, for the chat key `device_id` offered,
+    /// on the words made from `keys`.
+    pub async fn private_accept_keys_from(
+        &self,
+        device_id: &str,
+        matched: bool,
+        keys: &str,
+    ) -> Result<(), CoreError> {
+        own_devices::accept(&self.inner.private, device_id, matched, keys).await
+    }
+
+    /// The 16 words for the chat with `peer`, and the keys they were made
+    /// from; with `new_keys`, for the other chat key their devices offer
+    /// (design 2026-11-01 §9).
+    pub async fn private_words(&self, peer: &str, new_keys: bool) -> Result<KeyWords, CoreError> {
+        trust::chat_words(&self.inner.private, peer, new_keys).await
+    }
+
+    /// They match (`matched`) or They don't match, for the chat with
+    /// `peer`, on the words made from `keys` (as `private_words` gave
+    /// them); on the new keys, a match pins them.
+    pub async fn private_verify(
+        &self,
+        peer: &str,
+        new_keys: bool,
+        matched: bool,
+        keys: &str,
+    ) -> Result<(), CoreError> {
+        trust::verify(&self.inner.private, peer, new_keys, matched, keys).await
+    }
+
+    /// Use new keys anyway: `peer`'s other chat key is pinned, unverified.
+    pub async fn private_accept_new_keys(&self, peer: &str) -> Result<(), CoreError> {
+        trust::accept_new_keys(&self.inner.private, peer).await
+    }
+
+    /// Not mine: `device_id` is hidden here and never sent anything.
+    pub async fn private_reject_device(&self, device_id: &str) -> Result<(), CoreError> {
+        own_devices::reject(&self.inner.private, device_id).await
     }
 
     pub async fn send_message(

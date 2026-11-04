@@ -360,6 +360,14 @@ void _route(Ref ref, RepoEvent event) {
       return;
     case PrivateStateChanged():
       ref.read(privateContactsProvider.notifier).onStateChanged();
+      if (ref.exists(ownDevicesProvider)) {
+        ref.read(ownDevicesProvider.notifier).reload();
+      }
+      return;
+    case OwnDevicesChanged(:final devices, :final hasChats):
+      ref
+          .read(ownDevicesProvider.notifier)
+          .onChanged(devices, hasChats: hasChats);
       return;
     case PrivateMessageAdded(:final message):
       final conversation = privateConversationProvider(message.peer);
