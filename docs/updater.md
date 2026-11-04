@@ -55,9 +55,9 @@ Each time the launcher starts, it:
    - `OPENCORD_LAUNCHER`: the launcher's path.
    - `OPENCORD_VERSION`: the installed version.
 
-**Updates never go backwards; switches can.** SemVer orders `0.0.2-beta.3 < 0.0.2-canary.1 < 0.0.2`, so "newer" means the same thing on every track.
+**Each track takes only its own builds (D91).** Beta gets betas, canary gets canaries and stable gets stable releases. SemVer sorts `0.0.2-canary.1` above every `0.0.2-beta.N`, however much later the beta was built, so versions are never compared across tracks.
 - **On the same track,** an older build than the installed one is never installed.
-- **On a switch,** the user picked another track in the app, so that track's newest build replaces the installed one, even when it's older. For example, a canary user who picks stable gets stable.
+- **With a build of another track installed,** the track's newest build replaces it, even when it sorts lower. That happens on a switch, when the user picked another track in the app: a canary user who picks stable gets stable. It also moves anyone an older launcher left on the wrong track.
 
 `installed.json`, which only the launcher writes, records the version that starts and the track it was installed for. A track in `update.json` that differs from it is a switch the launcher hasn't made yet. A switch that fails, offline or before the track has any release, is tried again on the next start.
 

@@ -23,7 +23,7 @@ A fix that can't wait goes straight to `canary` or `main`. Merge it back down in
 
 ## Versions
 
-Versions are [Semantic Versioning 2.0.0](https://semver.org): `MAJOR.MINOR.PATCH`, with `-beta.N` or `-canary.N` on pre-releases. SemVer orders pre-release names alphabetically, so `0.0.2-beta.3 < 0.0.2-canary.1 < 0.0.2`, the same order as beta → canary → stable. Comparing two versions therefore always tells which build is further along, whatever the channel. The updater relies on this.
+Versions are [Semantic Versioning 2.0.0](https://semver.org): `MAJOR.MINOR.PATCH`, with `-beta.N` or `-canary.N` on pre-releases. SemVer orders pre-release names alphabetically, so `0.0.2-beta.3 < 0.0.2-canary.1 < 0.0.2`. That says nothing about which build is newer: a beta made after a canary still sorts below it. So versions are only compared within one channel, and the updater never compares across channels (D91).
 
 `.github/release/version.py next --branch <branch>` works out the version from the git tags and commit messages:
 
@@ -138,13 +138,8 @@ The app's launcher (docs/updater.md) reads GitHub releases. Every release carrie
 How the updater should find an update:
 
 1. **Stable users** fetch `https://github.com/mrafieefard/opencord/releases/latest/download/release.json`. "Latest" is always the newest stable release, it isn't rate-limited like the API, and it needs no token.
-2. **Beta and canary users** list the releases with `GET https://api.github.com/repos/mrafieefard/opencord/releases?per_page=30` (60 requests an hour per address without a token, plenty for a check every few hours), then read the newest one's `release.json`. Each channel takes the highest version among the channels it follows:
-   - beta follows beta, canary and stable;
-   - canary follows canary and stable;
-   - stable follows stable only.
-
-   Because SemVer orders them, a beta user moves to the stable release once it's newer than their beta, and nobody is offered an older build.
-3. **Offer the update** if that version is higher than `appVersion`. Download the platform's `url`, and check its `size` and `sha256` before replacing anything.
+2. **Beta and canary users** list the releases with `GET https://api.github.com/repos/mrafieefard/opencord/releases?per_page=100` (60 requests an hour per address without a token, plenty for a check every few hours), then read the `release.json` of the highest version on their own channel. Each channel takes only its own builds: a beta user gets betas, whatever canary or stable have released.
+3. **Offer the update** if that version is higher than `appVersion`, or if `appVersion` is from another channel. Download the platform's `url`, and check its `size` and `sha256` before replacing anything.
 4. **Signing.** With the `UPDATE_SIGNING_KEY` secret set, CI signs `release.json` with Ed25519 into `release.json.sig`, and launchers built with the `UPDATE_PUBLIC_KEY` variable accept only signed releases, as Tauri's updater and Sparkle do. Without the secret, the trust comes from HTTPS to github.com. docs/updater.md says how to make the key.
 
 ## Phone apps

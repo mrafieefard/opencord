@@ -53,18 +53,6 @@ impl Track {
             _ => None,
         }
     }
-
-    /// Whether this track takes builds released on `other`: beta takes
-    /// beta, canary and stable; canary takes canary and stable; stable
-    /// takes stable. A beta user moves to a stable release as soon as
-    /// it is newer than their beta.
-    pub fn follows(self, other: Self) -> bool {
-        match self {
-            Self::Beta => true,
-            Self::Canary => other != Self::Beta,
-            Self::Stable => other == Self::Stable,
-        }
-    }
 }
 
 impl fmt::Display for Track {
@@ -87,14 +75,6 @@ mod tests {
         assert_eq!(Track::of(&version("0.0.2-canary.1")), Some(Track::Canary));
         assert_eq!(Track::of(&version("0.0.2-beta.13")), Some(Track::Beta));
         assert_eq!(Track::of(&version("0.0.2-rc.1")), None);
-    }
-
-    #[test]
-    fn each_track_takes_its_own_builds_and_the_steadier_ones() {
-        use Track::*;
-        assert!(Beta.follows(Beta) && Beta.follows(Canary) && Beta.follows(Stable));
-        assert!(!Canary.follows(Beta) && Canary.follows(Canary) && Canary.follows(Stable));
-        assert!(!Stable.follows(Beta) && !Stable.follows(Canary) && Stable.follows(Stable));
     }
 
     #[test]
