@@ -590,7 +590,10 @@ class _MainColumn extends ConsumerWidget {
         includeComposer: false,
       );
       if (currentPeer != null) {
-        composerContent = PrivateChatBottomBar(peer: currentPeer);
+        composerContent = PrivateChatBottomBar(
+          key: ValueKey(('private-composer', currentPeer)),
+          peer: currentPeer,
+        );
       }
     } else {
       mainContent = ChatArea(
@@ -603,6 +606,7 @@ class _MainColumn extends ConsumerWidget {
       );
       if (isChat && open != null) {
         composerContent = Composer(
+          key: ValueKey(('composer', open)),
           channel: open,
           controller: ref.read(chatControllerProvider),
         );
@@ -622,8 +626,8 @@ class _MainColumn extends ConsumerWidget {
         ),
         if (isChat && composerContent != null) ...[
           const SizedBox(height: OcFloats.gap),
-          SizedBox(
-            height: OcFloats.bottom,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: OcFloats.bottom),
             child: OcFloat(
               key: ShellKeys.composer,
               color: colors.sidebar,

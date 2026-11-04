@@ -267,7 +267,19 @@ Future<void> leaveVoice(BuildContext context, WidgetRef ref) async {
     context,
     name == null ? 'Left voice' : 'Left $name',
     actionLabel: 'Undo',
-    onAction: () => joinVoice(context, ref, server, channel),
+    onAction: () async {
+      try {
+        await session.join(server, channel);
+      } on RepoException catch (error) {
+        if (!context.mounted) return;
+        showOcToast(context, switch (error.kind) {
+          RepoErrorKind.voiceChannelFull => 'This voice channel is full.',
+          RepoErrorKind.forbidden =>
+            "You don't have permission to join this channel.",
+          _ => error.message,
+        });
+      }
+    },
   );
   await session.leave();
 }
