@@ -540,9 +540,9 @@ class _LeftColumn extends ConsumerWidget {
           ),
         ],
         const SizedBox(height: OcFloats.gap),
-        const SizedBox(
-          height: OcFloats.bottom,
-          child: OcFloat(key: ShellKeys.me, child: UserPanel()),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+          child: const OcFloat(key: ShellKeys.me, child: UserPanel()),
         ),
       ],
     );

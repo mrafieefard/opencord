@@ -268,34 +268,38 @@ class ChatSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return ExcludeSemantics(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < rows; i++)
-            MessageLine(
-              own: i % 3 == 2,
-              first: true,
-              avatar: i % 3 == 2
-                  ? null
-                  : DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: colors.hover,
-                        shape: BoxShape.circle,
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        reverse: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < rows; i++)
+              MessageLine(
+                own: i % 3 == 2,
+                first: true,
+                avatar: i % 3 == 2
+                    ? null
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.hover,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const SizedBox.square(
+                          dimension: OcSize.messageAvatar,
+                        ),
                       ),
-                      child: const SizedBox.square(
-                        dimension: OcSize.messageAvatar,
-                      ),
-                    ),
-              bubble: Container(
-                width: _widths[i % _widths.length],
-                height: i.isEven ? 40 : 58,
-                decoration: BoxDecoration(
-                  color: colors.hover,
-                  borderRadius: BorderRadius.circular(OcRadius.bubble),
+                bubble: Container(
+                  width: _widths[i % _widths.length],
+                  height: i.isEven ? 40 : 58,
+                  decoration: BoxDecoration(
+                    color: colors.hover,
+                    borderRadius: BorderRadius.circular(OcRadius.bubble),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

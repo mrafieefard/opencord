@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/settings/user_settings.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
@@ -38,8 +41,11 @@ class UserPanel extends ConsumerWidget {
     final presence = ref.watch(selfPresenceProvider);
     final voice = ref.watch(voiceSessionProvider);
     final session = ref.read(voiceSessionProvider.notifier);
+    final resting = ref.watch(restingComposerHeightProvider);
     return Container(
-      height: OcFloats.bottom,
+      height: resting != null
+          ? math.max(resting, OcFloats.bottom - 2)
+          : (OcFloats.bottom - 2),
       padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
       decoration: BoxDecoration(color: colors.sidebar),
       child: Row(
