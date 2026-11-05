@@ -3,23 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/providers/private_state.dart';
+import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
-import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/own_device_notice.dart';
+import 'package:opencord/features/home/person_card.dart';
+import 'package:opencord/features/home/requests_page.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
-import 'package:opencord/ui/widgets/oc_icon_button.dart';
-import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/choice_chips.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 
 const friendsTabKey = 'ui.friendsTab';
 
-/// The tabs on the Friends page (§6.2).
+/// The tabs on the Friends page (§6.2, §5.16).
 enum FriendsTab { online, all, pending, requests, blocked }
 
 /// The Friends page's tab, remembered across launches. The home sidebar's
@@ -44,6 +45,7 @@ final friendsTabProvider = NotifierProvider<FriendsTabNotifier, FriendsTab>(
   FriendsTabNotifier.new,
 );
 
+/// The Friends page (§5.16).
 class FriendsPage extends ConsumerStatefulWidget {
   const FriendsPage({super.key, this.onOpenSidebar});
 
@@ -58,9 +60,22 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final tab = ref.watch(friendsTabProvider);
+    if (tab == FriendsTab.requests) {
+      return RequestsPage(onOpenSidebar: widget.onOpenSidebar);
+    }
+
     final colors = context.oc;
     final contacts = ref.watch(privateContactsProvider);
-    final tab = ref.watch(friendsTabProvider);
+
+    final onlineCount = contacts.friends.where((c) {
+      final presence = ref.watch(contactPresenceProvider(c.peer));
+      return presence != Presence.offline;
+    }).length;
+    final allCount = contacts.friends.length;
+    final pendingCount =
+        contacts.incomingRequests.length + contacts.outgoingRequests.length;
+    final blockedCount = contacts.blocked.length;
 
     return Column(
       children: [
@@ -77,27 +92,55 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                 ),
                 const SizedBox(width: OcSpace.s8),
               ],
-              IgnorePointer(
-                child: Text(
-                  'Friends',
-                  style: OcText.title.copyWith(color: colors.text),
+              Text(
+                'Friends',
+                style: OcText.header.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
                 ),
               ),
-              const SizedBox(width: OcSpace.s20),
-              // Scrolls sideways when the window is too narrow for all tabs;
-              // only as wide as the tabs, so the space after them drags.
+              const SizedBox(width: 8),
               Flexible(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: ChoiceChips<FriendsTab>(
-                    value: tab,
-                    onChanged: ref.read(friendsTabProvider.notifier).select,
-                    options: const [
-                      (FriendsTab.online, 'Online'),
-                      (FriendsTab.all, 'All'),
-                      (FriendsTab.pending, 'Pending'),
-                      (FriendsTab.requests, 'Message requests'),
-                      (FriendsTab.blocked, 'Blocked'),
+                  child: Row(
+                    children: [
+                      _FriendsTabButton(
+                        label: 'Online',
+                        count: onlineCount,
+                        selected: tab == FriendsTab.online,
+                        onTap: () => ref
+                            .read(friendsTabProvider.notifier)
+                            .select(FriendsTab.online),
+                      ),
+                      const SizedBox(width: 4),
+                      _FriendsTabButton(
+                        label: 'All',
+                        count: allCount,
+                        selected: tab == FriendsTab.all,
+                        onTap: () => ref
+                            .read(friendsTabProvider.notifier)
+                            .select(FriendsTab.all),
+                      ),
+                      const SizedBox(width: 4),
+                      _FriendsTabButton(
+                        label: 'Pending',
+                        count: pendingCount,
+                        selected: tab == FriendsTab.pending,
+                        onTap: () => ref
+                            .read(friendsTabProvider.notifier)
+                            .select(FriendsTab.pending),
+                      ),
+                      const SizedBox(width: 4),
+                      _FriendsTabButton(
+                        label: 'Blocked',
+                        count: blockedCount,
+                        selected: tab == FriendsTab.blocked,
+                        onTap: () => ref
+                            .read(friendsTabProvider.notifier)
+                            .select(FriendsTab.blocked),
+                      ),
                     ],
                   ),
                 ),
@@ -106,34 +149,40 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
           ),
         ),
 
-        // This person's other devices with other chat keys (design
-        // 2026-11-01 §7.1).
+        // This person's other devices with other chat keys (design §7.1).
         const OwnDeviceNotice(),
 
-        // Main content area
+        // Main content area, fading in on tab switch (100 ms)
         Expanded(
-          child: switch (tab) {
-            FriendsTab.online => _buildOnlineTab(context, contacts),
-            FriendsTab.all => _buildAllTab(context, contacts),
-            FriendsTab.pending => _buildPendingTab(context, contacts),
-            FriendsTab.requests => _buildRequestsTab(context, contacts),
-            FriendsTab.blocked => _buildBlockedTab(context, contacts),
-          },
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 100),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+            child: KeyedSubtree(
+              key: ValueKey(tab),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: switch (tab) {
+                      FriendsTab.online => _buildOnlineTab(context, contacts),
+                      FriendsTab.all => _buildAllTab(context, contacts),
+                      FriendsTab.pending => _buildPendingTab(context, contacts),
+                      FriendsTab.blocked => _buildBlockedTab(context, contacts),
+                      FriendsTab.requests => const SizedBox.shrink(),
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildEmptyState(String message) {
-    final colors = context.oc;
-    return Padding(
-      padding: const EdgeInsets.only(top: OcSpace.s32),
-      child: Center(
-        child: Text(
-          message,
-          style: OcText.body.copyWith(color: colors.textMuted),
-        ),
-      ),
     );
   }
 
@@ -144,20 +193,21 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       return presence != Presence.offline;
     }).toList();
 
+    if (onlineFriends.isEmpty) {
+      return const PrivateEmptyState(
+        icon: OcIcons.group,
+        message: "No one's online right now.",
+      );
+    }
+
     return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s20,
-        vertical: OcSpace.s16,
-      ),
       children: [
         SectionLabel(
           'ONLINE — ${onlineFriends.length}',
-          padding: const EdgeInsets.only(bottom: OcSpace.s8),
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
         ),
-        if (onlineFriends.isEmpty)
-          _buildEmptyState("No one's online right now.")
-        else
-          for (final friend in onlineFriends) FriendRow(contact: friend),
+        for (final friend in onlineFriends)
+          PersonCard(contact: friend, kind: PersonCardKind.friend),
       ],
     );
   }
@@ -165,20 +215,21 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
   Widget _buildAllTab(BuildContext context, PrivateContactsState contacts) {
     final allFriends = contacts.friends;
 
+    if (allFriends.isEmpty) {
+      return const PrivateEmptyState(
+        icon: OcIcons.group,
+        message: "You haven't added any friends yet.",
+      );
+    }
+
     return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s20,
-        vertical: OcSpace.s16,
-      ),
       children: [
         SectionLabel(
           'ALL — ${allFriends.length}',
-          padding: const EdgeInsets.only(bottom: OcSpace.s8),
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
         ),
-        if (allFriends.isEmpty)
-          _buildEmptyState("You haven't added any friends yet.")
-        else
-          for (final friend in allFriends) FriendRow(contact: friend),
+        for (final friend in allFriends)
+          PersonCard(contact: friend, kind: PersonCardKind.friend),
       ],
     );
   }
@@ -190,79 +241,65 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     final spam = contacts.spamRequests;
     final totalNonSpam = incoming.length + outgoing.length;
 
+    if (totalNonSpam == 0 && spam.isEmpty) {
+      return const PrivateEmptyState(
+        icon: OcIcons.mail,
+        message: 'No pending requests.',
+      );
+    }
+
     return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s20,
-        vertical: OcSpace.s16,
-      ),
       children: [
-        SectionLabel(
-          'PENDING — $totalNonSpam',
-          padding: const EdgeInsets.only(bottom: OcSpace.s8),
-        ),
-        if (totalNonSpam == 0 && spam.isEmpty)
-          _buildEmptyState('No pending requests.')
-        else ...[
-          for (final inc in incoming) IncomingRequestRow(contact: inc),
-          for (final out in outgoing) OutgoingRequestRow(contact: out),
-          if (spam.isNotEmpty) ...[
-            const SizedBox(height: OcSpace.s12),
-            Hoverable(
-              onTap: () => setState(() => _spamExpanded = !_spamExpanded),
-              semanticLabel: 'Spam',
-              builder: (context, state) => Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: OcSpace.s12,
-                  vertical: OcSpace.s8,
-                ),
-                decoration: BoxDecoration(
-                  color: state.active ? colors.hover : null,
-                  borderRadius: BorderRadius.circular(OcRadius.row),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _spamExpanded ? OcIcons.expandMore : OcIcons.chevronRight,
-                      size: 16,
-                      color: colors.textMuted,
-                    ),
-                    const SizedBox(width: OcSpace.s8),
-                    Text(
-                      'Spam — ${spam.length}',
-                      style: OcText.label.copyWith(color: colors.textMuted),
-                    ),
-                  ],
-                ),
+        if (incoming.isNotEmpty) ...[
+          SectionLabel(
+            'INCOMING — ${incoming.length}',
+            padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+          ),
+          for (final inc in incoming)
+            PersonCard(contact: inc, kind: PersonCardKind.incoming),
+        ],
+        if (outgoing.isNotEmpty) ...[
+          SectionLabel(
+            'SENT — ${outgoing.length}',
+            padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+          ),
+          for (final out in outgoing)
+            PersonCard(contact: out, kind: PersonCardKind.outgoing),
+        ],
+        if (spam.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Hoverable(
+            onTap: () => setState(() => _spamExpanded = !_spamExpanded),
+            semanticLabel: 'Spam',
+            builder: (context, state) => Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: state.active ? colors.hover : null,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _spamExpanded ? OcIcons.expandMore : OcIcons.chevronRight,
+                    size: 16,
+                    color: colors.textMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Spam — ${spam.length}',
+                    style: OcText.label.copyWith(color: colors.textMuted),
+                  ),
+                ],
               ),
             ),
-            if (_spamExpanded)
-              for (final s in spam) IncomingRequestRow(contact: s),
-          ],
+          ),
+          if (_spamExpanded)
+            for (final s in spam)
+              PersonCard(contact: s, kind: PersonCardKind.incoming),
         ],
-      ],
-    );
-  }
-
-  Widget _buildRequestsTab(
-    BuildContext context,
-    PrivateContactsState contacts,
-  ) {
-    final requests = contacts.messageRequests;
-
-    return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s20,
-        vertical: OcSpace.s16,
-      ),
-      children: [
-        SectionLabel(
-          'MESSAGE REQUESTS — ${requests.length}',
-          padding: const EdgeInsets.only(bottom: OcSpace.s8),
-        ),
-        if (requests.isEmpty)
-          _buildEmptyState('No message requests.')
-        else
-          for (final req in requests) MessageRequestRow(contact: req),
       ],
     );
   }
@@ -270,21 +307,88 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
   Widget _buildBlockedTab(BuildContext context, PrivateContactsState contacts) {
     final blocked = contacts.blocked;
 
+    if (blocked.isEmpty) {
+      return const PrivateEmptyState(
+        icon: OcIcons.block,
+        message: "You haven't blocked anyone.",
+      );
+    }
+
     return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s20,
-        vertical: OcSpace.s16,
-      ),
       children: [
         SectionLabel(
           'BLOCKED — ${blocked.length}',
-          padding: const EdgeInsets.only(bottom: OcSpace.s8),
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
         ),
-        if (blocked.isEmpty)
-          _buildEmptyState("You haven't blocked anyone.")
-        else
-          for (final b in blocked) BlockedRow(contact: b),
+        for (final b in blocked)
+          PersonCard(contact: b, kind: PersonCardKind.blocked),
       ],
+    );
+  }
+}
+
+class _FriendsTabButton extends StatelessWidget {
+  const _FriendsTabButton({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Hoverable(
+      onTap: onTap,
+      selected: selected,
+      semanticLabel: '$label $count',
+      focusRadius: BorderRadius.circular(15),
+      builder: (context, state) {
+        final bg = selected
+            ? colors.accent
+            : (state.active ? colors.hover : Colors.transparent);
+        final textColor = selected ? colors.onAccent : colors.textSecondary;
+
+        return Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Opacity(
+                opacity: 0.65,
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
