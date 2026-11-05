@@ -16,6 +16,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
+import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import '../../support/app.dart';
@@ -217,10 +218,10 @@ void main() {
 
     final msgListFinder = find.byType(MessageList);
     expect(msgListFinder, findsOneWidget);
-    final listWidth = tester.getSize(msgListFinder).width;
+    final listLeft = tester.getRect(msgListFinder).left;
 
-    // Side padding is 16 + max(0, (w - 880) / 2)
-    final expectedPadding = 16.0 + (listWidth - 880.0) / 2.0;
+    // In compact mode, lines use the standard side padding of 16
+    const expectedPadding = 16.0;
     final sliverPadding = tester.widget<SliverPadding>(
       find
           .descendant(of: msgListFinder, matching: find.byType(SliverPadding))
@@ -235,14 +236,14 @@ void main() {
       closeTo(expectedPadding, 0.5),
     );
 
-    // Avatar left edge is at msgsIn.x (463) + 16 = 479
+    // Avatar left edge is at listLeft + 16 (list padding) + 16 (message padding) = 407
     final avatarFinder = find.descendant(
       of: msgListFinder,
-      matching: find.byType(MemberAvatar),
+      matching: find.byType(OcAvatar),
     );
     expect(avatarFinder, findsWidgets);
     final avatarLeft = tester.getRect(avatarFinder.first).left;
-    expect(avatarLeft, closeTo(479.0, 1.5));
+    expect(avatarLeft, closeTo(listLeft + 32.0, 1.5));
 
     await app.dispose(tester);
   });

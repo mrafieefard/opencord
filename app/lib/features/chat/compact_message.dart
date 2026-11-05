@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/attachment_view.dart';
+import 'package:opencord/features/chat/attachments/upload_progress.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_item.dart';
@@ -34,6 +35,7 @@ class CompactMessage extends StatelessWidget {
     this.onReaction,
     this.onReplyTap,
     this.onRetry,
+    this.onCancelSend,
     this.onSelectionChanged,
     this.onAuthorTap,
     required this.serverKey,
@@ -55,6 +57,7 @@ class CompactMessage extends StatelessWidget {
   final ValueChanged<String>? onReaction;
   final VoidCallback? onReplyTap;
   final VoidCallback? onRetry;
+  final VoidCallback? onCancelSend;
   final ValueChanged<String?>? onSelectionChanged;
 
   /// Opens the author's profile from their name (§16).
@@ -179,6 +182,11 @@ class CompactMessage extends StatelessWidget {
                           message: message,
                           senderName: author,
                         ),
+                      ),
+                    if (message.uploads.isNotEmpty)
+                      UploadProgressList(
+                        uploads: message.uploads,
+                        onCancel: onCancelSend,
                       ),
                     if (failed) _Retry(onRetry: onRetry),
                     if (message.reactions.isNotEmpty)

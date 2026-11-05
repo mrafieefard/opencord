@@ -211,6 +211,9 @@ class ChatRowView extends StatelessWidget {
         onReaction: onReaction,
         onReplyTap: onReplyTap,
         onRetry: () => actions.onRetry(message),
+        onCancelSend: message.nonce != null
+            ? () => actions.onCancelSend?.call(message)
+            : null,
         onSelectionChanged: onSelectionChanged,
         onAuthorTap: () => actions.onProfile(message.authorId),
       ),
