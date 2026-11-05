@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
@@ -53,8 +54,9 @@ Rect _rect(List<double> ltwh) =>
 Future<MockApp> _onStage(
   WidgetTester tester, {
   Size size = const Size(1280, 800),
+  AppSettings Function(AppSettings)? settings,
 }) async {
-  final app = await MockApp.pump(tester, size: size);
+  final app = await MockApp.pump(tester, size: size, settings: settings);
   await openVoicePage(SceneDriver(tester));
   return app;
 }
@@ -243,6 +245,37 @@ void main() {
     expect(scale.scale, 0.97);
     await gesture.cancel();
     await tester.pump(const Duration(milliseconds: 100));
+    await app.dispose(tester);
+  });
+
+  testWidgets('large_text_keeps_watch_clear_of_the_name', (tester) async {
+    final app = await _onStage(
+      tester,
+      settings: (s) => s.copyWith(fontSize: AppSettings.maxFontSize),
+    );
+    final screen = _tile(_tomas, screen: true);
+    Rect boxOf(String text) => tester.getRect(
+      find
+          .ancestor(
+            of: find.descendant(of: screen, matching: find.text(text)),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final watch = tester.getRect(
+      find.descendant(
+        of: screen,
+        matching: find.widgetWithText(OcButton, 'Watch'),
+      ),
+    );
+
+    expect(watch.top, greaterThanOrEqualTo(boxOf('LIVE').bottom));
+    expect(watch.bottom, lessThanOrEqualTo(boxOf('Tomás Ruiz').top));
+    // No room for the words too: LIVE and the name pill say whose it is.
+    expect(
+      find.descendant(of: screen, matching: find.text('Tomás Ruiz is live')),
+      findsNothing,
+    );
     await app.dispose(tester);
   });
 

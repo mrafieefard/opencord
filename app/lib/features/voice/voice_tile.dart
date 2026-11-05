@@ -272,13 +272,20 @@ class _NamePill extends StatelessWidget {
   final IconData? icon;
   final bool small;
 
+  static const double _fontSize = 12.5, _padding = 3, _icon = 16;
+
+  /// How tall it is at the user's text size, when not [small].
+  static double heightFor(TextScaler scaler) =>
+      2 * _padding +
+      math.max(_icon, scaler.scale(_fontSize) * OcText.small.height!);
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: small ? 6 : 9,
-        vertical: small ? 1 : 3,
+        vertical: small ? 1 : _padding,
       ),
       decoration: BoxDecoration(
         color: colors.sidebar,
@@ -288,14 +295,15 @@ class _NamePill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: 5,
         children: [
-          if (icon case final icon?) Icon(icon, size: 16, color: colors.text),
+          if (icon case final icon?)
+            Icon(icon, size: _icon, color: colors.text),
           Flexible(
             child: Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: OcText.small.copyWith(
-                fontSize: small ? 11 : 12.5,
+                fontSize: small ? 11 : _fontSize,
                 fontWeight: FontWeight.w600,
                 color: colors.text,
               ),
@@ -321,32 +329,51 @@ class _WatchPrompt extends StatelessWidget {
 
   /// The words, the gap and the button. A tile shorter than this says nothing:
   /// a click on it opens it large, with the prompt.
-  static const double _needs = 58;
+  static const double _needs = 58, _button = 32;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final scaler = MediaQuery.textScalerOf(context);
+    final words = OcText.bodyStrong;
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (small || constraints.maxHeight < _needs) {
-          return const SizedBox.shrink();
-        }
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+        final height = constraints.maxHeight;
+        if (small || height < _needs) return const SizedBox.shrink();
+        // Centred on the tile, but kept between the LIVE mark and the name
+        // pill: with large text, the words go before anything overlaps.
+        final top = VoiceTileView._liveInset + _LivePill.heightFor(scaler);
+        final bottom = height - OcSpace.s8 - _NamePill.heightFor(scaler);
+        final full =
+            scaler.scale(words.fontSize!) * words.height! +
+            OcSpace.s8 +
+            _button;
+        final withWords = full <= bottom - top;
+        final used = withWords ? full : _button;
+        final y = math.min((height - used) / 2, bottom - used);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            OcSpace.s8,
+            math.max(0, y),
+            OcSpace.s8,
+            0,
+          ),
+          child: Align(
+            alignment: Alignment.topCenter,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               spacing: OcSpace.s8,
               children: [
-                Text(
-                  '$name is live',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: OcText.bodyStrong.copyWith(color: colors.text),
-                ),
+                if (withWords)
+                  Text(
+                    '$name is live',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: words.copyWith(color: colors.text),
+                  ),
                 OcButton.primary(
                   label: 'Watch',
-                  height: 32,
+                  height: _button,
                   pressedScale: 0.97,
                   onPressed: onWatch,
                 ),
@@ -407,11 +434,20 @@ class _ViewersPill extends StatelessWidget {
 class _LivePill extends StatelessWidget {
   const _LivePill();
 
+  static const double _fontSize = 10.5, _padding = 1;
+
+  /// How tall it is at the user's text size.
+  static double heightFor(TextScaler scaler) =>
+      2 * _padding + scaler.scale(_fontSize) * OcText.label.height!;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: OcSpace.s6, vertical: 1),
+      padding: const EdgeInsets.symmetric(
+        horizontal: OcSpace.s6,
+        vertical: _padding,
+      ),
       decoration: BoxDecoration(
         color: colors.accent,
         borderRadius: BorderRadius.circular(5),
@@ -419,7 +455,7 @@ class _LivePill extends StatelessWidget {
       child: Text(
         'LIVE',
         style: OcText.label.copyWith(
-          fontSize: 10.5,
+          fontSize: _fontSize,
           letterSpacing: 0.4,
           color: colors.onAccent,
         ),
