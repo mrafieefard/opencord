@@ -289,5 +289,3 @@ class VoiceControlBar extends StatelessWidget {
     return VoiceDock(channel: channel, chat: chat);
   }
 }
-
-

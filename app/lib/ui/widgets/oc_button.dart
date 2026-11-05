@@ -145,7 +145,8 @@ class OcButton extends StatelessWidget {
             curve: OcMotion.curve,
             height: height ?? (dense ? 28 : 36),
             width: expand ? double.infinity : null,
-            padding: padding ?? EdgeInsets.symmetric(horizontal: dense ? 12 : 16),
+            padding:
+                padding ?? EdgeInsets.symmetric(horizontal: dense ? 12 : 16),
             decoration: BoxDecoration(color: background, borderRadius: radius),
             // An aligned container fills the width it is offered, so only
             // an expanding button centres its label that way.

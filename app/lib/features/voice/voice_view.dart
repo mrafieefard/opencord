@@ -500,10 +500,7 @@ class _NoVideo extends ConsumerWidget {
 
 /// Before joining (§4.10): the channel, who is in it, and Join voice.
 class _JoinPrompt extends ConsumerStatefulWidget {
-  const _JoinPrompt({
-    required this.channel,
-    required this.participants,
-  });
+  const _JoinPrompt({required this.channel, required this.participants});
 
   static const _shownAvatars = 8;
 
@@ -589,11 +586,7 @@ class _JoinPromptState extends ConsumerState<_JoinPrompt>
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Center(
-                  child: Icon(
-                    OcIcons.volumeUp,
-                    size: 20,
-                    color: colors.text,
-                  ),
+                  child: Icon(OcIcons.volumeUp, size: 20, color: colors.text),
                 ),
               ),
               const SizedBox(height: 16),
@@ -618,8 +611,9 @@ class _JoinPromptState extends ConsumerState<_JoinPrompt>
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final participant
-                        in participants.take(_JoinPrompt._shownAvatars))
+                    for (final participant in participants.take(
+                      _JoinPrompt._shownAvatars,
+                    ))
                       Align(
                         widthFactor: 0.8,
                         child: DecoratedBox(
@@ -631,7 +625,9 @@ class _JoinPromptState extends ConsumerState<_JoinPrompt>
                             serverKey: channel.server,
                             userId: participant.userId,
                             name:
-                                data?.members[participant.userId]?.displayName ??
+                                data
+                                    ?.members[participant.userId]
+                                    ?.displayName ??
                                 'Someone',
                             size: 40,
                           ),
@@ -665,11 +661,11 @@ class _JoinPromptState extends ConsumerState<_JoinPrompt>
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 onPressed: canJoin
                     ? () => joinVoice(
-                          context,
-                          ref,
-                          channel.server,
-                          channel.channel,
-                        )
+                        context,
+                        ref,
+                        channel.server,
+                        channel.channel,
+                      )
                     : null,
               ),
               if (!canJoin) ...[

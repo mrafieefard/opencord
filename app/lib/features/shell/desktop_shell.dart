@@ -368,7 +368,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
     final open = server == null || channel == null
         ? null
         : (server: server, channel: channel.id);
-    final isVoice = !ref.watch(homeShownProvider) &&
+    final isVoice =
+        !ref.watch(homeShownProvider) &&
         channel != null &&
         channel.kind == ChannelKind.voice;
 
@@ -422,7 +423,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                             final savedWidth = ref.watch(sidebarWidthProvider);
                             final targetWidth = savedWidth ?? defaultWidth;
 
-                            final hasRoomForBoth = (constraints.maxWidth -
+                            final hasRoomForBoth =
+                                (constraints.maxWidth -
                                     (OcFloats.gap +
                                         OcFloats.rail +
                                         OcFloats.gap +
@@ -434,8 +436,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                     380.0 -
                                     OcFloats.gap) >=
                                 600.0;
-                            final voiceChat =
-                                ref.watch(voiceChatShownProvider);
+                            final voiceChat = ref.watch(voiceChatShownProvider);
                             final voiceChatInSlot =
                                 isVoice && voiceChat && hasRoomForBoth;
                             final voiceChatAlone =
@@ -444,8 +445,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                             final paneWidth = voiceChatInSlot
                                 ? 380.0
                                 : (musicShown
-                                    ? OcFloats.sideMusic
-                                    : OcFloats.side);
+                                      ? OcFloats.sideMusic
+                                      : OcFloats.side);
 
                             final paneOpen = layout.membersInline
                                 ? (paneWanted || voiceChatInSlot)
@@ -572,7 +573,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                                   open: slotOpen,
                                                   width: paneWidth,
                                                   float: !voiceChatInSlot,
-                                                  child: voiceChatInSlot &&
+                                                  child:
+                                                      voiceChatInSlot &&
                                                           open != null
                                                       ? VoiceChatSlot(
                                                           channel: open,

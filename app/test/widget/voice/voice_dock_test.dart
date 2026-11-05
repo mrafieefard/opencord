@@ -15,10 +15,8 @@ const _dev = 'opencord.example:7710';
 
 Finder _dock() => find.byKey(ShellKeys.dock);
 
-Finder _control(String label) => find.descendant(
-      of: _dock(),
-      matching: find.bySemanticsLabel(label),
-    );
+Finder _control(String label) =>
+    find.descendant(of: _dock(), matching: find.bySemanticsLabel(label));
 
 Future<MockApp> _onVoice(
   WidgetTester tester, {
@@ -69,10 +67,16 @@ void main() {
     expect(dockBox.height, 64.0);
 
     // Centred in the main float within 1 px.
-    expect(dockBox.center.dx, moreOrLessEquals(mainBox.center.dx, epsilon: 1.0));
+    expect(
+      dockBox.center.dx,
+      moreOrLessEquals(mainBox.center.dx, epsilon: 1.0),
+    );
 
     // Bottom edge 15 above the float's bottom edge (14 and its 1 px border).
-    expect(mainBox.bottom - dockBox.bottom, moreOrLessEquals(15.0, epsilon: 1.0));
+    expect(
+      mainBox.bottom - dockBox.bottom,
+      moreOrLessEquals(15.0, epsilon: 1.0),
+    );
 
     // With the chat button its width is 517.7 within 2.
     expect((dockBox.width - 517.7).abs(), lessThanOrEqualTo(2.0));
@@ -86,7 +90,10 @@ void main() {
     final divider = find.descendant(
       of: _dock(),
       matching: find.byWidgetPredicate(
-        (w) => w is Container && w.constraints?.maxWidth == 1 && w.constraints?.maxHeight == 28,
+        (w) =>
+            w is Container &&
+            w.constraints?.maxWidth == 1 &&
+            w.constraints?.maxHeight == 28,
       ),
     );
     expect(divider, findsOneWidget);
@@ -247,7 +254,8 @@ void main() {
       of: _control('Mute'),
       matching: find.byType(Hoverable),
     );
-    final focusNode = tester.widget<Hoverable>(muteHoverable).focusNode ??
+    final focusNode =
+        tester.widget<Hoverable>(muteHoverable).focusNode ??
         Focus.of(tester.element(muteHoverable));
     focusNode.requestFocus();
     await tester.pump();
@@ -401,7 +409,9 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('not_joined_has_no_dock, dock_leaves_no_timer_behind', (tester) async {
+  testWidgets('not_joined_has_no_dock, dock_leaves_no_timer_behind', (
+    tester,
+  ) async {
     final app = await MockApp.pump(tester);
     // Before joining General, open channel in view without joining.
     final dev = app.read(serverProvider(_dev)).data!;

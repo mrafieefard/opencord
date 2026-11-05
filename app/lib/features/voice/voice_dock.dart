@@ -304,10 +304,7 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
           final opacity = _opacityController.value.clamp(0.0, 1.0);
           return Transform.translate(
             offset: Offset(0, dy),
-            child: Opacity(
-              opacity: opacity,
-              child: child,
-            ),
+            child: Opacity(opacity: opacity, child: child),
           );
         },
         child: MouseRegion(
@@ -335,10 +332,7 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (widget.chat) ...[
-                          VoiceChatButton(
-                            channel: widget.channel,
-                            round: true,
-                          ),
+                          VoiceChatButton(channel: widget.channel, round: true),
                           const SizedBox(width: 10),
                           Container(width: 1, height: 28, color: colors.border),
                           const SizedBox(width: 10),
@@ -370,11 +364,7 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
                                 final activity = _activity;
                                 activity?.hold();
                                 try {
-                                  await showCameraMenu(
-                                    context,
-                                    ref,
-                                    offset,
-                                  );
+                                  await showCameraMenu(context, ref, offset);
                                 } finally {
                                   activity?.release();
                                 }
@@ -398,11 +388,10 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
                                   final box =
                                       btnContext.findRenderObject()
                                           as RenderBox?;
-                                  final rect =
-                                      box == null || !box.attached
-                                          ? null
-                                          : box.localToGlobal(Offset.zero) &
-                                              box.size;
+                                  final rect = box == null || !box.attached
+                                      ? null
+                                      : box.localToGlobal(Offset.zero) &
+                                            box.size;
                                   await screenshareControl(
                                     context,
                                     ref,
@@ -434,11 +423,10 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
                                   final box =
                                       btnContext.findRenderObject()
                                           as RenderBox?;
-                                  final rect =
-                                      box == null || !box.attached
-                                          ? Rect.zero
-                                          : box.localToGlobal(Offset.zero) &
-                                              box.size;
+                                  final rect = box == null || !box.attached
+                                      ? Rect.zero
+                                      : box.localToGlobal(Offset.zero) &
+                                            box.size;
                                   await showSoundboardPicker(
                                     context,
                                     anchor: rect,
@@ -502,6 +490,7 @@ class VoiceChatButton extends ConsumerWidget {
       }
       ref.read(voiceViewPrefsProvider.notifier).toggleChat();
     }
+
     final tooltip = switch ((open, unread)) {
       (true, _) => 'Hide chat',
       (false, 0) => 'Show chat',
@@ -572,8 +561,8 @@ class _DockRoundButton extends StatelessWidget {
       builder: (context, state) {
         final background = active
             ? (state.active
-                ? Color.lerp(colors.accent, colors.onAccent, 0.12)!
-                : colors.accent)
+                  ? Color.lerp(colors.accent, colors.onAccent, 0.12)!
+                  : colors.accent)
             : (state.active ? colors.selected : colors.surface);
         final borderColor = active
             ? colors.accent
@@ -608,11 +597,7 @@ class _DockRoundButton extends StatelessWidget {
       },
     );
 
-    return Tooltip(
-      message: message,
-      excludeFromSemantics: true,
-      child: button,
-    );
+    return Tooltip(message: message, excludeFromSemantics: true, child: button);
   }
 }
 

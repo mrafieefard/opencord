@@ -91,7 +91,9 @@ void main() {
 
     // Bottom level with the user panel
     final userPanelFloat = tester.getRect(
-      find.ancestor(of: find.byType(UserPanel), matching: find.byType(OcFloat)).first,
+      find
+          .ancestor(of: find.byType(UserPanel), matching: find.byType(OcFloat))
+          .first,
     );
     final composerRect = tester.getRect(composerFinder);
     expect(composerRect.bottom, userPanelFloat.bottom);
@@ -233,18 +235,22 @@ void main() {
     expect(appNarrow.read(voiceViewPrefsProvider).chatOpen, isFalse);
 
     // Reopen from dock
-    await tester.tap(find.descendant(
-      of: find.byType(VoiceControlBar),
-      matching: find.byType(VoiceChatButton),
-    ));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(VoiceControlBar),
+        matching: find.byType(VoiceChatButton),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(appNarrow.read(voiceViewPrefsProvider).chatOpen, isTrue);
 
     // Second toggle from header: close
-    await tester.tap(find.descendant(
-      of: find.byType(ChatHeader),
-      matching: find.byType(VoiceChatButton),
-    ));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ChatHeader),
+        matching: find.byType(VoiceChatButton),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(appNarrow.read(voiceViewPrefsProvider).chatOpen, isFalse);
 
@@ -311,7 +317,10 @@ void main() {
     final box = tester.widget<Container>(
       find.descendant(of: joinBtn, matching: find.byType(Container)).first,
     );
-    expect((box.decoration as BoxDecoration).borderRadius, BorderRadius.circular(10));
+    expect(
+      (box.decoration as BoxDecoration).borderRadius,
+      BorderRadius.circular(10),
+    );
 
     await app.dispose(tester);
   });
@@ -358,7 +367,9 @@ void main() {
     final updatedPermissions =
         (serverData.channelPermissions[voice] ?? Permissions.all) -
         Permissions.connect;
-    app.read(serverProvider(_dev).notifier).apply(
+    app
+        .read(serverProvider(_dev).notifier)
+        .apply(
           PermissionsChanged(_dev, serverData.serverPermissions, {
             ...serverData.channelPermissions,
             voice: updatedPermissions,

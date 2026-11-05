@@ -32,9 +32,9 @@ class VoiceChatSlot extends ConsumerWidget {
     final colors = context.oc;
     final controller = ref.read(chatControllerProvider);
     final channelName = ref.watch(
-      serverProvider(channel.server).select(
-        (state) => state.data?.channels[channel.channel]?.name ?? '',
-      ),
+      serverProvider(
+        channel.server,
+      ).select((state) => state.data?.channels[channel.channel]?.name ?? ''),
     );
 
     return AttachmentDropZone(

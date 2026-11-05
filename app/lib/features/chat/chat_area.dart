@@ -147,7 +147,8 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
           // them back and forth.
           final width =
               ShellMetrics.maybeOf(context)?.mainInner ?? constraints.maxWidth;
-          final chatAlone = widget.voiceChatAlone ??
+          final chatAlone =
+              widget.voiceChatAlone ??
               (voiceChat && width - _voiceChatWidth - 1 < _stageMinWidth);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
