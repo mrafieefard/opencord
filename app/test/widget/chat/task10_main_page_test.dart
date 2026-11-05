@@ -10,7 +10,6 @@ import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/voice/mic_button.dart';
 import 'package:opencord/features/chat/voice/recording_bar.dart';
 import 'package:opencord/features/home/private_message_list.dart';
-import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
