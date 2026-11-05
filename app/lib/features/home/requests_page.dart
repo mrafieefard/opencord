@@ -8,6 +8,7 @@ import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/person_card.dart';
+import 'package:opencord/features/home/private_page.dart';
 import 'package:opencord/features/home/request_bar.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -24,6 +25,9 @@ class RequestsPage extends ConsumerWidget {
 
   final VoidCallback? onOpenSidebar;
 
+  static const _gap = 8.0;
+  static const _minCard = 280.0;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
@@ -34,7 +38,10 @@ class RequestsPage extends ConsumerWidget {
       children: [
         PanelHeader(
           key: ShellKeys.hd,
-          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+          padding: EdgeInsets.only(
+            left: onOpenSidebar != null ? OcFloats.gap : OcSpace.s16,
+            right: OcFloats.gap,
+          ),
           child: Row(
             children: [
               if (onOpenSidebar != null) ...[
@@ -43,7 +50,7 @@ class RequestsPage extends ConsumerWidget {
                   tooltip: 'Open channels',
                   onPressed: onOpenSidebar,
                 ),
-                const SizedBox(width: OcSpace.s8),
+                const SizedBox(width: OcSpace.s10),
               ],
               Expanded(
                 child: Column(
@@ -55,6 +62,7 @@ class RequestsPage extends ConsumerWidget {
                       style: OcText.header.copyWith(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        height: 1.25,
                         color: colors.text,
                       ),
                       maxLines: 1,
@@ -65,7 +73,8 @@ class RequestsPage extends ConsumerWidget {
                         'They wrote first. Nothing reaches your chats until you accept.',
                         style: TextStyle(
                           fontSize: 12.5,
-                          color: colors.textMuted,
+                          height: 1.25,
+                          color: colors.textSecondary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -77,58 +86,49 @@ class RequestsPage extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 100),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: child,
-            ),
-            child: KeyedSubtree(
-              key: ValueKey(requests.length),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: requests.isEmpty
-                        ? const PrivateEmptyState(
-                            icon: OcIcons.mail,
-                            message: 'No one is waiting for an answer',
-                          )
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              final width = constraints.maxWidth;
-                              final columns =
-                                  math.max(1, ((width + 8) / (280 + 8)).floor());
-                              final cardWidth =
-                                  (width - (columns - 1) * 8) / columns;
-
-                              return SingleChildScrollView(
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    for (final req in requests)
-                                      SizedBox(
-                                        width: cardWidth,
-                                        child: RequestCard(contact: req),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ),
-              ),
-            ),
+          child: PrivatePage(
+            rows: (width) => requests.isEmpty
+                ? const [
+                    PrivateEmptyState(
+                      icon: OcIcons.mail,
+                      message: 'No one is waiting for an answer',
+                    ),
+                  ]
+                : _grid(requests, width),
           ),
         ),
       ],
     );
+  }
+
+  /// Cards at least 280 wide, as many columns as fit and no more than there
+  /// are cards; the cards of a row share its height (§5.16).
+  List<Widget> _grid(List<PrivateContact> requests, double width) {
+    final fit = ((width + _gap) / (_minCard + _gap)).floor();
+    final columns = math.min(requests.length, math.max(1, fit));
+    return [
+      for (var start = 0; start < requests.length; start += columns)
+        Padding(
+          padding: EdgeInsets.only(top: start == 0 ? 0 : _gap),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: _gap,
+              children: [
+                for (var i = start; i < start + columns; i++)
+                  Expanded(
+                    child: i < requests.length
+                        ? RequestCard(
+                            key: ValueKey(requests[i].peer),
+                            contact: requests[i],
+                          )
+                        : const SizedBox(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+    ];
   }
 }
 
@@ -144,9 +144,11 @@ class RequestCard extends ConsumerWidget {
     final name = ref.watch(contactNameProvider(contact.peer));
     final sharedServers = ref.watch(sharedServersProvider(contact.peer));
     final relayKey = contact.relayServerKey;
-    final relayServer =
-        relayKey != null ? ref.watch(serverProvider(relayKey)) : null;
-    final relayServerName = relayServer?.data?.info.name ??
+    final relayServer = relayKey != null
+        ? ref.watch(serverProvider(relayKey))
+        : null;
+    final relayServerName =
+        relayServer?.data?.info.name ??
         sharedServers.where((s) => s.serverKey == relayKey).firstOrNull?.name ??
         'Server';
 
@@ -209,37 +211,34 @@ class RequestCard extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Text(
                       timeText,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.textMuted,
-                      ),
+                      style: TextStyle(fontSize: 11, color: colors.textMuted),
                     ),
                   ],
                 ],
               ),
               const SizedBox(height: 10),
 
-              // Message bubble: padding 8 12, radii 16 16 16 5, bubbleIn, 1 px border
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.bubbleIn,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                    bottomLeft: Radius.circular(5),
+              // Message bubble: padding 8 12, radii 16 16 16 5, bubbleIn, 1 px
+              // border; it takes what a taller card in the row leaves over.
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
-                  border: Border.all(color: colors.border, width: 1),
-                ),
-                child: Text(
-                  messageText,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: colors.text,
+                  decoration: BoxDecoration(
+                    color: colors.bubbleIn,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(5),
+                    ),
+                    border: Border.all(color: colors.border, width: 1),
+                  ),
+                  child: Text(
+                    messageText,
+                    style: TextStyle(fontSize: 14, color: colors.text),
                   ),
                 ),
               ),
@@ -308,10 +307,7 @@ class PrivateEmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message,
-              style: TextStyle(
-                fontSize: 14,
-                color: colors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 14, color: colors.textSecondary),
               textAlign: TextAlign.center,
             ),
           ],

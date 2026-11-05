@@ -32,10 +32,7 @@ Future<void> _pumpRequests(
       child: MaterialApp(
         theme: buildTheme(OcColors.dark),
         home: Scaffold(
-          body: SizedBox.fromSize(
-            size: size,
-            child: const RequestsPage(),
-          ),
+          body: SizedBox.fromSize(size: size, child: const RequestsPage()),
         ),
       ),
     ),
@@ -61,12 +58,14 @@ void main() {
 
     // Card container numbers: padding 12, radius 14, background sidebar, 1 px border
     final cardContainer = tester.widget<Container>(
-      find.descendant(
-        of: requestCards.first,
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.padding == const EdgeInsets.all(12)),
-      ).first,
+      find
+          .descendant(
+            of: requestCards.first,
+            matching: find.byWidgetPredicate(
+              (w) => w is Container && w.padding == const EdgeInsets.all(12),
+            ),
+          )
+          .first,
     );
     final cardDeco = cardContainer.decoration as BoxDecoration;
     expect(cardDeco.color, OcColors.dark.sidebar);
@@ -89,21 +88,28 @@ void main() {
     // Time text exists with fontSize 11 textMuted
     final timeFinder = find.descendant(
       of: requestCards.first,
-      matching: find.byWidgetPredicate((w) =>
-        w is Text &&
-        w.style?.fontSize == 11 &&
-        w.style?.color == OcColors.dark.textMuted),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            w.style?.fontSize == 11 &&
+            w.style?.color == OcColors.dark.textMuted,
+      ),
     );
     expect(timeFinder, findsOneWidget);
 
     // Message bubble: padding 8 12, radii 16 16 16 5, bubbleIn, 1 px border
     final bubbleContainer = tester.widget<Container>(
-      find.descendant(
-        of: requestCards.first,
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.padding == const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-      ).first,
+      find
+          .descendant(
+            of: requestCards.first,
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is Container &&
+                  w.padding ==
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          )
+          .first,
     );
     final bubbleDeco = bubbleContainer.decoration as BoxDecoration;
     expect(bubbleDeco.color, OcColors.dark.bubbleIn);
@@ -122,14 +128,17 @@ void main() {
     final priyaKey = app.repository.privateWorld.contacts.values
         .firstWhere((c) => c.name == 'Priya Shah')
         .peer;
-    final emptyPreviewPriya = app.repository.privateWorld.contacts[priyaKey]!.copyWith(preview: '');
+    final emptyPreviewPriya = app.repository.privateWorld.contacts[priyaKey]!
+        .copyWith(preview: '');
     app.repository.privateWorld.contacts[priyaKey] = emptyPreviewPriya;
     app.repository.emit(PrivateContactChanged(emptyPreviewPriya));
     await tester.pumpAndSettle();
 
     // Greta Hoffmann has a preview in mock_private
     expect(
-      find.text('Hello! We would love to have you speak at the next Berlin meetup.'),
+      find.text(
+        'Hello! We would love to have you speak at the next Berlin meetup.',
+      ),
       findsOneWidget,
     );
     // Priya Shah now has empty preview, so shows 'Wants to message you'
@@ -202,7 +211,10 @@ void main() {
     // Request is removed
     expect(find.text('Priya Shah'), findsNothing);
     final contact = app.repository.privateWorld.contacts[priyaKey];
-    expect(contact == null || contact.conversation == ConversationStatus.none, isTrue);
+    expect(
+      contact == null || contact.conversation == ConversationStatus.none,
+      isTrue,
+    );
 
     await app.dispose(tester);
   });
@@ -261,7 +273,9 @@ void main() {
     final world = app.repository.privateWorld;
     for (final c in world.contacts.values.toList()) {
       if (c.conversation == ConversationStatus.request) {
-        world.contacts[c.peer] = c.copyWith(conversation: ConversationStatus.none);
+        world.contacts[c.peer] = c.copyWith(
+          conversation: ConversationStatus.none,
+        );
       }
     }
     app.container.read(privateContactsProvider.notifier).onStateChanged();
@@ -269,19 +283,93 @@ void main() {
     await _pumpRequests(tester, app);
 
     // Mail icon 32 textMuted
-    final iconFinder = find.byWidgetPredicate((w) =>
-      w is Icon &&
-      w.icon == OcIcons.mail &&
-      w.size == 32 &&
-      w.color == OcColors.dark.textMuted);
+    final iconFinder = find.byWidgetPredicate(
+      (w) =>
+          w is Icon &&
+          w.icon == OcIcons.mail &&
+          w.size == 32 &&
+          w.color == OcColors.dark.textMuted,
+    );
     expect(iconFinder, findsOneWidget);
 
     // Text 'No one is waiting for an answer' in textSecondary
-    final textFinder = find.byWidgetPredicate((w) =>
-      w is Text &&
-      w.data == 'No one is waiting for an answer' &&
-      w.style?.color == OcColors.dark.textSecondary);
+    final textFinder = find.byWidgetPredicate(
+      (w) =>
+          w is Text &&
+          w.data == 'No one is waiting for an answer' &&
+          w.style?.color == OcColors.dark.textSecondary,
+    );
     expect(textFinder, findsOneWidget);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('cards_in_a_row_share_a_height_and_the_bubble_takes_the_rest', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _pumpRequests(tester, app);
+
+    final priyaKey = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Priya Shah')
+        .peer;
+    final short = app.repository.privateWorld.contacts[priyaKey]!.copyWith(
+      preview: 'Hi',
+    );
+    app.repository.privateWorld.contacts[priyaKey] = short;
+    app.repository.emit(PrivateContactChanged(short));
+    await tester.pumpAndSettle();
+
+    final first = tester.getRect(find.byType(RequestCard).at(0));
+    final second = tester.getRect(find.byType(RequestCard).at(1));
+    expect(first.top, second.top);
+    expect(first.height, second.height);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('one_request_fills_the_column', (tester) async {
+    final app = await MockApp.pump(tester);
+
+    final world = app.repository.privateWorld;
+    final greta = world.contacts.values.firstWhere(
+      (c) => c.name == 'Greta Hoffmann',
+    );
+    world.contacts[greta.peer] = greta.copyWith(
+      conversation: ConversationStatus.none,
+    );
+    app.container.read(privateContactsProvider.notifier).onStateChanged();
+
+    await _pumpRequests(tester, app);
+
+    // The column at 1280 is 760 wide; auto-fit leaves no empty column.
+    expect(tester.getSize(find.byType(RequestCard)).width, 760);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_third_card_keeps_its_columns_width', (tester) async {
+    final app = await MockApp.pump(tester);
+
+    final world = app.repository.privateWorld;
+    final greta = world.contacts.values.firstWhere(
+      (c) => c.name == 'Greta Hoffmann',
+    );
+    final third = greta.copyWith(peer: 'key-third', name: 'Third Person');
+    world.contacts[third.peer] = third;
+    app.container.read(privateContactsProvider.notifier).onStateChanged();
+
+    await _pumpRequests(tester, app);
+
+    final cards = find.byType(RequestCard);
+    expect(cards, findsNWidgets(3));
+    // Two columns of (760 - 8) / 2, and 8 between the rows.
+    expect(tester.getSize(cards.at(0)).width, 376);
+    expect(tester.getSize(cards.at(2)).width, 376);
+    expect(
+      tester.getRect(cards.at(2)).top - tester.getRect(cards.at(0)).bottom,
+      8,
+    );
 
     await app.dispose(tester);
   });

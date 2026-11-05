@@ -7,11 +7,13 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/home/own_device_notice.dart';
 import 'package:opencord/features/home/person_card.dart';
+import 'package:opencord/features/home/private_page.dart';
 import 'package:opencord/features/home/requests_page.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
+import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
@@ -73,16 +75,26 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       return presence != Presence.offline;
     }).length;
     final allCount = contacts.friends.length;
-    final pendingCount = contacts.incomingRequests.length +
-        contacts.spamRequests.length +
-        contacts.outgoingRequests.length;
+    final pendingCount =
+        contacts.incomingRequests.length + contacts.outgoingRequests.length;
     final blockedCount = contacts.blocked.length;
+
+    final rows = switch (tab) {
+      FriendsTab.online => _onlineRows(contacts),
+      FriendsTab.all => _allRows(contacts),
+      FriendsTab.pending => _pendingRows(context, contacts),
+      FriendsTab.blocked => _blockedRows(contacts),
+      FriendsTab.requests => const <Widget>[],
+    };
 
     return Column(
       children: [
         PanelHeader(
           key: ShellKeys.hd,
-          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+          padding: EdgeInsets.only(
+            left: widget.onOpenSidebar != null ? OcFloats.gap : OcSpace.s16,
+            right: OcFloats.gap,
+          ),
           child: Row(
             children: [
               if (widget.onOpenSidebar != null) ...[
@@ -91,7 +103,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                   tooltip: 'Open channels',
                   onPressed: widget.onOpenSidebar,
                 ),
-                const SizedBox(width: OcSpace.s8),
+                const SizedBox(width: OcSpace.s10),
               ],
               Text(
                 'Friends',
@@ -102,47 +114,52 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                 ),
               ),
               const SizedBox(width: 8),
-              Flexible(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _FriendsTabButton(
-                        label: 'Online',
-                        count: onlineCount,
-                        selected: tab == FriendsTab.online,
-                        onTap: () => ref
-                            .read(friendsTabProvider.notifier)
-                            .select(FriendsTab.online),
-                      ),
-                      const SizedBox(width: 4),
-                      _FriendsTabButton(
-                        label: 'All',
-                        count: allCount,
-                        selected: tab == FriendsTab.all,
-                        onTap: () => ref
-                            .read(friendsTabProvider.notifier)
-                            .select(FriendsTab.all),
-                      ),
-                      const SizedBox(width: 4),
-                      _FriendsTabButton(
-                        label: 'Pending',
-                        count: pendingCount,
-                        selected: tab == FriendsTab.pending,
-                        onTap: () => ref
-                            .read(friendsTabProvider.notifier)
-                            .select(FriendsTab.pending),
-                      ),
-                      const SizedBox(width: 4),
-                      _FriendsTabButton(
-                        label: 'Blocked',
-                        count: blockedCount,
-                        selected: tab == FriendsTab.blocked,
-                        onTap: () => ref
-                            .read(friendsTabProvider.notifier)
-                            .select(FriendsTab.blocked),
-                      ),
-                    ],
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      key: ShellKeys.acts,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _FriendsTabButton(
+                          label: 'Online',
+                          count: onlineCount,
+                          selected: tab == FriendsTab.online,
+                          onTap: () => ref
+                              .read(friendsTabProvider.notifier)
+                              .select(FriendsTab.online),
+                        ),
+                        const SizedBox(width: 4),
+                        _FriendsTabButton(
+                          label: 'All',
+                          count: allCount,
+                          selected: tab == FriendsTab.all,
+                          onTap: () => ref
+                              .read(friendsTabProvider.notifier)
+                              .select(FriendsTab.all),
+                        ),
+                        const SizedBox(width: 4),
+                        _FriendsTabButton(
+                          label: 'Pending',
+                          count: pendingCount,
+                          selected: tab == FriendsTab.pending,
+                          onTap: () => ref
+                              .read(friendsTabProvider.notifier)
+                              .select(FriendsTab.pending),
+                        ),
+                        const SizedBox(width: 4),
+                        _FriendsTabButton(
+                          label: 'Blocked',
+                          count: blockedCount,
+                          selected: tab == FriendsTab.blocked,
+                          onTap: () => ref
+                              .read(friendsTabProvider.notifier)
+                              .select(FriendsTab.blocked),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -153,90 +170,64 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         // This person's other devices with other chat keys (design §7.1).
         const OwnDeviceNotice(),
 
-        // Main content area, fading in on tab switch (100 ms)
         Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 100),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: child,
-            ),
-            child: KeyedSubtree(
-              key: ValueKey(tab),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: switch (tab) {
-                      FriendsTab.online => _buildOnlineTab(context, contacts),
-                      FriendsTab.all => _buildAllTab(context, contacts),
-                      FriendsTab.pending => _buildPendingTab(context, contacts),
-                      FriendsTab.blocked => _buildBlockedTab(context, contacts),
-                      FriendsTab.requests => const SizedBox.shrink(),
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
+          child: PrivatePage(scrollKey: ValueKey(tab), rows: (_) => rows),
         ),
       ],
     );
   }
 
-  Widget _buildOnlineTab(BuildContext context, PrivateContactsState contacts) {
-    final allFriends = contacts.friends;
-    final onlineFriends = allFriends.where((c) {
+  List<Widget> _onlineRows(PrivateContactsState contacts) {
+    final onlineFriends = contacts.friends.where((c) {
       final presence = ref.watch(contactPresenceProvider(c.peer));
       return presence != Presence.offline;
     }).toList();
 
     if (onlineFriends.isEmpty) {
-      return const PrivateEmptyState(
-        icon: OcIcons.group,
-        message: "No one's online right now.",
-      );
+      return const [
+        PrivateEmptyState(
+          icon: OcIcons.group,
+          message: "No one's online right now.",
+        ),
+      ];
     }
 
-    return ListView(
-      children: [
-        SectionLabel(
-          'ONLINE — ${onlineFriends.length}',
-          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
-        ),
-        for (final friend in onlineFriends)
-          PersonCard(contact: friend, kind: PersonCardKind.friend),
-      ],
-    );
+    return [
+      SectionLabel(
+        'ONLINE — ${onlineFriends.length}',
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+      ),
+      for (final friend in onlineFriends)
+        PersonCard(contact: friend, kind: PersonCardKind.friend),
+    ];
   }
 
-  Widget _buildAllTab(BuildContext context, PrivateContactsState contacts) {
+  List<Widget> _allRows(PrivateContactsState contacts) {
     final allFriends = contacts.friends;
 
     if (allFriends.isEmpty) {
-      return const PrivateEmptyState(
-        icon: OcIcons.group,
-        message: "You haven't added any friends yet.",
-      );
+      return const [
+        PrivateEmptyState(
+          icon: OcIcons.group,
+          message: "You haven't added any friends yet.",
+        ),
+      ];
     }
 
-    return ListView(
-      children: [
-        SectionLabel(
-          'ALL — ${allFriends.length}',
-          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
-        ),
-        for (final friend in allFriends)
-          PersonCard(contact: friend, kind: PersonCardKind.friend),
-      ],
-    );
+    return [
+      SectionLabel(
+        'ALL — ${allFriends.length}',
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+      ),
+      for (final friend in allFriends)
+        PersonCard(contact: friend, kind: PersonCardKind.friend),
+    ];
   }
 
-  Widget _buildPendingTab(BuildContext context, PrivateContactsState contacts) {
+  List<Widget> _pendingRows(
+    BuildContext context,
+    PrivateContactsState contacts,
+  ) {
     final colors = context.oc;
     final incoming = contacts.incomingRequests;
     final outgoing = contacts.outgoingRequests;
@@ -244,88 +235,82 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     final totalNonSpam = incoming.length + outgoing.length;
 
     if (totalNonSpam == 0 && spam.isEmpty) {
-      return const PrivateEmptyState(
-        icon: OcIcons.mail,
-        message: 'No pending requests.',
-      );
+      return const [
+        PrivateEmptyState(icon: OcIcons.mail, message: 'No pending requests.'),
+      ];
     }
 
-    return ListView(
-      children: [
-        if (incoming.isNotEmpty) ...[
-          SectionLabel(
-            'INCOMING — ${incoming.length}',
-            padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
-          ),
-          for (final inc in incoming)
-            PersonCard(contact: inc, kind: PersonCardKind.incoming),
-        ],
-        if (outgoing.isNotEmpty) ...[
-          SectionLabel(
-            'SENT — ${outgoing.length}',
-            padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
-          ),
-          for (final out in outgoing)
-            PersonCard(contact: out, kind: PersonCardKind.outgoing),
-        ],
-        if (spam.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Hoverable(
-            onTap: () => setState(() => _spamExpanded = !_spamExpanded),
-            semanticLabel: 'Spam',
-            builder: (context, state) => Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              decoration: BoxDecoration(
-                color: state.active ? colors.hover : null,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _spamExpanded ? OcIcons.expandMore : OcIcons.chevronRight,
-                    size: 16,
-                    color: colors.textMuted,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Spam — ${spam.length}',
-                    style: OcText.label.copyWith(color: colors.textMuted),
-                  ),
-                ],
-              ),
+    return [
+      if (incoming.isNotEmpty) ...[
+        SectionLabel(
+          'INCOMING — ${incoming.length}',
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+        ),
+        for (final inc in incoming)
+          PersonCard(contact: inc, kind: PersonCardKind.incoming),
+      ],
+      if (outgoing.isNotEmpty) ...[
+        SectionLabel(
+          'SENT — ${outgoing.length}',
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+        ),
+        for (final out in outgoing)
+          PersonCard(contact: out, kind: PersonCardKind.outgoing),
+      ],
+      if (spam.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Hoverable(
+          onTap: () => setState(() => _spamExpanded = !_spamExpanded),
+          semanticLabel: 'Spam',
+          builder: (context, state) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: state.active ? colors.hover : null,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _spamExpanded ? OcIcons.expandMore : OcIcons.chevronRight,
+                  size: 16,
+                  color: colors.textMuted,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Spam — ${spam.length}',
+                  style: OcText.label.copyWith(color: colors.textMuted),
+                ),
+              ],
             ),
           ),
-          if (_spamExpanded)
-            for (final s in spam)
-              PersonCard(contact: s, kind: PersonCardKind.incoming),
-        ],
+        ),
+        if (_spamExpanded)
+          for (final s in spam)
+            PersonCard(contact: s, kind: PersonCardKind.incoming),
       ],
-    );
+    ];
   }
 
-  Widget _buildBlockedTab(BuildContext context, PrivateContactsState contacts) {
+  List<Widget> _blockedRows(PrivateContactsState contacts) {
     final blocked = contacts.blocked;
 
     if (blocked.isEmpty) {
-      return const PrivateEmptyState(
-        icon: OcIcons.block,
-        message: "You haven't blocked anyone.",
-      );
+      return const [
+        PrivateEmptyState(
+          icon: OcIcons.block,
+          message: "You haven't blocked anyone.",
+        ),
+      ];
     }
 
-    return ListView(
-      children: [
-        SectionLabel(
-          'BLOCKED — ${blocked.length}',
-          padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
-        ),
-        for (final b in blocked)
-          PersonCard(contact: b, kind: PersonCardKind.blocked),
-      ],
-    );
+    return [
+      SectionLabel(
+        'BLOCKED — ${blocked.length}',
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 6),
+      ),
+      for (final b in blocked)
+        PersonCard(contact: b, kind: PersonCardKind.blocked),
+    ];
   }
 }
 
@@ -356,7 +341,8 @@ class _FriendsTabButton extends StatelessWidget {
             : (state.active ? colors.hover : Colors.transparent);
         final textColor = selected ? colors.onAccent : colors.textSecondary;
 
-        return Container(
+        return AnimatedContainer(
+          duration: OcMotion.of(context).hover,
           height: 30,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,

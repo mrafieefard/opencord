@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_world.dart';
+import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -13,6 +14,7 @@ import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/home/home_sidebar.dart';
 import 'package:opencord/features/home/home_tiles.dart';
 import 'package:opencord/features/home/private_chat.dart';
+import 'package:opencord/features/home/relay_divider.dart';
 import 'package:opencord/features/home/request_bar.dart';
 import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -35,11 +37,7 @@ Future<void> _pumpHomeSidebar(WidgetTester tester, MockApp app) async {
       child: MaterialApp(
         theme: buildTheme(OcColors.dark),
         home: const Scaffold(
-          body: SizedBox(
-            width: 288,
-            height: 800,
-            child: HomeSidebar(),
-          ),
+          body: SizedBox(width: 288, height: 800, child: HomeSidebar()),
         ),
       ),
     ),
@@ -90,7 +88,11 @@ void main() {
     final homeTilesPadding = tester.widget<Padding>(
       find.descendant(
         of: find.byType(HomeTiles),
-        matching: find.byWidgetPredicate((w) => w is Padding && w.padding == const EdgeInsets.fromLTRB(8, 8, 8, 4)),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Padding &&
+              w.padding == const EdgeInsets.fromLTRB(8, 8, 8, 4),
+        ),
       ),
     );
     expect(homeTilesPadding.padding, const EdgeInsets.fromLTRB(8, 8, 8, 4));
@@ -99,7 +101,9 @@ void main() {
     final tilesRow = tester.widget<Row>(
       find.descendant(
         of: find.byType(HomeTiles),
-        matching: find.byWidgetPredicate((w) => w is Row && w.children.length == 3),
+        matching: find.byWidgetPredicate(
+          (w) => w is Row && w.children.length == 3,
+        ),
       ),
     );
     final gap = tilesRow.children[1] as SizedBox;
@@ -118,10 +122,12 @@ void main() {
     final friendsTileContainer = tester.widget<Container>(
       find.descendant(
         of: find.widgetWithText(HomeTile, 'Friends'),
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.constraints?.minHeight == 92 &&
-          w.padding == const EdgeInsets.all(10)),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.constraints?.minHeight == 92 &&
+              w.padding == const EdgeInsets.all(10),
+        ),
       ),
     );
     expect(friendsTileContainer.constraints?.minHeight, 92);
@@ -134,10 +140,12 @@ void main() {
     final requestsTileContainer = tester.widget<Container>(
       find.descendant(
         of: find.widgetWithText(HomeTile, 'Message requests'),
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.constraints?.minHeight == 92 &&
-          w.padding == const EdgeInsets.all(10)),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.constraints?.minHeight == 92 &&
+              w.padding == const EdgeInsets.all(10),
+        ),
       ),
     );
     final requestsDeco = requestsTileContainer.decoration as BoxDecoration;
@@ -149,10 +157,12 @@ void main() {
     final friendsIconBox = tester.widget<Container>(
       find.descendant(
         of: find.widgetWithText(HomeTile, 'Friends'),
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.constraints?.maxWidth == 32 &&
-          w.constraints?.maxHeight == 32),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.constraints?.maxWidth == 32 &&
+              w.constraints?.maxHeight == 32,
+        ),
       ),
     );
     final friendsIconDeco = friendsIconBox.decoration as BoxDecoration;
@@ -160,7 +170,10 @@ void main() {
     // Inverted on selected tile:
     expect(friendsIconDeco.color, OcColors.dark.onAccent);
     final friendsIcon = tester.widget<Icon>(
-      find.descendant(of: find.byWidget(friendsIconBox), matching: find.byType(Icon)),
+      find.descendant(
+        of: find.byWidget(friendsIconBox),
+        matching: find.byType(Icon),
+      ),
     );
     expect(friendsIcon.size, 20);
     expect(friendsIcon.color, OcColors.dark.accent);
@@ -169,17 +182,22 @@ void main() {
     final requestsIconBox = tester.widget<Container>(
       find.descendant(
         of: find.widgetWithText(HomeTile, 'Message requests'),
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.constraints?.maxWidth == 32 &&
-          w.constraints?.maxHeight == 32),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.constraints?.maxWidth == 32 &&
+              w.constraints?.maxHeight == 32,
+        ),
       ),
     );
     final requestsIconDeco = requestsIconBox.decoration as BoxDecoration;
     expect(requestsIconDeco.borderRadius, BorderRadius.circular(10));
     expect(requestsIconDeco.color, OcColors.dark.selected);
     final requestsIcon = tester.widget<Icon>(
-      find.descendant(of: find.byWidget(requestsIconBox), matching: find.byType(Icon)),
+      find.descendant(
+        of: find.byWidget(requestsIconBox),
+        matching: find.byType(Icon),
+      ),
     );
     expect(requestsIcon.size, 20);
     expect(requestsIcon.color, OcColors.dark.text);
@@ -209,7 +227,9 @@ void main() {
     );
     expect(tester.widget<AnimatedScale>(scaleFinder).scale, 1.0);
 
-    final gesture = await tester.startGesture(tester.getCenter(find.widgetWithText(HomeTile, 'Message requests')));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.widgetWithText(HomeTile, 'Message requests')),
+    );
     await tester.pump(const Duration(milliseconds: 90));
     expect(tester.widget<AnimatedScale>(scaleFinder).scale, 0.97);
     await gesture.up();
@@ -218,15 +238,100 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('tiles_count_what_is_waiting', (tester) async {
+  testWidgets('tiles_share_a_height_however_their_names_wrap', (tester) async {
     final app = await MockApp.pump(tester);
     app.container.read(navigationProvider.notifier).openFriends();
 
     await _pumpHomeSidebar(tester, app);
 
+    final friends = tester.getRect(find.widgetWithText(HomeTile, 'Friends'));
+    final requests = tester.getRect(
+      find.widgetWithText(HomeTile, 'Message requests'),
+    );
+    expect(friends.height, requests.height);
+    // Two lines of names need more than the minimum of 92.
+    expect(requests.height, greaterThan(92));
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_spam_request_raises_no_badge_on_the_friends_tile', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    app.container.read(navigationProvider.notifier).openFriends();
+
+    await _pumpHomeSidebar(tester, app);
+
+    // Jonas Weber is one request; Lena Fischer's is spam.
+    expect(
+      find.descendant(
+        of: find.widgetWithText(HomeTile, 'Friends'),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
+    );
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_chats_header_and_column_sit_where_the_design_has_them', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final kaiKey = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Kai Nakamura')
+        .peer;
+
+    await _pumpChat(tester, app, kaiKey, size: const Size(1056, 700));
+
+    // The header's buttons end 8 from its right edge.
+    expect(tester.getRect(find.byKey(ShellKeys.acts)).right, 1056 - 8);
+    // The chip has no fill of its own.
+    final chip = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byKey(ShellKeys.acts),
+            matching: find.byWidgetPredicate(
+              (w) => w is Container && w.decoration is BoxDecoration,
+            ),
+          )
+          .last,
+    );
+    expect((chip.decoration! as BoxDecoration).color, isNull);
+    // Bubbles keep to a column of 880, centred: (1056 - 880) / 2 + 16.
+    final divider = tester.getRect(find.byType(RelayDivider));
+    expect(divider.left, 104);
+    expect(divider.right, 1056 - 104);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('tiles_count_what_is_waiting', (tester) async {
+    final app = await MockApp.pump(tester);
+    app.container.read(navigationProvider.notifier).openFriends();
+
+    // Add another non-spam incoming request so incomingRequests count is 2
+    final extraKey = fakeFingerprint('key-extra-friend');
+    final extraContact = PrivateContact(
+      peer: extraKey,
+      name: 'Extra Friend',
+      friend: FriendStatus.incoming,
+      requestSpam: false,
+      conversation: ConversationStatus.none,
+      relayServerKey: 'opencord.example:7710',
+      lastActivity: DateTime.now(),
+      unread: 0,
+    );
+    app.repository.privateWorld.contacts[extraKey] = extraContact;
+    app.repository.emit(PrivateContactChanged(extraContact));
+
+    await _pumpHomeSidebar(tester, app);
+
     // 2 online friends: Kai Nakamura and Mira Okafor
     expect(find.text('2 online'), findsOneWidget);
-    // Incoming requests: Jonas Weber + Lena Fischer = 2
+    // Incoming requests: Jonas Weber + Extra Friend = 2; Lena Fischer's is
+    // spam, which shows no badge.
     expect(
       find.descendant(
         of: find.widgetWithText(HomeTile, 'Friends'),
@@ -310,11 +415,13 @@ void main() {
     // Find row for Kai Nakamura
     final kaiContainerFinder = find.ancestor(
       of: find.text('Kai Nakamura'),
-      matching: find.byWidgetPredicate((w) =>
-        w is Container &&
-        w.constraints?.maxHeight == 44 &&
-        w.margin == const EdgeInsets.fromLTRB(8, 0, 8, 2) &&
-        w.padding == const EdgeInsets.symmetric(horizontal: 12)),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is Container &&
+            w.constraints?.maxHeight == 44 &&
+            w.margin == const EdgeInsets.fromLTRB(8, 0, 8, 2) &&
+            w.padding == const EdgeInsets.symmetric(horizontal: 12),
+      ),
     );
     expect(kaiContainerFinder, findsOneWidget);
     final kaiContainer = tester.widget<Container>(kaiContainerFinder);
@@ -326,7 +433,10 @@ void main() {
 
     // ContactAvatar size 32
     final avatar = tester.widget<ContactAvatar>(
-      find.descendant(of: kaiContainerFinder, matching: find.byType(ContactAvatar)),
+      find.descendant(
+        of: kaiContainerFinder,
+        matching: find.byType(ContactAvatar),
+      ),
     );
     expect(avatar.size, 32);
 
@@ -339,7 +449,10 @@ void main() {
 
     // Text: 14/500 textSecondary (Kai has 0 unread)
     final nameText = tester.widget<Text>(
-      find.descendant(of: kaiContainerFinder, matching: find.text('Kai Nakamura')),
+      find.descendant(
+        of: kaiContainerFinder,
+        matching: find.text('Kai Nakamura'),
+      ),
     );
     expect(nameText.style?.fontSize, 14);
     expect(nameText.style?.fontWeight, FontWeight.w500);
@@ -349,31 +462,50 @@ void main() {
     final kaiKey = app.repository.privateWorld.contacts.values
         .firstWhere((c) => c.name == 'Kai Nakamura')
         .peer;
-    final updatedKai = app.repository.privateWorld.contacts[kaiKey]!.copyWith(unread: 2);
+    final updatedKai = app.repository.privateWorld.contacts[kaiKey]!.copyWith(
+      unread: 2,
+    );
     app.repository.privateWorld.contacts[kaiKey] = updatedKai;
     app.repository.emit(PrivateContactChanged(updatedKai));
     await tester.pumpAndSettle();
 
     final unreadNameText = tester.widget<Text>(
-      find.descendant(of: kaiContainerFinder, matching: find.text('Kai Nakamura')),
+      find.descendant(
+        of: kaiContainerFinder,
+        matching: find.text('Kai Nakamura'),
+      ),
     );
     expect(unreadNameText.style?.fontWeight, FontWeight.w600);
 
     // Hover shows close button
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
-    await mouse.moveTo(tester.getCenter(find.descendant(of: kaiContainerFinder, matching: find.text('Kai Nakamura'))));
+    await mouse.moveTo(
+      tester.getCenter(
+        find.descendant(
+          of: kaiContainerFinder,
+          matching: find.text('Kai Nakamura'),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     final closeBtn = find.descendant(
       of: kaiContainerFinder,
-      matching: find.byWidgetPredicate((w) => w is OcIconButton && w.icon == OcIcons.close),
+      matching: find.byWidgetPredicate(
+        (w) => w is OcIconButton && w.icon == OcIcons.close,
+      ),
     );
     expect(closeBtn, findsOneWidget);
 
     // Right-click opens menu (Close conversation, Block, etc.)
     await tester.tapAt(
-      tester.getCenter(find.descendant(of: kaiContainerFinder, matching: find.text('Kai Nakamura'))),
+      tester.getCenter(
+        find.descendant(
+          of: kaiContainerFinder,
+          matching: find.text('Kai Nakamura'),
+        ),
+      ),
       buttons: kSecondaryMouseButton,
       kind: PointerDeviceKind.mouse,
     );
@@ -399,31 +531,44 @@ void main() {
 
     // ContactAvatar size 36, gap 10
     final avatar = tester.widget<ContactAvatar>(
-      find.descendant(of: find.byType(PanelHeader), matching: find.byType(ContactAvatar)),
+      find.descendant(
+        of: find.byType(PanelHeader),
+        matching: find.byType(ContactAvatar),
+      ),
     );
     expect(avatar.size, 36);
 
     final headerRow = tester.widget<Row>(
-      find.descendant(of: find.byType(PanelHeader), matching: find.byType(Row)).first,
+      find
+          .descendant(of: find.byType(PanelHeader), matching: find.byType(Row))
+          .first,
     );
-    final avatarIndex = headerRow.children.indexWhere((w) => w is ContactAvatar);
+    final avatarIndex = headerRow.children.indexWhere(
+      (w) => w is ContactAvatar,
+    );
     final gap = headerRow.children[avatarIndex + 1] as SizedBox;
     expect(gap.width, 10.0);
 
     // Lock button
     final lockBtn = find.descendant(
       of: find.byType(PanelHeader),
-      matching: find.byWidgetPredicate((w) => w is OcIconButton && (w.icon == OcIcons.lock || w.icon == OcIcons.verifiedUser)),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is OcIconButton &&
+            (w.icon == OcIcons.lock || w.icon == OcIcons.verifiedUser),
+      ),
     );
     expect(lockBtn, findsOneWidget);
 
     // Relay chip: height 30, padding 0 8, radius 8, 12.5 textSecondary, gap 6, chevron 16
     final relayChipFinder = find.descendant(
       of: find.byType(PanelHeader),
-      matching: find.byWidgetPredicate((w) =>
-        w is Container &&
-        w.constraints?.maxHeight == 30 &&
-        w.padding == const EdgeInsets.symmetric(horizontal: 8)),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is Container &&
+            w.constraints?.maxHeight == 30 &&
+            w.padding == const EdgeInsets.symmetric(horizontal: 8),
+      ),
     );
     expect(relayChipFinder, findsOneWidget);
 
@@ -433,19 +578,32 @@ void main() {
     expect(relayDeco.border?.top.width, 1.0);
 
     final relayText = tester.widget<Text>(
-      find.descendant(of: relayChipFinder, matching: find.byWidgetPredicate((w) => w is Text && (w.data?.startsWith('via ') ?? false))),
+      find.descendant(
+        of: relayChipFinder,
+        matching: find.byWidgetPredicate(
+          (w) => w is Text && (w.data?.startsWith('via ') ?? false),
+        ),
+      ),
     );
     expect(relayText.style?.fontSize, 12.5);
     expect(relayText.style?.color, OcColors.dark.textSecondary);
 
     final chevronIcon = tester.widget<Icon>(
-      find.descendant(of: relayChipFinder, matching: find.byWidgetPredicate((w) => w is Icon && w.icon == OcIcons.expandMore)),
+      find.descendant(
+        of: relayChipFinder,
+        matching: find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == OcIcons.expandMore,
+        ),
+      ),
     );
     expect(chevronIcon.size, 16);
     expect(chevronIcon.color, OcColors.dark.textSecondary);
 
     // Server avatar in chip
-    final serverAvatar = find.descendant(of: relayChipFinder, matching: find.byType(ServerAvatar));
+    final serverAvatar = find.descendant(
+      of: relayChipFinder,
+      matching: find.byType(ServerAvatar),
+    );
     expect(serverAvatar, findsOneWidget);
 
     await app.dispose(tester);
@@ -454,15 +612,23 @@ void main() {
   testWidgets('every_bottom_bar_is_a_float', (tester) async {
     final app = await MockApp.pump(tester);
     final world = app.repository.privateWorld;
-    final kaiKey = world.contacts.values.firstWhere((c) => c.name == 'Kai Nakamura').peer;
-    final priyaKey = world.contacts.values.firstWhere((c) => c.name == 'Priya Shah').peer;
+    final kaiKey = world.contacts.values
+        .firstWhere((c) => c.name == 'Kai Nakamura')
+        .peer;
+    final priyaKey = world.contacts.values
+        .firstWhere((c) => c.name == 'Priya Shah')
+        .peer;
 
     // 1. Request bar (Priya Shah has ConversationStatus.request)
     await _pumpChat(tester, app, priyaKey);
     final composerFloat1 = find.byKey(ShellKeys.composer);
     expect(composerFloat1, findsOneWidget);
-    expect(tester.getSize(composerFloat1).height, greaterThanOrEqualTo(62.0));
-    expect(find.descendant(of: composerFloat1, matching: find.byType(RequestBar)), findsOneWidget);
+    // Level with the user panel, as the composer is.
+    expect(tester.getSize(composerFloat1).height, 62.0);
+    expect(
+      find.descendant(of: composerFloat1, matching: find.byType(RequestBar)),
+      findsOneWidget,
+    );
 
     // 2. Blocked bar
     world.blockUser(kaiKey);
@@ -470,9 +636,21 @@ void main() {
     await _pumpChat(tester, app, kaiKey);
     final composerFloat2 = find.byKey(ShellKeys.composer);
     expect(composerFloat2, findsOneWidget);
-    expect(tester.getSize(composerFloat2).height, greaterThanOrEqualTo(62.0));
-    expect(find.descendant(of: composerFloat2, matching: find.text('You blocked Kai Nakamura.')), findsOneWidget);
-    expect(find.descendant(of: composerFloat2, matching: find.widgetWithText(OcButton, 'Unblock')), findsOneWidget);
+    expect(tester.getSize(composerFloat2).height, 62.0);
+    expect(
+      find.descendant(
+        of: composerFloat2,
+        matching: find.text('You blocked Kai Nakamura.'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: composerFloat2,
+        matching: find.widgetWithText(OcButton, 'Unblock'),
+      ),
+      findsOneWidget,
+    );
 
     // Unblock Kai for next tests
     await app.repository.unblockUser(kaiKey);
@@ -486,7 +664,10 @@ void main() {
     expect(composerFloat3, findsOneWidget);
     expect(tester.getSize(composerFloat3).height, greaterThanOrEqualTo(62.0));
     expect(
-      find.descendant(of: composerFloat3, matching: find.text('You no longer share a server with Old Friend.')),
+      find.descendant(
+        of: composerFloat3,
+        matching: find.text('You no longer share a server with Old Friend.'),
+      ),
       findsOneWidget,
     );
 
@@ -501,7 +682,9 @@ void main() {
     expect(
       find.descendant(
         of: composerFloat4,
-        matching: find.text('Nothing you write would reach Kai Nakamura until you compare the words or use the new keys.'),
+        matching: find.text(
+          'Nothing you write would reach Kai Nakamura until you compare the words or use the new keys.',
+        ),
       ),
       findsOneWidget,
     );
@@ -514,7 +697,9 @@ void main() {
     // 5. Not connected
     // Disconnect all shared servers
     for (final s in app.container.read(sharedServersProvider(kaiKey))) {
-      app.repository.emit(ConnectionChanged(s.serverKey, const ConnectionStatus.connecting()));
+      app.repository.emit(
+        ConnectionChanged(s.serverKey, const ConnectionStatus.connecting()),
+      );
     }
     await _pumpChat(tester, app, kaiKey);
 
@@ -524,7 +709,9 @@ void main() {
     expect(
       find.descendant(
         of: composerFloat5,
-        matching: find.text("You don't share a connected server with Kai Nakamura right now."),
+        matching: find.text(
+          "You don't share a connected server with Kai Nakamura right now.",
+        ),
       ),
       findsOneWidget,
     );
@@ -542,11 +729,7 @@ void main() {
         child: MaterialApp(
           theme: buildTheme(OcColors.dark),
           home: const Scaffold(
-            body: SizedBox(
-              width: 288,
-              height: 52,
-              child: ServerHead(),
-            ),
+            body: SizedBox(width: 288, height: 52, child: ServerHead()),
           ),
         ),
       ),
@@ -567,7 +750,10 @@ void main() {
     expect(find.byType(InkWell), findsNothing);
 
     final hoverable = tester.widget<Hoverable>(
-      find.descendant(of: find.byType(ServerHead), matching: find.byType(Hoverable)),
+      find.descendant(
+        of: find.byType(ServerHead),
+        matching: find.byType(Hoverable),
+      ),
     );
     expect(hoverable.onTap, isNull);
     expect(hoverable.cursor, SystemMouseCursors.basic);

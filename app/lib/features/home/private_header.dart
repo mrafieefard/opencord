@@ -106,7 +106,10 @@ class PrivateHeader extends ConsumerWidget {
       children: [
         PanelHeader(
           key: ShellKeys.hd,
-          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
+          padding: EdgeInsets.only(
+            left: onOpenSidebar != null ? OcFloats.gap : OcSpace.s16,
+            right: OcFloats.gap,
+          ),
           child: Row(
             children: [
               if (onOpenSidebar != null) ...[
@@ -115,7 +118,7 @@ class PrivateHeader extends ConsumerWidget {
                   tooltip: 'Open channels',
                   onPressed: onOpenSidebar,
                 ),
-                const SizedBox(width: OcSpace.s8),
+                const SizedBox(width: OcSpace.s10),
               ],
               ContactAvatar(peer: peer, size: 36, presence: presence),
               const SizedBox(width: 10),
@@ -127,13 +130,23 @@ class PrivateHeader extends ConsumerWidget {
                     children: [
                       Text(
                         name,
-                        style: OcText.header.copyWith(color: colors.text),
+                        style: OcText.header.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          height: 1.25,
+                          color: colors.text,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         presenceLabel,
-                        style: OcText.small.copyWith(color: colors.textMuted),
+                        style: OcText.small.copyWith(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w400,
+                          height: 1.25,
+                          color: colors.textSecondary,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -142,86 +155,94 @@ class PrivateHeader extends ConsumerWidget {
                 ),
               ),
 
-              // End-to-end encryption (design 2026-11-01 §9.3)
-              OcIconButton(
-                icon: switch (verification) {
-                  PrivateVerification.unverified => OcIcons.lock,
-                  PrivateVerification.verified => OcIcons.verifiedUser,
-                  PrivateVerification.mismatch => OcIcons.warning,
-                },
-                color: switch (verification) {
-                  PrivateVerification.unverified => null,
-                  PrivateVerification.verified => colors.accent,
-                  PrivateVerification.mismatch => colors.recording,
-                },
-                tooltip: switch (verification) {
-                  PrivateVerification.unverified =>
-                    'End-to-end encrypted. Not verified: compare the words with $name.',
-                  PrivateVerification.verified =>
-                    'End-to-end encrypted. Verified with $name.',
-                  PrivateVerification.mismatch =>
-                    "End-to-end encrypted. The words didn't match.",
-                },
-                onPressed: () =>
-                    showEncryptionDialog(context, ref, peer: peer, name: name),
-              ),
-
-              const SizedBox(width: OcSpace.s8),
-
-              // Relay chip (§5.16)
-              Builder(
-                builder: (btnContext) => Hoverable(
-                  onTap: sharedServers.isNotEmpty
-                      ? () => _showRelayMenu(
-                          btnContext,
-                          ref,
-                          name,
-                          relayKey,
-                          sharedServers,
-                        )
-                      : null,
-                  semanticLabel: 'Relay server',
-                  builder: (context, state) => Container(
-                    height: 30,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: state.active ? colors.hover : colors.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: !isRelayConnected && relayKey != null
-                            ? colors.textSecondary
-                            : colors.border,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (relayKey != null)
-                          ServerAvatar(
-                            serverKey: relayKey,
-                            name: relayServerName,
-                            size: 16,
-                            borderRadius: 4,
-                          ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'via $relayServerName',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(
-                          OcIcons.expandMore,
-                          size: 16,
-                          color: colors.textSecondary,
-                        ),
-                      ],
+              Row(
+                key: ShellKeys.acts,
+                mainAxisSize: MainAxisSize.min,
+                spacing: 2,
+                children: [
+                  // End-to-end encryption (design 2026-11-01 §9.3)
+                  OcIconButton(
+                    icon: switch (verification) {
+                      PrivateVerification.unverified => OcIcons.lock,
+                      PrivateVerification.verified => OcIcons.verifiedUser,
+                      PrivateVerification.mismatch => OcIcons.warning,
+                    },
+                    color: switch (verification) {
+                      PrivateVerification.unverified => null,
+                      PrivateVerification.verified => colors.accent,
+                      PrivateVerification.mismatch => colors.recording,
+                    },
+                    tooltip: switch (verification) {
+                      PrivateVerification.unverified =>
+                        'End-to-end encrypted. Not verified: compare the words with $name.',
+                      PrivateVerification.verified =>
+                        'End-to-end encrypted. Verified with $name.',
+                      PrivateVerification.mismatch =>
+                        "End-to-end encrypted. The words didn't match.",
+                    },
+                    onPressed: () => showEncryptionDialog(
+                      context,
+                      ref,
+                      peer: peer,
+                      name: name,
                     ),
                   ),
-                ),
+
+                  // Relay chip (§5.16)
+                  Builder(
+                    builder: (btnContext) => Hoverable(
+                      onTap: sharedServers.isNotEmpty
+                          ? () => _showRelayMenu(
+                              btnContext,
+                              ref,
+                              name,
+                              relayKey,
+                              sharedServers,
+                            )
+                          : null,
+                      semanticLabel: 'Relay server',
+                      builder: (context, state) => Container(
+                        height: 30,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: state.active ? colors.hover : null,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: !isRelayConnected && relayKey != null
+                                ? colors.textSecondary
+                                : colors.border,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 6,
+                          children: [
+                            if (relayKey != null)
+                              ServerAvatar(
+                                serverKey: relayKey,
+                                name: relayServerName,
+                                size: 16,
+                                borderRadius: 4,
+                              ),
+                            Text(
+                              'via $relayServerName',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                            Icon(
+                              OcIcons.expandMore,
+                              size: 16,
+                              color: colors.textSecondary,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

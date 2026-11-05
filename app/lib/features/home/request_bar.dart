@@ -12,6 +12,10 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
+/// How tall a bar in the composer's place is, inside the float's two 1 px
+/// lines: the float stays level with the user panel (§5.12).
+const privateBarHeight = OcFloats.bottom - 2;
+
 /// Shared helper to accept a message request (§5.16).
 Future<void> acceptMessageRequestAction(
   BuildContext context,
@@ -71,7 +75,7 @@ class RequestBar extends ConsumerWidget {
     final name = ref.watch(contactNameProvider(peer));
 
     return Container(
-      constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+      constraints: const BoxConstraints(minHeight: privateBarHeight),
       padding: const EdgeInsets.symmetric(
         horizontal: OcSpace.s16,
         vertical: OcSpace.s12,

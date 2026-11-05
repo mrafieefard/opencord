@@ -8,6 +8,7 @@ import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
+import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
@@ -26,8 +27,7 @@ class HomeTiles extends ConsumerWidget {
     final isRequestsOpen = isFriends && tab == FriendsTab.requests;
     final isFriendsOpen = isFriends && tab != FriendsTab.requests;
 
-    final incomingRequests =
-        contacts.incomingRequests.length + contacts.spamRequests.length;
+    final incomingRequests = contacts.incomingRequests.length;
     final messageRequests = contacts.messageRequests.length;
 
     // Count online friends from contacts.
@@ -42,43 +42,46 @@ class HomeTiles extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: HomeTile(
-              icon: OcIcons.group,
-              name: 'Friends',
-              subtitle: '$onlineFriends online',
-              badge: incomingRequests,
-              selected: isFriendsOpen,
-              onTap: () {
-                if (tab == FriendsTab.requests) {
+      // Both tiles as tall as the taller one, however their names wrap.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: HomeTile(
+                icon: OcIcons.group,
+                name: 'Friends',
+                subtitle: '$onlineFriends online',
+                badge: incomingRequests,
+                selected: isFriendsOpen,
+                onTap: () {
+                  if (tab == FriendsTab.requests) {
+                    ref
+                        .read(friendsTabProvider.notifier)
+                        .select(FriendsTab.online);
+                  }
+                  ref.read(navigationProvider.notifier).openFriends();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: HomeTile(
+                icon: OcIcons.mail,
+                name: 'Message requests',
+                subtitle: requestsSubtitle,
+                badge: messageRequests,
+                selected: isRequestsOpen,
+                onTap: () {
                   ref
                       .read(friendsTabProvider.notifier)
-                      .select(FriendsTab.online);
-                }
-                ref.read(navigationProvider.notifier).openFriends();
-              },
+                      .select(FriendsTab.requests);
+                  ref.read(navigationProvider.notifier).openFriends();
+                },
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: HomeTile(
-              icon: OcIcons.mail,
-              name: 'Message requests',
-              subtitle: requestsSubtitle,
-              badge: messageRequests,
-              selected: isRequestsOpen,
-              onTap: () {
-                ref
-                    .read(friendsTabProvider.notifier)
-                    .select(FriendsTab.requests);
-                ref.read(navigationProvider.notifier).openFriends();
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -128,7 +131,8 @@ class HomeTile extends StatelessWidget {
           scale: scale,
           duration: const Duration(milliseconds: 80),
           curve: Curves.easeOut,
-          child: Container(
+          child: AnimatedContainer(
+            duration: OcMotion.of(context).hover,
             constraints: const BoxConstraints(minHeight: 92),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -157,7 +161,8 @@ class HomeTile extends StatelessWidget {
                       UnreadBadge(count: badge, inverted: selected),
                   ],
                 ),
-                const SizedBox(height: 6),
+                // 6 under the top row, and the column's own gap of 2.
+                const SizedBox(height: 8),
                 Text(
                   name,
                   maxLines: 2,

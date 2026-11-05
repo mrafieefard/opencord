@@ -6,6 +6,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/home/person_card.dart';
+import 'package:opencord/features/home/private_page.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -32,10 +33,7 @@ Future<void> _pumpFriends(
       child: MaterialApp(
         theme: buildTheme(OcColors.dark),
         home: Scaffold(
-          body: SizedBox.fromSize(
-            size: size,
-            child: const FriendsPage(),
-          ),
+          body: SizedBox.fromSize(size: size, child: const FriendsPage()),
         ),
       ),
     ),
@@ -64,24 +62,40 @@ void main() {
     // Tabs: Online, All, Pending, Blocked with counts
     // Kai and Mira are online -> Online 2
     // Kai, Mira, Noah are friends -> All 3
-    // Jonas (incoming) + Lena (spam) + Tomás (outgoing) -> Pending 3
+    // Jonas (incoming) + Tomás (outgoing) -> Pending 2; Lena's is spam
     // Old Friend is blocked -> Blocked 1
-    expect(find.descendant(of: headerFinder, matching: find.text('Online')), findsOneWidget);
+    expect(
+      find.descendant(of: headerFinder, matching: find.text('Online')),
+      findsOneWidget,
+    );
     expect(find.text('2'), findsWidgets); // Online 2
-    expect(find.descendant(of: headerFinder, matching: find.text('All')), findsOneWidget);
+    expect(
+      find.descendant(of: headerFinder, matching: find.text('All')),
+      findsOneWidget,
+    );
     expect(find.text('3'), findsWidgets); // All 3
-    expect(find.descendant(of: headerFinder, matching: find.text('Pending')), findsOneWidget);
-    expect(find.descendant(of: headerFinder, matching: find.text('Blocked')), findsOneWidget);
+    expect(
+      find.descendant(of: headerFinder, matching: find.text('Pending')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: headerFinder, matching: find.text('Blocked')),
+      findsOneWidget,
+    );
 
     // Tab button numbers: height 30, radius 15, on state accent/onAccent
     final onlineTabBtn = tester.widget<Container>(
-      find.descendant(
-        of: headerFinder,
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.constraints?.maxHeight == 30 &&
-          w.padding == const EdgeInsets.symmetric(horizontal: 12)),
-      ).first,
+      find
+          .descendant(
+            of: headerFinder,
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is Container &&
+                  w.constraints?.maxHeight == 30 &&
+                  w.padding == const EdgeInsets.symmetric(horizontal: 12),
+            ),
+          )
+          .first,
     );
     expect(onlineTabBtn.constraints?.maxHeight, 30);
     expect(onlineTabBtn.padding, const EdgeInsets.symmetric(horizontal: 12));
@@ -92,7 +106,10 @@ void main() {
 
     // Text in on state is onAccent
     final onlineText = tester.widget<Text>(
-      find.descendant(of: find.byWidget(onlineTabBtn), matching: find.text('Online')),
+      find.descendant(
+        of: find.byWidget(onlineTabBtn),
+        matching: find.text('Online'),
+      ),
     );
     expect(onlineText.style?.color, OcColors.dark.onAccent);
     expect(onlineText.style?.fontSize, 13);
@@ -102,7 +119,9 @@ void main() {
     final countOpacity = tester.widget<Opacity>(
       find.descendant(
         of: find.byWidget(onlineTabBtn),
-        matching: find.byWidgetPredicate((w) => w is Opacity && w.opacity == 0.65),
+        matching: find.byWidgetPredicate(
+          (w) => w is Opacity && w.opacity == 0.65,
+        ),
       ),
     );
     expect(countOpacity.opacity, 0.65);
@@ -117,7 +136,9 @@ void main() {
     // Blocked count is now 0
     final blockedBtn = find.ancestor(
       of: find.text('Blocked'),
-      matching: find.byWidgetPredicate((w) => w is Container && w.constraints?.maxHeight == 30),
+      matching: find.byWidgetPredicate(
+        (w) => w is Container && w.constraints?.maxHeight == 30,
+      ),
     );
     expect(
       find.descendant(of: blockedBtn, matching: find.text('0')),
@@ -142,16 +163,22 @@ void main() {
     final cardContainer = tester.widget<Container>(
       find.descendant(
         of: kaiCardFinder,
-        matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.constraints?.minHeight == 60 &&
-          w.margin == const EdgeInsets.only(bottom: 6) &&
-          w.padding == const EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.constraints?.minHeight == 60 &&
+              w.margin == const EdgeInsets.only(bottom: 6) &&
+              w.padding ==
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
       ),
     );
     expect(cardContainer.constraints?.minHeight, 60);
     expect(cardContainer.margin, const EdgeInsets.only(bottom: 6));
-    expect(cardContainer.padding, const EdgeInsets.symmetric(horizontal: 10, vertical: 8));
+    expect(
+      cardContainer.padding,
+      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    );
     final deco = cardContainer.decoration as BoxDecoration;
     expect(deco.color, OcColors.dark.sidebar);
     expect(deco.borderRadius, BorderRadius.circular(12));
@@ -183,7 +210,9 @@ void main() {
     final offlineOpacity = tester.widget<Opacity>(
       find.descendant(
         of: noahCardFinder,
-        matching: find.byWidgetPredicate((w) => w is Opacity && w.opacity == 0.55),
+        matching: find.byWidgetPredicate(
+          (w) => w is Opacity && w.opacity == 0.55,
+        ),
       ),
     );
     expect(offlineOpacity.opacity, 0.55);
@@ -242,7 +271,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final moreBtn = find.descendant(
-      of: find.ancestor(of: find.text('Kai Nakamura'), matching: find.byType(PersonCard)),
+      of: find.ancestor(
+        of: find.text('Kai Nakamura'),
+        matching: find.byType(PersonCard),
+      ),
       matching: find.byTooltip('More options'),
     );
     await tester.tap(moreBtn);
@@ -395,7 +427,9 @@ void main() {
     // Online empty
     expect(find.text("No one's online right now."), findsOneWidget);
     expect(
-      find.byWidgetPredicate((w) => w is Icon && w.icon == OcIcons.group && w.size == 32),
+      find.byWidgetPredicate(
+        (w) => w is Icon && w.icon == OcIcons.group && w.size == 32,
+      ),
       findsOneWidget,
     );
 
@@ -404,7 +438,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text("You haven't added any friends yet."), findsOneWidget);
     expect(
-      find.byWidgetPredicate((w) => w is Icon && w.icon == OcIcons.group && w.size == 32),
+      find.byWidgetPredicate(
+        (w) => w is Icon && w.icon == OcIcons.group && w.size == 32,
+      ),
       findsOneWidget,
     );
 
@@ -413,7 +449,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No pending requests.'), findsOneWidget);
     expect(
-      find.byWidgetPredicate((w) => w is Icon && w.icon == OcIcons.mail && w.size == 32),
+      find.byWidgetPredicate(
+        (w) => w is Icon && w.icon == OcIcons.mail && w.size == 32,
+      ),
       findsOneWidget,
     );
 
@@ -422,7 +460,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text("You haven't blocked anyone."), findsOneWidget);
     expect(
-      find.byWidgetPredicate((w) => w is Icon && w.icon == OcIcons.block && w.size == 32),
+      find.byWidgetPredicate(
+        (w) => w is Icon && w.icon == OcIcons.block && w.size == 32,
+      ),
       findsOneWidget,
     );
 
@@ -431,38 +471,98 @@ void main() {
 
   testWidgets('page_fades_in_tabs_do_not_slide', (tester) async {
     final app = await MockApp.pump(tester);
-    await _pumpFriends(tester, app);
+    double pageOpacity() => tester
+        .widget<Opacity>(
+          find
+              .descendant(
+                of: find.byType(PrivatePage),
+                matching: find.byType(Opacity),
+              )
+              .first,
+        )
+        .opacity;
 
-    // AnimatedSwitcher with FadeTransition is used
-    expect(find.byType(AnimatedSwitcher), findsOneWidget);
-
-    // Tap All tab
-    await tester.tap(find.text('All'));
-    await tester.pump();
-    // Pump half-way through the 100 ms fade
-    await tester.pump(const Duration(milliseconds: 50));
-
-    final fade = tester.widget<FadeTransition>(
-      find.descendant(
-        of: find.byType(AnimatedSwitcher),
-        matching: find.byType(FadeTransition),
-      ).first,
-    );
-    expect(fade.opacity.value, greaterThan(0.0));
-    expect(fade.opacity.value, lessThan(1.0));
-
-    await tester.pumpAndSettle();
-    final finalFade = tester.widget<FadeTransition>(
-      find.descendant(
-        of: find.byType(AnimatedSwitcher),
-        matching: find.byType(FadeTransition),
+    // The page fades in as it opens: half-way through its 100 ms.
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: app.container,
+        child: MaterialApp(
+          theme: buildTheme(OcColors.dark),
+          home: const Scaffold(body: FriendsPage()),
+        ),
       ),
     );
-    expect(finalFade.opacity.value, 1.0);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(pageOpacity(), greaterThan(0.0));
+    expect(pageOpacity(), lessThan(1.0));
+    await tester.pumpAndSettle();
+    expect(pageOpacity(), 1.0);
+
+    // A tab changes at once: what is new shows in the first frame, whole.
+    await tester.tap(find.text('All'));
+    await tester.pump();
+    expect(find.text('ALL — 3'), findsOneWidget);
+    expect(find.text('ONLINE — 2'), findsNothing);
+    expect(pageOpacity(), 1.0);
 
     // Verify there is no TabBarView or slide transition
     expect(find.byType(TabBarView), findsNothing);
     expect(find.byType(SlideTransition), findsNothing);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('tabs_sit_at_the_headers_right', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _pumpFriends(tester, app);
+
+    final tabs = tester.getRect(find.byKey(ShellKeys.acts));
+    expect(tabs.right, 1280 - 8);
+    expect(tabs.height, 30);
+    // The title stays at the left, 16 in.
+    expect(tester.getTopLeft(find.text('Friends')).dx, 16);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_menu_button_sits_8_in_when_the_side_is_a_drawer', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: app.container,
+        child: MaterialApp(
+          theme: buildTheme(OcColors.dark),
+          home: Scaffold(body: FriendsPage(onOpenSidebar: () {})),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final menu = tester.getRect(find.byIcon(OcIcons.menu));
+    // A 36 button 8 in, centred on 26: and the title 10 past its edge.
+    expect(menu.center.dx, 26);
+    expect(tester.getTopLeft(find.text('Friends')).dx, 54);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_page_scrolls_to_the_float_edge_with_its_padding', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _pumpFriends(tester, app, size: const Size(1280, 800));
+
+    // The scroll view fills the page; its padding moves with the rows.
+    final scroller = tester.getRect(find.byType(ListView));
+    final header = tester.getRect(find.byKey(ShellKeys.hd));
+    expect(scroller.width, 1280);
+    expect(scroller.top, greaterThanOrEqualTo(header.bottom));
+    // The column is 760 wide and centred.
+    final card = tester.getRect(find.byType(PersonCard).first);
+    expect(card.left, 260);
+    expect(card.right, 1020);
 
     await app.dispose(tester);
   });

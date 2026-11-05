@@ -63,7 +63,7 @@ Private conversations are routed through a mutually shared server where private 
 
 - **Relay selection:** A conversation starts on the server where the interaction began (e.g. from a user profile or where a message request arrived).
 - **The relay chip:** The chat header displays the current relay server. Clicking the relay chip lists mutual servers shared by both users.
-- **Moving a chat:** Either user can switch the relay to another mutual server. The mover's client sends an encrypted `RelayMoved` payload through the old relay, updates its local relay setting, and inserts a wavy `RelayDivider` with a clickable server link.
+- **Moving a chat:** Either user can switch the relay to another mutual server. The mover's client sends an encrypted `RelayMoved` payload through the old relay, updates its local relay setting, and inserts a dashed `RelayDivider` with a clickable server link.
 - **Move too:** The recipient sees a `MoveCard` in chat notifying them of the move with a **Move too** button. Clicking "Move too" switches the recipient's outgoing relay to match, provided this device has joined that server.
 
 ## Server settings
@@ -228,9 +228,9 @@ You can test private messages end-to-end on a single development machine using t
 1. Have Alice and Bob join a second shared server (e.g. Server 2).
 2. In Alice's chat with Bob, click the relay chip in the header (showing Server 1).
 3. Select Server 2 from the dropdown.
-4. Alice's chat shows a wavy `RelayDivider` with Server 2's name.
+4. Alice's chat shows a dashed `RelayDivider` with Server 2's name.
 5. Bob's chat shows a `MoveCard` notifying that Alice moved the chat to Server 2, with a **Move too** button.
-6. Bob clicks **Move too**. Bob's outgoing relay updates to Server 2, inserting a wavy divider.
+6. Bob clicks **Move too**. Bob's outgoing relay updates to Server 2, inserting a dashed divider.
 
 ### Scenario 5: Message requests on and off
 

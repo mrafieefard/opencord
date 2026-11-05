@@ -168,8 +168,9 @@ class PrivateChatBottomBar extends ConsumerWidget {
     });
 
     final relayKey = contact?.relayServerKey;
-    final relayServer =
-        relayKey != null ? ref.watch(serverProvider(relayKey)) : null;
+    final relayServer = relayKey != null
+        ? ref.watch(serverProvider(relayKey))
+        : null;
     final isRelayConnected =
         relayServer != null &&
         relayServer.connection.phase == ConnectionPhase.connected &&
@@ -182,7 +183,7 @@ class PrivateChatBottomBar extends ConsumerWidget {
       return RequestBar(peer: peer);
     } else if (isBlocked) {
       return Container(
-        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+        constraints: const BoxConstraints(minHeight: privateBarHeight),
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
         alignment: Alignment.center,
         child: Row(
@@ -209,7 +210,7 @@ class PrivateChatBottomBar extends ConsumerWidget {
       );
     } else if (!hasSharedServer) {
       return Container(
-        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+        constraints: const BoxConstraints(minHeight: privateBarHeight),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
         child: Text(
@@ -219,7 +220,7 @@ class PrivateChatBottomBar extends ConsumerWidget {
       );
     } else if (contact != null && !contact.reachable) {
       return Container(
-        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+        constraints: const BoxConstraints(minHeight: privateBarHeight),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
         child: Text(
@@ -230,7 +231,7 @@ class PrivateChatBottomBar extends ConsumerWidget {
       );
     } else if (!anyConnected) {
       return Container(
-        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+        constraints: const BoxConstraints(minHeight: privateBarHeight),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
         child: Text(

@@ -9,17 +9,13 @@ import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
+import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popup_route.dart';
 
 /// The kind of person card shown on Friends page tabs (§5.16).
-enum PersonCardKind {
-  friend,
-  incoming,
-  outgoing,
-  blocked,
-}
+enum PersonCardKind { friend, incoming, outgoing, blocked }
 
 /// Action button on a person card or request card (§5.16):
 /// height 32, padding 0 14, radius 10, 13/600, hover at 0.88, press 0.97.
@@ -52,8 +48,9 @@ class PersonActionButton extends StatelessWidget {
           scale: scale,
           duration: const Duration(milliseconds: 80),
           curve: Curves.easeOut,
-          child: Opacity(
+          child: AnimatedOpacity(
             opacity: opacity,
+            duration: OcMotion.of(context).hover,
             child: Container(
               height: 32,
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -109,8 +106,9 @@ class PersonRoundButton extends StatelessWidget {
             scale: scale,
             duration: const Duration(milliseconds: 80),
             curve: Curves.easeOut,
-            child: Opacity(
+            child: AnimatedOpacity(
               opacity: opacity,
+              duration: OcMotion.of(context).hover,
               child: Container(
                 width: 36,
                 height: 36,
@@ -134,11 +132,7 @@ class PersonRoundButton extends StatelessWidget {
 /// 6 below, gap 12; hover hover; avatar 40 (initials 13.5); name 14/600;
 /// line 12.5 textMuted; offline: avatar and text at 0.55.
 class PersonCard extends ConsumerWidget {
-  const PersonCard({
-    super.key,
-    required this.contact,
-    required this.kind,
-  });
+  const PersonCard({super.key, required this.contact, required this.kind});
 
   final PrivateContact contact;
   final PersonCardKind kind;
@@ -190,7 +184,8 @@ class PersonCard extends ConsumerWidget {
     final colors = context.oc;
     final name = ref.watch(contactNameProvider(contact.peer));
     final presence = ref.watch(contactPresenceProvider(contact.peer));
-    final isOffline = kind == PersonCardKind.friend && presence == Presence.offline;
+    final isOffline =
+        kind == PersonCardKind.friend && presence == Presence.offline;
 
     final presenceLabel = switch (presence) {
       Presence.online => 'Online',
@@ -201,8 +196,8 @@ class PersonCard extends ConsumerWidget {
 
     final subtitle = switch (kind) {
       PersonCardKind.friend => presenceLabel,
-      PersonCardKind.incoming => 'Incoming friend request',
-      PersonCardKind.outgoing => 'Outgoing friend request',
+      PersonCardKind.incoming => 'Wants to be your friend',
+      PersonCardKind.outgoing => 'Friend request sent',
       PersonCardKind.blocked => 'Blocked',
     };
 
@@ -215,7 +210,8 @@ class PersonCard extends ConsumerWidget {
       builder: (context, state) {
         final bg = state.active ? colors.hover : colors.sidebar;
 
-        return Container(
+        return AnimatedContainer(
+          duration: OcMotion.of(context).hover,
           constraints: const BoxConstraints(minHeight: 60),
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -231,7 +227,11 @@ class PersonCard extends ConsumerWidget {
                   opacity: isOffline ? 0.55 : 1.0,
                   child: Row(
                     children: [
-                      ContactAvatar(peer: contact.peer, size: 40, presence: presence),
+                      ContactAvatar(
+                        peer: contact.peer,
+                        size: 40,
+                        presence: presence,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -276,100 +276,100 @@ class PersonCard extends ConsumerWidget {
   Widget _buildActions(BuildContext context, WidgetRef ref, String name) {
     return switch (kind) {
       PersonCardKind.friend => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PersonRoundButton(
-              icon: OcIcons.chat,
-              tooltip: 'Message',
-              onPressed: () => openContactConversation(context, ref, contact),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PersonRoundButton(
+            icon: OcIcons.chat,
+            tooltip: 'Message',
+            onPressed: () => openContactConversation(context, ref, contact),
+          ),
+          const SizedBox(width: 6),
+          Builder(
+            builder: (btnContext) => PersonRoundButton(
+              icon: OcIcons.moreVert,
+              tooltip: 'More options',
+              onPressed: () => _showMore(btnContext, ref, name),
             ),
-            const SizedBox(width: 6),
-            Builder(
-              builder: (btnContext) => PersonRoundButton(
-                icon: OcIcons.moreHoriz,
-                tooltip: 'More options',
-                onPressed: () => _showMore(btnContext, ref, name),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
+      ),
       PersonCardKind.incoming => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PersonActionButton(
-              label: 'Accept',
-              primary: true,
-              onPressed: () async {
-                try {
-                  await ref
-                      .read(repositoryProvider)
-                      .answerFriendRequest(contact.peer, accept: true);
-                } on RepoException catch (e) {
-                  if (!context.mounted) return;
-                  await showPrivateFailure(
-                    context,
-                    e,
-                    name: name,
-                    server: contact.relayServerKey,
-                    action: PrivateAction.answer,
-                  );
-                }
-              },
-            ),
-            const SizedBox(width: 6),
-            PersonActionButton(
-              label: 'Decline',
-              primary: false,
-              onPressed: () async {
-                try {
-                  await ref
-                      .read(repositoryProvider)
-                      .answerFriendRequest(contact.peer, accept: false);
-                } on RepoException catch (e) {
-                  if (!context.mounted) return;
-                  await showPrivateFailure(
-                    context,
-                    e,
-                    name: name,
-                    server: contact.relayServerKey,
-                    action: PrivateAction.answer,
-                  );
-                }
-              },
-            ),
-          ],
-        ),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PersonActionButton(
+            label: 'Accept',
+            primary: true,
+            onPressed: () async {
+              try {
+                await ref
+                    .read(repositoryProvider)
+                    .answerFriendRequest(contact.peer, accept: true);
+              } on RepoException catch (e) {
+                if (!context.mounted) return;
+                await showPrivateFailure(
+                  context,
+                  e,
+                  name: name,
+                  server: contact.relayServerKey,
+                  action: PrivateAction.answer,
+                );
+              }
+            },
+          ),
+          const SizedBox(width: 6),
+          PersonActionButton(
+            label: 'Decline',
+            primary: false,
+            onPressed: () async {
+              try {
+                await ref
+                    .read(repositoryProvider)
+                    .answerFriendRequest(contact.peer, accept: false);
+              } on RepoException catch (e) {
+                if (!context.mounted) return;
+                await showPrivateFailure(
+                  context,
+                  e,
+                  name: name,
+                  server: contact.relayServerKey,
+                  action: PrivateAction.answer,
+                );
+              }
+            },
+          ),
+        ],
+      ),
       PersonCardKind.outgoing => PersonActionButton(
-          label: 'Cancel',
-          primary: false,
-          onPressed: () async {
-            try {
-              await ref
-                  .read(repositoryProvider)
-                  .cancelFriendRequest(contact.peer);
-            } on RepoException catch (e) {
-              if (!context.mounted) return;
-              await showPrivateFailure(
-                context,
-                e,
-                name: name,
-                action: PrivateAction.friendRequest,
-              );
-            }
-          },
-        ),
+        label: 'Cancel',
+        primary: false,
+        onPressed: () async {
+          try {
+            await ref
+                .read(repositoryProvider)
+                .cancelFriendRequest(contact.peer);
+          } on RepoException catch (e) {
+            if (!context.mounted) return;
+            await showPrivateFailure(
+              context,
+              e,
+              name: name,
+              action: PrivateAction.friendRequest,
+            );
+          }
+        },
+      ),
       PersonCardKind.blocked => PersonActionButton(
-          label: 'Unblock',
-          primary: false,
-          onPressed: () async {
-            try {
-              await ref.read(repositoryProvider).unblockUser(contact.peer);
-            } on RepoException catch (e) {
-              if (!context.mounted) return;
-              await showPrivateFailure(context, e, name: name);
-            }
-          },
-        ),
+        label: 'Unblock',
+        primary: false,
+        onPressed: () async {
+          try {
+            await ref.read(repositoryProvider).unblockUser(contact.peer);
+          } on RepoException catch (e) {
+            if (!context.mounted) return;
+            await showPrivateFailure(context, e, name: name);
+          }
+        },
+      ),
     };
   }
 }
