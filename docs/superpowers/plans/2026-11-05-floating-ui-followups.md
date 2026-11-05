@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The nine changes the owner asked for once the floating UI was built: a draggable right pane, direct music volume, no compact mode, no Invisible status, mouse keybinds, working code fences with highlighting, a noise suppression popover with a voice test, that test in Settings, and the ping on the signal bars.
+**Goal:** The nine changes the owner asked for once the floating UI was built: a draggable right pane, direct music volume, no bubble mode (compact only), no Invisible status, mouse keybinds, working code fences with highlighting, a noise suppression popover with a voice test, that test in Settings, and the ping on the signal bars.
 
 **Architecture:**
 - Nearly all of it is in `app/lib/features` and `app/lib/ui`.
@@ -61,7 +61,7 @@ Every task has an **Owner** and a **Score** (1–5, how much a mistake costs and
 |---|---|---|---|
 | 1 | Right pane splitter | 4 | Claude |
 | 2 | Music volume on the panel | 2 | Gemini |
-| 3 | Compact mode removed, skeleton kept | 2 | Gemini |
+| 3 | Bubble mode removed, skeleton kept | 2 | Gemini |
 | 4 | Invisible removed | 1 | Gemini |
 | 5 | Mouse buttons in the core and the system backends | 5 | Claude |
 | 6 | Recording mouse keybinds, the app's own handling | 3 | Gemini |
@@ -173,7 +173,7 @@ From round 2 on, add what you changed since the last round: each finding by name
 
 | Checkpoint | Parts | Motion and behaviour rows | Scenes |
 |---|---|---|---|
-| **CP1**, after Task 4 | Right splitter and pill, each pane at a dragged width, music volume row, bubbles after compact, skeleton, Appearance page, the presence choices | drag live; double-click reset; People → Music; open and close after a drag; window shrinking and returning; dragging while muted | `text`, `music`, `pane-resized`, `settings-appearance` |
+| **CP1**, after Task 4 | Right splitter and pill, each pane at a dragged width, music volume row, compact lines after bubble, skeleton, Appearance page, the presence choices | drag live; double-click reset; People → Music; open and close after a drag; window shrinking and returning; dragging while muted | `text`, `music`, `pane-resized`, `settings-appearance` |
 | **CP2**, after Task 6 | Keybinds page with mouse rows, recorder, footer | recording each button; left and right click; Mouse 4 bound against stepping back. Native code: read against §6, and `Client (Linux)`, `Client (Windows)` and `Client (macOS)` must be green | `settings-keybinds` |
 | **CP3**, after Task 8 | Code block in each format, grey tokens, plain fallback | Enter inside and after a fence; Copy; a huge block | `code-block` |
 | **CP4**, after Task 13 | Voice card with chip, popover in each mode, `MicTestPanel`, Voice settings, ping tooltip. **Then every scene of CP1–CP3 again, and the floating UI's own scenes at every breakpoint,** to catch what the plan broke | each way a test ends; restored state after each; nothing sent while deafened; tooltip updating | `voice-card`, `noise-popover`, `noise-popover-testing`, `settings-voice`, then all |
@@ -203,7 +203,7 @@ The inputs most likely to break for real people that no ordinary test would catc
 
 **Changed most:** `desktop_shell.dart`, `shell_splitter.dart`, `side_slot.dart`, `spring_value.dart`, `music_controls.dart`, `music_panel.dart`, `chat_row_view.dart`, `message_item.dart`, `message_list.dart`, `private_message_list.dart`, `appearance_page.dart`, `app_settings.dart`, `repository.dart`, `core/hotkeys.dart`, `keybind_recorder.dart`, `keybinds_page.dart`, `providers.dart`, `markdown.dart`, `markdown_view.dart`, `format.dart`, `composer.dart`, `private_composer.dart`, `voice_panel.dart`, `app_pages.dart`, and in Rust `hotkeys/{mod,x11,windows,macos,portal,linux}.rs`, `audio/{processor,capture,playback,engine}.rs`, `api/types.rs`, `media.rs`.
 
-**Removed:** `app/lib/features/chat/compact_message.dart`, `app/test/golden/goldens/compact_dark.png`, `compact_light.png`, `MusicVolumeButton`.
+**Removed:** `app/lib/features/chat/message_line.dart`, `app/test/golden/goldens/bubble_dark.png`, `bubble_light.png`, `MusicVolumeButton`.
 
 ---
 
@@ -310,22 +310,22 @@ abstract final class ShellKeys { static const sideSplitter = Key('float-side-spl
 - [ ] **Render** `music` at `wide-1280`, and in light. Crop the row.
 - [ ] Commit `feat(desktop): music volume on the panel`.
 
-### Task 3: Compact mode goes
+### Task 3: Bubble mode goes
 
-**Owner: Gemini. Score 2. Review focus:** the private list's hover bar and menus, and the skeleton. Spec §4.
+**Owner: Gemini. Score 2. Review focus:** compact hover bar and menus on channel and private lists, and the skeleton. Spec §4.
 
-**Files:** `app_settings.dart`, `appearance_page.dart`, `chat_row_view.dart`, `message_item.dart`, `message_list.dart`, `private_message_list.dart`, `command_rows.dart`'s comment, `compact_message.dart` (removed), tests `app/test/unit/settings/app_settings_test.dart`, `app/test/widget/chat/message_list_test.dart`, `message_actions_test.dart`, `app/test/widget/shell/shell_test.dart`, `app/test/widget/settings/user_settings_test.dart`, `app/test/golden/chat_golden_test.dart`.
+**Files:** `app_settings.dart`, `appearance_page.dart`, `chat_row_view.dart`, `message_item.dart`, `message_list.dart`, `private_message_list.dart`, `command_rows.dart`'s comment, `message_line.dart` (removed), tests `app/test/unit/settings/app_settings_test.dart`, `app/test/widget/chat/message_list_test.dart`, `message_actions_test.dart`, `app/test/widget/shell/shell_test.dart`, `app/test/widget/settings/user_settings_test.dart`, `app/test/golden/chat_golden_test.dart`.
 
 - [ ] **Tests:**
-  - `an_old_compact_choice_opens_as_bubbles`: settings JSON with `"density": "compact"` parses, and `toJson` has no `density`.
+  - `an_old_comfortable_choice_opens_as_compact`: settings JSON with `"density": "comfortable"` parses, and `toJson` has no `density`.
   - `appearance_has_no_density`: `Message density`, `Comfortable` and `Compact` aren't on the page, and the page below it hasn't moved out of order.
-  - `skeleton_keeps_the_bubbles_shape`: at 1280, `ChatSkeleton`'s blocks have radius `OcRadius.bubble`, its avatars are `OcSize.messageAvatar`, own rows have none, colour `hover`.
+  - `skeleton_draws_compact_rows`: at 1280, `ChatSkeleton` draws compact rows (small round avatars in `hover`, author and text lines, no bubbles).
   - `channels_load_with_the_skeleton`: a slow first load shows it, and messages replace it.
   - `private_chats_load_with_the_skeleton`: the same; `_Spinner` is gone from the file unless something else uses it.
   - `shell_test`'s `text ×$scale, ${density.name}` loop keeps its scales, without density. Name this under Deviations.
-  - Tests that asserted compact behaviour in `message_list_test` and `message_actions_test`: where the same behaviour exists on a bubble, change the setup and keep the assertion. Where it only existed in compact, remove it and name it under Deviations.
-- [ ] **Build:** remove everything §4 lists. Then remove what only compact used, whatever else that turns out to be.
-- [ ] **Sweep:** `grep -rn "MessageDensity\|CompactMessage\|DensityMiniature\|_HoverBarAnchor\|_SelfAvatar\|density" app/lib app/test app/integration_test` prints nothing about messages. Delete the two compact goldens and their cases.
+  - Tests that asserted bubble behaviour in `message_list_test` and `message_actions_test`: where the same behaviour exists on compact, change the setup and keep the assertion. Where it only existed on bubbles, remove it and name it under Deviations.
+- [ ] **Build:** remove everything §4 lists. Then remove what only bubbles used, whatever else that turns out to be.
+- [ ] **Sweep:** `grep -rn "MessageDensity\|MessageBubble\|MessageLine\|DensityMiniature\|density" app/lib app/test app/integration_test` prints nothing about messages. Delete the two bubble goldens and their cases.
 - [ ] **Render** `text` at `wide-1280` and `settings-appearance` (add the scene), and write `ChatSkeleton` to a one-off image at the same width. Look at them.
 - [ ] Commit `refactor(desktop): one way to show messages`.
 

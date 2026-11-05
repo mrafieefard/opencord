@@ -49,12 +49,12 @@ A second `ShellSplitter`, in the `8` gap between main and the side slot. Everyth
 
 The transport stays centred in its row. `MusicVolumeControls` stays in the now-playing card's right-click menu, which isn't this popover.
 
-## 4. Compact chat mode goes
+## 4. Bubble chat mode goes
 
-Removed entirely: `MessageDensity`, `AppSettings.density`, the `Message density` section and `DensityMiniature` in Appearance, `compact_message.dart`, every `compact` path in the channel and private message lists, and `_SelfAvatar` and `_HoverBarAnchor` in the private list, which only compact used.
+Removed entirely: `MessageDensity`, `AppSettings.density`, the `Message density` section and `DensityMiniature` in Appearance, `MessageBubble` and `MessageLine`, every `comfortable` / bubble path in the channel and private message lists. Messages are shown in compact mode only.
 
-- **An old saved choice:** the `density` key is ignored and never written again. Someone on Compact opens on bubbles.
-- **Loading:** `ChatSkeleton` stays, and is the one loading look. It already draws bubbles, and it must keep the bubble's radius and the avatar's size. **The private chat's first load changes from its spinner to `ChatSkeleton`,** so both chats load alike.
+- **An old saved choice:** the `density` key is ignored and never written again. Someone on Comfortable opens on compact.
+- **Loading:** `ChatSkeleton` stays, and is the one loading look. It draws compact rows (small round avatars, author and text lines in `hover`). **The private chat's first load changes from its spinner to `ChatSkeleton`,** so both chats load alike.
 
 ## 5. Invisible goes
 
