@@ -56,7 +56,7 @@ class _MenuIntent extends Intent {
 }
 
 /// Whether the pointer is on a message row or its hover bar, for rows that
-/// change while hovered (compact density shows the time and a background).
+/// change while hovered (a row shows the time and a background).
 class MessageHover extends InheritedNotifier<ValueNotifier<bool>> {
   const MessageHover({
     super.key,

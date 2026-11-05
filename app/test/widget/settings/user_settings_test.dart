@@ -11,6 +11,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/desktop/tray_menu.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
@@ -462,10 +463,11 @@ void main() {
     final cards = find.byType(SettingsChoiceCards<SelfPresence>);
     expect(cards, findsOneWidget);
     final cardWidget = tester.widget<SettingsChoiceCards<SelfPresence>>(cards);
-    expect(
-      cardWidget.options.map((o) => o.value.label).toList(),
-      ['Online', 'Idle', 'Do not disturb'],
-    );
+    expect(cardWidget.options.map((o) => o.value.label).toList(), [
+      'Online',
+      'Idle',
+      'Do not disturb',
+    ]);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await _pumpFor(tester, const Duration(milliseconds: 300));
 
@@ -483,6 +485,11 @@ void main() {
           .toList(),
       ['Online', 'Idle', 'Do not disturb'],
     );
+    // Three rows still open 8 above the panel, as four did.
+    expect(
+      tester.getRect(find.byType(UserPanel)).top - tester.getRect(panel).bottom,
+      closeTo(8, 1),
+    );
     // Dismiss menu by tapping outside
     await tester.tapAt(const Offset(500, 500));
     await tester.pumpAndSettle();
@@ -490,10 +497,11 @@ void main() {
     // 3. Tray menu
     final tray = trayMenu(const TrayState());
     final status = tray.firstWhere((item) => item.label == 'Status');
-    expect(
-      status.children.map((item) => item.label).toList(),
-      ['Online', 'Idle', 'Do not disturb'],
-    );
+    expect(status.children.map((item) => item.label).toList(), [
+      'Online',
+      'Idle',
+      'Do not disturb',
+    ]);
 
     await app.dispose(tester);
   });

@@ -14,7 +14,7 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
-/// A message in compact density (§8.1), laid out as Discord's: the first
+/// A message (§8.1), laid out as Discord's: the first
 /// message of a group has the author's avatar, then their name, role and
 /// the time above the text; the ones after it are just text, with the time
 /// in the avatar's column while hovered. Everyone's messages sit on the
@@ -333,7 +333,7 @@ class _Retry extends StatelessWidget {
   }
 }
 
-/// "↳ Kai: the original…" above a reply in compact density.
+/// "↳ Kai: the original…" above a reply.
 class _CompactReply extends StatelessWidget {
   const _CompactReply({required this.reply, this.onTap});
 

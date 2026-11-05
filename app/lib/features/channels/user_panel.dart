@@ -51,59 +51,58 @@ class UserPanel extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(
-            child: Builder(
-              builder: (context) => Hoverable(
-                onTap: () => _choosePresence(context, ref, presence),
-                semanticLabel: '$name, ${presence.label}. Change status',
-                builder: (context, state) => AnimatedContainer(
-                  duration: OcMotion.of(context).hover,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: state.active ? colors.hover : null,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      OcAvatar(
-                        id: self?.id ?? name,
-                        name: name,
-                        image: server == null
-                            ? null
-                            : avatarImage(ref, server, self?.user.avatarHash),
-                        size: 32,
-                        presence: presence.shown,
-                        ringColor: state.active ? colors.hover : colors.sidebar,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            EllipsisText(
-                              name,
-                              style: OcText.bodyStrong.copyWith(
-                                color: colors.text,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                height: 1.25,
-                              ),
+            child: Hoverable(
+              // The panel's context: the menu opens above the panel.
+              onTap: () => _choosePresence(context, ref, presence),
+              semanticLabel: '$name, ${presence.label}. Change status',
+              builder: (context, state) => AnimatedContainer(
+                duration: OcMotion.of(context).hover,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: state.active ? colors.hover : null,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    OcAvatar(
+                      id: self?.id ?? name,
+                      name: name,
+                      image: server == null
+                          ? null
+                          : avatarImage(ref, server, self?.user.avatarHash),
+                      size: 32,
+                      presence: presence.shown,
+                      ringColor: state.active ? colors.hover : colors.sidebar,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          EllipsisText(
+                            name,
+                            style: OcText.bodyStrong.copyWith(
+                              color: colors.text,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
                             ),
-                            Text(
-                              presence.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: OcText.meta.copyWith(
-                                color: colors.textMuted,
-                                fontSize: 11,
-                                height: 1.25,
-                              ),
+                          ),
+                          Text(
+                            presence.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: OcText.meta.copyWith(
+                              color: colors.textMuted,
+                              fontSize: 11,
+                              height: 1.25,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -149,9 +148,11 @@ class UserPanel extends ConsumerWidget {
     final rect = globalRectOf(context);
     return showOcMenu(
       context: context,
+      // 8 above the panel: the rows, then the menu's padding 4 and border 1
+      // at each end.
       position: rect.topLeft.translate(
         0,
-        -8 - SelfPresence.values.length * 32 - 8,
+        -8 - SelfPresence.values.length * 32 - 2 * (4 + 1),
       ),
       entries: [
         for (final presence in SelfPresence.values)

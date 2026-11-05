@@ -83,10 +83,7 @@ void main() {
     await pumpThemed(
       tester,
       surface: const Size(1280, 800),
-      const Align(
-        alignment: Alignment.bottomCenter,
-        child: ChatSkeleton(),
-      ),
+      const Align(alignment: Alignment.bottomCenter, child: ChatSkeleton()),
     );
 
     final colors = tester.element(find.byType(ChatSkeleton)).oc;
@@ -97,7 +94,16 @@ void main() {
           (w.decoration as BoxDecoration).shape == BoxShape.circle &&
           (w.decoration as BoxDecoration).color == colors.hover,
     );
-    expect(avatars, findsWidgets);
+    // Six rows in groups of three: an avatar on each group's first row.
+    expect(avatars, findsNWidgets(2));
+    final skeleton = tester.getRect(find.byType(ChatSkeleton));
+    final avatarRects = [
+      for (var i = 0; i < 2; i++) tester.getRect(avatars.at(i)),
+    ];
+    for (final rect in avatarRects) {
+      expect(rect.size, const Size.square(OcSize.messageAvatar));
+      expect(rect.left, skeleton.left + OcSpace.s16);
+    }
 
     final lines = find.byWidgetPredicate(
       (w) =>
@@ -105,7 +111,18 @@ void main() {
           w.decoration is BoxDecoration &&
           (w.decoration as BoxDecoration).color == colors.hover,
     );
-    expect(lines, findsWidgets);
+    // An author line on each group, and a text line on every row.
+    expect(lines, findsNWidgets(8));
+    final textLeft = avatarRects.first.right + OcSpace.s12;
+    for (var i = 0; i < 8; i++) {
+      final rect = tester.getRect(lines.at(i));
+      expect(rect.left, textLeft);
+      // Text lines are 14; an author line is 12, with 6 below it.
+      expect(rect.height, anyOf(14.0, 12.0 + 6));
+      final decoration =
+          tester.widget<Container>(lines.at(i)).decoration! as BoxDecoration;
+      expect(decoration.borderRadius, BorderRadius.circular(4));
+    }
   });
 
   testWidgets('channels_load_with_the_skeleton', (tester) async {
@@ -153,10 +170,7 @@ void main() {
   testWidgets('compact lines use the whole width, as in private chats', (
     tester,
   ) async {
-    final app = await MockApp.pump(
-      tester,
-      size: const Size(1800, 900),
-    );
+    final app = await MockApp.pump(tester, size: const Size(1800, 900));
     await _open(tester, app, 'general');
 
     final list = _listRect(tester);
