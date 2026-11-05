@@ -149,7 +149,10 @@ class UserPanel extends ConsumerWidget {
     final rect = globalRectOf(context);
     return showOcMenu(
       context: context,
-      position: rect.topLeft.translate(0, -8 - 4 * 32 - 8),
+      position: rect.topLeft.translate(
+        0,
+        -8 - SelfPresence.values.length * 32 - 8,
+      ),
       entries: [
         for (final presence in SelfPresence.values)
           OcMenuItem(

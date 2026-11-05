@@ -290,12 +290,11 @@ Presence presenceFrom(core.PresenceStatus status) => switch (status) {
   core.PresenceStatus.offline => Presence.offline,
 };
 
-/// Invisible goes out as offline: others see exactly that.
+/// Maps self presence to the core presence status.
 core.PresenceStatus presenceTo(SelfPresence presence) => switch (presence) {
   SelfPresence.online => core.PresenceStatus.online,
   SelfPresence.idle => core.PresenceStatus.idle,
   SelfPresence.doNotDisturb => core.PresenceStatus.dnd,
-  SelfPresence.invisible => core.PresenceStatus.offline,
 };
 
 FailureReason failureFrom(core.FailureReason reason) => switch (reason) {

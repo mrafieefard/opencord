@@ -1437,8 +1437,11 @@ class MockRepository implements OpencordRepository {
   Future<String> avatarPath(String serverKey, String hash) async =>
       'mock-avatars/$hash.png';
 
+  SelfPresence lastPresence = SelfPresence.online;
+
   @override
   Future<void> updatePresence(SelfPresence presence) async {
+    lastPresence = presence;
     for (final server in _world.servers) {
       server.presences[server.selfId] = presence.shown;
       _emit(

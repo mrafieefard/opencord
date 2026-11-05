@@ -9,14 +9,17 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/desktop/installation.dart';
+import 'package:opencord/features/desktop/tray_menu.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/oc_menu.dart';
 
 import '../../support/app.dart';
 
@@ -439,6 +442,59 @@ void main() {
 
     await _saveChanges(tester);
     expect(app.read(selfPresenceProvider), SelfPresence.idle);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_saved_invisible_opens_as_online', (tester) async {
+    final store = MemoryKeyValueStore()..write(selfPresenceKey, 'invisible');
+    final app = await MockApp.pump(tester, store: store);
+
+    expect(app.read(selfPresenceProvider), SelfPresence.online);
+    expect(app.repository.lastPresence, SelfPresence.online);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_choices_are_three', (tester) async {
+    final app = await MockApp.pump(tester);
+
+    // 1. Settings cards
+    await _openSettings(tester);
+    final cards = find.byType(SettingsChoiceCards<SelfPresence>);
+    expect(cards, findsOneWidget);
+    final cardWidget = tester.widget<SettingsChoiceCards<SelfPresence>>(cards);
+    expect(
+      cardWidget.options.map((o) => o.value.label).toList(),
+      ['Online', 'Idle', 'Do not disturb'],
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    // 2. User panel menu
+    await tester.tap(find.bySemanticsLabel(RegExp('Change status')));
+    await tester.pumpAndSettle();
+    final panel = find.byType(OcMenuPanel);
+    expect(panel, findsOneWidget);
+    expect(
+      tester
+          .widget<OcMenuPanel>(panel)
+          .entries
+          .whereType<OcMenuItem>()
+          .map((item) => item.label)
+          .toList(),
+      ['Online', 'Idle', 'Do not disturb'],
+    );
+    // Dismiss menu by tapping outside
+    await tester.tapAt(const Offset(500, 500));
+    await tester.pumpAndSettle();
+
+    // 3. Tray menu
+    final tray = trayMenu(const TrayState());
+    final status = tray.firstWhere((item) => item.label == 'Status');
+    expect(
+      status.children.map((item) => item.label).toList(),
+      ['Online', 'Idle', 'Do not disturb'],
+    );
+
     await app.dispose(tester);
   });
 }

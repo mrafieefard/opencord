@@ -598,18 +598,18 @@ void main() {
     });
   });
 
-  test('presence goes to every server, invisible as offline', () async {
+  test('presence goes to every server', () async {
     final harness = await _Harness.start();
     harness.core.servers = const [
       core.Server(key: 'a:1', name: 'A', host: 'a', port: 1, addresses: []),
       core.Server(key: 'b:1', name: 'B', host: 'b', port: 1, addresses: []),
     ];
 
-    await harness.repository.updatePresence(SelfPresence.invisible);
+    await harness.repository.updatePresence(SelfPresence.idle);
 
     expect(
       harness.core.calls,
-      containsAll(['presence:a:1:offline', 'presence:b:1:offline']),
+      containsAll(['presence:a:1:idle', 'presence:b:1:idle']),
     );
   });
 

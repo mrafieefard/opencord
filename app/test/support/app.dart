@@ -91,6 +91,7 @@ class MockApp {
       container.read(appLinkInboxProvider.notifier).add(link);
     }
     repository.start();
+    repository.updatePresence(container.read(selfPresenceProvider));
     final app = RepaintBoundary(
       key: boundaryKey,
       child: UncontrolledProviderScope(

@@ -123,11 +123,12 @@ void main() {
     expect(member.roleIds, [4, 5]);
   });
 
-  test('presence maps both ways, with invisible sent as offline', () {
+  test('presence maps both ways', () {
     expect(presenceFrom(core.PresenceStatus.dnd), Presence.doNotDisturb);
     expect(presenceFrom(core.PresenceStatus.offline), Presence.offline);
-    expect(presenceTo(SelfPresence.invisible), core.PresenceStatus.offline);
+    expect(presenceTo(SelfPresence.doNotDisturb), core.PresenceStatus.dnd);
     expect(presenceTo(SelfPresence.idle), core.PresenceStatus.idle);
+    expect(presenceTo(SelfPresence.online), core.PresenceStatus.online);
   });
 
   group('connection states', () {
