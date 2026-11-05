@@ -13,10 +13,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/app.dart';
+import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -103,6 +104,12 @@ const floatingScenes = [
     playSettingsKeybinds,
     widths: [wide1280, medium980],
     light: [wide1280, medium980],
+  ),
+  FloatingScene(
+    'settings-keybinds-recording',
+    playSettingsKeybindsRecording,
+    widths: [wide1280, medium980],
+    light: [wide1280],
   ),
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
@@ -431,6 +438,25 @@ Future<void> playSettingsKeybinds(SceneDriver scene) async {
     find.descendant(
       of: find.byType(SettingsDialog),
       matching: find.text('Keybinds'),
+    ),
+  );
+  await scene.settle(300);
+}
+
+/// Keybinds through the portal, which leaves the mouse to the app: the
+/// footer's second sentence, and a new row's recorder listening.
+Future<void> playSettingsKeybindsRecording(SceneDriver scene) async {
+  await playText(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  (container.read(repositoryProvider) as MockRepository).hotkeySupport =
+      const HotkeySupport.global('the portal', mouse: false);
+  await playSettingsKeybinds(scene);
+  await scene.tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Add a keybind'),
     ),
   );
   await scene.settle(300);

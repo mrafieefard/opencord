@@ -571,6 +571,9 @@ void main() {
           kind: PointerDeviceKind.mouse,
         ),
       );
+      await tester.pump();
+      // The one action the press has is the keybind's.
+      expect(app.repository.pushToTalkHeld, isTrue);
       tester.binding.handlePointerEvent(
         const PointerUpEvent(
           position: Offset(300, 300),
@@ -581,6 +584,7 @@ void main() {
 
       // Mouse 4 is bound, so it no longer goes back!
       expect(app.container.read(currentChannelProvider), ch2);
+      expect(app.repository.pushToTalkHeld, isFalse);
     } finally {
       await app.dispose(tester);
     }
