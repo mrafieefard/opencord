@@ -41,6 +41,7 @@ class OcIconButton extends StatelessWidget {
     this.focusNode,
     this.showTooltip = true,
     this.iconSize,
+    this.pressedScale = 1.0,
   });
 
   final IconData icon;
@@ -52,6 +53,7 @@ class OcIconButton extends StatelessWidget {
   final ValueChanged<Offset>? onSecondaryTap;
   final OcIconButtonSize size;
   final double? iconSize;
+  final double pressedScale;
   final bool active;
   final OcActiveStyle activeStyle;
 
@@ -109,7 +111,7 @@ class OcIconButton extends StatelessWidget {
             state.active ? colors.text : (color ?? colors.textSecondary),
           ),
         };
-        return AnimatedContainer(
+        final child = AnimatedContainer(
           duration: motion.hover,
           curve: OcMotion.curve,
           width: size.extent,
@@ -120,6 +122,13 @@ class OcIconButton extends StatelessWidget {
             size: iconSize ?? size.iconSize,
             color: foreground,
           ),
+        );
+        if (pressedScale == 1.0) return child;
+        return AnimatedScale(
+          scale: state.pressed ? pressedScale : 1.0,
+          duration: motion.press,
+          curve: OcMotion.curve,
+          child: child,
         );
       },
     );

@@ -185,36 +185,12 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets("the control bar's top edge meets the composer's, as the "
-      'composer grows too', (tester) async {
-    final app = await MockApp.pump(tester);
-    await _joinGeneral(tester);
-    await tester.tap(find.byTooltip('Show chat'));
-    await _pumpFor(tester, const Duration(milliseconds: 300));
-    final strip = find
-        .ancestor(
-          of: find.byType(VoiceControlBar),
-          matching: find.byType(Container),
-        )
-        .first;
-    final composer = find.byType(Composer);
-
-    expect(tester.getRect(strip).top, tester.getRect(composer).top);
-    expect(tester.getRect(strip).bottom, tester.getRect(composer).bottom);
-
-    await tester.enterText(find.byType(EditableText).last, 'one\ntwo\nthree');
-    await _pumpFor(tester, const Duration(milliseconds: 200));
-    expect(tester.getSize(composer).height, greaterThan(70));
-    expect(tester.getRect(strip).top, tester.getRect(composer).top);
-    await app.dispose(tester);
-  });
-
   for (final fontSize in [
     AppSettings.defaultFontSize,
     AppSettings.maxFontSize,
   ]) {
-    testWidgets('the user panel, the composer and the control bar share '
-        'their top line, text at $fontSize', (tester) async {
+    testWidgets('the user panel and the composer share their top line, '
+        'text at $fontSize', (tester) async {
       final app = await MockApp.pump(
         tester,
         settings: (settings) => settings.copyWith(fontSize: fontSize),
@@ -231,15 +207,6 @@ void main() {
         tester.getRect(panel).top,
         tester.getRect(find.byType(Composer)).top,
       );
-
-      await _joinGeneral(tester);
-      final strip = find
-          .ancestor(
-            of: find.byType(VoiceControlBar),
-            matching: find.byType(Container),
-          )
-          .first;
-      expect(tester.getRect(strip).top, tester.getRect(panel).top);
       await app.dispose(tester);
     });
   }

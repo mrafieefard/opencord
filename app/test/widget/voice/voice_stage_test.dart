@@ -89,7 +89,7 @@ Future<void> _goLive(WidgetTester tester) async {
 /// Clicks a tile near its top edge: the control bar lies over the bottom of
 /// the stage until the dock takes its place.
 Future<void> _tapTop(WidgetTester tester, Finder tile) =>
-    tester.tapAt(tester.getRect(tile).topCenter + const Offset(0, 6));
+    tester.tapAt(tester.getRect(tile).topCenter + const Offset(0, 3));
 
 Rect _lerpMove(Rect from, Rect to, int ms) =>
     Rect.lerp(from, to, OcSpring.move.valueAt(Duration(milliseconds: ms)))!;

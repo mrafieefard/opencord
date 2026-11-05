@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,7 +8,6 @@ import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
-import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/music/music_stage.dart';
@@ -32,13 +30,9 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 /// The main area for a voice channel (§4.10): its tiles and controls once
 /// connected, a prompt to join before. Runs on mock data in Phase 1.
 class VoiceView extends ConsumerWidget {
-  const VoiceView({super.key, required this.channel, this.composerHeight});
+  const VoiceView({super.key, required this.channel});
 
   final ChannelRef channel;
-
-  /// The chat's composer beside the tiles, whose top edge the control
-  /// bar's lines up with (Phase 2 §12); null without the chat beside.
-  final ValueListenable<double?>? composerHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,68 +59,32 @@ class VoiceView extends ConsumerWidget {
         (state) => state.data?.channels[channel.channel]?.textInVoice ?? false,
       ),
     );
-    final bar = VoiceControlBar(channel: channel, chat: chat);
-    // Level with the user panel and any composer.
-    final resting =
-        ref.watch(restingComposerHeightProvider) ?? OcSize.userPanel;
     final stage = _Stage(channel: channel, participants: participants);
-    return Stack(
+    Widget content = Stack(
       children: [
         // The stage has the whole page, under what floats on it (§5.14). Laid
-        // out at the width main ends at, it ignores a pane on its way (§4.4);
-        // with the chat beside, main isn't all its own.
+        // out at the width main ends at, it ignores a pane on its way (§4.4).
         Positioned.fill(
           child: KeyedSubtree(
             key: ShellKeys.stage,
-            child: composerHeight == null
-                ? MainInnerWidth(child: stage)
-                : stage,
+            child: MainInnerWidth(child: stage),
           ),
         ),
         Positioned(
           left: 0,
           right: 0,
-          bottom: 0,
-          child: switch (composerHeight) {
-            // The composer beside, as it grows too.
-            final composer? => ValueListenableBuilder(
-              valueListenable: composer,
-              builder: (context, height, _) =>
-                  _ControlStrip(height: height ?? resting, child: bar),
-            ),
-            null => _ControlStrip(height: resting, child: bar),
-          },
+          bottom: 14,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: VoiceControlBar(channel: channel, chat: chat),
+          ),
         ),
       ],
     );
-  }
-}
-
-/// The control bar's strip under the tiles, edged like the composer's, and
-/// as tall as it when the chat is beside.
-class _ControlStrip extends StatelessWidget {
-  const _ControlStrip({required this.height, required this.child});
-
-  final double height;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.oc;
-    return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s16,
-        vertical: OcSpace.s4,
-      ),
-      decoration: BoxDecoration(
-        color: colors.sidebar,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: Center(
-        child: FittedBox(fit: BoxFit.scaleDown, child: child),
-      ),
-    );
+    if (VoiceDockActivity.maybeOf(context) == null) {
+      content = VoiceDockActivityScope(child: content);
+    }
+    return content;
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/channel_kind.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/providers/voice_cues.dart';
@@ -42,6 +43,7 @@ import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/app_title_bar.dart';
 import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/features/voice/voice_dock.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_reconnect_bar.dart';
 import 'package:opencord/features/links/app_links.dart';
@@ -839,10 +841,14 @@ class _MainColumn extends ConsumerWidget {
     );
 
     final bool isChat;
+    final bool isVoice;
     if (homeShown) {
       isChat = currentPeer != null;
+      isVoice = false;
     } else {
       isChat = !noServers && open != null && channel!.kind.isTextLike;
+      isVoice =
+          !noServers && open != null && channel!.kind == ChannelKind.voice;
     }
 
     Widget mainContent;
@@ -885,12 +891,21 @@ class _MainColumn extends ConsumerWidget {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: NotchedFloat(
-                    key: ShellKeys.main,
-                    notch: notch,
-                    color: colors.chat,
-                    child: mainContent,
-                  ),
+                  child: isVoice
+                      ? VoiceDockActivityScope(
+                          child: NotchedFloat(
+                            key: ShellKeys.main,
+                            notch: notch,
+                            color: colors.chat,
+                            child: mainContent,
+                          ),
+                        )
+                      : NotchedFloat(
+                          key: ShellKeys.main,
+                          notch: notch,
+                          color: colors.chat,
+                          child: mainContent,
+                        ),
                 ),
                 if (!homeShown && !noServers)
                   Positioned(

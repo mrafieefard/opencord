@@ -18,7 +18,6 @@ import 'package:opencord/features/shell/no_servers.dart';
 import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/features/voice/voice_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
-import 'package:opencord/ui/widgets/measured_height.dart';
 
 /// Whether the open channel is a voice channel showing its chat (Phase 2
 /// §12). The chat then takes the member list's place on the right.
@@ -56,16 +55,6 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
   /// the tiles and their controls need; narrower, the chat shows alone.
   static const _voiceChatWidth = 380.0;
   static const _stageMinWidth = 600.0;
-
-  /// The composer's height, which the call's control bar beside it
-  /// matches.
-  final _composerHeight = ValueNotifier<double?>(null);
-
-  @override
-  void dispose() {
-    _composerHeight.dispose();
-    super.dispose();
-  }
 
   /// The channel's messages and composer.
   Widget _channelChat(
@@ -107,13 +96,10 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
       children: [
         Expanded(child: body),
         if (composer)
-          MeasuredHeight(
-            onChanged: (height) => _composerHeight.value = height,
-            child: Composer(
-              key: ValueKey(('composer', open)),
-              channel: open,
-              controller: _controller,
-            ),
+          Composer(
+            key: ValueKey(('composer', open)),
+            channel: open,
+            controller: _controller,
           ),
       ],
     );
@@ -195,7 +181,6 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                           child: VoiceView(
                             key: ValueKey(('voice', open)),
                             channel: open,
-                            composerHeight: _composerHeight,
                           ),
                         ),
                         VerticalDivider(width: 1, color: colors.border),
