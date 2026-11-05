@@ -26,6 +26,7 @@ import 'package:opencord/features/shell/debug_menu.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/navigation_history.dart';
 import 'package:opencord/features/shell/pane_button.dart';
+import 'package:opencord/features/shell/pane_switch.dart';
 import 'package:opencord/features/shell/shell_drawer.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
@@ -183,14 +184,16 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     }
   }
 
-  /// The users list, or the music panel in its place (§5.13). The new one
-  /// fades in, and the old one goes at once.
+  /// The users list, or the music panel in its place (§5.13). What's under
+  /// the new one's header fades in, and the old one goes at once.
   Widget _rightPanel({required bool music}) {
     final channel = ref.read(musicChannelProvider);
     return AnimatedSwitcher(
       duration: OcMotion.of(context).fade,
       switchInCurve: OcMotion.curve,
       layoutBuilder: (current, _) => current ?? const SizedBox.shrink(),
+      transitionBuilder: (child, animation) =>
+          PaneSwapFade(opacity: animation, child: child),
       child: music && channel != null
           ? MusicPanel(
               key: const ValueKey('music'),

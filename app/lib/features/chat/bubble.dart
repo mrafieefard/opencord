@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:opencord/core/format.dart';
@@ -460,7 +462,7 @@ class _ReplyQuote extends StatelessWidget {
                             style: OcText.small.copyWith(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: colors.text,
+                              color: colors.textSecondary,
                             ),
                           ),
                           Text(
@@ -542,37 +544,47 @@ class ReactionChip extends StatelessWidget {
   }
 }
 
-/// A 2 px left border following the bubble's radius, a `(` (§5.11).
+/// A mention's left edge (§5.11), a `(`, drawn as the prototype's CSS border
+/// is: 2 wide, narrowing into the 1 px top and bottom, and ending at the mitre
+/// from the outer corner through the inner one.
 class _MentionBorderPainter extends CustomPainter {
   const _MentionBorderPainter({required this.radius, required this.color});
 
   final BorderRadius radius;
   final Color color;
 
+  static Radius _inside(Radius corner, double dx) =>
+      Radius.elliptical(math.max(0, corner.x - dx), math.max(0, corner.y - 1));
+
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final rrect = radius.toRRect(rect.deflate(1.0));
-    final path = Path()
-      ..moveTo(rrect.left + rrect.tlRadiusX, rrect.top)
-      ..arcToPoint(
-        Offset(rrect.left, rrect.top + rrect.tlRadiusY),
-        radius: Radius.circular(rrect.tlRadiusX),
-        clockwise: false,
+    final inner = RRect.fromLTRBAndCorners(
+      2,
+      1,
+      size.width - 1,
+      size.height - 1,
+      topLeft: _inside(radius.topLeft, 2),
+      topRight: _inside(radius.topRight, 1),
+      bottomLeft: _inside(radius.bottomLeft, 2),
+      bottomRight: _inside(radius.bottomRight, 1),
+    );
+    final reach = math.max(radius.topLeft.x, radius.bottomLeft.x);
+    canvas
+      ..save()
+      ..clipPath(
+        Path()
+          ..moveTo(0, 0)
+          ..lineTo(reach, reach / 2)
+          ..lineTo(reach, size.height - reach / 2)
+          ..lineTo(0, size.height)
+          ..close(),
       )
-      ..lineTo(rrect.left, rrect.bottom - rrect.blRadiusY)
-      ..arcToPoint(
-        Offset(rrect.left + rrect.blRadiusX, rrect.bottom),
-        radius: Radius.circular(rrect.blRadiusX),
-        clockwise: false,
-      );
-
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    canvas.drawPath(path, paint);
+      ..drawDRRect(
+        radius.toRRect(Offset.zero & size),
+        inner,
+        Paint()..color = color,
+      )
+      ..restore();
   }
 
   @override

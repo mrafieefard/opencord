@@ -10,6 +10,7 @@ import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/members/member_panel.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/pane_switch.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -247,9 +248,10 @@ void main() {
       // The float has its new width from the first frame.
       expect(tester.getSize(_panel).width, 340, reason: 'panel $t');
       if (t == 40) {
+        // What's under the header fades in.
         final fade = tester.widget<FadeTransition>(
           find
-              .ancestor(
+              .descendant(
                 of: find.byType(MusicPanel),
                 matching: find.byType(FadeTransition),
               )
@@ -260,6 +262,24 @@ void main() {
           closeTo(Curves.easeOut.transform(40 / 120), .03),
         );
         expect(find.byType(MemberPanel), findsNothing);
+        // The header stays, and the switch's fill crosses over in it.
+        expect(
+          find.ancestor(
+            of: find.byType(PaneSwitch),
+            matching: find.byType(FadeTransition),
+          ),
+          findsNothing,
+        );
+        final people = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('pane-switch-people')),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        final fill = (people.decoration as BoxDecoration).color!;
+        expect(fill.a, closeTo(1 - Curves.ease.transform(40 / 120), .05));
       }
     }
     await _settle(tester);

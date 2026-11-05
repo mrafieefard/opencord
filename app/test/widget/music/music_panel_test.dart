@@ -121,6 +121,28 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('the progress bar seeks, from 8 px off it as well', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openMusic(tester);
+    await _search(tester, 'lofi');
+    await tester.tap(_inPanel(find.byTooltip('Add to queue')).first);
+    await _settle(tester);
+
+    final bar = tester.getCenter(_inPanel(find.byType(Slider)));
+    await tester.tapAt(bar + const Offset(0, -8));
+    await _settle(tester);
+
+    final session = _session(app)!;
+    final length = session.nowPlaying!.track.duration.inMilliseconds;
+    expect(
+      session.positionAt(DateTime.now()).inMilliseconds / length,
+      closeTo(.5, .05),
+    );
+    await app.dispose(tester);
+  });
+
   testWidgets('a search adds tracks; the card shows only in the users list', (
     tester,
   ) async {

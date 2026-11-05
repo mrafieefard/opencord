@@ -138,28 +138,31 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
             : null,
       ),
     );
+    // The bar is 4 tall, but the pointer gets 20 around it: 8 over the gap
+    // above and 8 over the 4 below and the top of the times.
     return RepaintBoundary(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
         children: [
-          SizedBox(
-            height: 4,
-            child: why == null ? slider : Tooltip(message: why, child: slider),
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Row(
+              children: [
+                Text(formatTrackTime(shown), style: style),
+                const Spacer(),
+                Text(
+                  track == null
+                      ? '0:00'
+                      : track.isStream
+                      ? 'LIVE'
+                      : formatTrackTime(length),
+                  style: style,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text(formatTrackTime(shown), style: style),
-              const Spacer(),
-              Text(
-                track == null
-                    ? '0:00'
-                    : track.isStream
-                    ? 'LIVE'
-                    : formatTrackTime(length),
-                style: style,
-              ),
-            ],
+          SizedBox(
+            height: 20,
+            child: why == null ? slider : Tooltip(message: why, child: slider),
           ),
         ],
       ),

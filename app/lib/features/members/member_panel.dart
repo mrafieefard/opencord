@@ -144,58 +144,71 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
               ],
             ),
           ),
-          const NowPlayingCard(),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: SizedBox(
-              key: ShellKeys.memSearch,
-              height: 36,
-              child: OcTextField(
-                controller: _search,
-                hint: 'Search members',
-                prefixIcon: OcIcons.search,
-                radius: OcRadius.searchPill,
-                semanticLabel: 'Search members',
-                onChanged: (value) => setState(() => _query = value),
+          Expanded(
+            child: PaneSwapBody(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const NowPlayingCard(),
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SizedBox(
+                      key: ShellKeys.memSearch,
+                      height: 36,
+                      child: OcTextField(
+                        controller: _search,
+                        hint: 'Search members',
+                        prefixIcon: OcIcons.search,
+                        radius: OcRadius.searchPill,
+                        semanticLabel: 'Search members',
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: entries.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(OcSpace.s24),
+                            child: Text(
+                              _query.trim().isEmpty
+                                  ? 'No one is here yet.'
+                                  : 'No members match "${_query.trim()}".',
+                              textAlign: TextAlign.center,
+                              style: OcText.small.copyWith(
+                                color: colors.textMuted,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            itemCount: entries.length,
+                            itemBuilder: (context, index) =>
+                                switch (entries[index]) {
+                                  final MemberHeader header => _SectionHeader(
+                                    key: ValueKey(header.key),
+                                    header: header,
+                                    onToggle: header.collapsible
+                                        ? () => setState(
+                                            () => _offlineExpanded =
+                                                !_offlineExpanded,
+                                          )
+                                        : null,
+                                  ),
+                                  final MemberLine line => MemberRow(
+                                    key: ValueKey(line.key),
+                                    line: line,
+                                    actions: MemberActions(
+                                      context: context,
+                                      ref: ref,
+                                      serverKey: server!,
+                                    ),
+                                  ),
+                                },
+                          ),
+                  ),
+                ],
               ),
             ),
-          ),
-          Expanded(
-            child: entries.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(OcSpace.s24),
-                    child: Text(
-                      _query.trim().isEmpty
-                          ? 'No one is here yet.'
-                          : 'No members match "${_query.trim()}".',
-                      textAlign: TextAlign.center,
-                      style: OcText.small.copyWith(color: colors.textMuted),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    itemCount: entries.length,
-                    itemBuilder: (context, index) => switch (entries[index]) {
-                      final MemberHeader header => _SectionHeader(
-                        key: ValueKey(header.key),
-                        header: header,
-                        onToggle: header.collapsible
-                            ? () => setState(
-                                () => _offlineExpanded = !_offlineExpanded,
-                              )
-                            : null,
-                      ),
-                      final MemberLine line => MemberRow(
-                        key: ValueKey(line.key),
-                        line: line,
-                        actions: MemberActions(
-                          context: context,
-                          ref: ref,
-                          serverKey: server!,
-                        ),
-                      ),
-                    },
-                  ),
           ),
         ],
       ),

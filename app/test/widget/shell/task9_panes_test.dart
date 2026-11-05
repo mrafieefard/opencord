@@ -92,12 +92,15 @@ void main() {
     expect(peopleDeco.color, colors.accent);
     expect(peopleDeco.borderRadius, BorderRadius.circular(8));
 
-    final peopleText = tester.widget<Text>(
-      find.descendant(of: peopleBtnFinder, matching: find.byType(Text)),
+    final peopleText = tester.widget<AnimatedDefaultTextStyle>(
+      find.descendant(
+        of: peopleBtnFinder,
+        matching: find.byType(AnimatedDefaultTextStyle),
+      ),
     );
-    expect(peopleText.style?.fontSize, 13);
-    expect(peopleText.style?.fontWeight, FontWeight.w500);
-    expect(peopleText.style?.color, colors.onAccent);
+    expect(peopleText.style.fontSize, 13);
+    expect(peopleText.style.fontWeight, FontWeight.w500);
+    expect(peopleText.style.color, colors.onAccent);
 
     // Music button is inactive: background transparent/null, text textSecondary.
     final musicBtn = tester.widget<PaneSwitchButton>(musicBtnFinder);
@@ -111,12 +114,15 @@ void main() {
     final musicDeco = musicAnimatedContainer.decoration as BoxDecoration;
     expect(musicDeco.color, isNull);
 
-    final musicText = tester.widget<Text>(
-      find.descendant(of: musicBtnFinder, matching: find.byType(Text)),
+    final musicText = tester.widget<AnimatedDefaultTextStyle>(
+      find.descendant(
+        of: musicBtnFinder,
+        matching: find.byType(AnimatedDefaultTextStyle),
+      ),
     );
-    expect(musicText.style?.fontSize, 13);
-    expect(musicText.style?.fontWeight, FontWeight.w500);
-    expect(musicText.style?.color, colors.textSecondary);
+    expect(musicText.style.fontSize, 13);
+    expect(musicText.style.fontWeight, FontWeight.w500);
+    expect(musicText.style.color, colors.textSecondary);
 
     await app.dispose(tester);
   });
@@ -277,6 +283,26 @@ void main() {
     expect(sliderTheme.data.trackHeight, 4);
     expect(sliderTheme.data.inactiveTrackColor, colors.selected);
     expect(sliderTheme.data.activeTrackColor, colors.text);
+    // The pointer gets more than the bar: 8 on either side of it.
+    final progress = find.descendant(
+      of: find.byType(MusicProgress),
+      matching: find.byType(Slider),
+    );
+    expect(tester.getSize(progress).height, 20);
+    expect(
+      tester.getTopLeft(progress).dx,
+      tester.getTopLeft(find.byType(MusicProgress)).dx,
+    );
+    final times = tester.getRect(
+      find
+          .descendant(
+            of: find.byType(MusicProgress),
+            matching: find.text('0:00'),
+          )
+          .first,
+    );
+    // The bar's bottom is 12 into the slider, and the times are 4 under it.
+    expect(times.top - tester.getTopLeft(progress).dy, 16);
 
     // Play button: 48x48.
     final playBox = tester.widget<AnimatedContainer>(

@@ -22,7 +22,6 @@ class MessageLine extends StatelessWidget {
   /// the others so the bubbles line up.
   final Widget? avatar;
 
-  static const double gutter = 0;
   static const double _avatarGap = 10;
 
   @override

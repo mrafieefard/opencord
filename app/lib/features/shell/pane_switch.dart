@@ -82,24 +82,56 @@ class PaneSwitchButton extends StatelessWidget {
       onTap: onTap,
       semanticLabel: label,
       focusRadius: BorderRadius.circular(8),
-      builder: (context, state) => AnimatedContainer(
-        duration: OcMotion.of(context).fade,
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: selected ? colors.accent : null,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: OcText.body.copyWith(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: selected ? colors.onAccent : colors.textSecondary,
+      builder: (context, state) {
+        final duration = OcMotion.of(context).fade;
+        return AnimatedContainer(
+          duration: duration,
+          curve: Curves.ease,
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: selected ? colors.accent : null,
+            borderRadius: BorderRadius.circular(8),
           ),
-        ),
-      ),
+          alignment: Alignment.center,
+          child: AnimatedDefaultTextStyle(
+            duration: duration,
+            curve: Curves.ease,
+            style: OcText.body.copyWith(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: selected ? colors.onAccent : colors.textSecondary,
+            ),
+            child: Text(label),
+          ),
+        );
+      },
     );
+  }
+}
+
+/// The fade of a pane that has just been swapped in (§5.13), for the part
+/// under its header. The header stays: the switch in it has its own motion.
+class PaneSwapFade extends InheritedWidget {
+  const PaneSwapFade({super.key, required this.opacity, required super.child});
+
+  final Animation<double> opacity;
+
+  @override
+  bool updateShouldNotify(PaneSwapFade oldWidget) =>
+      opacity != oldWidget.opacity;
+}
+
+/// What a pane has under its header, fading with [PaneSwapFade].
+class PaneSwapBody extends StatelessWidget {
+  const PaneSwapBody({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final fade = context.dependOnInheritedWidgetOfExactType<PaneSwapFade>();
+    if (fade == null) return child;
+    return FadeTransition(opacity: fade.opacity, child: child);
   }
 }

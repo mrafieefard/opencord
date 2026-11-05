@@ -101,9 +101,11 @@ class MusicPanel extends ConsumerWidget {
             ),
           ),
           Expanded(
-            child: configured
-                ? _MusicBody(channel: channel)
-                : _NotSetUp(serverKey: channel.server),
+            child: PaneSwapBody(
+              child: configured
+                  ? _MusicBody(channel: channel)
+                  : _NotSetUp(serverKey: channel.server),
+            ),
           ),
         ],
       ),
@@ -559,7 +561,8 @@ class NowPlayingView extends ConsumerWidget {
               ],
             ),
           ],
-          const SizedBox(height: 12),
+          // 12 to the bar, 8 of it inside MusicProgress's pointer area.
+          const SizedBox(height: 4),
           MusicProgress(channel: channel),
           Padding(
             padding: const EdgeInsets.only(top: 6, bottom: 12),
@@ -600,8 +603,12 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    // In line with the queue's rows: 8 inside the art's edge. A button makes
+    // the row taller and its label sits 12 inside it; the title stays put.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      padding: action == null
+          ? const EdgeInsets.fromLTRB(20, 10, 20, 4)
+          : const EdgeInsets.fromLTRB(20, 3, 8, 0),
       child: Row(
         children: [
           Text(
