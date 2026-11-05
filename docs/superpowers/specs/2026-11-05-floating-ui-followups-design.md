@@ -6,7 +6,7 @@ What the owner asked for on 2026-11-05, once the floating UI was built. The earl
 
 1. The right pane resizes by dragging, as the left column does.
 2. Music volume is on the panel, with no popover.
-3. Compact chat mode is gone, and loading still looks right.
+3. Bubble chat mode is gone, and loading still looks right.
 4. The Invisible status is gone.
 5. A keybind can be a mouse button, alone or with keyboard modifiers.
 6. Code fences work in the formats people type, and the language highlights the code.

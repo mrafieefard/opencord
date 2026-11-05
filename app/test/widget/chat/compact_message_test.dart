@@ -139,7 +139,7 @@ void main() {
     expect(authorSpan.style?.color, colors.textSecondary);
   });
 
-  testWidgets('own messages say whether they were delivered', (tester) async {
+  testWidgets('own messages say whether they are sending', (tester) async {
     final semantics = tester.ensureSemantics();
     await _pumpCompact(tester, _message('one', state: SendState.pending));
     expect(find.bySemanticsLabel(RegExp('Sending')), findsOneWidget);
