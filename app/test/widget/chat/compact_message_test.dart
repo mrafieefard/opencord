@@ -141,10 +141,7 @@ void main() {
 
   testWidgets('own messages say whether they were delivered', (tester) async {
     final semantics = tester.ensureSemantics();
-    await _pumpCompact(
-      tester,
-      _message('one', state: SendState.pending),
-    );
+    await _pumpCompact(tester, _message('one', state: SendState.pending));
     expect(find.bySemanticsLabel(RegExp('Sending')), findsOneWidget);
     semantics.dispose();
   });

@@ -168,11 +168,7 @@ void main() {
       testWidgets(
         'no overflow at ${size.width.toInt()}×${size.height.toInt()}, text ×$scale',
         (tester) async {
-          final app = await MockApp.pump(
-            tester,
-            size: size,
-            textScale: scale,
-          );
+          final app = await MockApp.pump(tester, size: size, textScale: scale);
           final err1 = tester.takeException();
           expect(err1, isNull);
           // #general has the pinned bar, replies, reactions and code.
@@ -183,9 +179,7 @@ void main() {
               .channels
               .values
               .firstWhere((channel) => channel.name == 'general');
-          app
-              .read(navigationProvider.notifier)
-              .openChannel(server, general.id);
+          app.read(navigationProvider.notifier).openChannel(server, general.id);
           for (var i = 0; i < 4; i++) {
             await tester.pump(const Duration(milliseconds: 100));
           }

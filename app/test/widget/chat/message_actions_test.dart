@@ -57,7 +57,10 @@ Finder _compact(String containing) => find.byWidgetPredicate(
 
 /// The middle of a message's text: not a chip, link or quote.
 Offset _textOf(WidgetTester tester, String containing) => tester.getCenter(
-  find.descendant(of: _compact(containing), matching: find.byType(MarkdownView)),
+  find.descendant(
+    of: _compact(containing),
+    matching: find.byType(MarkdownView),
+  ),
 );
 
 Future<void> _rightClick(WidgetTester tester, Offset at) async {
@@ -165,7 +168,10 @@ void main() {
   testWidgets('double-clicking a reaction chip does not reply', (tester) async {
     final app = await MockApp.pump(tester);
     final channel = await _openGeneral(tester, app);
-    final chip = find.descendant(of: _compact(_ping), matching: find.text('👀'));
+    final chip = find.descendant(
+      of: _compact(_ping),
+      matching: find.text('👀'),
+    );
 
     await tester.tap(chip);
     await tester.pump(const Duration(milliseconds: 80));
@@ -212,9 +218,7 @@ void main() {
       button.tooltip,
   ];
 
-  testWidgets('hover bar has Edit on your own, and More', (
-    tester,
-  ) async {
+  testWidgets('hover bar has Edit on your own, and More', (tester) async {
     final app = await MockApp.pump(tester);
     await _openGeneral(tester, app);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -239,45 +243,35 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets(
-    'the hover bar always stays inside the list',
-    (tester) async {
-      final app = await MockApp.pump(
-        tester,
-        size: const Size(900, 700),
-      );
-      await _openGeneral(tester, app);
-      final list = tester.getRect(find.byType(MessageList));
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      // Over the server rail, away from any message.
-      await mouse.addPointer(location: const Offset(30, 650));
-      addTearDown(mouse.removePointer);
-      final texts = [
-        for (final element in find.byType(MarkdownView).evaluate())
-          tester.getCenter(find.byWidget(element.widget)),
-      ].where((point) => list.deflate(4).contains(point)).toList();
-      expect(texts.length, greaterThan(4));
+  testWidgets('the hover bar always stays inside the list', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(900, 700));
+    await _openGeneral(tester, app);
+    final list = tester.getRect(find.byType(MessageList));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    // Over the server rail, away from any message.
+    await mouse.addPointer(location: const Offset(30, 650));
+    addTearDown(mouse.removePointer);
+    final texts = [
+      for (final element in find.byType(MarkdownView).evaluate())
+        tester.getCenter(find.byWidget(element.widget)),
+    ].where((point) => list.deflate(4).contains(point)).toList();
+    expect(texts.length, greaterThan(4));
 
-      for (final point in texts) {
-        await mouse.moveTo(point);
-        await tester.pump();
-        final bar = tester.getRect(find.byType(HoverActionBar));
-        expect(
-          list.inflate(1).contains(bar.topLeft),
-          isTrue,
-          reason: '$point',
-        );
-        expect(
-          list.inflate(1).contains(bar.bottomRight),
-          isTrue,
-          reason: '$point',
-        );
-        await mouse.moveTo(const Offset(30, 650));
-        await tester.pump(const Duration(milliseconds: 200));
-      }
-      await app.dispose(tester);
-    },
-  );
+    for (final point in texts) {
+      await mouse.moveTo(point);
+      await tester.pump();
+      final bar = tester.getRect(find.byType(HoverActionBar));
+      expect(list.inflate(1).contains(bar.topLeft), isTrue, reason: '$point');
+      expect(
+        list.inflate(1).contains(bar.bottomRight),
+        isTrue,
+        reason: '$point',
+      );
+      await mouse.moveTo(const Offset(30, 650));
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    await app.dispose(tester);
+  });
 
   testWidgets('a reaction picked from the hover bar is added', (tester) async {
     final app = await MockApp.pump(tester);

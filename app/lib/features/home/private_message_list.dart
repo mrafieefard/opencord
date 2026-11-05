@@ -493,9 +493,7 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
                   ),
             links: links,
             onRetry: m.state == PrivateSendState.failed
-                ? () => ref
-                      .read(repositoryProvider)
-                      .retryPrivateMessage(m.id)
+                ? () => ref.read(repositoryProvider).retryPrivateMessage(m.id)
                 : null,
           ),
         ),
@@ -601,10 +599,7 @@ class _SelfAvatar extends ConsumerWidget {
 /// the bar. Bubbles get none: their only button would be More, and
 /// right-click opens the same menu.
 class _HoverBarAnchor extends StatefulWidget {
-  const _HoverBarAnchor({
-    required this.onMore,
-    required this.builder,
-  });
+  const _HoverBarAnchor({required this.onMore, required this.builder});
 
   final ValueChanged<Rect> onMore;
 

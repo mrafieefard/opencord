@@ -154,9 +154,7 @@ void main() {
     await _settle(tester);
 
     // First message top >= float's bottom
-    final rows = tester.widgetList<CompactMessage>(
-      find.byType(CompactMessage),
-    );
+    final rows = tester.widgetList<CompactMessage>(find.byType(CompactMessage));
     expect(rows, isNotEmpty);
     final firstRowRect = tester.getRect(find.byWidget(rows.first));
     expect(firstRowRect.top, greaterThanOrEqualTo(pinRect.bottom - 1.0));
@@ -271,9 +269,7 @@ void main() {
         .widgetList<CompactMessage>(find.byType(CompactMessage))
         .toList();
     expect(serverRows.length, 1);
-    final serverRowRect = tester.getRect(
-      find.byWidget(serverRows.single),
-    );
+    final serverRowRect = tester.getRect(find.byWidget(serverRows.single));
     // The message sits at the bottom of the list (12 px bottom inset)
     expect(serverListRect.bottom - serverRowRect.bottom, closeTo(12.0, 1.0));
 

@@ -849,10 +849,7 @@ void main() {
       final textWidget = tester.widget<Text>(textFinder);
       expect(textWidget.textAlign, TextAlign.right);
       expect(textWidget.style?.fontSize, 11.0);
-      expect(
-        textWidget.style?.color,
-        tester.element(barFinder).oc.textMuted,
-      );
+      expect(textWidget.style?.color, tester.element(barFinder).oc.textMuted);
       expect(
         textWidget.style?.fontFeatures?.contains(
           const FontFeature.tabularFigures(),

@@ -150,7 +150,9 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
             child: MouseRegion(
               onEnter: (_) => setState(() => _hovered = true),
               onExit: (_) => setState(() => _hovered = false),
-              child: why == null ? slider : Tooltip(message: why, child: slider),
+              child: why == null
+                  ? slider
+                  : Tooltip(message: why, child: slider),
             ),
           ),
         ],
@@ -667,7 +669,8 @@ class _MusicVolumeBarState extends ConsumerState<MusicVolumeBar> {
             tooltip: isMuted ? 'Unmute music' : 'Mute music',
             iconSize: 20,
             size: 32,
-            onPressed: () => notifier.update((l) => l.copyWith(muted: !l.muted)),
+            onPressed: () =>
+                notifier.update((l) => l.copyWith(muted: !l.muted)),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -692,10 +695,9 @@ class _MusicVolumeBarState extends ConsumerState<MusicVolumeBar> {
                     onChangeStart: (_) => setState(() => _dragging = true),
                     onChangeEnd: (_) => setState(() => _dragging = false),
                     onChanged: (value) {
-                      notifier.update((l) => l.copyWith(
-                        volume: value.round(),
-                        muted: false,
-                      ));
+                      notifier.update(
+                        (l) => l.copyWith(volume: value.round(), muted: false),
+                      );
                     },
                   ),
                 ),
