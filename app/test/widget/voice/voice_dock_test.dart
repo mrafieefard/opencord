@@ -497,8 +497,14 @@ void main() {
 
     final scrollBox = tester.getRect(scrollable);
     // Scroll view width equals dock width minus its 2 px of border (1 px each side).
-    expect(scrollBox.width, moreOrLessEquals(dockBox.width - 2.0, epsilon: 0.1));
-    expect(scrollBox.height, moreOrLessEquals(dockBox.height - 2.0, epsilon: 0.1));
+    expect(
+      scrollBox.width,
+      moreOrLessEquals(dockBox.width - 2.0, epsilon: 0.1),
+    );
+    expect(
+      scrollBox.height,
+      moreOrLessEquals(dockBox.height - 2.0, epsilon: 0.1),
+    );
 
     await app.dispose(tester);
   });
