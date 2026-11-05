@@ -31,16 +31,18 @@ pub struct FakeDns {
     state: Arc<Mutex<State>>,
 }
 
-/// Tries for a port free on both UDP and TCP: the one the system gives
-/// for UDP can be taken for TCP by a test running alongside, or reserved
-/// for TCP (Windows answers that with "access forbidden").
-const BIND_TRIES: usize = 50;
+/// Tries for a port free on both UDP and TCP. Binding TCP first ensures
+/// Windows never picks a port in its reserved TCP port ranges (which
+/// answers with "access forbidden").
+const BIND_TRIES: usize = 100;
 
 async fn bind_pair() -> (UdpSocket, TcpListener, SocketAddr) {
     for _ in 0..BIND_TRIES {
-        let udp = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
-        let address = udp.local_addr().unwrap();
-        if let Ok(tcp) = TcpListener::bind(address).await {
+        let Ok(tcp) = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await else {
+            continue;
+        };
+        let address = tcp.local_addr().unwrap();
+        if let Ok(udp) = UdpSocket::bind(address).await {
             return (udp, tcp, address);
         }
     }
