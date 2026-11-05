@@ -254,14 +254,7 @@ class _MessageItemState extends State<MessageItem> {
     if (down == null || (event.position - down).distance > kTouchSlop) return;
     // A file's menu is the message's, with the file's own items first.
     final attachment = _attachmentAt(event.position);
-    final onCtrl = _onControl(event.position);
-    final hitPath = [
-      for (final e in _hitTest(event.position).path)
-        '${e.target.runtimeType}:${e.target is MouseTrackerAnnotation ? (e.target as MouseTrackerAnnotation).cursor : ""}',
-    ];
-    // ignore: avoid_print
-    print('DEBUG: onCtrl=$onCtrl attachment=$attachment path=$hitPath');
-    if (attachment == null && onCtrl) return;
+    if (attachment == null && _onControl(event.position)) return;
     widget.actions.showMenu(
       _message,
       position: event.position,

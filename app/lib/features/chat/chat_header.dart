@@ -75,13 +75,14 @@ class ChatHeader extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          if (onOpenSidebar != null)
+          if (onOpenSidebar != null) ...[
             OcIconButton(
               icon: OcIcons.menu,
               tooltip: 'Channels',
               onPressed: onOpenSidebar,
             ),
-          const SizedBox(width: OcSpace.s10),
+            const SizedBox(width: OcSpace.s10),
+          ],
           Expanded(
             child: IgnorePointer(
               child: open == null || target == null

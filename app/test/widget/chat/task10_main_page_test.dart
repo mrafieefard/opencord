@@ -47,6 +47,14 @@ void main() {
     expect(titleText.style?.fontSize, 15.0);
     expect(titleText.style?.fontWeight, FontWeight.w600);
     expect(titleText.style?.height, 1.25);
+    // 16 in from main, inside its 1 px border, with no hamburger before it.
+    expect(
+      tester.getTopLeft(titleFinder).dx,
+      moreOrLessEquals(
+        tester.getTopLeft(find.byKey(ShellKeys.main)).dx + 1 + 16,
+        epsilon: 0.5,
+      ),
+    );
 
     // Subtitle style check
     final subFinder = find.descendant(
