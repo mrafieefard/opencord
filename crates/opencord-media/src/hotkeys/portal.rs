@@ -14,7 +14,9 @@ use futures_util::StreamExt;
 use tokio::sync::{OnceCell, mpsc};
 use tokio::task::JoinHandle;
 
-use super::{Held, HotkeyBinding, HotkeyEvent, action_of, desktop_entry, shortcut_ids};
+use super::{
+    Held, HotkeyBinding, HotkeyEvent, HotkeySupport, action_of, desktop_entry, shortcut_ids,
+};
 
 /// Whether this process told the portal who it is; once, before any other
 /// portal call (an app outside a sandbox has no app id otherwise).
@@ -82,6 +84,26 @@ fn unknown_app(error: &ashpd::Error) -> bool {
     error.to_string().contains("App info not found")
 }
 
+/// What the portal binds: the keys only, since its triggers are keyboard
+/// ones. The mouse bindings go before the ids are counted, so a key keeps
+/// the id a desktop may remember whatever buttons are bound with it.
+fn keys_only(bindings: &[HotkeyBinding]) -> Vec<HotkeyBinding> {
+    bindings
+        .iter()
+        .filter(|binding| binding.accelerator.button.is_none())
+        .cloned()
+        .collect()
+}
+
+/// What the portal offers once bound: the keys, but no mouse buttons,
+/// which the app handles itself while focused.
+pub(super) fn support() -> HotkeySupport {
+    HotkeySupport::Global {
+        method: "the desktop's global shortcuts".to_owned(),
+        mouse: false,
+    }
+}
+
 /// A global shortcuts session, open while kept.
 pub(super) struct Portal {
     session: Option<Arc<Session<GlobalShortcuts>>>,
@@ -98,7 +120,7 @@ impl Portal {
         events: mpsc::UnboundedSender<HotkeyEvent>,
     ) -> Result<Self, String> {
         register(app_id).await?;
-        Self::bind_registered(bindings, events)
+        Self::bind_registered(&keys_only(bindings), events)
             .await
             .map_err(|error| error.to_string())
     }
@@ -189,7 +211,43 @@ impl Drop for Portal {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hotkeys::{HotkeyAction, HotkeySupport, Hotkeys};
+    use crate::hotkeys::{HotkeyAction, Hotkeys};
+
+    #[test]
+    fn only_keys_reach_the_portal() {
+        let binding = |action, text: &str| HotkeyBinding {
+            action,
+            accelerator: text.parse().unwrap(),
+        };
+        let keys = [
+            binding(HotkeyAction::PushToTalk, "grave"),
+            binding(HotkeyAction::PushToTalk, "F13"),
+        ];
+        let with_buttons = [
+            binding(HotkeyAction::PushToTalk, "Mouse4"),
+            keys[0].clone(),
+            binding(HotkeyAction::ToggleMute, "CTRL+Mouse5"),
+            keys[1].clone(),
+        ];
+
+        let bound = keys_only(&with_buttons);
+
+        assert_eq!(bound, keys);
+        assert_eq!(shortcut_ids(&bound), shortcut_ids(&keys));
+        assert_eq!(
+            shortcut_ids(&bound)[0].0,
+            "push-to-talk",
+            "Mouse 4 takes no id"
+        );
+        assert!(keys_only(&[binding(HotkeyAction::ToggleMute, "Mouse3")]).is_empty());
+        assert_eq!(
+            support(),
+            HotkeySupport::Global {
+                method: "the desktop's global shortcuts".to_owned(),
+                mouse: false,
+            }
+        );
+    }
 
     /// Needs a Wayland desktop with the GlobalShortcuts portal, and
     /// Opencord's desktop file installed (the portal looks the app id up;

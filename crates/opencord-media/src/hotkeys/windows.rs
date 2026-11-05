@@ -16,6 +16,12 @@
 //! Keys typed into a window of a process running as administrator never reach
 //! a hook in a normal one (UIPI), so push-to-talk inside such a game needs
 //! Opencord started as administrator too.
+//!
+//! Mouse buttons (`Mouse3`, `Mouse4`, `Mouse5`) come from a second hook,
+//! `WH_MOUSE_LL`, on the same thread, installed only while a binding uses
+//! one: every mouse move in the session goes through it, so it does no more
+//! than match and send, and the buttons count as the virtual keys Windows
+//! gives them (`VK_MBUTTON`, `VK_XBUTTON1`, `VK_XBUTTON2`).
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -28,18 +34,21 @@ use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyboardLayout, HKL, VIRTUAL_KEY, VK_ADD, VK_APPS, VK_BACK, VK_CAPITAL, VK_CONTROL,
     VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_ESCAPE, VK_F1, VK_HOME, VK_INSERT,
-    VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_MULTIPLY, VK_NEXT, VK_NUMLOCK,
-    VK_NUMPAD0, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN,
-    VK_SCROLL, VK_SHIFT, VK_SNAPSHOT, VK_SUBTRACT, VK_TAB, VK_UP, VkKeyScanExW,
+    VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MBUTTON, VK_MENU, VK_MULTIPLY, VK_NEXT,
+    VK_NUMLOCK, VK_NUMPAD0, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RETURN, VK_RIGHT, VK_RMENU,
+    VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SNAPSHOT, VK_SUBTRACT, VK_TAB, VK_UP, VK_XBUTTON1,
+    VK_XBUTTON2, VkKeyScanExW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId, HC_ACTION, HHOOK,
-    KBDLLHOOKSTRUCT, KillTimer, LLKHF_EXTENDED, MSG, PostThreadMessageW, SetTimer,
-    SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_KEYUP, WM_QUIT, WM_SYSKEYUP,
-    WM_TIMER,
+    KBDLLHOOKSTRUCT, KillTimer, LLKHF_EXTENDED, MSG, MSLLHOOKSTRUCT, PostThreadMessageW, SetTimer,
+    SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYUP, WM_MBUTTONDOWN,
+    WM_MBUTTONUP, WM_QUIT, WM_SYSKEYUP, WM_TIMER, WM_XBUTTONDOWN, WM_XBUTTONUP, XBUTTON1, XBUTTON2,
 };
 
-use super::{Held, HotkeyAction, HotkeyBinding, HotkeyEvent, HotkeySupport};
+use super::{
+    Held, HotkeyAction, HotkeyBinding, HotkeyEvent, HotkeySupport, MouseButton, uses_mouse,
+};
 
 /// How often the hook thread looks for a new keyboard layout. Printable keys
 /// sit on different virtual-key codes in different layouts, so the table has
@@ -189,6 +198,34 @@ fn watch(keysym: u32, layout: HKL) -> Option<Watch> {
     }
 }
 
+/// The virtual key Windows gives a mouse button.
+fn button_vk(button: MouseButton) -> VIRTUAL_KEY {
+    match button {
+        MouseButton::Middle => VK_MBUTTON,
+        MouseButton::Back => VK_XBUTTON1,
+        MouseButton::Forward => VK_XBUTTON2,
+    }
+}
+
+/// The button a mouse hook's message is about, as a virtual key, and
+/// whether it came up; `None` for everything else (moves, the wheel, left
+/// and right). `data` is the hook's `mouseData`, whose high word says which
+/// X button.
+fn mouse_vk(message: u32, data: u32) -> Option<(u16, bool)> {
+    let x_button = || match (data >> 16) as u16 {
+        XBUTTON1 => Some(VK_XBUTTON1.0),
+        XBUTTON2 => Some(VK_XBUTTON2.0),
+        _ => None,
+    };
+    match message {
+        WM_MBUTTONDOWN => Some((VK_MBUTTON.0, false)),
+        WM_MBUTTONUP => Some((VK_MBUTTON.0, true)),
+        WM_XBUTTONDOWN => x_button().map(|vk| (vk, false)),
+        WM_XBUTTONUP => x_button().map(|vk| (vk, true)),
+        _ => None,
+    }
+}
+
 /// AltGr's phantom Ctrl. A layout with an AltGr key sends a left-Ctrl event
 /// just before the right-Alt one, so that an app which knows nothing of AltGr
 /// still sees CTRL+ALT. It carries the extended-key flag, which a real left
@@ -220,7 +257,10 @@ impl Watched {
         .collect();
         Self {
             action: binding.action,
-            key: watch(accelerator.keysym, layout),
+            key: match accelerator.button {
+                Some(button) => Some(Watch::either(button_vk(button))),
+                None => watch(accelerator.keysym, layout),
+            },
             modifiers,
         }
     }
@@ -356,6 +396,27 @@ unsafe extern "system" fn hook(code: i32, event: WPARAM, data: LPARAM) -> LRESUL
     unsafe { CallNextHookEx(None, code, event, data) }
 }
 
+/// The mouse hook's procedure, under the keyboard hook's rules, and quicker
+/// still: every mouse move goes through it, and a slow one lags the whole
+/// session's pointer. Anything but the three buttons goes straight on.
+unsafe extern "system" fn mouse_hook(code: i32, event: WPARAM, data: LPARAM) -> LRESULT {
+    if code == HC_ACTION as i32 {
+        let mouse = unsafe { &*(data.0 as *const MSLLHOOKSTRUCT) };
+        if let Some((vk, up)) = mouse_vk(event.0 as u32, mouse.mouseData) {
+            HOOKED.with(|hooked| {
+                if let Ok(mut hooked) = hooked.try_borrow_mut()
+                    && let Some(hooked) = hooked.as_mut()
+                {
+                    for event in hooked.matcher.key(vk, false, up) {
+                        let _ = hooked.events.send(event);
+                    }
+                }
+            });
+        }
+    }
+    unsafe { CallNextHookEx(None, code, event, data) }
+}
+
 /// The keyboard layout of whatever window has the focus: the layout the keys
 /// the user is pressing are typed in. A thread id of 0 asks for this thread's
 /// own, which is the right answer when no window has the focus.
@@ -377,6 +438,9 @@ pub(super) struct Keys {
     /// The hook thread, to post `WM_QUIT` to.
     thread_id: u32,
     thread: Option<JoinHandle<()>>,
+    /// Whether the mouse buttons bound are watched too: false only when the
+    /// mouse hook was wanted and Windows refused it.
+    mouse: bool,
 }
 
 impl Keys {
@@ -394,9 +458,10 @@ impl Keys {
             .spawn(move || run(&bindings, events, &ready))
             .expect("the system can start a thread");
         match installed.recv() {
-            Ok(Ok(thread_id)) => Ok(Self {
+            Ok(Ok((thread_id, mouse))) => Ok(Self {
                 thread_id,
                 thread: Some(thread),
+                mouse,
             }),
             Ok(Err(error)) => {
                 let _ = thread.join();
@@ -420,11 +485,12 @@ impl Drop for Keys {
     }
 }
 
-/// The hook thread: install, pump messages until `WM_QUIT`, unhook.
+/// The hook thread: install, pump messages until `WM_QUIT`, unhook. It says
+/// on `ready` which thread it is and whether the mouse is watched.
 fn run(
     bindings: &[HotkeyBinding],
     events: mpsc::UnboundedSender<HotkeyEvent>,
-    ready: &std::sync::mpsc::Sender<Result<u32, HookError>>,
+    ready: &std::sync::mpsc::Sender<Result<(u32, bool), HookError>>,
 ) {
     let matcher = Matcher::new(bindings, foreground_layout());
     HOOKED.with(|hooked| *hooked.borrow_mut() = Some(Hooked { matcher, events }));
@@ -437,12 +503,29 @@ fn run(
             return;
         }
     };
+    // Only for a binding that uses a button: every mouse move in the
+    // session goes through this hook. Without it the keys still work.
+    let wants_mouse = uses_mouse(bindings);
+    let mouse_hooked = match wants_mouse {
+        true => match unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook), None, 0) } {
+            Ok(hooked) => Some(hooked),
+            Err(error) => {
+                tracing::warn!(%error, "the mouse cannot be watched");
+                None
+            }
+        },
+        false => None,
+    };
+    let mouse = mouse_hooked.is_some() || !wants_mouse;
     // The layout is looked at here, in the message loop, and not in the hook
     // procedure, which must not call into anything that might be slow.
     let timer = unsafe { SetTimer(None, 0, LAYOUT_CHECK.as_millis() as u32, None) };
-    if ready.send(Ok(unsafe { GetCurrentThreadId() })).is_err() {
+    if ready
+        .send(Ok((unsafe { GetCurrentThreadId() }, mouse)))
+        .is_err()
+    {
         // Nobody kept the `Keys`, so nothing is listening; unhook and go.
-        unhook(hook, timer);
+        unhook(hook, mouse_hooked, timer);
         return;
     }
     let mut message = MSG::default();
@@ -457,12 +540,15 @@ fn run(
             });
         }
     }
-    unhook(hook, timer);
+    unhook(hook, mouse_hooked, timer);
 }
 
-fn unhook(hook: HHOOK, timer: usize) {
+fn unhook(hook: HHOOK, mouse_hook: Option<HHOOK>, timer: usize) {
     if timer != 0 {
         let _ = unsafe { KillTimer(None, timer) };
+    }
+    if let Some(mouse_hook) = mouse_hook {
+        let _ = unsafe { UnhookWindowsHookEx(mouse_hook) };
     }
     let _ = unsafe { UnhookWindowsHookEx(hook) };
     HOOKED.with(|hooked| *hooked.borrow_mut() = None);
@@ -475,12 +561,16 @@ pub(super) async fn bind(
     events: &mpsc::UnboundedSender<HotkeyEvent>,
 ) -> (Option<Keys>, HotkeySupport) {
     match Keys::start(bindings, events.clone()) {
-        Ok(keys) => (
-            Some(keys),
-            HotkeySupport::Global {
-                method: "a Windows keyboard hook".to_owned(),
-            },
-        ),
+        Ok(keys) => {
+            let mouse = keys.mouse;
+            (
+                Some(keys),
+                HotkeySupport::Global {
+                    method: "a Windows keyboard hook".to_owned(),
+                    mouse,
+                },
+            )
+        }
         Err(error) => (
             None,
             HotkeySupport::FocusedOnly {
@@ -713,6 +803,120 @@ mod tests {
 
         assert!(keys.key(key_of("m").vk, false, false).is_empty());
         assert!(keys.key(0, false, false).is_empty());
+    }
+
+    /// A mouse hook's `mouseData` for an X button.
+    fn x_data(button: u16) -> u32 {
+        u32::from(button) << 16
+    }
+
+    /// A button as the mouse hook hands it to the matcher.
+    fn click(keys: &mut Matcher, message: u32, data: u32) -> Vec<HotkeyEvent> {
+        let (vk, up) = mouse_vk(message, data).expect("a bindable button");
+        keys.key(vk, false, up)
+    }
+
+    #[test]
+    fn a_button_with_its_modifiers_presses_and_releases() {
+        let mut keys = matcher(&[(HotkeyAction::PushToTalk, "CTRL+Mouse4")]);
+
+        keys.key(VK_LCONTROL.0, false, false);
+        let down = click(&mut keys, WM_XBUTTONDOWN, x_data(XBUTTON1));
+        let again = click(&mut keys, WM_XBUTTONDOWN, x_data(XBUTTON1));
+        let up = click(&mut keys, WM_XBUTTONUP, x_data(XBUTTON1));
+
+        assert_eq!(down, vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]);
+        assert!(again.is_empty(), "a held button does not press again");
+        assert_eq!(up, vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]);
+    }
+
+    #[test]
+    fn a_button_without_its_modifiers_does_nothing() {
+        let mut keys = matcher(&[(HotkeyAction::ToggleMute, "CTRL+Mouse4")]);
+
+        let down = click(&mut keys, WM_XBUTTONDOWN, x_data(XBUTTON1));
+        let up = click(&mut keys, WM_XBUTTONUP, x_data(XBUTTON1));
+        click(&mut keys, WM_XBUTTONDOWN, x_data(XBUTTON1));
+        let ctrl_after = keys.key(VK_LCONTROL.0, false, false);
+
+        assert!(down.is_empty() && up.is_empty());
+        assert!(ctrl_after.is_empty());
+    }
+
+    #[test]
+    fn a_key_and_a_button_on_one_action_press_once() {
+        let mut keys = matcher(&[
+            (HotkeyAction::PushToTalk, "F12"),
+            (HotkeyAction::PushToTalk, "Mouse5"),
+        ]);
+        let f12 = key_of("F12").vk;
+
+        let key = keys.key(f12, false, false);
+        let button = click(&mut keys, WM_XBUTTONDOWN, x_data(XBUTTON2));
+        let key_up = keys.key(f12, false, true);
+        let button_up = click(&mut keys, WM_XBUTTONUP, x_data(XBUTTON2));
+
+        assert_eq!(key, vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]);
+        assert!(button.is_empty(), "already down");
+        assert!(key_up.is_empty(), "the button still holds it");
+        assert_eq!(
+            button_up,
+            vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]
+        );
+    }
+
+    #[test]
+    fn button_numbers_map_to_the_three_buttons() {
+        assert_eq!(mouse_vk(WM_MBUTTONDOWN, 0), Some((VK_MBUTTON.0, false)));
+        assert_eq!(mouse_vk(WM_MBUTTONUP, 0), Some((VK_MBUTTON.0, true)));
+        assert_eq!(
+            mouse_vk(WM_XBUTTONDOWN, x_data(XBUTTON1)),
+            Some((VK_XBUTTON1.0, false))
+        );
+        assert_eq!(
+            mouse_vk(WM_XBUTTONUP, x_data(XBUTTON2)),
+            Some((VK_XBUTTON2.0, true))
+        );
+        assert_eq!(mouse_vk(WM_XBUTTONDOWN, x_data(3)), None, "no such button");
+        // Moves, left, right and the wheel.
+        for message in [0x0200, 0x0201, 0x0202, 0x0204, 0x0205, 0x020a, 0x020e] {
+            assert_eq!(mouse_vk(message, x_data(XBUTTON1)), None, "{message:#x}");
+        }
+        let mut keys = matcher(&[
+            (HotkeyAction::ToggleMute, "Mouse3"),
+            (HotkeyAction::ToggleDeafen, "Mouse4"),
+            (HotkeyAction::PushToTalk, "Mouse5"),
+        ]);
+        assert_eq!(
+            click(&mut keys, WM_MBUTTONDOWN, 0),
+            vec![HotkeyEvent::Pressed(HotkeyAction::ToggleMute)]
+        );
+        assert_eq!(
+            click(&mut keys, WM_XBUTTONDOWN, x_data(XBUTTON1)),
+            vec![HotkeyEvent::Pressed(HotkeyAction::ToggleDeafen)]
+        );
+        assert_eq!(
+            click(&mut keys, WM_XBUTTONDOWN, x_data(XBUTTON2)),
+            vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]
+        );
+    }
+
+    #[test]
+    fn the_mouse_hook_is_only_wanted_with_a_mouse_binding() {
+        let bindings = |texts: &[&str]| -> Vec<HotkeyBinding> {
+            texts
+                .iter()
+                .map(|text| HotkeyBinding {
+                    action: HotkeyAction::PushToTalk,
+                    accelerator: text.parse().unwrap(),
+                })
+                .collect()
+        };
+
+        assert!(!uses_mouse(&[]));
+        assert!(!uses_mouse(&bindings(&["F12", "CTRL+m"])));
+        assert!(uses_mouse(&bindings(&["F12", "CTRL+Mouse4"])));
+        assert!(uses_mouse(&bindings(&["Mouse3"])));
     }
 
     /// Types `keys` (virtual key, extended?, up?) with `SendInput` while a

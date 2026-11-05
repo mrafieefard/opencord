@@ -10458,7 +10458,11 @@ impl SseDecode for crate::api::types::HotkeySupport {
         match tag_ {
             0 => {
                 let mut var_method = <String>::sse_decode(deserializer);
-                return crate::api::types::HotkeySupport::Global { method: var_method };
+                let mut var_mouse = <bool>::sse_decode(deserializer);
+                return crate::api::types::HotkeySupport::Global {
+                    method: var_method,
+                    mouse: var_mouse,
+                };
             }
             1 => {
                 let mut var_reason = <String>::sse_decode(deserializer);
@@ -15908,9 +15912,12 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::HotkeyBinding>
 impl flutter_rust_bridge::IntoDart for crate::api::types::HotkeySupport {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::api::types::HotkeySupport::Global { method } => {
-                [0.into_dart(), method.into_into_dart().into_dart()].into_dart()
-            }
+            crate::api::types::HotkeySupport::Global { method, mouse } => [
+                0.into_dart(),
+                method.into_into_dart().into_dart(),
+                mouse.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::api::types::HotkeySupport::FocusedOnly {
                 reason,
                 settings_url,
@@ -20094,9 +20101,10 @@ impl SseEncode for crate::api::types::HotkeySupport {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::types::HotkeySupport::Global { method } => {
+            crate::api::types::HotkeySupport::Global { method, mouse } => {
                 <i32>::sse_encode(0, serializer);
                 <String>::sse_encode(method, serializer);
+                <bool>::sse_encode(mouse, serializer);
             }
             crate::api::types::HotkeySupport::FocusedOnly {
                 reason,

@@ -25,12 +25,7 @@ pub(super) async fn bind(
         // XWayland sees no keys meant for Wayland windows, so only the
         // portal can help here.
         return match portal::Portal::bind(app_id, bindings, events.clone()).await {
-            Ok(portal) => (
-                Some(Keys::Portal(portal)),
-                HotkeySupport::Global {
-                    method: "the desktop's global shortcuts".to_owned(),
-                },
-            ),
+            Ok(portal) => (Some(Keys::Portal(portal)), portal::support()),
             Err(error) => (
                 None,
                 focused_only(format!("this desktop offers no global shortcuts ({error})")),
@@ -43,6 +38,7 @@ pub(super) async fn bind(
                 Some(Keys::X11(keys)),
                 HotkeySupport::Global {
                     method: "X11 input".to_owned(),
+                    mouse: true,
                 },
             ),
             Err(error) => (

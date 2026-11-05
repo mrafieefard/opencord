@@ -1551,9 +1551,11 @@ enum HotkeyAction {
   toggleMusicMute,
 }
 
-/// A hotkey: a key and the modifiers held with it, as the XDG shortcuts
-/// specification writes them, such as `CTRL+SHIFT+m` or `F12`. An action
-/// may have several; it is down while any of its keys is.
+/// A hotkey: a key or a mouse button and the modifiers held with it, as
+/// the XDG shortcuts specification writes them, such as `CTRL+SHIFT+m`,
+/// `F12` or `CTRL+Mouse4` (`Mouse3`, `Mouse4` and `Mouse5` are the middle,
+/// back and forward buttons). An action may have several; it is down while
+/// any of its keys is.
 class HotkeyBinding {
   final HotkeyAction action;
   final String accelerator;
@@ -1576,9 +1578,13 @@ class HotkeyBinding {
 sealed class HotkeySupport with _$HotkeySupport {
   const HotkeySupport._();
 
-  /// System-wide, through `method`.
-  const factory HotkeySupport.global({required String method}) =
-      HotkeySupport_Global;
+  /// System-wide, through `method`; mouse buttons too when `mouse`.
+  /// Otherwise (Wayland's portal takes keys only) the app handles the
+  /// mouse keybinds itself while focused.
+  const factory HotkeySupport.global({
+    required String method,
+    required bool mouse,
+  }) = HotkeySupport_Global;
 
   /// Only while Opencord is focused, because of `reason`. `settings_url`
   /// opens the system settings where the user can allow them, when that

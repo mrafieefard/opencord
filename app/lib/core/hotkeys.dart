@@ -1,28 +1,62 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
-/// A hotkey's key and modifiers, written as the XDG shortcuts specification
-/// writes them (`CTRL+SHIFT+m`, `LOGO+F12`, `grave`, `Control_R`): the key
-/// is an xkb keysym name. The same keys as the core accepts.
+/// A mouse button a hotkey can use: left and right would fire on every
+/// click, and Windows has no messages for the buttons above 5.
+enum MouseButton {
+  middle('Mouse3', 'Middle Mouse', kMiddleMouseButton),
+  back('Mouse4', 'Mouse 4', kBackMouseButton),
+  forward('Mouse5', 'Mouse 5', kForwardMouseButton);
+
+  const MouseButton(this.text, this.label, this.mask);
+
+  /// As an accelerator writes it.
+  final String text;
+
+  /// For people.
+  final String label;
+
+  /// Its bit in a pointer event's `buttons`.
+  final int mask;
+
+  /// Null for any other name, `Mouse1` and `Mouse6` included.
+  static MouseButton? named(String text) {
+    for (final button in values) {
+      if (button.text == text) return button;
+    }
+    return null;
+  }
+}
+
+/// A hotkey's key or mouse button and its modifiers, written as the XDG
+/// shortcuts specification writes them (`CTRL+SHIFT+m`, `LOGO+F12`,
+/// `grave`, `Control_R`, `CTRL+Mouse4`): a key is an xkb keysym name. The
+/// same keys and buttons as the core accepts.
 class Accelerator {
   const Accelerator({
-    required this.key,
+    this.key,
+    this.button,
     this.ctrl = false,
     this.alt = false,
     this.shift = false,
     this.logo = false,
-  });
+  }) : assert((key == null) != (button == null), 'a key or a button');
 
-  final LogicalKeyboardKey key;
+  /// Exactly one of [key] and [button] is set.
+  final LogicalKeyboardKey? key;
+  final MouseButton? button;
   final bool ctrl;
   final bool alt;
   final bool shift;
   final bool logo;
 
-  /// Null when [text] names a key or modifier a hotkey cannot use.
+  /// Null when [text] names a key, button or modifier a hotkey cannot use.
   static Accelerator? parse(String text) {
     final parts = text.split('+').map((part) => part.trim()).toList();
-    final key = _keyNamed(parts.removeLast());
-    if (key == null) return null;
+    final last = parts.removeLast();
+    final button = MouseButton.named(last);
+    final key = button == null ? _keyNamed(last) : null;
+    if (key == null && button == null) return null;
     var (ctrl, alt, shift, logo) = (false, false, false, false);
     for (final modifier in parts) {
       switch (modifier.toUpperCase()) {
@@ -40,6 +74,7 @@ class Accelerator {
     }
     return Accelerator(
       key: key,
+      button: button,
       ctrl: ctrl,
       alt: alt,
       shift: shift,
@@ -64,29 +99,39 @@ class Accelerator {
     if (alt) 'ALT',
     if (shift) 'SHIFT',
     if (logo) 'LOGO',
-    _nameOf(key) ?? key.keyLabel,
+    switch ((key, button)) {
+      (_, final button?) => button.text,
+      (final key?, _) => _nameOf(key) ?? key.keyLabel,
+      _ => '',
+    },
   ].join('+');
 
-  /// For people: `Ctrl + Shift + M`, `Right Ctrl`, `` ` ``.
+  /// For people: `Ctrl + Shift + M`, `Right Ctrl`, `` ` ``, `Ctrl + Mouse 4`
+  /// (`⌃Mouse 4` on macOS).
   String label({bool mac = false}) => [
     if (ctrl) mac ? '⌃' : 'Ctrl',
     if (alt) mac ? '⌥' : 'Alt',
     if (shift) mac ? '⇧' : 'Shift',
     if (logo) mac ? '⌘' : 'Super',
-    keyLabel(key, mac: mac),
+    switch ((key, button)) {
+      (_, final button?) => button.label,
+      (final key?, _) => keyLabel(key, mac: mac),
+      _ => '',
+    },
   ].join(mac ? '' : ' + ');
 
   @override
   bool operator ==(Object other) =>
       other is Accelerator &&
       other.key == key &&
+      other.button == button &&
       other.ctrl == ctrl &&
       other.alt == alt &&
       other.shift == shift &&
       other.logo == logo;
 
   @override
-  int get hashCode => Object.hash(key, ctrl, alt, shift, logo);
+  int get hashCode => Object.hash(key, button, ctrl, alt, shift, logo);
 }
 
 /// A key's name for people.
