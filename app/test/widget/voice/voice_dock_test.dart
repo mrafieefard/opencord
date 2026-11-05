@@ -483,6 +483,26 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('narrow_page_dock_clips_at_its_edge', (tester) async {
+    // Narrow window where dock needs to scroll.
+    final app = await _onVoice(tester, size: const Size(600, 700));
+    expect(_dock(), findsOneWidget);
+
+    final dockBox = tester.getRect(_dock());
+    final scrollable = find.descendant(
+      of: _dock(),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(scrollable, findsOneWidget);
+
+    final scrollBox = tester.getRect(scrollable);
+    // Scroll view width equals dock width minus its 2 px of border (1 px each side).
+    expect(scrollBox.width, moreOrLessEquals(dockBox.width - 2.0, epsilon: 0.1));
+    expect(scrollBox.height, moreOrLessEquals(dockBox.height - 2.0, epsilon: 0.1));
+
+    await app.dispose(tester);
+  });
+
   testWidgets('dock_mounted_after_the_timer_ran_out_shows_and_takes_clicks', (
     tester,
   ) async {

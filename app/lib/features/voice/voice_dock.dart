@@ -322,7 +322,7 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
                   key: ShellKeys.dock,
                   height: 64,
                   constraints: BoxConstraints(maxWidth: maxW),
-                  padding: const EdgeInsets.all(7),
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: colors.sidebar,
                     borderRadius: BorderRadius.circular(31),
@@ -331,6 +331,7 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
                   ),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.all(7),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
