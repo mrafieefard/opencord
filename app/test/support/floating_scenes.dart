@@ -14,8 +14,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/app.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
@@ -95,6 +97,12 @@ const floatingScenes = [
     playSettingsAppearance,
     widths: [wide1280],
     light: [wide1280],
+  ),
+  FloatingScene(
+    'settings-keybinds',
+    playSettingsKeybinds,
+    widths: [wide1280, medium980],
+    light: [wide1280, medium980],
   ),
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
@@ -398,6 +406,31 @@ Future<void> playSettingsAppearance(SceneDriver scene) async {
     find.descendant(
       of: find.byType(SettingsDialog),
       matching: find.text('Appearance'),
+    ),
+  );
+  await scene.settle(300);
+}
+
+/// The User settings dialog open on Keybinds, with a key row and a mouse row.
+Future<void> playSettingsKeybinds(SceneDriver scene) async {
+  await playText(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  final keybinds = container.read(keybindsProvider.notifier);
+  keybinds.add(HotkeyAction.pushToTalk, keys: 'CTRL+SHIFT+k');
+  keybinds.add(HotkeyAction.toggleMute, keys: 'Mouse4');
+  final tester = scene.tester;
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is OcIconButton && widget.tooltip == 'User settings',
+    ),
+  );
+  await scene.settle(300);
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Keybinds'),
     ),
   );
   await scene.settle(300);

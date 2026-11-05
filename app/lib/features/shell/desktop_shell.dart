@@ -2,7 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:opencord/core/hotkeys.dart';
 
 import 'package:opencord/core/model/channel_kind.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
@@ -485,10 +488,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
           child: MacMenuBar(
             child: Listener(
               onPointerDown: (event) {
+                if (ref.read(recordingKeybindProvider)) return;
                 if (event.buttons & kBackMouseButton != 0) {
-                  ref.read(navigationHistoryProvider.notifier).back();
+                  if (!_isBound(ref, MouseButton.back)) {
+                    ref.read(navigationHistoryProvider.notifier).back();
+                  }
                 } else if (event.buttons & kForwardMouseButton != 0) {
-                  ref.read(navigationHistoryProvider.notifier).forward();
+                  if (!_isBound(ref, MouseButton.forward)) {
+                    ref.read(navigationHistoryProvider.notifier).forward();
+                  }
                 }
               },
               child: Focus(
@@ -1066,4 +1074,19 @@ class _MainColumn extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Whether [button] is bound to a keybind whose modifiers are currently held.
+bool _isBound(WidgetRef ref, MouseButton button) {
+  final bound = ref.read(keybindsProvider).bound;
+  final keyboard = HardwareKeyboard.instance;
+  for (final binding in bound) {
+    final accelerator = Accelerator.parse(binding.keys);
+    if (accelerator != null && accelerator.button == button) {
+      if (accelerator.modifiersHeld(keyboard)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

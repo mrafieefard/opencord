@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/voice.dart';
@@ -149,6 +150,191 @@ void main() {
     await _settle(tester);
 
     expect(app.read(voiceSessionProvider).muted, isTrue);
+    await app.dispose(tester);
+  });
+
+  testWidgets('mouse_works_in_the_app_when_focused_only', (tester) async {
+    final app = await MockApp.pump(tester);
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.pushToTalk, keys: 'Mouse4');
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.toggleMute, keys: 'Mouse5');
+    await _settle(tester);
+
+    expect(app.read(hotkeySupportProvider), isA<HotkeysFocusedOnly>());
+
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isTrue);
+
+    await gesture.up();
+    await gesture.removePointer();
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isFalse);
+
+    // Toggle toggles once
+    final toggleGesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kForwardMouseButton,
+    );
+    await toggleGesture.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(app.read(voiceSessionProvider).muted, isTrue);
+
+    await toggleGesture.up();
+    await toggleGesture.removePointer();
+    await _settle(tester);
+    expect(app.read(voiceSessionProvider).muted, isTrue);
+
+    final toggleGesture2 = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kForwardMouseButton,
+    );
+    await toggleGesture2.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(app.read(voiceSessionProvider).muted, isFalse);
+    await toggleGesture2.up();
+    await toggleGesture2.removePointer();
+    await _settle(tester);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('mouse_works_in_the_app_when_the_portal_cant', (tester) async {
+    final app = await MockApp.pump(tester);
+    app.repository.hotkeySupport = const HotkeySupport.global(
+      'the portal',
+      mouse: false,
+    );
+    app
+        .read(hotkeySupportProvider.notifier)
+        .set(const HotkeySupport.global('the portal', mouse: false));
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.pushToTalk, keys: 'Mouse4');
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.toggleMute, keys: 'F12');
+    await _settle(tester);
+
+    // Mouse keybind works in app
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isTrue);
+
+    await gesture.up();
+    await gesture.removePointer();
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isFalse);
+
+    // Key keybind isn't handled in the app
+    await tester.sendKeyEvent(LogicalKeyboardKey.f12);
+    await _settle(tester);
+    expect(app.read(voiceSessionProvider).muted, isFalse);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_system_wide_mouse_keybind_does_not_act_twice', (tester) async {
+    final app = await MockApp.pump(tester);
+    app.repository.hotkeySupport = const HotkeySupport.global(
+      'X11',
+      mouse: true,
+    );
+    app
+        .read(hotkeySupportProvider.notifier)
+        .set(const HotkeySupport.global('X11', mouse: true));
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.pushToTalk, keys: 'Mouse4');
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(
+      app.repository.pushToTalkHeld,
+      isFalse,
+      reason: 'nothing from the app',
+    );
+
+    await gesture.up();
+    await gesture.removePointer();
+    await _settle(tester);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('its_modifiers_must_be_held', (tester) async {
+    final app = await MockApp.pump(tester);
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.pushToTalk, keys: 'CTRL+Mouse4');
+    await _settle(tester);
+
+    // Mouse 4 without Ctrl does nothing
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isFalse);
+    await gesture.up();
+    await gesture.removePointer();
+    await _settle(tester);
+
+    // With Ctrl held, it acts
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    final gestureWithCtrl = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gestureWithCtrl.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isTrue);
+
+    await gestureWithCtrl.up();
+    await gestureWithCtrl.removePointer();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isFalse);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('up_after_the_window_lost_the_button', (tester) async {
+    final app = await MockApp.pump(tester);
+    app
+        .read(keybindsProvider.notifier)
+        .add(HotkeyAction.pushToTalk, keys: 'Mouse4');
+    await _settle(tester);
+
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(200, 200));
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isTrue);
+
+    // PointerCancelEvent releases what it held
+    await gesture.cancel();
+    await _settle(tester);
+    expect(app.repository.pushToTalkHeld, isFalse);
     await app.dispose(tester);
   });
 }
