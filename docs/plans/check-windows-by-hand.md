@@ -579,3 +579,25 @@ to drive them. They need the batch merged:
 - **§5 The clipboard** — after #31 merges.
 - **§3 Reconnect** — usable today if you click the button's **left** half;
   the right half is the known bug in §C.
+
+---
+
+# §9 Floating UI hand checks (`feat/floating-ui`)
+
+### Windows-specific checks
+- [ ] **Caption buttons on new row:** Minimize, Maximize/Restore, Close sit in the 40 px top row, flush with the top-right corner, 46 × 32 px.
+- [ ] **Snap layouts:** Hovering over the Maximize button shows Windows 11 snap layouts menu (`WM_NCHITTEST` returns `HTMAXBUTTON`).
+- [ ] **Dragging by row:** Dragging by empty space in the 40 px title row moves the window.
+- [ ] **Double-click:** Double-clicking empty space in the title row toggles maximize/restore.
+- [ ] **Splitter cursor:** Hovering the 8 px splitter between the left column and main page shows the horizontal resize column cursor.
+- [ ] **Crumb text at display scale:** Text in the breadcrumb is crisp and properly sized at 125 % and 150 % Windows display scaling.
+
+### Linux-specific checks
+- [ ] **GNOME left-hand buttons:** When `org.gnome.desktop.wm.preferences button-layout` places window controls on the left, caption buttons appear at the top-left of the row.
+- [ ] **KDE Plasma:** Window controls match desktop conventions and decoration settings.
+- [ ] **Tiling window:** A tiled window has no rounded corners, no shadow margin, and meets screen edges cleanly.
+
+### Cross-platform checks (All)
+- [ ] **Mouse side buttons:** Mouse button 4 (back) and button 5 (forward) navigate channel history.
+- [ ] **Video and screen share:** A real video and a real screen share transition through focus mode (click to focus, strip underneath) and return to grid.
+- [ ] **Two-person call with dock hiding:** In a call, voice dock appears on mouse movement over the stage, auto-hides after 2.5 s of inactivity or pointer departure, and never hides while hovering the dock or with popups/menus open.
