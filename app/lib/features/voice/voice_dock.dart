@@ -212,18 +212,20 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
   late final AnimationController _translateController;
   late final AnimationController _opacityController;
   VoiceDockActivityNotifier? _activity;
-  bool _lastVisible = true;
+  bool _lastVisible = false;
 
   @override
   void initState() {
     super.initState();
     _translateController = AnimationController.unbounded(
       vsync: this,
-      value: 0.0,
+      value: 16.0,
     );
-    _opacityController = AnimationController(vsync: this, value: 1.0);
+    _opacityController = AnimationController(vsync: this, value: 0.0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _activity?.ping();
+      if (!mounted) return;
+      _activity?.ping();
+      _onActivityChanged();
     });
   }
 

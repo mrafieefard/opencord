@@ -285,7 +285,7 @@ void main() {
       find.descendant(of: glyphFinder, matching: find.byIcon(OcIcons.volumeUp)),
     );
     expect(icon.size, 20);
-    expect(icon.color, colors.text);
+    expect(icon.color, colors.textSecondary);
 
     // Name 17/600
     final nameText = tester.widget<Text>(

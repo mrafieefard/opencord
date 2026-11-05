@@ -586,10 +586,14 @@ class _JoinPromptState extends ConsumerState<_JoinPrompt>
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Center(
-                  child: Icon(OcIcons.volumeUp, size: 20, color: colors.text),
+                  child: Icon(
+                    OcIcons.volumeUp,
+                    size: 20,
+                    color: colors.textSecondary,
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 name,
                 textAlign: TextAlign.center,
@@ -654,7 +658,7 @@ class _JoinPromptState extends ConsumerState<_JoinPrompt>
                   ],
                 ),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               OcButton.primary(
                 label: 'Join voice',
                 height: 36,

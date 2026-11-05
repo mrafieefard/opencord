@@ -188,6 +188,37 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('opening_the_page_raises_the_dock', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    final scene = SceneDriver(tester);
+    await playText(scene);
+    await scene.revealInLeft('General');
+    await tester.pump();
+
+    // Tap General to open voice page
+    await scene.tap('General', scene.inLeft('General'));
+    // First frame: dock is mounted, opacity 0, translateY 16
+    await tester.pump();
+    expect(_dock(), findsOneWidget);
+    expect(_dockOpacity(tester), 0.0);
+    expect(_dockTranslateY(tester), 16.0);
+
+    // Frame after postFrameCallback triggers animation
+    await tester.pump();
+
+    // At 80 ms: about 4 px low (~4.0 px translateY) and opacity > 0
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(_dockTranslateY(tester), closeTo(4.0, 1.5));
+    expect(_dockOpacity(tester), greaterThan(0.5));
+
+    // Settled: opacity 1.0, translateY 0.0
+    await tester.pumpAndSettle();
+    expect(_dockOpacity(tester), 1.0);
+    expect(_dockTranslateY(tester), 0.0);
+
+    await app.dispose(tester);
+  });
+
   testWidgets('leaving_the_float_hides', (tester) async {
     final app = await _onVoice(tester);
     final stageCenter = tester.getCenter(find.byKey(ShellKeys.stage));
