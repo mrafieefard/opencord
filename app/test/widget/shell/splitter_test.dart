@@ -308,6 +308,126 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('the_hit_area_is_the_gap_and_4_each_side', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await _settle(tester);
+    final gap = tester.getRect(find.byKey(ShellKeys.splitter));
+    expect(gap.width, 8.0);
+    final y = gap.center.dy;
+
+    for (final (x, grows) in [
+      (gap.left - 3, true),
+      (gap.right + 3, true),
+      (gap.left - 5, false),
+      (gap.right + 5, false),
+    ]) {
+      final before = tester.getRect(find.byKey(ShellKeys.left)).width;
+      final drag = await tester.startGesture(Offset(x, y));
+      await drag.moveBy(const Offset(10, 0));
+      await tester.pump();
+      final after = tester.getRect(find.byKey(ShellKeys.left)).width;
+      expect(after - before, grows ? 10.0 : 0.0, reason: 'at $x');
+      await drag.moveBy(const Offset(-10, 0));
+      await drag.up();
+      await _settle(tester);
+    }
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('past_the_limit_the_column_waits_for_the_pointer', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await _settle(tester);
+
+    final drag = await tester.startGesture(
+      tester.getCenter(find.byKey(ShellKeys.splitter)),
+    );
+    await drag.moveBy(const Offset(-200, 0));
+    await tester.pump();
+    expect(tester.getRect(find.byKey(ShellKeys.left)).width, 232.0);
+
+    // Still 144 px left of where the limit was reached.
+    await drag.moveBy(const Offset(10, 0));
+    await tester.pump();
+    expect(tester.getRect(find.byKey(ShellKeys.left)).width, 232.0);
+
+    await drag.moveBy(const Offset(170, 0));
+    await tester.pump();
+    expect(tester.getRect(find.byKey(ShellKeys.left)).width, 268.0);
+    await drag.up();
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_click_that_moves_nothing_writes_nothing', (tester) async {
+    final store = CountingStore();
+    final app = await MockApp.pump(
+      tester,
+      size: const Size(1280, 800),
+      store: store,
+    );
+    await _settle(tester);
+    final writes = store.writeCount;
+
+    final splitter = tester.getCenter(find.byKey(ShellKeys.splitter));
+    final click = await tester.startGesture(splitter);
+    await click.up();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(store.writeCount, writes);
+    expect(store.read(sidebarWidthKey), isNull);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('only_the_main_button_drags', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await _settle(tester);
+
+    final drag = await tester.startGesture(
+      tester.getCenter(find.byKey(ShellKeys.splitter)),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await drag.moveBy(const Offset(30, 0));
+    await tester.pump();
+    expect(tester.getRect(find.byKey(ShellKeys.left)).width, 288.0);
+    await drag.up();
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('reduced_motion_shows_the_pill_at_once', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final app = await MockApp.pump(tester, size: const Size(1280, 800));
+    await _settle(tester);
+
+    final splitter = find.byKey(ShellKeys.splitter);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(splitter));
+    await tester.pump();
+    await tester.pump();
+    expect(
+      tester
+          .renderObject<RenderAnimatedOpacity>(
+            find.descendant(
+              of: splitter,
+              matching: find.byType(AnimatedOpacity),
+            ),
+          )
+          .opacity
+          .value,
+      1.0,
+    );
+
+    await mouse.removePointer();
+    await app.dispose(tester);
+  });
+
   testWidgets('no_splitter_in_compact', (tester) async {
     final app = await MockApp.pump(tester, size: const Size(750, 800));
     await _settle(tester);

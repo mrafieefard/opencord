@@ -525,3 +525,4 @@ Not in the prototype, or a small departure from it. The owner read this list and
 6. **The reconnect bar as a float** (§5.19).
 7. **Strip tiles at most `200` wide.** The prototype stretched them without limit, which looks wrong with one or two people.
 8. **`gridColumns` stays.** 4 tiles are 2 × 2 here; the prototype's stand-in grid gave 3 + 1.
+9. **The voice card's clip follows its slot** (added at CP3, not yet read by the owner). The prototype animates `grid-template-rows` below `1fr`, where CSS sizes the row twice: the slot follows §4.3, but the card inside is cut to about the slot's height × the slot's fraction, so ground shows under the card as it goes (41 of 66.5 at 40 ms). Here the card fills its slot all the way. Say if it should copy the prototype.

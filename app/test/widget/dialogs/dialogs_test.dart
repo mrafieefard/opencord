@@ -274,7 +274,9 @@ void main() {
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer(location: Offset.zero);
-      await gesture.moveTo(tester.getCenter(find.text(category.name.toUpperCase())));
+      await gesture.moveTo(
+        tester.getCenter(find.text(category.name.toUpperCase())),
+      );
       await tester.pump(const Duration(milliseconds: 120));
 
       await tester.tap(_iconButton('Create channel in ${category.name}'));

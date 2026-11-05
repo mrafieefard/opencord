@@ -208,10 +208,7 @@ class _ChannelList extends ConsumerWidget {
             channel: channel,
             reorderIndex: reorderIndex,
           )
-        : Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: ChannelRow(serverKey: serverKey, channel: channel),
-          );
+        : ChannelRow(serverKey: serverKey, channel: channel);
 
     /// Text or voice channels of one group, which drag among themselves.
     Widget segment(List<Channel> group, {required bool draggable}) {
@@ -383,8 +380,8 @@ class _CategoryRowState extends ConsumerState<_CategoryRow> {
         children: [
           AnimatedRotation(
             turns: widget.collapsed ? -0.25 : 0,
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOut,
+            duration: OcMotion.of(context).morph,
+            curve: OcMotion.curve,
             child: Icon(
               OcIcons.expandMore,
               size: 16,
@@ -426,7 +423,8 @@ class _CategoryRowState extends ConsumerState<_CategoryRow> {
                 onFocusChange: (f) => setState(() => _plusFocused = f),
                 child: AnimatedOpacity(
                   opacity: showPlus ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 120),
+                  duration: OcMotion.of(context).hover,
+                  curve: OcMotion.curve,
                   child: IgnorePointer(
                     ignoring: !showPlus,
                     child: SizedBox(

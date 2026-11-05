@@ -20,8 +20,16 @@ class OcMotion {
   /// the button is seen to go first (§5.9).
   static const Duration notchDelay = Duration(milliseconds: 50);
 
+  /// How long the rail's popover waits for the pointer to come back (§5.2).
+  static const Duration railPopWait = Duration(milliseconds: 90);
+
+  bool get reduced => _reduced;
+
   Duration _maybe(int milliseconds) =>
       _reduced ? Duration.zero : Duration(milliseconds: milliseconds);
+
+  /// The rail popover's fade and, leaving, its scale.
+  Duration get railPop => _maybe(80);
 
   /// Hover and press color changes.
   Duration get hover => _maybe(120);

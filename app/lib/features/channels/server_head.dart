@@ -124,6 +124,7 @@ class _ServerHeadState extends ConsumerState<ServerHead> {
     final String name;
     final String status;
     final bool isConnected;
+    var failed = false;
     final bool isButton = serverKey != null;
 
     if (serverKey == null) {
@@ -161,6 +162,7 @@ class _ServerHeadState extends ConsumerState<ServerHead> {
         ConnectionPhase.failed => 'Connection failed',
       };
       isConnected = state.connection.isConnected;
+      failed = state.connection.phase == ConnectionPhase.failed;
     }
 
     return ConstrainedBox(
@@ -200,7 +202,15 @@ class _ServerHeadState extends ConsumerState<ServerHead> {
                         ),
                         Row(
                           children: [
-                            ConnectionDot(connected: isConnected, size: 6),
+                            if (isConnected)
+                              const ConnectionDot(connected: true, size: 6)
+                            else
+                              Icon(
+                                failed ? OcIcons.error : OcIcons.sync,
+                                size: 12,
+                                fill: 0,
+                                color: colors.textMuted,
+                              ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(

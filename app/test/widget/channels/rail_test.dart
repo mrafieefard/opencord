@@ -10,6 +10,8 @@ import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/motion/oc_spring.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
+import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
 import '../../support/app.dart';
@@ -454,6 +456,236 @@ void main() {
       );
       expect(addFinder, findsOneWidget);
 
+      await app.dispose(tester);
+    });
+
+    testWidgets('the_rule_shows_and_servers_sit_below_it', (tester) async {
+      final app = await MockApp.pump(tester);
+      final rail = tester.getRect(find.byType(ServerRail));
+      final private = tester.getRect(railItem('Private'));
+      final dev = tester.getRect(railItem('Opencord Dev'));
+
+      // 6, then the rule's 2 + 1 + 2, then 6.
+      expect(dev.top - private.bottom, 17.0);
+
+      final rule = tester.getRect(
+        find
+            .byWidgetPredicate(
+              (w) =>
+                  w is ColoredBox &&
+                  w.color == tester.element(find.byType(ServerRail)).oc.border,
+            )
+            .first,
+      );
+      expect(rule.top, private.bottom + 8);
+      expect(rule.height, 1.0);
+      expect(rule.left, rail.left + 18);
+      expect(rule.right, rail.right - 18);
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('icons_badges_and_chips_sit_where_the_spec_has_them', (
+      tester,
+    ) async {
+      final app = await MockApp.pump(tester);
+      final railFloat = tester.getRect(find.byKey(ShellKeys.rail));
+      Rect icon(String name) => tester.getRect(
+        find
+            .descendant(
+              of: railItem(name),
+              matching: find.byType(TweenAnimationBuilder<double>),
+            )
+            .first,
+      );
+
+      // Centred in the float, border included.
+      expect(icon('Opencord Dev').left - railFloat.left, 8.0);
+      expect(icon('Opencord Dev').width, 46.0);
+
+      final dev = icon('Opencord Dev');
+      final badge = tester.getRect(
+        find.descendant(
+          of: railItem('Opencord Dev'),
+          matching: find.byType(UnreadBadge),
+        ),
+      );
+      expect(badge.top, dev.top - 4);
+      expect(badge.right, dev.right + 4);
+
+      final homelab = icon('Homelab');
+      final chip = tester.getCenter(
+        find.descendant(
+          of: railItem('Homelab'),
+          matching: find.byIcon(OcIcons.sync),
+        ),
+      );
+      expect(chip, homelab.bottomRight + const Offset(3 - 9, 3 - 9));
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('private_and_add_popovers_sit_on_their_own_items', (
+      tester,
+    ) async {
+      final app = await MockApp.pump(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+
+      final private = tester.getCenter(railItem('Private'));
+      await mouse.moveTo(private);
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(find.byKey(ShellKeys.railPop)).dy, private.dy);
+      // The popover replaces the tooltip.
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('Private messages'), findsOneWidget);
+
+      final add = find.byWidgetPredicate(
+        (w) => w is Hoverable && w.semanticLabel == 'Add a server',
+      );
+      await mouse.moveTo(tester.getCenter(add));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getCenter(find.byKey(ShellKeys.railPop)).dy,
+        tester.getCenter(add).dy,
+      );
+
+      await mouse.removePointer();
+      await app.dispose(tester);
+    });
+
+    testWidgets('the_pill_grows_from_its_centre', (tester) async {
+      final app = await MockApp.pump(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      final item = railItem('Homelab');
+      final pill = find
+          .descendant(of: item, matching: find.byType(AnimatedContainer))
+          .first;
+
+      await mouse.moveTo(tester.getCenter(item));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      final rect = tester.getRect(pill);
+      expect(rect.height, greaterThan(0));
+      expect(rect.height, lessThan(18));
+      expect(rect.center.dy, closeTo(tester.getCenter(item).dy, 0.01));
+
+      await mouse.removePointer();
+      await app.dispose(tester);
+    });
+
+    testWidgets('coming_back_while_it_fades_brings_it_back', (tester) async {
+      final app = await MockApp.pump(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      double opacity() => tester
+          .widget<FadeTransition>(find.byKey(const Key('rail-popover-fade')))
+          .opacity
+          .value;
+
+      for (final back in ['Opencord Dev', 'Rust Berlin']) {
+        await mouse.moveTo(tester.getCenter(railItem('Opencord Dev')));
+        await tester.pumpAndSettle();
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
+        // Past the 90 ms wait, and part way through the 80 ms fade.
+        await tester.pump(const Duration(milliseconds: 91));
+        await tester.pump(const Duration(milliseconds: 30));
+        expect(opacity(), lessThan(1.0));
+
+        await mouse.moveTo(tester.getCenter(railItem(back)));
+        await tester.pumpAndSettle();
+        expect(find.byKey(ShellKeys.railPop), findsOneWidget, reason: back);
+        expect(opacity(), 1.0, reason: back);
+        expect(
+          tester.getCenter(find.byKey(ShellKeys.railPop)).dy,
+          tester.getCenter(railItem(back)).dy,
+          reason: back,
+        );
+        await mouse.moveTo(Offset.zero);
+        await tester.pumpAndSettle();
+        expect(find.byKey(ShellKeys.railPop), findsNothing, reason: back);
+      }
+
+      await mouse.removePointer();
+      await app.dispose(tester);
+    });
+
+    testWidgets('it_stays_hidden_all_through_a_drag', (tester) async {
+      final app = await MockApp.pump(tester);
+      final drag = await tester.startGesture(
+        tester.getCenter(railItem('Homelab')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await drag.moveBy(const Offset(0, -30));
+      await tester.pump(const Duration(milliseconds: 50));
+      for (final over in ['Rust Berlin', 'Opencord Dev', 'Private']) {
+        await drag.moveTo(tester.getCenter(railItem(over).first));
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(find.byKey(ShellKeys.railPop), findsNothing, reason: over);
+      }
+      await drag.up();
+      await tester.pumpAndSettle();
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('reduced_motion_takes_the_rail_to_zero', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final app = await MockApp.pump(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+
+      await mouse.moveTo(tester.getCenter(railItem('Opencord Dev')));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        tester
+            .widget<FadeTransition>(find.byKey(const Key('rail-popover-fade')))
+            .opacity
+            .value,
+        1.0,
+      );
+      expect(
+        tester
+            .widget<ScaleTransition>(
+              find.byKey(const Key('rail-popover-scale')),
+            )
+            .scale
+            .value,
+        1.0,
+      );
+
+      // No slide: it's on the next item at once.
+      final rust = tester.getCenter(railItem('Rust Berlin'));
+      await mouse.moveTo(rust);
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getCenter(find.byKey(ShellKeys.railPop)).dy, rust.dy);
+
+      // The hover pill takes no time either.
+      final pill = find
+          .descendant(
+            of: railItem('Rust Berlin'),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first;
+      expect(tester.getSize(pill).height, 18.0);
+
+      // The wait for the pointer stays; the fade doesn't.
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 91));
+      await tester.pump();
+      expect(find.byKey(ShellKeys.railPop), findsNothing);
+
+      await mouse.removePointer();
       await app.dispose(tester);
     });
 

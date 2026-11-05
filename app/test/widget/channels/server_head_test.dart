@@ -410,6 +410,21 @@ void main() {
       await app.dispose(tester);
     });
 
+    testWidgets('channel_rows_are_58_apart', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await tester.pumpAndSettle();
+
+      final announcements = tester.getRect(
+        find.widgetWithText(ChannelRowView, 'announcements'),
+      );
+      final welcome = tester.getRect(
+        find.widgetWithText(ChannelRowView, 'welcome'),
+      );
+      expect(welcome.top - announcements.top, 58.0);
+
+      await app.dispose(tester);
+    });
+
     testWidgets('person_in_voice_numbers', (tester) async {
       final app = await MockApp.pump(tester);
       await tester.pumpAndSettle();

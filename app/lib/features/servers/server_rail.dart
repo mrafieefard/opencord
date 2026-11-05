@@ -76,10 +76,16 @@ class _ServerRailState extends ConsumerState<ServerRail>
   double _targetY = 0.0;
   bool _visible = false;
 
+  /// On its way out, the wait for the pointer over.
+  bool _leaving = false;
+
+  /// A rail item is being dragged: no popover until it lands.
+  bool _reordering = false;
+
   @override
   void initState() {
     super.initState();
-    _scaleController = AnimationController(vsync: this, value: 0.96);
+    _scaleController = AnimationController.unbounded(vsync: this, value: 0.96);
     _opacityController = AnimationController(vsync: this, value: 0.0);
     _yController = AnimationController.unbounded(vsync: this);
     _yController.addListener(() {
@@ -107,22 +113,39 @@ class _ServerRailState extends ConsumerState<ServerRail>
   }
 
   void _showAt(Object id, double y) {
+    if (_reordering) return;
     _leaveTimer?.cancel();
     _leaveTimer = null;
+    final motion = OcMotion.of(context);
 
-    if (!_visible || !_portalController.isShowing) {
+    if (!_visible || _leaving || !_portalController.isShowing) {
+      // From wherever a fade had got to, and with no slide, as the prototype.
+      if (!_leaving) {
+        _scaleController.value = 0.96;
+        _opacityController.value = 0.0;
+      }
+      _leaving = false;
       _visible = true;
       _activeId = id;
+      _yController.stop();
       _currentY = y;
       _targetY = y;
-      _portalController.show();
-      _scaleController.value = 0.96;
-      _scaleController.animateWith(OcSpring.pop.simulation(0.96, 1.0, 0.0));
-      _opacityController.value = 0.0;
+      if (!_portalController.isShowing) _portalController.show();
+      if (motion.reduced) {
+        _scaleController.value = 1.0;
+      } else {
+        _scaleController.animateWith(
+          OcSpring.pop.simulation(
+            _scaleController.value,
+            1.0,
+            _scaleController.velocity,
+          ),
+        );
+      }
       _opacityController.animateTo(
         1.0,
-        duration: const Duration(milliseconds: 80),
-        curve: Curves.easeOut,
+        duration: motion.railPop,
+        curve: OcMotion.curve,
       );
       setState(() {});
     } else {
@@ -131,13 +154,12 @@ class _ServerRailState extends ConsumerState<ServerRail>
         final fromY = _currentY;
         _targetY = y;
         _yController.stop();
-        _yController.animateWith(OcSpring.paneOut.simulation(fromY, y, 0.0));
-      }
-      if (_scaleController.value < 1.0 && !_scaleController.isAnimating) {
-        _scaleController.value = 1.0;
-      }
-      if (_opacityController.value < 1.0 && !_opacityController.isAnimating) {
-        _opacityController.value = 1.0;
+        if (motion.reduced) {
+          _currentY = y;
+        } else {
+          _yController.value = fromY;
+          _yController.animateWith(OcSpring.paneOut.simulation(fromY, y, 0.0));
+        }
       }
       setState(() {});
     }
@@ -147,29 +169,17 @@ class _ServerRailState extends ConsumerState<ServerRail>
   void hidePopover(Object id) {
     if (_activeId != id) return;
     _leaveTimer?.cancel();
-    _leaveTimer = Timer(const Duration(milliseconds: 90), () {
+    _leaveTimer = Timer(OcMotion.railPopWait, () {
       _leaveTimer = null;
       if (!mounted || !_visible) return;
-      _scaleController.animateTo(
-        0.96,
-        duration: const Duration(milliseconds: 80),
-        curve: Curves.easeIn,
-      );
+      final fade = OcMotion.of(context).railPop;
+      _leaving = true;
+      _scaleController.animateTo(0.96, duration: fade, curve: OcMotion.curveIn);
       _opacityController
-          .animateTo(
-            0.0,
-            duration: const Duration(milliseconds: 80),
-            curve: Curves.easeIn,
-          )
+          .animateTo(0.0, duration: fade, curve: OcMotion.curveIn)
           .whenCompleteOrCancel(() {
-            if (mounted && _leaveTimer == null && _activeId == id) {
-              _visible = false;
-              _activeId = null;
-              if (_portalController.isShowing) {
-                _portalController.hide();
-              }
-              setState(() {});
-            }
+            // Coming back turns the fade around and clears [_leaving].
+            if (mounted && _leaving) dismissImmediately();
           });
     });
   }
@@ -178,6 +188,7 @@ class _ServerRailState extends ConsumerState<ServerRail>
   void dismissImmediately() {
     _leaveTimer?.cancel();
     _leaveTimer = null;
+    _leaving = false;
     _scaleController.stop();
     _opacityController.stop();
     _yController.stop();
@@ -235,56 +246,62 @@ class _ServerRailState extends ConsumerState<ServerRail>
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: OcSpace.s8),
-                child: Tooltip(
-                  message: 'Private messages',
-                  triggerMode: TooltipTriggerMode.manual,
-                  child: Hoverable(
+                child: Builder(
+                  builder: (item) => Hoverable(
                     onTap: () =>
                         ref.read(navigationProvider.notifier).openHome(),
                     semanticLabel: 'Private messages',
-                  onHover: (hovered) {
-                    if (hovered) {
-                      showPopover('private', context);
-                    } else {
-                      hidePopover('private');
-                    }
-                  },
-                  onFocusChange: (focused) {
-                    if (focused) {
-                      showPopover('private', context);
-                    } else {
-                      hidePopover('private');
-                    }
-                  },
-                  builder: (context, state) => RailItemView(
-                    id: 'private',
-                    name: 'Private',
-                    glyph: OcIcons.chat,
-                    selected: ref.watch(homeShownProvider),
-                    hovered: state.active,
-                    mentions: ref.watch(privateUnreadProvider),
+                    onHover: (hovered) {
+                      if (hovered) {
+                        showPopover('private', item);
+                      } else {
+                        hidePopover('private');
+                      }
+                    },
+                    onFocusChange: (focused) {
+                      if (focused) {
+                        showPopover('private', item);
+                      } else {
+                        hidePopover('private');
+                      }
+                    },
+                    builder: (context, state) => RailItemView(
+                      id: 'private',
+                      name: 'Private',
+                      glyph: OcIcons.chat,
+                      selected: ref.watch(homeShownProvider),
+                      hovered: state.active,
+                      mentions: ref.watch(privateUnreadProvider),
+                    ),
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 6),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 2,
                 ),
                 child: SizedBox(
+                  width: double.infinity,
                   height: 1,
                   child: ColoredBox(color: colors.border),
                 ),
               ),
               Expanded(
                 child: ReorderableListView.builder(
-                  padding: EdgeInsets.zero,
+                  // Each item ends in its gap of 6: 6 under the rule, 8 at the
+                  // list's end.
+                  padding: const EdgeInsets.only(top: 6, bottom: 2),
                   buildDefaultDragHandles: false,
                   itemCount: servers.length,
                   proxyDecorator: (child, index, animation) =>
                       Opacity(opacity: 0.9, child: child),
-                  onReorderStart: (index) => dismissImmediately(),
+                  onReorderStart: (index) {
+                    _reordering = true;
+                    dismissImmediately();
+                  },
+                  onReorderEnd: (index) => _reordering = false,
                   onReorderItem: (from, to) => ref
                       .read(serverListProvider.notifier)
                       .move(servers[from].key, to),
@@ -300,35 +317,40 @@ class _ServerRailState extends ConsumerState<ServerRail>
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
-                child: Hoverable(
-                  onTap: () => showAddServer(context),
-                  semanticLabel: 'Add a server',
-                  onHover: (hovered) {
-                    if (hovered) {
-                      showPopover('add', context);
-                    } else {
-                      hidePopover('add');
-                    }
-                  },
-                  onFocusChange: (focused) {
-                    if (focused) {
-                      showPopover('add', context);
-                    } else {
-                      hidePopover('add');
-                    }
-                  },
-                  builder: (context, state) => AnimatedContainer(
-                    duration: motion.hover,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: state.active ? colors.hover : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      OcIcons.add,
-                      size: 20,
-                      color: state.active ? colors.text : colors.textSecondary,
+                child: Builder(
+                  builder: (item) => Hoverable(
+                    onTap: () => showAddServer(context),
+                    semanticLabel: 'Add a server',
+                    onHover: (hovered) {
+                      if (hovered) {
+                        showPopover('add', item);
+                      } else {
+                        hidePopover('add');
+                      }
+                    },
+                    onFocusChange: (focused) {
+                      if (focused) {
+                        showPopover('add', item);
+                      } else {
+                        hidePopover('add');
+                      }
+                    },
+                    builder: (context, state) => AnimatedContainer(
+                      duration: motion.hover,
+                      curve: OcMotion.curve,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: state.active ? colors.hover : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        OcIcons.add,
+                        size: 20,
+                        color: state.active
+                            ? colors.text
+                            : colors.textSecondary,
+                      ),
                     ),
                   ),
                 ),
@@ -534,6 +556,7 @@ class RailItemView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final motion = OcMotion.of(context);
     final pill = selected
         ? 34.0
         : hovered
@@ -548,100 +571,106 @@ class RailItemView extends StatelessWidget {
         children: [
           Positioned(
             left: 0,
-            top: (height - pill) / 2,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              curve: OcMotion.curve,
-              width: 4,
-              height: pill,
-              decoration: BoxDecoration(
-                color: colors.text,
-                borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(4),
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: AnimatedContainer(
+                duration: motion.morph,
+                curve: OcMotion.curve,
+                width: 4,
+                height: pill,
+                decoration: BoxDecoration(
+                  color: colors.text,
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(4),
+                  ),
                 ),
               ),
             ),
           ),
           Positioned(
             top: 3,
-            left: (OcSize.railWidth - OcSize.serverIcon) / 2,
-            child: SizedBox.square(
-              dimension: OcSize.serverIcon,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(
-                      end: selected || hovered
-                          ? OcRadius.serverIconActive
-                          : OcRadius.serverIcon,
-                    ),
-                    duration: const Duration(milliseconds: 150),
-                    curve: OcMotion.curve,
-                    builder: (context, radius, _) {
-                      final initials = Text(
-                        initialsOf(name),
-                        textScaler: TextScaler.noScaling,
-                        style: OcText.bodyStrong.copyWith(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          height: 1,
-                          color: selected ? colors.onAccent : colors.text,
-                        ),
-                      );
-                      final centerContent = glyph != null
-                          ? Icon(
-                              glyph,
-                              size: 20,
-                              color: selected ? colors.onAccent : colors.text,
-                            )
-                          : initials;
-                      final icon = this.icon;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
-                        width: OcSize.serverIcon,
-                        height: OcSize.serverIcon,
-                        alignment: Alignment.center,
-                        clipBehavior: icon == null ? Clip.none : Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? colors.accent
-                              : hovered
-                              ? colors.selected
-                              : colors.hover,
-                          borderRadius: BorderRadius.circular(radius),
-                        ),
-                        child: icon == null
-                            ? centerContent
-                            : Image(
-                                image: icon,
-                                width: OcSize.serverIcon,
-                                height: OcSize.serverIcon,
-                                fit: BoxFit.cover,
-                                gaplessPlayback: true,
-                                errorBuilder: (context, error, stack) =>
-                                    centerContent,
-                              ),
-                      );
-                    },
-                  ),
-                  if (mentions > 0)
-                    Positioned(
-                      top: -4,
-                      right: -4,
-                      child: _Ringed(
-                        ring: colors.sidebar,
-                        radius: 11,
-                        child: UnreadBadge(count: mentions),
+            left: 0,
+            right: 0,
+            child: Center(
+              child: SizedBox.square(
+                dimension: OcSize.serverIcon,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(
+                        end: selected || hovered
+                            ? OcRadius.serverIconActive
+                            : OcRadius.serverIcon,
                       ),
+                      duration: motion.morph,
+                      curve: OcMotion.curve,
+                      builder: (context, radius, _) {
+                        final initials = Text(
+                          initialsOf(name),
+                          textScaler: TextScaler.noScaling,
+                          style: OcText.bodyStrong.copyWith(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            height: 1,
+                            color: selected ? colors.onAccent : colors.text,
+                          ),
+                        );
+                        final centerContent = glyph != null
+                            ? Icon(
+                                glyph,
+                                size: 20,
+                                color: selected ? colors.onAccent : colors.text,
+                              )
+                            : initials;
+                        final icon = this.icon;
+                        return AnimatedContainer(
+                          duration: motion.hover,
+                          curve: OcMotion.curve,
+                          width: OcSize.serverIcon,
+                          height: OcSize.serverIcon,
+                          alignment: Alignment.center,
+                          clipBehavior: icon == null
+                              ? Clip.none
+                              : Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? colors.accent
+                                : hovered
+                                ? colors.selected
+                                : colors.hover,
+                            borderRadius: BorderRadius.circular(radius),
+                          ),
+                          child: icon == null
+                              ? centerContent
+                              : Image(
+                                  image: icon,
+                                  width: OcSize.serverIcon,
+                                  height: OcSize.serverIcon,
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                  errorBuilder: (context, error, stack) =>
+                                      centerContent,
+                                ),
+                        );
+                      },
                     ),
-                  if (connection != RailConnection.connected)
-                    Positioned(
-                      right: -3,
-                      bottom: -3,
-                      child: _Ringed(
-                        ring: colors.sidebar,
-                        radius: 11,
+                    if (mentions > 0)
+                      // The badge at -4, its ring outside that.
+                      Positioned(
+                        top: -6,
+                        right: -6,
+                        child: _Ringed(
+                          ring: colors.sidebar,
+                          radius: 11,
+                          child: UnreadBadge(count: mentions),
+                        ),
+                      ),
+                    if (connection != RailConnection.connected)
+                      Positioned(
+                        right: -3,
+                        bottom: -3,
                         child: Container(
                           width: 18,
                           height: 18,
@@ -659,8 +688,8 @@ class RailItemView extends StatelessWidget {
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

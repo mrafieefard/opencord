@@ -54,158 +54,166 @@ class VoiceConnectedPanel extends ConsumerWidget {
     final bars = ref.watch(voiceStatsProvider.select((stats) => stats?.bars));
     final quality = bars == null ? null : connectionQuality(bars);
     final rounded = BorderRadius.circular(8);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-      decoration: BoxDecoration(color: colors.sidebar),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Hoverable(
-                  onTap: () => ref
-                      .read(navigationProvider.notifier)
-                      .openChannel(server, chId),
-                  onSecondaryTap: (pos) => showPopover<void>(
-                    context: context,
-                    anchor: Rect.fromLTWH(pos.dx, pos.dy, 1, 1),
-                    side: PopoverSide.right,
-                    builder: (_) => const ConnectionGraph(),
-                  ),
-                  focusRadius: rounded,
-                  builder: (context, state) => AnimatedContainer(
-                    duration: OcMotion.of(context).hover,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
+    return IgnorePointer(
+      // On its way out it only shows the channel it was in.
+      ignoring: !inVoice,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+        decoration: BoxDecoration(color: colors.sidebar),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Hoverable(
+                    onTap: () => ref
+                        .read(navigationProvider.notifier)
+                        .openChannel(server, chId),
+                    onSecondaryTap: (pos) => showPopover<void>(
+                      context: context,
+                      anchor: Rect.fromLTWH(pos.dx, pos.dy, 1, 1),
+                      side: PopoverSide.right,
+                      builder: (_) => const ConnectionGraph(),
                     ),
-                    decoration: BoxDecoration(
-                      color: state.active ? colors.hover : null,
-                      borderRadius: rounded,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Builder(
-                          builder: (line) => GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => showPopover<void>(
-                              context: context,
-                              anchor: globalRectOf(line),
-                              side: PopoverSide.right,
-                              builder: (_) => const ConnectionGraph(),
-                            ),
-                            child: Semantics(
-                              label: [
-                                status,
-                                if (quality != null) 'Connection ${quality.$2}',
-                                ?detail,
-                                'Show the connection graph',
-                              ].join('. '),
-                              button: true,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    quality?.$1 ?? OcIcons.graphicEq,
-                                    size: 16,
-                                    color: colors.text,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: _StatusText(status, detail: detail),
-                                  ),
-                                ],
+                    focusRadius: rounded,
+                    builder: (context, state) => AnimatedContainer(
+                      duration: OcMotion.of(context).hover,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: state.active ? colors.hover : null,
+                        borderRadius: rounded,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Builder(
+                            builder: (line) => GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => showPopover<void>(
+                                context: context,
+                                anchor: globalRectOf(line),
+                                side: PopoverSide.right,
+                                builder: (_) => const ConnectionGraph(),
+                              ),
+                              child: Semantics(
+                                label: [
+                                  status,
+                                  if (quality != null)
+                                    'Connection ${quality.$2}',
+                                  ?detail,
+                                  'Show the connection graph',
+                                ].join('. '),
+                                button: true,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      quality?.$1 ?? OcIcons.graphicEq,
+                                      size: 16,
+                                      color: colors.text,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: _StatusText(
+                                        status,
+                                        detail: detail,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 1),
-                        Semantics(
-                          label:
-                              '${channel ?? 'Voice'}, ${serverName ?? ''}. Open the voice view',
-                          button: true,
-                          child: Text(
-                            '${channel ?? ''} / ${serverName ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: OcText.meta.copyWith(
-                              fontSize: 12.5,
-                              height: 1.25,
-                              color: colors.textMuted,
+                          const SizedBox(height: 1),
+                          Semantics(
+                            label:
+                                '${channel ?? 'Voice'}, ${serverName ?? ''}. Open the voice view',
+                            button: true,
+                            child: Text(
+                              '${channel ?? ''} / ${serverName ?? ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: OcText.meta.copyWith(
+                                fontSize: 12.5,
+                                height: 1.35,
+                                color: colors.textMuted,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              OcIconButton(
-                icon: OcIcons.callEnd,
-                iconSize: 20,
-                tooltip: 'Disconnect',
-                size: OcIconButtonSize.compact,
-                color: colors.textSecondary,
-                onPressed: () => leaveVoice(context, ref),
-              ),
-            ],
-          ),
-          if (capabilities.camera ||
-              capabilities.screenShare ||
-              capabilities.soundboard) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                for (final (index, toggle) in [
-                  if (capabilities.camera)
-                    _Toggle(
-                      icon: voice.camera
-                          ? OcIcons.videocam
-                          : OcIcons.videocamOff,
-                      label: 'Camera',
-                      active: voice.camera,
-                      onTap: () => toggleCamera(context, ref),
-                      onSecondaryTap: (position) =>
-                          showCameraMenu(context, ref, position),
-                    ),
-                  if (capabilities.screenShare)
-                    Builder(
-                      builder: (button) => _Toggle(
-                        icon: OcIcons.screenShare,
-                        label: voice.screensharing ? 'Live' : 'Screen',
-                        active: voice.screensharing,
-                        onTap: () => screenshareControl(
-                          context,
-                          ref,
-                          anchor: globalRectOf(button),
-                        ),
-                      ),
-                    ),
-                  if (capabilities.soundboard)
-                    Builder(
-                      builder: (button) => _Toggle(
-                        icon: OcIcons.musicNote,
-                        label: 'Soundboard',
-                        active: false,
-                        onTap: () => showSoundboardPicker(
-                          context,
-                          anchor: globalRectOf(button),
-                          side: PopoverSide.right,
-                        ),
-                      ),
-                    ),
-                ].indexed) ...[
-                  if (index > 0) const SizedBox(width: 8),
-                  Expanded(child: toggle),
-                ],
+                const SizedBox(width: 6),
+                OcIconButton(
+                  icon: OcIcons.callEnd,
+                  iconSize: 20,
+                  tooltip: 'Disconnect',
+                  size: OcIconButtonSize.compact,
+                  color: colors.textSecondary,
+                  onPressed: () => leaveVoice(context, ref),
+                ),
               ],
             ),
+            if (capabilities.camera ||
+                capabilities.screenShare ||
+                capabilities.soundboard) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (final (index, toggle) in [
+                    if (capabilities.camera)
+                      _Toggle(
+                        icon: voice.camera
+                            ? OcIcons.videocam
+                            : OcIcons.videocamOff,
+                        label: 'Camera',
+                        active: voice.camera,
+                        onTap: () => toggleCamera(context, ref),
+                        onSecondaryTap: (position) =>
+                            showCameraMenu(context, ref, position),
+                      ),
+                    if (capabilities.screenShare)
+                      Builder(
+                        builder: (button) => _Toggle(
+                          icon: OcIcons.screenShare,
+                          label: voice.screensharing ? 'Live' : 'Screen',
+                          active: voice.screensharing,
+                          onTap: () => screenshareControl(
+                            context,
+                            ref,
+                            anchor: globalRectOf(button),
+                          ),
+                        ),
+                      ),
+                    if (capabilities.soundboard)
+                      Builder(
+                        builder: (button) => _Toggle(
+                          icon: OcIcons.musicNote,
+                          label: 'Soundboard',
+                          active: false,
+                          onTap: () => showSoundboardPicker(
+                            context,
+                            anchor: globalRectOf(button),
+                            side: PopoverSide.right,
+                          ),
+                        ),
+                      ),
+                  ].indexed) ...[
+                    if (index > 0) const SizedBox(width: 8),
+                    Expanded(child: toggle),
+                  ],
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -279,7 +287,7 @@ class _StatusText extends StatelessWidget {
       style: OcText.header.copyWith(
         fontSize: 13,
         fontWeight: FontWeight.w600,
-        height: 1.25,
+        height: 1.35,
         color: context.oc.text,
       ),
     );

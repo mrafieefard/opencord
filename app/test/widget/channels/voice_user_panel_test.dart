@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
+import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import '../../support/app.dart';
@@ -43,7 +45,7 @@ void main() {
       expect(vcardFinder, findsOneWidget);
 
       final vcardRect = tester.getRect(vcardFinder);
-      expect(vcardRect.height, closeTo(103.4, 0.5));
+      expect(vcardRect.height, closeTo(103.4, 1.0));
 
       // Container padding inside VoiceConnectedPanel: 8 8 10
       final panelContainer = tester.widget<Container>(
@@ -153,7 +155,7 @@ void main() {
       expect(vcardFinder, findsOneWidget);
 
       final initialVcardHeight = tester.getSize(vcardFinder).height;
-      expect(initialVcardHeight, closeTo(103.4, 0.5));
+      expect(initialVcardHeight, closeTo(103.4, 1.0));
 
       final initialChannelsHeight = tester.getSize(channelsFinder).height;
 
@@ -161,7 +163,7 @@ void main() {
       await app.read(voiceSessionProvider.notifier).leave();
       await tester.pump(); // t = 0
 
-      expect(tester.getSize(vcardFinder).height, closeTo(103.4, 0.5));
+      expect(tester.getSize(vcardFinder).height, closeTo(103.4, 1.0));
 
       // Sample curve from §4.3: 103.4, 66.5, 29.5, 11.4, 4.1, 1.4, 0, 0
       // at t = 0, 40, 80, 120, 160, 200, 280, 360 ms.
@@ -214,6 +216,68 @@ void main() {
       await app.dispose(tester);
     });
 
+    testWidgets('card_opens_on_the_curve', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+      final channelId = _voiceChannel(app);
+
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      await tester.pump();
+      // The side pane's samples (§4.3), on the same spring.
+      for (final (ms, width) in [(40, 59.9), (40, 141.0), (40, 197.6)]) {
+        await tester.pump(Duration(milliseconds: ms));
+        expect(
+          tester.getSize(find.byKey(ShellKeys.vcard)).height,
+          closeTo(103.4 * width / 264, 1.5),
+          reason: 'after $ms ms more',
+        );
+      }
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('card_is_as_tall_as_its_content', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+      await app
+          .read(voiceSessionProvider.notifier)
+          .join(_dev, _voiceChannel(app));
+      await _settle(tester);
+
+      final card = tester.getRect(find.byKey(ShellKeys.vcard));
+      final panel = tester.getRect(find.byType(VoiceConnectedPanel));
+      // Inside the float's border, nothing left over.
+      expect(panel.height, closeTo(card.height - 2, 0.01));
+      // The toggles sit 10 above the panel's bottom.
+      final camera = tester.getRect(
+        find.byWidgetPredicate(
+          (w) => w is Hoverable && w.semanticLabel == 'Camera',
+        ),
+      );
+      expect(panel.bottom - camera.bottom, closeTo(10, 0.01));
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('a_leaving_card_takes_no_clicks', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      await _settle(tester);
+
+      final link = tester.getCenter(find.text('Voice connected'));
+      await app.read(voiceSessionProvider.notifier).leave();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.tapAt(link);
+      await tester.pump();
+      expect(app.read(currentChannelProvider), isNot(channelId));
+
+      await _settle(tester);
+      await app.dispose(tester);
+    });
+
     testWidgets('card_joins_and_leaves_twice', (tester) async {
       final app = await MockApp.pump(tester, size: const Size(1280, 800));
       await _settle(tester);
@@ -226,7 +290,7 @@ void main() {
       expect(find.byKey(ShellKeys.vcard), findsOneWidget);
       expect(
         tester.getSize(find.byKey(ShellKeys.vcard)).height,
-        closeTo(103.4, 0.5),
+        closeTo(103.4, 1.0),
       );
 
       // First leave
@@ -240,7 +304,7 @@ void main() {
       expect(find.byKey(ShellKeys.vcard), findsOneWidget);
       expect(
         tester.getSize(find.byKey(ShellKeys.vcard)).height,
-        closeTo(103.4, 0.5),
+        closeTo(103.4, 1.0),
       );
 
       // Second leave

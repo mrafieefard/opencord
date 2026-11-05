@@ -111,7 +111,6 @@ class VoiceFaces extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '$count in voice',
-                  textScaler: TextScaler.noScaling,
                   style: OcText.body.copyWith(
                     fontSize: 12,
                     color: colors.textSecondary,
@@ -128,10 +127,9 @@ class VoiceFaces extends StatelessWidget {
 
 /// The rail's popover (§5.2): replaces tooltips with server info and voice participants.
 class RailPopover extends ConsumerWidget {
-  const RailPopover({super.key, required this.id, this.y = 0.0});
+  const RailPopover({super.key, required this.id});
 
   final Object id;
-  final double y;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -229,27 +227,21 @@ class RailPopover extends ConsumerWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  textScaler: TextScaler.noScaling,
                   style: OcText.bodyStrong.copyWith(
                     fontSize: 13.5,
-                    height: 1.25,
                     color: colors.text,
                   ),
                 ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
+                if (subtitle != null)
                   Text(
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    textScaler: TextScaler.noScaling,
                     style: OcText.body.copyWith(
                       fontSize: 12,
-                      height: 1.25,
                       color: colors.textMuted,
                     ),
                   ),
-                ],
                 if (voiceUserIds.isNotEmpty && serverKey != null)
                   VoiceFaces(
                     serverKey: serverKey,
