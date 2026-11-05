@@ -11,9 +11,9 @@ import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
-import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -32,11 +32,6 @@ class ChatHeader extends ConsumerWidget {
   const ChatHeader({
     super.key,
     required this.channel,
-    this.memberToggle = true,
-    required this.membersShown,
-    required this.onToggleMembers,
-    this.musicShown = false,
-    this.onSelectMusic,
     required this.onJumpTo,
     this.onOpenSidebar,
     this.voiceChatAlone = false,
@@ -48,15 +43,12 @@ class ChatHeader extends ConsumerWidget {
   /// A voice channel's chat shows without its tiles, the window being too
   /// narrow for both (Phase 2 §12).
   final bool voiceChatAlone;
-
-  /// Off when there is no server, and so no members.
-  final bool memberToggle;
-  final bool membersShown;
-  final VoidCallback onToggleMembers;
-  final bool musicShown;
-  final VoidCallback? onSelectMusic;
   final ValueChanged<int> onJumpTo;
   final VoidCallback? onOpenSidebar;
+
+  /// How far the notch at its full size pushes the buttons from the header's
+  /// usual right padding (§5.8).
+  static const _notchClearance = 54.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,8 +61,18 @@ class ChatHeader extends ConsumerWidget {
             ).select((state) => state.data?.channels[open.channel]),
           );
     final pins = ref.read(repositoryProvider).capabilities.pins;
-    return PanelHeader(
-      key: ShellKeys.hd,
+    return ValueListenableBuilder<double>(
+      valueListenable:
+          ShellMetrics.maybeOf(context)?.notch ??
+          const AlwaysStoppedAnimation(0.0),
+      builder: (context, notch, row) => PanelHeader(
+        key: ShellKeys.hd,
+        padding: EdgeInsets.only(
+          left: OcSpace.s16,
+          right: OcFloats.gap + _notchClearance * notch / OcFloats.notch,
+        ),
+        child: row!,
+      ),
       child: Row(
         children: [
           if (onOpenSidebar != null)
@@ -87,68 +89,60 @@ class ChatHeader extends ConsumerWidget {
                   : _Title(channel: open, target: target),
             ),
           ),
-          if (open != null && target != null && target.kind.isTextLike) ...[
-            OcIconButton(
-              icon: OcIcons.search,
-              tooltip: 'Search in channel',
-              onPressed: () =>
-                  showOcToast(context, 'Search is coming in a later version.'),
-            ),
-            if (pins)
-              Builder(
-                builder: (context) => OcIconButton(
-                  icon: OcIcons.pushPin,
-                  tooltip: 'Pinned messages',
-                  onPressed: () => showPopover<void>(
-                    context: context,
-                    anchor: globalRectOf(context),
-                    alignEnd: true,
-                    padding: const EdgeInsets.all(OcSpace.s8),
-                    builder: (popover) => PinnedList(
-                      channel: open,
-                      onJumpTo: (id) {
-                        Navigator.pop(popover);
-                        onJumpTo(id);
-                      },
-                    ),
+          Row(
+            key: ShellKeys.acts,
+            mainAxisSize: MainAxisSize.min,
+            spacing: 2,
+            children: [
+              if (open != null && target != null && target.kind.isTextLike) ...[
+                OcIconButton(
+                  icon: OcIcons.search,
+                  tooltip: 'Search in channel',
+                  onPressed: () => showOcToast(
+                    context,
+                    'Search is coming in a later version.',
                   ),
                 ),
-              ),
-          ],
-          if (open != null &&
-              target != null &&
-              target.kind == ChannelKind.voice &&
-              ref.read(repositoryProvider).capabilities.voice)
-            _VoiceViewButtons(
-              channel: open,
-              chat: target.textInVoice,
-              chatAlone: voiceChatAlone,
-            ),
-          if (memberToggle)
-            OcIconButton(
-              icon: OcIcons.group,
-              tooltip: 'Members',
-              active: membersShown,
-              onPressed: onToggleMembers,
-            ),
-          if (open != null &&
-              target != null &&
-              target.kind == ChannelKind.voice &&
-              ref.watch(musicOfferedProvider(open)))
-            OcIconButton(
-              icon: OcIcons.libraryMusic,
-              tooltip: 'Music',
-              active: musicShown,
-              onPressed: onSelectMusic,
-            ),
-          if (open != null && target != null)
-            Builder(
-              builder: (context) => OcIconButton(
-                icon: OcIcons.moreVert,
-                tooltip: 'More',
-                onPressed: () => _showMore(context, ref, open),
-              ),
-            ),
+                if (pins)
+                  Builder(
+                    builder: (context) => OcIconButton(
+                      icon: OcIcons.pushPin,
+                      tooltip: 'Pinned messages',
+                      onPressed: () => showPopover<void>(
+                        context: context,
+                        anchor: globalRectOf(context),
+                        alignEnd: true,
+                        padding: const EdgeInsets.all(OcSpace.s8),
+                        builder: (popover) => PinnedList(
+                          channel: open,
+                          onJumpTo: (id) {
+                            Navigator.pop(popover);
+                            onJumpTo(id);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+              if (open != null &&
+                  target != null &&
+                  target.kind == ChannelKind.voice &&
+                  ref.read(repositoryProvider).capabilities.voice)
+                _VoiceViewButtons(
+                  channel: open,
+                  chat: target.textInVoice,
+                  chatAlone: voiceChatAlone,
+                ),
+              if (open != null && target != null)
+                Builder(
+                  builder: (context) => OcIconButton(
+                    icon: OcIcons.moreVert,
+                    tooltip: 'More',
+                    onPressed: () => _showMore(context, ref, open),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

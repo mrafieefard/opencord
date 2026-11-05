@@ -16,6 +16,10 @@ class OcMotion {
   /// For what leaves on its own.
   static const Curve curveIn = Curves.easeIn;
 
+  /// How long the notch stays as it is after the pane button is clicked, so
+  /// the button is seen to go first (§5.9).
+  static const Duration notchDelay = Duration(milliseconds: 50);
+
   Duration _maybe(int milliseconds) =>
       _reduced ? Duration.zero : Duration(milliseconds: milliseconds);
 
@@ -31,6 +35,9 @@ class OcMotion {
   /// A fade in.
   Duration get fade => _maybe(120);
 
+  /// A small thing's fade in: the pane button coming back.
+  Duration get fadeQuick => _maybe(100);
+
   /// Small rotations, such as a dropdown's arrow.
   Duration get turn => _maybe(140);
 
@@ -45,10 +52,6 @@ class OcMotion {
 
   /// Message arrival and removal fade.
   Duration get message => _maybe(100);
-
-  /// The right-side panel widening for music, and queue rows sliding to
-  /// their new place (Phase 3 §19.2, §19.5).
-  Duration get panel => _maybe(120);
 
   /// Settings' save bar rising from the bottom, as Discord's does.
   Duration get saveBar => _maybe(200);

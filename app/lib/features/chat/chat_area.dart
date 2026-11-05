@@ -15,6 +15,7 @@ import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/no_servers.dart';
+import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/features/voice/voice_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/widgets/measured_height.dart';
@@ -37,22 +38,9 @@ final voiceChatShownProvider = Provider<bool>((ref) {
 
 /// The main column: the open channel's header and content.
 class ChatArea extends ConsumerStatefulWidget {
-  const ChatArea({
-    super.key,
-    required this.membersShown,
-    required this.onToggleMembers,
-    this.musicShown = false,
-    this.onSelectMusic,
-    this.onOpenSidebar,
-    this.includeComposer = true,
-  });
+  const ChatArea({super.key, this.onOpenSidebar, this.includeComposer = true});
 
   final bool includeComposer;
-
-  final bool membersShown;
-  final VoidCallback onToggleMembers;
-  final bool musicShown;
-  final VoidCallback? onSelectMusic;
 
   /// Shown as a menu button when the sidebar is collapsed (§3).
   final VoidCallback? onOpenSidebar;
@@ -85,8 +73,14 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
     bool unreachable, {
     required bool pins,
     bool? includeComposer,
+    bool fillsMain = true,
   }) {
     final composer = includeComposer ?? widget.includeComposer;
+    final list = MessageList(
+      key: ValueKey(open),
+      channel: open,
+      controller: _controller,
+    );
     final chat = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -101,11 +95,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
           // reached (§4.13).
           child: Opacity(
             opacity: unreachable ? 0.55 : 1,
-            child: MessageList(
-              key: ValueKey(open),
-              channel: open,
-              controller: _controller,
-            ),
+            child: fillsMain ? MainInnerWidth(child: list) : list,
           ),
         ),
         if (composer)
@@ -154,21 +144,19 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
       color: colors.chat,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Too narrow for the tiles and the chat, the chat shows alone.
+          // Too narrow for the tiles and the chat, the chat shows alone. This
+          // goes by the width main ends at, so a pane on its way doesn't swap
+          // them back and forth.
+          final width =
+              ShellMetrics.maybeOf(context)?.mainInner ?? constraints.maxWidth;
           final chatAlone =
-              voiceChat &&
-              constraints.maxWidth - _voiceChatWidth - 1 < _stageMinWidth;
+              voiceChat && width - _voiceChatWidth - 1 < _stageMinWidth;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ChatHeader(
                 voiceChatAlone: chatAlone,
                 channel: open,
-                memberToggle: !noServers,
-                membersShown: widget.membersShown,
-                onToggleMembers: widget.onToggleMembers,
-                musicShown: widget.musicShown,
-                onSelectMusic: widget.onSelectMusic,
                 onOpenSidebar: widget.onOpenSidebar,
                 onJumpTo: _controller.jumpToMessage,
               ),
@@ -210,6 +198,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                             unreachable,
                             pins: false,
                             includeComposer: true,
+                            fillsMain: false,
                           ),
                         ),
                       ],

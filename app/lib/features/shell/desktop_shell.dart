@@ -25,10 +25,12 @@ import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/debug_menu.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/navigation_history.dart';
+import 'package:opencord/features/shell/pane_button.dart';
 import 'package:opencord/features/shell/shell_drawer.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
+import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/features/shell/title_crumb.dart';
 import 'package:opencord/features/shell/window_title.dart';
 import 'package:opencord/features/settings/user_settings.dart';
@@ -40,6 +42,8 @@ import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_reconnect_bar.dart';
 import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/shell/mac_menu_bar.dart';
+import 'package:opencord/ui/motion/oc_spring.dart';
+import 'package:opencord/ui/motion/spring_value.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
@@ -64,6 +68,9 @@ class DesktopShell extends ConsumerStatefulWidget {
 class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _sidebarDrawer = false;
   bool _membersDrawer = false;
+
+  /// [_membersDrawer] is on its way out: the page's notch is already opening.
+  bool _membersDrawerClosing = false;
   final _sidebarDrawerKey = GlobalKey<ShellDrawerState>();
   final _membersDrawerKey = GlobalKey<ShellDrawerState>();
   ShellLayout _layout = ShellLayout.wide;
@@ -100,11 +107,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     }, fireImmediately: true);
     // Voice sounds play while the shell is up (Phase 2 §12).
     ref.listenManual(voiceCuesProvider, (_, _) {});
-    // The Music buttons open the overlay where the panel is one (§19.2).
+    // Whatever asks for Music opens the pane too (§5.9), `/music` for one.
     ref.listenManual(rightPanelModeProvider, (_, mode) {
-      if (mode == RightPanelMode.music && !_layout.membersInline && mounted) {
-        setState(() => _membersDrawer = true);
-      }
+      if (mode == RightPanelMode.music && mounted) _openRightPanel();
     });
     // Going anywhere shuts the drawers, as the prototype's `go` does.
     ref.listenManual(navigationProvider, (_, _) {
@@ -149,17 +154,26 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   void _selectMembers() => _showRightPanel(RightPanelMode.people);
 
-  /// Opens the right-side panel on [mode]. A voice channel's chat holds
-  /// that place while it is open, so it closes.
+  /// Opens the right-side panel on [mode].
   void _showRightPanel(RightPanelMode mode) {
     ref.read(rightPanelModeProvider.notifier).set(mode);
+    _openRightPanel();
+  }
+
+  /// A voice channel's chat holds the panel's place while it is open, so it
+  /// closes. A drawer on its way out turns back.
+  void _openRightPanel() {
     if (_layout.membersInline) {
       if (ref.read(voiceChatShownProvider)) {
         ref.read(voiceViewPrefsProvider.notifier).toggleChat();
       }
       ref.read(memberPanelProvider.notifier).open();
     } else {
-      setState(() => _membersDrawer = true);
+      _membersDrawerKey.currentState?.reopen();
+      setState(() {
+        _membersDrawer = true;
+        _membersDrawerClosing = false;
+      });
     }
   }
 
@@ -171,29 +185,27 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     }
   }
 
-  /// The users list, or the music panel in its place (§19.2), 340 px wide
-  /// after one 120 ms resize.
-  Widget _rightPanel({
-    required bool music,
-    required VoidCallback onClose,
-    bool isOverlay = false,
-  }) {
+  /// The users list, or the music panel in its place (§5.13). The new one
+  /// fades in, and the old one goes at once.
+  Widget _rightPanel({required bool music}) {
     final channel = ref.read(musicChannelProvider);
-    return AnimatedContainer(
-      duration: OcMotion.of(context).panel,
-      curve: OcMotion.curve,
-      width: music ? OcSize.musicPanelWidth : OcSize.memberPanelWidth,
+    return AnimatedSwitcher(
+      duration: OcMotion.of(context).fade,
+      switchInCurve: OcMotion.curve,
+      layoutBuilder: (current, _) => current ?? const SizedBox.shrink(),
       child: music && channel != null
           ? MusicPanel(
+              key: const ValueKey('music'),
               channel: channel,
-              onClose: onClose,
-              isOverlay: isOverlay,
+              onClose: _closeRightPanel,
+              isOverlay: true,
               onSelectMembers: _selectMembers,
               onSelectMusic: _selectMusic,
             )
           : MemberPanel(
-              onClose: onClose,
-              isOverlay: isOverlay,
+              key: const ValueKey('people'),
+              onClose: _closeRightPanel,
+              isOverlay: true,
               onSelectMembers: _selectMembers,
               onSelectMusic: _selectMusic,
             ),
@@ -205,7 +217,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         ? ref.read(memberPanelProvider) &&
               ref.read(serverListProvider).isNotEmpty &&
               !ref.read(voiceChatShownProvider)
-        : _membersDrawer;
+        : _membersDrawer && !_membersDrawerClosing;
     final mode = ref.read(rightPanelModeProvider);
     if (panelOpen && mode == RightPanelMode.people) {
       _closeRightPanel();
@@ -320,30 +332,20 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final homeShown = ref.watch(homeShownProvider);
-    final panelOpen =
-        !homeShown &&
-        (_layout.membersInline
-            ? ref.watch(memberPanelProvider) &&
-                  ref.watch(
-                    serverListProvider.select((servers) => servers.isNotEmpty),
-                  ) &&
-                  !ref.watch(voiceChatShownProvider)
-            : _membersDrawer);
+    final serverView =
+        !ref.watch(homeShownProvider) &&
+        ref.watch(serverListProvider.select((servers) => servers.isNotEmpty));
+    final paneWanted =
+        ref.watch(memberPanelProvider) && !ref.watch(voiceChatShownProvider);
 
     // The voice channel open, or else the one this device is in: the
     // now-playing card opens its music from a text channel too (§19.3).
     final musicChannel = ref.watch(musicChannelProvider);
-    final musicOffered =
-        musicChannel != null && ref.watch(musicOfferedProvider(musicChannel));
-    final mode = ref.watch(rightPanelModeProvider);
-
     final musicShown =
-        panelOpen && musicOffered && mode == RightPanelMode.music;
-    final membersActive =
-        panelOpen && (!musicOffered || mode == RightPanelMode.people);
-    final musicActive =
-        panelOpen && musicOffered && mode == RightPanelMode.music;
+        musicChannel != null &&
+        ref.watch(musicOfferedProvider(musicChannel)) &&
+        ref.watch(rightPanelModeProvider) == RightPanelMode.music;
+    final paneWidth = musicShown ? OcFloats.sideMusic : OcFloats.side;
 
     // Text fields (the composer, searches) need Material underneath.
     return Material(
@@ -383,106 +385,121 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                               constraints.maxWidth,
                             );
                             _layout = layout;
-                            final membersInline =
-                                layout.membersInline && panelOpen;
-                            return Stack(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    OcFloats.gap,
-                                    0,
-                                    OcFloats.gap,
-                                    OcFloats.gap,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      const SizedBox(
-                                        width: OcSize.railWidth,
-                                        child: OcFloat(
-                                          key: ShellKeys.rail,
-                                          child: ServerRail(),
-                                        ),
+                            final paneOpen = layout.membersInline
+                                ? paneWanted
+                                : _membersDrawer && !_membersDrawerClosing;
+                            final slotOpen =
+                                layout.membersInline &&
+                                paneWanted &&
+                                serverView;
+                            return SpringValue.listenable(
+                              target: paneOpen ? 0 : OcFloats.notch,
+                              spring: OcSpring.pane,
+                              falling: OcSpring.paneOut,
+                              fallingDelay: OcMotion.notchDelay,
+                              builder: (context, notch, _) => ShellMetrics(
+                                mainInner: ShellMetrics.mainInnerFor(
+                                  window: constraints.maxWidth,
+                                  left: layout.sidebarInline
+                                      ? layout.sidebarWidth
+                                      : 0,
+                                  side: slotOpen ? paneWidth : 0,
+                                ),
+                                // Only a server's page has a notch, and it
+                                // goes and comes with the page.
+                                notch: serverView
+                                    ? notch
+                                    : const AlwaysStoppedAnimation(0.0),
+                                layout: layout,
+                                child: Stack(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        OcFloats.gap,
+                                        0,
+                                        OcFloats.gap,
+                                        OcFloats.gap,
                                       ),
-                                      if (layout.sidebarInline) ...[
-                                        const SizedBox(width: OcFloats.gap),
-                                        SizedBox(
-                                          key: ShellKeys.left,
-                                          width: layout.sidebarWidth,
-                                          child: const _LeftColumn(),
-                                        ),
-                                        const SizedBox(
-                                          key: ShellKeys.splitter,
-                                          width: OcFloats.gap,
-                                        ),
-                                      ] else ...[
-                                        const SizedBox(width: OcFloats.gap),
-                                      ],
-                                      Expanded(
-                                        child: _MainColumn(
-                                          layout: layout,
-                                          panelOpen: panelOpen,
-                                          membersActive: membersActive,
-                                          musicActive: musicActive,
-                                          musicShown: musicShown,
-                                          onOpenSidebar: layout.sidebarInline
-                                              ? null
-                                              : () => setState(
-                                                  () => _sidebarDrawer = true,
-                                                ),
-                                          onSelectMembers: _selectMembers,
-                                          onSelectMusic: _selectMusic,
-                                        ),
-                                      ),
-                                      if (membersInline) ...[
-                                        const SizedBox(width: OcFloats.gap),
-                                        SizedBox(
-                                          key: ShellKeys.side,
-                                          width: musicShown
-                                              ? OcSize.musicPanelWidth
-                                              : OcSize.memberPanelWidth,
-                                          child: OcFloat(
-                                            key: ShellKeys.panel,
-                                            color: colors.sidebar,
-                                            child: _rightPanel(
-                                              music: musicShown,
-                                              onClose: _closeRightPanel,
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          const SizedBox(
+                                            width: OcSize.railWidth,
+                                            child: OcFloat(
+                                              key: ShellKeys.rail,
+                                              child: ServerRail(),
                                             ),
                                           ),
+                                          if (layout.sidebarInline) ...[
+                                            const SizedBox(width: OcFloats.gap),
+                                            SizedBox(
+                                              key: ShellKeys.left,
+                                              width: layout.sidebarWidth,
+                                              child: const _LeftColumn(),
+                                            ),
+                                            const SizedBox(
+                                              key: ShellKeys.splitter,
+                                              width: OcFloats.gap,
+                                            ),
+                                          ] else ...[
+                                            const SizedBox(width: OcFloats.gap),
+                                          ],
+                                          Expanded(
+                                            child: _MainColumn(
+                                              layout: layout,
+                                              paneOpen: paneOpen,
+                                              onOpenPane: _openRightPanel,
+                                              onOpenSidebar:
+                                                  layout.sidebarInline
+                                                  ? null
+                                                  : () => setState(
+                                                      () =>
+                                                          _sidebarDrawer = true,
+                                                    ),
+                                            ),
+                                          ),
+                                          if (layout.membersInline)
+                                            SideSlot(
+                                              open: slotOpen,
+                                              width: paneWidth,
+                                              child: _rightPanel(
+                                                music: musicShown,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (!layout.sidebarInline && _sidebarDrawer)
+                                      ShellDrawer(
+                                        key: _sidebarDrawerKey,
+                                        fromRight: false,
+                                        inset: OcFloats.gap * 2 + OcFloats.rail,
+                                        width: layout.leftDrawerWidth(
+                                          constraints.maxWidth,
                                         ),
-                                      ],
-                                    ],
-                                  ),
+                                        onClose: () => setState(
+                                          () => _sidebarDrawer = false,
+                                        ),
+                                        child: const _LeftColumn(),
+                                      ),
+                                    if (!layout.membersInline && _membersDrawer)
+                                      ShellDrawer(
+                                        key: _membersDrawerKey,
+                                        fromRight: true,
+                                        width: paneWidth,
+                                        onClosing: () => setState(
+                                          () => _membersDrawerClosing = true,
+                                        ),
+                                        onClose: () => setState(() {
+                                          _membersDrawer = false;
+                                          _membersDrawerClosing = false;
+                                        }),
+                                        child: _rightPanel(music: musicShown),
+                                      ),
+                                  ],
                                 ),
-                                if (!layout.sidebarInline && _sidebarDrawer)
-                                  ShellDrawer(
-                                    key: _sidebarDrawerKey,
-                                    fromRight: false,
-                                    inset: OcFloats.gap * 2 + OcFloats.rail,
-                                    width: layout.leftDrawerWidth(
-                                      constraints.maxWidth,
-                                    ),
-                                    onClose: () =>
-                                        setState(() => _sidebarDrawer = false),
-                                    child: const _LeftColumn(),
-                                  ),
-                                if (!layout.membersInline && _membersDrawer)
-                                  ShellDrawer(
-                                    key: _membersDrawerKey,
-                                    fromRight: true,
-                                    width: musicShown
-                                        ? OcSize.musicPanelWidth
-                                        : OcSize.memberPanelWidth,
-                                    onClose: () =>
-                                        setState(() => _membersDrawer = false),
-                                    child: _rightPanel(
-                                      music: musicShown,
-                                      onClose: _closeRightPanel,
-                                      isOverlay: true,
-                                    ),
-                                  ),
-                              ],
+                              ),
                             );
                           },
                         ),
@@ -544,23 +561,15 @@ class _LeftColumn extends ConsumerWidget {
 class _MainColumn extends ConsumerWidget {
   const _MainColumn({
     required this.layout,
-    required this.panelOpen,
-    required this.membersActive,
-    required this.musicActive,
-    required this.musicShown,
+    required this.paneOpen,
+    required this.onOpenPane,
     required this.onOpenSidebar,
-    required this.onSelectMembers,
-    required this.onSelectMusic,
   });
 
   final ShellLayout layout;
-  final bool panelOpen;
-  final bool membersActive;
-  final bool musicActive;
-  final bool musicShown;
+  final bool paneOpen;
+  final VoidCallback onOpenPane;
   final VoidCallback? onOpenSidebar;
-  final VoidCallback onSelectMembers;
-  final VoidCallback? onSelectMusic;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -613,10 +622,6 @@ class _MainColumn extends ConsumerWidget {
       }
     } else {
       mainContent = ChatArea(
-        membersShown: membersActive,
-        onToggleMembers: onSelectMembers,
-        musicShown: musicActive,
-        onSelectMusic: onSelectMusic,
         onOpenSidebar: onOpenSidebar,
         includeComposer: false,
       );
@@ -630,6 +635,7 @@ class _MainColumn extends ConsumerWidget {
     }
 
     final isChannelChat = !homeShown && isChat;
+    final notch = ShellMetrics.maybeOf(context)!.notch;
     return AttachmentDropZone(
       channel: isChannelChat ? open : null,
       radius: OcFloats.radius,
@@ -637,11 +643,27 @@ class _MainColumn extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: NotchedFloat(
-              key: ShellKeys.main,
-              notch: const AlwaysStoppedAnimation(0),
-              color: colors.chat,
-              child: mainContent,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: NotchedFloat(
+                    key: ShellKeys.main,
+                    notch: notch,
+                    color: colors.chat,
+                    child: mainContent,
+                  ),
+                ),
+                if (!homeShown && !noServers)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: PaneButton(
+                      notch: notch,
+                      open: paneOpen,
+                      onOpen: onOpenPane,
+                    ),
+                  ),
+              ],
             ),
           ),
           if (isChat && composerContent != null) ...[

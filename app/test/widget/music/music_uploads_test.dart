@@ -11,7 +11,6 @@ import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/events.dart';
-import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/music/music_drop.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/music/music_search.dart';
@@ -49,7 +48,7 @@ Future<MusicChannel> _openMusic(WidgetTester tester, MockApp app) async {
   await _settle(tester);
   await tester.tap(
     find.descendant(
-      of: find.byType(ChatHeader),
+      of: find.byKey(DesktopShell.membersKey),
       matching: find.byTooltip('Music'),
     ),
   );

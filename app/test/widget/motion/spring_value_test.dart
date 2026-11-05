@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/ui/motion/oc_spring.dart';
@@ -38,6 +39,33 @@ class _Probe {
 }
 
 void main() {
+  testWidgets('listenable_moves_on_the_curve_without_a_rebuild', (
+    tester,
+  ) async {
+    var builds = 0;
+    late ValueListenable<double> value;
+    Widget at(double target) => SpringValue.listenable(
+      target: target,
+      spring: OcSpring.pane,
+      builder: (context, listenable, child) {
+        builds++;
+        value = listenable;
+        return const SizedBox.shrink();
+      },
+    );
+
+    await tester.pumpWidget(at(0));
+    await tester.pumpWidget(at(1));
+    final before = builds;
+    await tester.pump();
+    await tester.pump(_ms(80));
+
+    expect(value.value, closeTo(OcSpring.pane.valueAt(_ms(80)), 0.005));
+    expect(builds, before);
+    await tester.pump(_ms(500));
+    expect(value.value, 1);
+  });
+
   testWidgets('spring_value_is_on_the_curve_frame_by_frame', (tester) async {
     for (final spring in const [
       OcSpring.pane,

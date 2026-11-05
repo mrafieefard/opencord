@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/motion/oc_spring.dart';
+import 'package:opencord/ui/motion/spring_value.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -24,10 +25,16 @@ class ShellDrawer extends StatefulWidget {
     required this.width,
     required this.child,
     this.inset = 0,
+    this.onClosing,
   });
 
   final bool fromRight;
+
+  /// Called once the way out has finished.
   final VoidCallback onClose;
+
+  /// Called as the way out starts.
+  final VoidCallback? onClosing;
   final double width;
   final Widget child;
   final double inset;
@@ -77,6 +84,7 @@ class ShellDrawerState extends State<ShellDrawer>
   void close() {
     if (_closing || !mounted) return;
     setState(() => _closing = true);
+    widget.onClosing?.call();
     if (MediaQuery.disableAnimationsOf(context)) {
       widget.onClose();
       return;
@@ -90,9 +98,7 @@ class ShellDrawerState extends State<ShellDrawer>
               _controller.velocity,
             ),
           )
-          .whenCompleteOrCancel(() {
-            if (mounted) widget.onClose();
-          });
+          .whenCompleteOrCancel(_closed);
     } else {
       _controller
           .animateTo(
@@ -100,10 +106,23 @@ class ShellDrawerState extends State<ShellDrawer>
             duration: const Duration(milliseconds: 120),
             curve: Curves.easeIn,
           )
-          .whenCompleteOrCancel(() {
-            if (mounted) widget.onClose();
-          });
+          .whenCompleteOrCancel(_closed);
     }
+  }
+
+  /// Turning back is what cancels a way out, and then nothing has closed.
+  void _closed() {
+    if (mounted && _closing) widget.onClose();
+  }
+
+  /// Turns back on the way out, from where it has got to.
+  void reopen() {
+    if (!_closing || !mounted) return;
+    setState(() => _closing = false);
+    _controller.animateWith(
+      OcSpring.pane.simulation(_controller.value, 1.0, _controller.velocity),
+    );
+    _scope.requestFocus();
   }
 
   @override
@@ -151,12 +170,18 @@ class ShellDrawerState extends State<ShellDrawer>
                   ),
                 // Drawer float.
                 if (fromRight)
-                  Positioned(
-                    key: ShellKeys.side,
-                    top: 0,
-                    bottom: OcFloats.gap,
-                    right: OcFloats.gap - offset,
-                    width: widget.width,
+                  SpringValue(
+                    target: widget.width,
+                    spring: OcSpring.pane,
+                    falling: OcSpring.paneOut,
+                    builder: (context, width, float) => Positioned(
+                      key: ShellKeys.side,
+                      top: 0,
+                      bottom: OcFloats.gap,
+                      right: OcFloats.gap - offset,
+                      width: width,
+                      child: float!,
+                    ),
                     child: OcFloat(
                       key: ShellKeys.panel,
                       color: colors.sidebar,

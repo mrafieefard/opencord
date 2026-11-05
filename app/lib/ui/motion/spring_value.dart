@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:opencord/ui/motion/oc_spring.dart';
 
@@ -14,9 +15,23 @@ class SpringValue extends StatefulWidget {
     this.falling,
     this.delay = Duration.zero,
     this.fallingDelay = Duration.zero,
-    required this.builder,
+    required ValueWidgetBuilder<double> this.builder,
     this.child,
-  });
+  }) : listenableBuilder = null;
+
+  /// Builds once with the moving value itself, for what repaints from it, or
+  /// hands it on, without a rebuild each frame.
+  const SpringValue.listenable({
+    super.key,
+    required this.target,
+    required this.spring,
+    this.falling,
+    this.delay = Duration.zero,
+    this.fallingDelay = Duration.zero,
+    required ValueWidgetBuilder<ValueListenable<double>> builder,
+    this.child,
+  }) : builder = null,
+       listenableBuilder = builder;
 
   final double target;
 
@@ -33,7 +48,8 @@ class SpringValue extends StatefulWidget {
   /// The same as [delay], for a fall.
   final Duration fallingDelay;
 
-  final ValueWidgetBuilder<double> builder;
+  final ValueWidgetBuilder<double>? builder;
+  final ValueWidgetBuilder<ValueListenable<double>>? listenableBuilder;
   final Widget? child;
 
   @override
@@ -104,9 +120,13 @@ class _SpringValueState extends State<SpringValue>
 
   @override
   Widget build(BuildContext context) {
+    final listenableBuilder = widget.listenableBuilder;
+    if (listenableBuilder != null) {
+      return listenableBuilder(context, _controller, widget.child);
+    }
     return ValueListenableBuilder<double>(
       valueListenable: _controller,
-      builder: widget.builder,
+      builder: widget.builder!,
       child: widget.child,
     );
   }

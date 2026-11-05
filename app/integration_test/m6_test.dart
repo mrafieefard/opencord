@@ -73,7 +73,7 @@ void main() {
           ),
         );
         if (find.byKey(DesktopShell.membersKey).evaluate().isEmpty) {
-          await tester.tap(find.byTooltip('Member list'));
+          await tester.tap(find.byTooltip('Open the right pane'));
         }
         await waitFor(
           tester,

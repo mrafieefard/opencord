@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/music/music_search.dart';
 import 'package:opencord/features/music/music_source_icon.dart';
@@ -35,8 +34,8 @@ Finder _inPanel(Finder finder) =>
 Finder _inMenu(Finder finder) =>
     find.descendant(of: find.byType(OcMenuPanel), matching: finder);
 
-Finder _headerButton(String tooltip) => find.descendant(
-  of: find.byType(ChatHeader),
+Finder _paneButton(String tooltip) => find.descendant(
+  of: find.byKey(DesktopShell.membersKey),
   matching: find.byWidgetPredicate(
     (widget) => widget is OcIconButton && widget.tooltip == tooltip,
   ),
@@ -45,7 +44,7 @@ Finder _headerButton(String tooltip) => find.descendant(
 Future<void> _openMusic(WidgetTester tester) async {
   await tester.tap(_inSidebar('General'));
   await _settle(tester);
-  await tester.tap(_headerButton('Music'));
+  await tester.tap(_paneButton('Music'));
   await _settle(tester);
 }
 
