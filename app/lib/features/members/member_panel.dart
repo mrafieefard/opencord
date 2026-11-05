@@ -30,10 +30,7 @@ import 'package:opencord/ui/widgets/ellipsis_text.dart';
 /// The member panel (§4.7, Telegram's "group info"): who can see the open
 /// channel, in sections by hoisted role, online and offline.
 class MemberPanel extends ConsumerStatefulWidget {
-  const MemberPanel({
-    super.key,
-    required this.onClose,
-  });
+  const MemberPanel({super.key, required this.onClose});
 
   final VoidCallback onClose;
 
@@ -108,10 +105,7 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PanelHeader(
-            padding: const EdgeInsets.only(
-              left: 16,
-              right: 8,
-            ),
+            padding: const EdgeInsets.only(left: 16, right: 8),
             child: Row(
               children: [
                 if (musicOffered)
@@ -269,10 +263,7 @@ class MemberRow extends StatelessWidget {
           duration: OcMotion.of(context).hover,
           margin: const EdgeInsets.symmetric(horizontal: 8),
           constraints: const BoxConstraints(minHeight: 44),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 4,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: state.active ? colors.hover : null,
             borderRadius: BorderRadius.circular(10),

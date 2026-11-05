@@ -139,7 +139,7 @@ void main() {
     final session = _session(app)!;
     expect(session.nowPlaying?.track.title, 'lofi 1');
     expect(session.queue.map((item) => item.track.title), ['lofi 2']);
-    expect(_inPanel(find.text('Up next')), findsOneWidget);
+    expect(_inPanel(find.text('UP NEXT')), findsOneWidget);
     expect(find.byType(MusicQueueRow), findsOneWidget);
 
     // Not a participant: no tile, and the card only in the users list.
@@ -448,10 +448,7 @@ void main() {
       // Reopening and picking Members opens Members.
       await _paneOn(tester, 'Members');
       expect(find.byType(MemberPanel), findsOneWidget);
-      expect(
-        (tester.widget(_paneButton('Members')) as dynamic).active,
-        isTrue,
-      );
+      expect((tester.widget(_paneButton('Members')) as dynamic).active, isTrue);
 
       // Close MemberPanel via its close button.
       final memberClose = find.descendant(
@@ -472,25 +469,24 @@ void main() {
     },
   );
 
-  testWidgets(
-    'the header has the PaneSwitch when music is offered',
-    (tester) async {
-      final app = await MockApp.pump(tester);
-      await tester.tap(_inSidebar('General'));
-      await _settle(tester);
+  testWidgets('the header has the PaneSwitch when music is offered', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await tester.tap(_inSidebar('General'));
+    await _settle(tester);
 
-      // In MemberPanel: PaneSwitch shows.
-      expect(find.byType(MemberPanel), findsOneWidget);
-      expect(find.byType(PaneSwitch), findsOneWidget);
+    // In MemberPanel: PaneSwitch shows.
+    expect(find.byType(MemberPanel), findsOneWidget);
+    expect(find.byType(PaneSwitch), findsOneWidget);
 
-      // In MusicPanel: PaneSwitch shows.
-      await _paneOn(tester, 'Music');
-      expect(find.byType(MusicPanel), findsOneWidget);
-      expect(find.byType(PaneSwitch), findsOneWidget);
+    // In MusicPanel: PaneSwitch shows.
+    await _paneOn(tester, 'Music');
+    expect(find.byType(MusicPanel), findsOneWidget);
+    expect(find.byType(PaneSwitch), findsOneWidget);
 
-      await app.dispose(tester);
-    },
-  );
+    await app.dispose(tester);
+  });
 
   testWidgets('NowPlayingCard opens the music panel using the shared action', (
     tester,

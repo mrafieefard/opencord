@@ -10,7 +10,7 @@ import 'package:opencord/ui/widgets/hoverable.dart';
 /// The switch in the side slot's header: People · Music (§5.13).
 class PaneSwitch extends ConsumerWidget {
   const PaneSwitch({
-    super.key,
+    super.key = const GlobalObjectKey('pane-switch'),
     this.mode,
     this.onChanged,
   });
@@ -41,12 +41,14 @@ class PaneSwitch extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           PaneSwitchButton(
+            key: const ValueKey('pane-switch-people'),
             label: 'People',
             selected: current == RightPanelMode.people,
             onTap: () => select(RightPanelMode.people),
           ),
           const SizedBox(width: 2),
           PaneSwitchButton(
+            key: const ValueKey('pane-switch-music'),
             label: 'Music',
             selected: current == RightPanelMode.music,
             onTap: () => select(RightPanelMode.music),

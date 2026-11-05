@@ -127,7 +127,7 @@ class MessageBubble extends StatelessWidget {
         : colors.bubbleIn;
     final radius = _radius;
     final content = Padding(
-      padding: const EdgeInsets.fromLTRB(12, 7, 12, 8),
+      padding: EdgeInsets.fromLTRB(mentionsMe ? 13 : 12, 7, 12, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -155,8 +155,7 @@ class MessageBubble extends StatelessWidget {
                         : _Meta.size(context, message, own: own),
                   ),
                 ),
-                if (!separateMeta)
-                  Positioned(right: 0, bottom: -1, child: meta),
+                if (!separateMeta) Positioned(right: 0, bottom: 2, child: meta),
               ],
             ),
           if (message.attachments.isNotEmpty)
@@ -199,34 +198,25 @@ class MessageBubble extends StatelessWidget {
         ],
       ),
     );
-    return AnimatedContainer(
+    final bubble = AnimatedContainer(
       duration: OcMotion.of(context).morph,
       constraints: const BoxConstraints(maxWidth: OcSize.bubbleMaxWidth),
-      clipBehavior: mentionsMe ? Clip.antiAlias : Clip.none,
+      clipBehavior: Clip.none,
       decoration: BoxDecoration(
         color: background,
         borderRadius: radius,
         border: Border.all(color: colors.border, width: 1.0),
       ),
       // Shrink-wraps the content, so short messages get short bubbles.
-      child: IntrinsicWidth(
-        child: mentionsMe
-            ? Stack(
-                children: [
-                  content,
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: ColoredBox(
-                      color: colors.text,
-                      child: const SizedBox(width: 2),
-                    ),
-                  ),
-                ],
-              )
-            : content,
+      child: IntrinsicWidth(child: content),
+    );
+    if (!mentionsMe) return bubble;
+    return CustomPaint(
+      foregroundPainter: _MentionBorderPainter(
+        radius: radius,
+        color: colors.text,
       ),
+      child: bubble,
     );
   }
 }
@@ -455,7 +445,10 @@ class _ReplyQuote extends StatelessWidget {
                   Container(width: 2, color: colors.textSecondary),
                   Flexible(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -531,7 +524,7 @@ class ReactionChip extends StatelessWidget {
               reaction.emoji,
               style: const TextStyle(fontSize: 13, height: 1),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 5),
             Text(
               '${reaction.count}',
               style: OcText.small.copyWith(
@@ -547,4 +540,42 @@ class ReactionChip extends StatelessWidget {
     );
     return names == null ? chip : Tooltip(message: names!, child: chip);
   }
+}
+
+/// A 2 px left border following the bubble's radius, a `(` (§5.11).
+class _MentionBorderPainter extends CustomPainter {
+  const _MentionBorderPainter({required this.radius, required this.color});
+
+  final BorderRadius radius;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rrect = radius.toRRect(rect.deflate(1.0));
+    final path = Path()
+      ..moveTo(rrect.left + rrect.tlRadiusX, rrect.top)
+      ..arcToPoint(
+        Offset(rrect.left, rrect.top + rrect.tlRadiusY),
+        radius: Radius.circular(rrect.tlRadiusX),
+        clockwise: false,
+      )
+      ..lineTo(rrect.left, rrect.bottom - rrect.blRadiusY)
+      ..arcToPoint(
+        Offset(rrect.left + rrect.blRadiusX, rrect.bottom),
+        radius: Radius.circular(rrect.blRadiusX),
+        clockwise: false,
+      );
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_MentionBorderPainter oldDelegate) =>
+      radius != oldDelegate.radius || color != oldDelegate.color;
 }

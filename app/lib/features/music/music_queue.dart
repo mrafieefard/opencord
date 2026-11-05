@@ -293,16 +293,14 @@ class MusicQueueRow extends ConsumerWidget {
       ).select((state) => state.data?.members[item.requesterId]?.displayName),
     );
     final track = item.track;
-    final subtitle = [
-      if (track.artist.isNotEmpty) track.artist,
-      track.isStream ? 'LIVE' : formatTrackTime(track.duration),
-    ].join(' · ');
+    final subtitle = track.artist;
+    final duration = track.isStream ? 'LIVE' : formatTrackTime(track.duration);
     return RepaintBoundary(
       child: Builder(
         builder: (row) => Hoverable(
           onSecondaryTap: (position) => _menu(row, ref, position),
           semanticLabel:
-              '${index + 1}. ${track.title}, $subtitle, added by '
+              '${index + 1}. ${track.title}, $subtitle, $duration, added by '
               '${requester ?? 'someone'}',
           builder: (context, state) => AnimatedContainer(
             duration: OcMotion.of(context).hover,
@@ -338,16 +336,25 @@ class MusicQueueRow extends ConsumerWidget {
                           color: colors.text,
                         ),
                       ),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: OcText.small.copyWith(
-                          fontSize: 11,
-                          color: colors.textMuted,
+                      if (subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: OcText.small.copyWith(
+                            fontSize: 11,
+                            color: colors.textMuted,
+                          ),
                         ),
-                      ),
                     ],
+                  ),
+                ),
+                const SizedBox(width: OcSpace.s8),
+                Text(
+                  duration,
+                  style: OcText.meta.copyWith(
+                    fontSize: 11,
+                    color: colors.textMuted,
                   ),
                 ),
                 const SizedBox(width: OcSpace.s8),

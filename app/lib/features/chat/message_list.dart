@@ -383,13 +383,11 @@ class _MessageListState extends ConsumerState<MessageList>
           // Bubbles keep to a readable column; compact lines use the
           // whole width, as in private chats.
           final side = compact
-              ? OcSpace.s16
-              : math.max(
-                  OcSpace.s16,
-                  (constraints.maxWidth - OcSize.messageColumn) / 2,
-                );
-          final topPadding =
-              widget.topInset > 0 ? widget.topInset : OcSpace.s12;
+              ? 16.0
+              : 16.0 + math.max(0.0, (constraints.maxWidth - 880.0) / 2.0);
+          final topPadding = widget.topInset > 0
+              ? widget.topInset
+              : OcSpace.s12;
           return Stack(
             children: [
               NotificationListener<ScrollNotification>(
@@ -400,12 +398,7 @@ class _MessageListState extends ConsumerState<MessageList>
                   anchor: 1,
                   slivers: [
                     SliverPadding(
-                      padding: EdgeInsets.fromLTRB(
-                        side,
-                        topPadding,
-                        side,
-                        0,
-                      ),
+                      padding: EdgeInsets.fromLTRB(side, topPadding, side, 0),
                       sliver: SliverList.builder(
                         itemCount: split + (state.hasOlder ? 1 : 0),
                         findChildIndexCallback: (key) =>

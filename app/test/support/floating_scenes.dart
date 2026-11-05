@@ -78,6 +78,7 @@ const floatingScenes = [
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
   FloatingScene('music', playMusic),
+  FloatingScene('music-playing', playMusicPlaying),
   FloatingScene('dm', playDm),
   FloatingScene('friends', playFriends),
   FloatingScene('pending', playPending),
@@ -365,6 +366,31 @@ Future<void> playVoiceFocus(SceneDriver scene) async {
 Future<void> playMusic(SceneDriver scene) async {
   await openVoicePage(scene);
   await scene.paneOn('Music');
+  await scene.settle(600);
+}
+
+Future<void> playMusicPlaying(SceneDriver scene) async {
+  await playMusic(scene);
+  final tester = scene.tester;
+  final search = find.bySemanticsLabel('Search for music');
+  if (search.evaluate().isNotEmpty) {
+    await tester.enterText(search.first, 'lofi');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await scene.settle(600);
+    final adds = find.byTooltip('Add to queue');
+    final count = adds.evaluate().length;
+    for (var i = 0; i < math.min(2, count); i++) {
+      await tester.ensureVisible(adds.at(i));
+      await tester.pump();
+      await tester.tap(adds.at(i), warnIfMissed: false);
+      await scene.settle(300);
+    }
+    final back = find.text('Back to queue');
+    if (back.evaluate().isNotEmpty) {
+      await tester.tap(back.first);
+      await scene.settle(600);
+    }
+  }
 }
 
 Future<void> openPrivate(SceneDriver scene) async {

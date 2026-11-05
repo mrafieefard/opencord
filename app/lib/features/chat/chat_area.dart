@@ -87,10 +87,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
     final body = Stack(
       children: [
         Positioned.fill(
-          child: Opacity(
-            opacity: unreachable ? 0.55 : 1,
-            child: messages,
-          ),
+          child: Opacity(opacity: unreachable ? 0.55 : 1, child: messages),
         ),
         if (hasPins)
           Positioned(

@@ -10,7 +10,6 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
-import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
@@ -93,9 +92,16 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 4,
-        trackShape: const RoundedRectSliderTrackShape(),
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+        trackShape: const _MusicSliderTrackShape(),
+        thumbShape: _dragging == null
+            ? const RoundSliderThumbShape(
+                enabledThumbRadius: 0,
+                disabledThumbRadius: 0,
+              )
+            : const RoundSliderThumbShape(enabledThumbRadius: 6),
+        overlayShape: _dragging == null
+            ? SliderComponentShape.noOverlay
+            : const RoundSliderOverlayShape(overlayRadius: 12),
         activeTrackColor: colors.text,
         inactiveTrackColor: colors.selected,
         thumbColor: colors.text,
@@ -137,28 +143,74 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            height: 24,
+            height: 4,
             child: why == null ? slider : Tooltip(message: why, child: slider),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),
-            child: Row(
-              children: [
-                Text(formatTrackTime(shown), style: style),
-                const Spacer(),
-                Text(
-                  track == null
-                      ? '0:00'
-                      : track.isStream
-                      ? 'LIVE'
-                      : formatTrackTime(length),
-                  style: style,
-                ),
-              ],
-            ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(formatTrackTime(shown), style: style),
+              const Spacer(),
+              Text(
+                track == null
+                    ? '0:00'
+                    : track.isStream
+                    ? 'LIVE'
+                    : formatTrackTime(length),
+                style: style,
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MusicSliderTrackShape extends RoundedRectSliderTrackShape {
+  const _MusicSliderTrackShape();
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final trackHeight = sliderTheme.trackHeight ?? 4.0;
+    final trackLeft = offset.dx;
+    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 0,
+  }) {
+    super.paint(
+      context,
+      offset,
+      parentBox: parentBox,
+      sliderTheme: sliderTheme,
+      enableAnimation: enableAnimation,
+      textDirection: textDirection,
+      thumbCenter: thumbCenter,
+      secondaryOffset: secondaryOffset,
+      isDiscrete: isDiscrete,
+      isEnabled: isEnabled,
+      additionalActiveTrackHeight: 0,
     );
   }
 }
@@ -342,9 +394,9 @@ class _PlayButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: enabled
                 ? playing
-                    ? (state.active ? colors.textSecondary : colors.accent)
-                    : (state.active ? colors.hover : colors.surface)
-                : colors.hover,
+                      ? (state.active ? colors.textSecondary : colors.accent)
+                      : (state.active ? colors.hover : colors.surface)
+                : colors.surface,
             border: playing ? null : Border.all(color: colors.border),
           ),
           child: Icon(

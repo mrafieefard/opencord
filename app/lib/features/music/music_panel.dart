@@ -47,11 +47,7 @@ final musicOfferedProvider = Provider.autoDispose.family<bool, MusicChannel>((
 /// The music panel (§19.4): the track in the middle, what comes next
 /// underneath. It replaces the users list, 340 px wide.
 class MusicPanel extends ConsumerWidget {
-  const MusicPanel({
-    super.key,
-    required this.channel,
-    required this.onClose,
-  });
+  const MusicPanel({super.key, required this.channel, required this.onClose});
 
   final MusicChannel channel;
   final VoidCallback onClose;
@@ -72,10 +68,7 @@ class MusicPanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PanelHeader(
-            padding: const EdgeInsets.only(
-              left: 16,
-              right: 8,
-            ),
+            padding: const EdgeInsets.only(left: 16, right: 8),
             child: Row(
               children: [
                 if (musicOffered) ...[
@@ -313,16 +306,12 @@ class _MusicBodyState extends ConsumerState<_MusicBody> {
             sliver: MusicUploadsList(channel: channel),
           ),
           if (searching) ...[
-            SliverPadding(
-              padding: pad,
-              sliver: SliverToBoxAdapter(
-                child: _SectionTitle(
-                  'Results',
-                  action: (
-                    'Back to queue',
-                    () =>
-                        ref.read(musicSearchProvider(channel).notifier).close(),
-                  ),
+            SliverToBoxAdapter(
+              child: _SectionTitle(
+                'Results',
+                action: (
+                  'Back to queue',
+                  () => ref.read(musicSearchProvider(channel).notifier).close(),
                 ),
               ),
             ),
@@ -343,12 +332,7 @@ class _MusicBodyState extends ConsumerState<_MusicBody> {
                 ),
               ),
             if (queued)
-              SliverPadding(
-                padding: pad,
-                sliver: SliverToBoxAdapter(
-                  child: _UpNextTitle(channel: channel),
-                ),
-              ),
+              SliverToBoxAdapter(child: _UpNextTitle(channel: channel)),
             SliverPadding(
               padding: pad,
               sliver: MusicQueueList(channel: channel),
@@ -491,6 +475,7 @@ class NowPlayingView extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DragTarget<MusicDrop>(
             onWillAcceptWithDetails: (_) => access.canManageQueue,
@@ -522,7 +507,6 @@ class NowPlayingView extends ConsumerWidget {
             track?.title ?? 'Nothing playing',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
             style: OcText.title.copyWith(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -530,23 +514,18 @@ class NowPlayingView extends ConsumerWidget {
             ),
           ),
           if (track != null && track.artist.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                track.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: OcText.small.copyWith(
-                  fontSize: 12.5,
-                  color: colors.textSecondary,
-                ),
+            Text(
+              track.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: OcText.small.copyWith(
+                fontSize: 12.5,
+                color: colors.textSecondary,
               ),
             ),
           if (track != null) ...[
             const SizedBox(height: 2),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (track.sourceName.isNotEmpty) ...[
                   SourcePill(track.sourceName),
@@ -597,12 +576,11 @@ class NowPlayingView extends ConsumerWidget {
           ),
           if (notice != null)
             Padding(
-              padding: const EdgeInsets.only(top: OcSpace.s8),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 notice.text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
                 style: OcText.meta.copyWith(color: colors.textMuted),
               ),
             ),
@@ -623,12 +601,12 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: OcSpace.s6),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: Row(
         children: [
           Text(
-            title,
-            style: OcText.label.copyWith(color: colors.textSecondary),
+            title.toUpperCase(),
+            style: OcText.label.copyWith(color: colors.textMuted),
           ),
           if (detail != null) ...[
             const SizedBox(width: OcSpace.s8),
@@ -637,7 +615,10 @@ class _SectionTitle extends StatelessWidget {
                 detail!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: OcText.meta.copyWith(color: colors.textMuted),
+                style: OcText.meta.copyWith(
+                  fontSize: 11.5,
+                  color: colors.textMuted,
+                ),
               ),
             ),
           ] else

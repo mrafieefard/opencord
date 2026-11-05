@@ -84,7 +84,6 @@ class _MarkdownViewState extends State<MarkdownView> {
   List<InlineSpan> _spans(List<MdInline> inlines, TextStyle base) {
     final colors = context.oc;
     final links = widget.links;
-    final highlight = Paint()..color = colors.mentionBg;
     return [
       for (final inline in inlines)
         switch (inline) {
@@ -98,12 +97,19 @@ class _MarkdownViewState extends State<MarkdownView> {
                 decorationColor: base.color,
               ),
             ),
-          MdInlineCode(:final code) => TextSpan(
-            text: code,
-            style: OcText.mono.copyWith(
-              fontSize: (base.fontSize ?? 14) * 0.9,
-              color: base.color,
-              background: highlight,
+          MdInlineCode(:final code) => WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: colors.mentionBg,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                code,
+                style: OcText.mono.copyWith(fontSize: 12.5, color: base.color),
+              ),
             ),
           ),
           MdLink(:final url) => TextSpan(
@@ -117,27 +123,57 @@ class _MarkdownViewState extends State<MarkdownView> {
                 ? null
                 : _tap(() => links.onLink!(url)),
           ),
-          MdUserMention(:final userId) => TextSpan(
-            text: '@${links.userName(userId) ?? 'unknown'}',
-            style: base.copyWith(
-              fontWeight: FontWeight.w600,
-              background: highlight,
+          MdUserMention(:final userId) => WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: links.onUser == null
+                    ? null
+                    : () => links.onUser!(userId),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.mentionBg,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '@${links.userName(userId) ?? 'unknown'}',
+                    style: base.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
             ),
-            mouseCursor: SystemMouseCursors.click,
-            recognizer: links.onUser == null
-                ? null
-                : _tap(() => links.onUser!(userId)),
           ),
-          MdChannelMention(:final channelId) => TextSpan(
-            text: '#${links.channelName(channelId) ?? 'unknown'}',
-            style: base.copyWith(
-              fontWeight: FontWeight.w600,
-              background: highlight,
+          MdChannelMention(:final channelId) => WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: links.onChannel == null
+                    ? null
+                    : () => links.onChannel!(channelId),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.mentionBg,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '#${links.channelName(channelId) ?? 'unknown'}',
+                    style: base.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
             ),
-            mouseCursor: SystemMouseCursors.click,
-            recognizer: links.onChannel == null
-                ? null
-                : _tap(() => links.onChannel!(channelId)),
           ),
         },
     ];
@@ -170,7 +206,7 @@ class _MarkdownViewState extends State<MarkdownView> {
               ),
             ]
           : const <InlineSpan>[];
-      if (children.isNotEmpty) {
+      if (children.isNotEmpty && blocks[i - 1] is! MdQuote) {
         children.add(const SizedBox(height: OcSpace.s4));
       }
       children.add(switch (block) {
@@ -186,7 +222,7 @@ class _MarkdownViewState extends State<MarkdownView> {
           ),
         ),
         MdQuote(:final inlines) => Container(
-          margin: const EdgeInsets.fromLTRB(0, 2, 0, 3),
+          margin: const EdgeInsets.fromLTRB(0, 1, 0, 2),
           padding: const EdgeInsets.only(left: OcSpace.s8),
           decoration: BoxDecoration(
             border: Border(left: BorderSide(color: colors.textMuted, width: 2)),

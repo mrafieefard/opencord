@@ -62,10 +62,12 @@ void main() {
 
     // Switch container: padding 2, radius 10, background hover.
     final switchContainer = tester.widget<Container>(
-      find.descendant(
-        of: find.byType(PaneSwitch),
-        matching: find.byType(Container),
-      ).first,
+      find
+          .descendant(
+            of: find.byType(PaneSwitch),
+            matching: find.byType(Container),
+          )
+          .first,
     );
     expect(switchContainer.padding, const EdgeInsets.all(2));
     final switchDeco = switchContainer.decoration as BoxDecoration;
@@ -160,10 +162,7 @@ void main() {
       find.descendant(of: rowFinder, matching: find.byType(AnimatedContainer)),
     );
     expect(container.constraints?.minHeight, 44);
-    expect(
-      container.margin,
-      const EdgeInsets.symmetric(horizontal: 8),
-    );
+    expect(container.margin, const EdgeInsets.symmetric(horizontal: 8));
     expect(
       container.padding,
       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -181,9 +180,7 @@ void main() {
     final sizedBox = tester.widget<SizedBox>(
       find.descendant(
         of: rowFinder,
-        matching: find.byWidgetPredicate(
-          (w) => w is SizedBox && w.width == 10,
-        ),
+        matching: find.byWidgetPredicate((w) => w is SizedBox && w.width == 10),
       ),
     );
     expect(sizedBox.width, 10);
@@ -206,10 +203,12 @@ void main() {
     await _settle(tester);
 
     // Section padding: 10 16 4.
-    final sectionFinder = find.descendant(
-      of: find.byType(MemberPanel),
-      matching: find.byType(SectionLabel),
-    ).first;
+    final sectionFinder = find
+        .descendant(
+          of: find.byType(MemberPanel),
+          matching: find.byType(SectionLabel),
+        )
+        .first;
     expect(sectionFinder, findsOneWidget);
     final section = tester.widget<SectionLabel>(sectionFinder);
     expect(section.padding, const EdgeInsets.fromLTRB(16, 10, 16, 4));
@@ -246,10 +245,12 @@ void main() {
 
     // Art: height 172, radius 14.
     final art = tester.widget<MusicArtwork>(
-      find.descendant(
-        of: find.byType(NowPlayingView),
-        matching: find.byType(MusicArtwork),
-      ).first,
+      find
+          .descendant(
+            of: find.byType(NowPlayingView),
+            matching: find.byType(MusicArtwork),
+          )
+          .first,
     );
     expect(art.height, 172);
     expect(art.radius, 14);
@@ -288,6 +289,49 @@ void main() {
     );
     expect(playBox.constraints?.minWidth, 48);
     expect(playBox.constraints?.minHeight, 48);
+    final playDecoAtRest = playBox.decoration as BoxDecoration;
+    expect(playDecoAtRest.color, colors.surface);
+    expect(playDecoAtRest.border?.top.color, colors.border);
+
+    // Search and play track: play button inverts to colors.accent and 48x48
+    final search = find.descendant(
+      of: find.byType(MusicPanel),
+      matching: find.bySemanticsLabel('Search for music'),
+    );
+    await tester.enterText(search.first, 'lofi');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await _settle(tester);
+
+    final addBtn = find.descendant(
+      of: find.byType(MusicPanel),
+      matching: find.byTooltip('Add to queue'),
+    );
+    expect(addBtn, findsWidgets);
+    await tester.tap(addBtn.first);
+    await _settle(tester);
+
+    final backBtn = find.descendant(
+      of: find.byType(MusicPanel),
+      matching: find.text('Back to queue'),
+    );
+    if (backBtn.evaluate().isNotEmpty) {
+      await tester.tap(backBtn.first);
+      await _settle(tester);
+    }
+
+    // Now track is playing, check play button while playing:
+    final playButtonPlaying = tester.widget<AnimatedContainer>(
+      find.descendant(
+        of: find.byType(MusicTransport),
+        matching: find.byWidgetPredicate(
+          (w) => w is AnimatedContainer && w.constraints?.minWidth == 48,
+        ),
+      ),
+    );
+    expect(playButtonPlaying.constraints?.minWidth, 48);
+    expect(playButtonPlaying.constraints?.minHeight, 48);
+    final playDecoPlaying = playButtonPlaying.decoration as BoxDecoration;
+    expect(playDecoPlaying.color, colors.accent);
 
     // Transport gaps: 10 px apart.
     final transportRow = tester.widget<Row>(
