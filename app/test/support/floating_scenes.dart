@@ -16,9 +16,11 @@ import 'package:opencord/app.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import 'app.dart';
 import 'finders.dart';
@@ -86,6 +88,12 @@ const floatingScenes = [
     'pane-resized',
     playPaneResized,
     widths: [wide1440, wide1280, wide1180],
+    light: [wide1280],
+  ),
+  FloatingScene(
+    'settings-appearance',
+    playSettingsAppearance,
+    widths: [wide1280],
     light: [wide1280],
   ),
   FloatingScene('voice', playVoice),
@@ -374,6 +382,25 @@ Future<void> playPaneResized(SceneDriver scene) async {
   await scene.settle();
   await scene.hoverAt(tester.getCenter(find.byKey(ShellKeys.sideSplitter)));
   await scene.settle(200);
+}
+
+/// The User settings dialog open on Appearance.
+Future<void> playSettingsAppearance(SceneDriver scene) async {
+  await playText(scene);
+  final tester = scene.tester;
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is OcIconButton && widget.tooltip == 'User settings',
+    ),
+  );
+  await scene.settle(300);
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Appearance'),
+    ),
+  );
+  await scene.settle(300);
 }
 
 /// The voice page, without the pointer over it.

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/dialogs/add_server_dialog.dart';
 import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -65,9 +65,9 @@ void main() {
 
     expect(app.read(currentChannelProvider), general);
     final highlighted = tester
-        .widgetList<MessageBubble>(find.byType(MessageBubble))
-        .where((bubble) => bubble.highlighted);
-    expect(highlighted.map((bubble) => bubble.message.id), [oldest.id]);
+        .widgetList<CompactMessage>(find.byType(CompactMessage))
+        .where((row) => row.highlighted);
+    expect(highlighted.map((row) => row.message.id), [oldest.id]);
     await app.dispose(tester);
   });
 

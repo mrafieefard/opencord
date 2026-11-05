@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/chat_scroll.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
@@ -61,13 +61,13 @@ void main() {
     app.read(navigationProvider.notifier).openChannel(_dev, stress.channel);
     await _pumpFor(tester, const Duration(seconds: 2));
 
-    final bubble = find.byWidgetPredicate(
-      (widget) => widget is MessageBubble && widget.message.id == far.id,
+    final row = find.byWidgetPredicate(
+      (widget) => widget is CompactMessage && widget.message.id == far.id,
     );
-    expect(bubble, findsOneWidget);
+    expect(row, findsOneWidget);
     final list = tester.getRect(find.byType(MessageList));
-    // The row starts at 120; its bubble sits a little lower.
-    expect(tester.getTopLeft(bubble).dy - list.top, inInclusiveRange(120, 140));
+    // The row starts at 120.
+    expect(tester.getTopLeft(row).dy - list.top, inInclusiveRange(120, 140));
     await app.dispose(tester);
   });
 

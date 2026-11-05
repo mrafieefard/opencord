@@ -10,7 +10,6 @@ import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/features/chat/chat_controller.dart';
 import 'package:opencord/features/chat/chat_row_view.dart';
@@ -342,9 +341,6 @@ class _MessageListState extends ConsumerState<MessageList>
     final actions = _actions(data);
     final now = ref.read(clockProvider)();
     final reactions = ref.read(repositoryProvider).capabilities.reactions;
-    final compact =
-        ref.watch(appSettingsProvider.select((settings) => settings.density)) ==
-        MessageDensity.compact;
     Widget rowAt(int index) {
       final row = rows[index];
       final message = messageOf(row);
@@ -362,7 +358,6 @@ class _MessageListState extends ConsumerState<MessageList>
             channel: channel,
             now: now,
             reactions: reactions,
-            compact: compact,
             highlighted: message != null && message.id == _highlight,
           ),
         ),
@@ -380,11 +375,8 @@ class _MessageListState extends ConsumerState<MessageList>
     return Overlay.wrap(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Bubbles keep to a readable column; compact lines use the
-          // whole width, as in private chats.
-          final side = compact
-              ? 16.0
-              : 16.0 + math.max(0.0, (constraints.maxWidth - 880.0) / 2.0);
+          // Compact lines use the whole width, with standard side padding.
+          const side = 16.0;
           final topPadding = widget.topInset > 0
               ? widget.topInset
               : OcSpace.s12;

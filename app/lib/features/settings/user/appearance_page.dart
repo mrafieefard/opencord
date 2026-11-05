@@ -8,7 +8,7 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 
-/// Appearance (§8.1): theme, message density, font size and reduce motion.
+/// Appearance (§8.1): theme, font size and reduce motion.
 class AppearancePage extends ConsumerWidget {
   const AppearancePage({super.key});
 
@@ -44,34 +44,6 @@ class AppearancePage extends ConsumerWidget {
                     value: ThemePreference.light,
                     label: 'Light',
                     preview: ThemeMiniature(OcColors.light),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: OcSpace.s24),
-        SettingsSection(
-          title: 'Message density',
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(OcSpace.s12),
-              child: SettingsChoiceCards<MessageDensity>(
-                value: settings.density,
-                onChanged: (density) =>
-                    update((s) => s.copyWith(density: density)),
-                options: const [
-                  ChoiceCardOption(
-                    value: MessageDensity.comfortable,
-                    label: 'Comfortable',
-                    description: 'Bubbles, with room to breathe',
-                    preview: DensityMiniature(compact: false),
-                  ),
-                  ChoiceCardOption(
-                    value: MessageDensity.compact,
-                    label: 'Compact',
-                    description: 'Rows with avatars, more on screen',
-                    preview: DensityMiniature(compact: true),
                   ),
                 ],
               ),
@@ -260,82 +232,4 @@ class _LeftHalf extends CustomClipper<Rect> {
 
   @override
   bool shouldReclip(_LeftHalf oldClipper) => false;
-}
-
-/// Bubbles or rows, drawn small for the density choice.
-class DensityMiniature extends StatelessWidget {
-  const DensityMiniature({super.key, required this.compact});
-
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.oc;
-    Widget bar(double width, {Color? color}) => Container(
-      width: width,
-      height: compact ? 5 : 10,
-      decoration: BoxDecoration(
-        color: color ?? colors.selected,
-        borderRadius: BorderRadius.circular(compact ? 2 : 4),
-      ),
-    );
-    return Container(
-      height: ThemeMiniature.size.height,
-      padding: const EdgeInsets.all(OcSpace.s8),
-      decoration: BoxDecoration(
-        color: colors.chat,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
-      child: compact
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (final (index, lines) in const [
-                  [80.0, 56.0],
-                  [64.0],
-                ].indexed) ...[
-                  if (index > 0) const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: colors.hover,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          bar(28, color: colors.textMuted),
-                          for (final width in lines) ...[
-                            const SizedBox(height: 3),
-                            bar(width),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            )
-          : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Align(alignment: Alignment.centerLeft, child: bar(70)),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: bar(54, color: colors.bubbleOut),
-                ),
-                const SizedBox(height: 6),
-                Align(alignment: Alignment.centerLeft, child: bar(40)),
-              ],
-            ),
-    );
-  }
 }

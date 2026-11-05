@@ -103,16 +103,13 @@ void main() {
     );
   }
 
-  testWidgets('the theme and density wait for Save changes; Discard drops '
-      'them', (tester) async {
+  testWidgets('Appearance changes wait for the save bar', (tester) async {
     final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
     await _openSettings(tester);
     await _page(tester, 'Appearance');
     final before = app.read(appSettingsProvider);
 
     await tester.tap(_inPage(find.text('Light')));
-    await tester.pump();
-    await tester.tap(_inPage(find.text('Compact')));
     await _pumpFor(tester, const Duration(milliseconds: 300));
     expect(app.read(appSettingsProvider), before, reason: 'not yet');
     expect(find.text('Careful — you have unsaved changes!'), findsOneWidget);
@@ -123,13 +120,22 @@ void main() {
     expect(find.text('Careful — you have unsaved changes!'), findsNothing);
 
     await tester.tap(_inPage(find.text('Light')));
-    await tester.pump();
-    await tester.tap(_inPage(find.text('Compact')));
     await _saveChanges(tester);
     final settings = app.read(appSettingsProvider);
     expect(settings.theme, ThemePreference.light);
-    expect(settings.density, MessageDensity.compact);
     expect(find.text('Careful — you have unsaved changes!'), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('appearance_has_no_density', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openSettings(tester);
+    await _page(tester, 'Appearance');
+
+    expect(_inPage(find.text('Message density')), findsNothing);
+    expect(_inPage(find.text('Comfortable')), findsNothing);
+    expect(_inPage(find.text('Compact')), findsNothing);
+    expect(_inPage(find.text('Font size')), findsOneWidget);
     await app.dispose(tester);
   });
 

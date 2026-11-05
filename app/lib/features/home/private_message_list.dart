@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -8,15 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/core/settings/app_settings.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/chat_row_view.dart';
 import 'package:opencord/features/chat/chat_scroll.dart';
 import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/hover_bar.dart';
 import 'package:opencord/features/chat/links.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_item.dart';
-import 'package:opencord/features/chat/message_line.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/move_card.dart';
@@ -280,9 +277,6 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
     final state = ref.watch(privateConversationProvider(widget.peer));
     final contact = ref.watch(privateContactsProvider).byPeer[widget.peer];
     final messages = state.messages;
-    final compact =
-        ref.watch(appSettingsProvider.select((s) => s.density)) ==
-        MessageDensity.compact;
     final peerName = ref.watch(contactNameProvider(widget.peer));
 
     final links = MarkdownContext(
@@ -292,9 +286,19 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
     );
 
     ref.listen(privateConversationProvider(widget.peer), _onMessages);
-    if (_scroll == null && state.loading) return const _Spinner();
+    if (_scroll == null && state.loading) {
+      return const Align(
+        alignment: Alignment.bottomCenter,
+        child: ChatSkeleton(),
+      );
+    }
     final scroll = _scroll ??= _open(state);
-    if (scroll == null) return const _Spinner();
+    if (scroll == null) {
+      return const Align(
+        alignment: Alignment.bottomCenter,
+        child: ChatSkeleton(),
+      );
+    }
     final split = _splitOf(messages);
     _scheduleChecks();
 
@@ -310,7 +314,6 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
           m,
           index,
           messages,
-          compact,
           peerName,
           contact?.relayServerKey ?? '',
           links,
@@ -328,11 +331,8 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
     final loadingOlder = state.loading;
     return LayoutBuilder(
       builder: (context, constraints) {
-        // As a channel's list: bubbles keep to a readable column (§5.11),
-        // compact lines use the whole width.
-        final side = compact
-            ? OcSpace.s16
-            : OcSpace.s16 + math.max(0.0, (constraints.maxWidth - 880.0) / 2);
+        // Compact lines use the whole width.
+        const side = OcSpace.s16;
         return CustomScrollView(
           controller: scroll,
           center: _newerKey,
@@ -370,7 +370,6 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
     PrivateMessage m,
     int index,
     List<PrivateMessage> messages,
-    bool compact,
     String peerName,
     String relayServerKey,
     MarkdownContext links,
@@ -422,7 +421,6 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
       m,
       index,
       messages,
-      compact,
       peerName,
       relayServerKey,
       links,
@@ -457,7 +455,6 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
     PrivateMessage m,
     int index,
     List<PrivateMessage> messages,
-    bool compact,
     String peerName,
     String relayServerKey,
     MarkdownContext links,
@@ -467,15 +464,9 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
         index == 0 ||
         messages[index - 1].outgoing != m.outgoing ||
         messages[index - 1].kind != PrivateMessageKind.text;
-    final isLast =
-        index == messages.length - 1 ||
-        messages[index + 1].outgoing != m.outgoing ||
-        messages[index + 1].kind != PrivateMessageKind.text;
 
     final authorName = m.outgoing
-        ? compact
-              ? ref.read(localIdentityProvider)?.displayName ?? 'You'
-              : 'You'
+        ? ref.read(localIdentityProvider)?.displayName ?? 'You'
         : peerName;
 
     void showMenu(Rect anchor) =>
@@ -484,59 +475,30 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
       onSecondaryTap: (pos) => _showContextMenu(context, pos, m),
       semanticLabel: m.content,
       builder: (context, state) => _HoverBarAnchor(
-        compact: compact,
         onMore: showMenu,
-        builder: (anchor) => compact
-            ? anchor(
-                CompactMessage(
-                  message: chatMsg,
-                  serverKey: relayServerKey,
-                  first: isFirst,
-                  author: authorName,
-                  avatar: !isFirst
-                      ? null
-                      : m.outgoing
-                      ? _SelfAvatar(serverKey: relayServerKey, name: authorName)
-                      : ContactAvatar(
-                          peer: widget.peer,
-                          size: OcSize.messageAvatar,
-                          presenceDot: false,
-                        ),
-                  links: links,
-                  onRetry: m.state == PrivateSendState.failed
-                      ? () => ref
-                            .read(repositoryProvider)
-                            .retryPrivateMessage(m.id)
-                      : null,
-                ),
-              )
-            : MessageLine(
-                own: m.outgoing,
-                first: isFirst,
-                avatar: isLast && !m.outgoing
-                    ? ContactAvatar(
-                        peer: widget.peer,
-                        size: OcSize.messageAvatar,
-                        presenceDot: false,
-                      )
-                    : null,
-                bubble: anchor(
-                  MessageBubble(
-                    message: chatMsg,
-                    serverKey: relayServerKey,
-                    own: m.outgoing,
-                    first: isFirst,
-                    last: isLast,
-                    author: authorName,
-                    links: links,
-                    onRetry: m.state == PrivateSendState.failed
-                        ? () => ref
-                              .read(repositoryProvider)
-                              .retryPrivateMessage(m.id)
-                        : null,
+        builder: (anchor) => anchor(
+          CompactMessage(
+            message: chatMsg,
+            serverKey: relayServerKey,
+            first: isFirst,
+            author: authorName,
+            avatar: !isFirst
+                ? null
+                : m.outgoing
+                ? _SelfAvatar(serverKey: relayServerKey, name: authorName)
+                : ContactAvatar(
+                    peer: widget.peer,
+                    size: OcSize.messageAvatar,
+                    presenceDot: false,
                   ),
-                ),
-              ),
+            links: links,
+            onRetry: m.state == PrivateSendState.failed
+                ? () => ref
+                      .read(repositoryProvider)
+                      .retryPrivateMessage(m.id)
+                : null,
+          ),
+        ),
       ),
     );
   }
@@ -640,15 +602,13 @@ class _SelfAvatar extends ConsumerWidget {
 /// right-click opens the same menu.
 class _HoverBarAnchor extends StatefulWidget {
   const _HoverBarAnchor({
-    required this.compact,
     required this.onMore,
     required this.builder,
   });
 
-  final bool compact;
   final ValueChanged<Rect> onMore;
 
-  /// Builds the row, wrapping the bubble (or compact line) in `anchor`.
+  /// Builds the row, wrapping the compact line in `anchor`.
   final Widget Function(Widget Function(Widget child) anchor) builder;
 
   @override
@@ -670,7 +630,7 @@ class _HoverBarAnchorState extends State<_HoverBarAnchor> {
 
   void _show() {
     _hovered.value = true;
-    if (widget.compact && !_bar.isShowing) _bar.show();
+    if (!_bar.isShowing) _bar.show();
   }
 
   void _scheduleHide() {

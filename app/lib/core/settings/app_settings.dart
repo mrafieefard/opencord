@@ -7,8 +7,6 @@ import 'package:opencord/core/settings/key_value_store.dart';
 
 enum ThemePreference { system, dark, light }
 
-enum MessageDensity { comfortable, compact }
-
 /// User settings that are not about a particular server (§8.1).
 @immutable
 class AppSettings {
@@ -16,7 +14,6 @@ class AppSettings {
     required this.theme,
     required this.fontSize,
     required this.reduceMotion,
-    required this.density,
     required this.closeToTray,
     required this.startMinimized,
     required this.launchAtLogin,
@@ -31,7 +28,6 @@ class AppSettings {
     theme: ThemePreference.system,
     fontSize: defaultFontSize,
     reduceMotion: false,
-    density: MessageDensity.comfortable,
     closeToTray: platform != TargetPlatform.macOS,
     startMinimized: false,
     launchAtLogin: false,
@@ -66,7 +62,6 @@ class AppSettings {
           ? clampFontSize(fontSize.toDouble())
           : defaults.fontSize,
       reduceMotion: pick('reduceMotion', defaults.reduceMotion),
-      density: pickEnum('density', MessageDensity.values, defaults.density),
       closeToTray: pick('closeToTray', defaults.closeToTray),
       startMinimized: pick('startMinimized', defaults.startMinimized),
       launchAtLogin: pick('launchAtLogin', defaults.launchAtLogin),
@@ -96,7 +91,6 @@ class AppSettings {
   /// Body text size in logical pixels; scales all text (§2.2).
   final double fontSize;
   final bool reduceMotion;
-  final MessageDensity density;
   final bool closeToTray;
   final bool startMinimized;
   final bool launchAtLogin;
@@ -113,7 +107,6 @@ class AppSettings {
     ThemePreference? theme,
     double? fontSize,
     bool? reduceMotion,
-    MessageDensity? density,
     bool? closeToTray,
     bool? startMinimized,
     bool? launchAtLogin,
@@ -127,7 +120,6 @@ class AppSettings {
       theme: theme ?? this.theme,
       fontSize: clampFontSize(fontSize ?? this.fontSize),
       reduceMotion: reduceMotion ?? this.reduceMotion,
-      density: density ?? this.density,
       closeToTray: closeToTray ?? this.closeToTray,
       startMinimized: startMinimized ?? this.startMinimized,
       launchAtLogin: launchAtLogin ?? this.launchAtLogin,
@@ -144,7 +136,6 @@ class AppSettings {
     'theme': theme.name,
     'fontSize': fontSize,
     'reduceMotion': reduceMotion,
-    'density': density.name,
     'closeToTray': closeToTray,
     'startMinimized': startMinimized,
     'launchAtLogin': launchAtLogin,

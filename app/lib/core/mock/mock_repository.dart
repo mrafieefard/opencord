@@ -5118,7 +5118,12 @@ class MockRepository implements OpencordRepository {
     String peer, {
     String? before,
     int limit = 50,
-  }) => _privateWorld.privateMessages(peer, before: before, limit: limit);
+  }) async {
+    if (debugHistoryDelay > Duration.zero) {
+      await Future<void>.delayed(debugHistoryDelay);
+    }
+    return _privateWorld.privateMessages(peer, before: before, limit: limit);
+  }
 
   @override
   Future<PrivateMessage> sendPrivateMessage(String peer, String content) =>

@@ -63,7 +63,7 @@ void main() {
           reason: 'not connected after the restart',
         );
         await tester.tap(inSidebar('general'));
-        await waitFor(tester, messageBubble(_message));
+        await waitFor(tester, messageRow(_message));
       } finally {
         await SecureIdentityStore(profile: _profile).clear();
       }

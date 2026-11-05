@@ -13,11 +13,17 @@ void main() {
       expect(linux.theme, ThemePreference.system);
       expect(linux.fontSize, 14);
       expect(linux.reduceMotion, isFalse);
-      expect(linux.density, MessageDensity.comfortable);
       expect(linux.closeToTray, isTrue);
       expect(mac.closeToTray, isFalse);
       expect(linux.restoreWindowPosition, isTrue);
       expect(linux.desktopNotifications, isTrue);
+    });
+
+    test('an_old_comfortable_choice_opens_as_compact', () {
+      final json = {'density': 'comfortable'};
+      final restored = AppSettings.fromJson(json, TargetPlatform.linux);
+      expect(restored, AppSettings.defaults(TargetPlatform.linux));
+      expect(restored.toJson().containsKey('density'), isFalse);
     });
 
     test('survive a JSON round trip', () {
@@ -25,7 +31,6 @@ void main() {
         theme: ThemePreference.light,
         fontSize: 16,
         reduceMotion: true,
-        density: MessageDensity.compact,
         closeToTray: false,
         startMinimized: true,
         launchAtLogin: true,

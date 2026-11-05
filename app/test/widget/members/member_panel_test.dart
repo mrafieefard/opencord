@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/members/member_panel.dart';
 import 'package:opencord/features/members/member_profile.dart';
@@ -261,7 +261,7 @@ void main() {
     final app = await MockApp.pump(tester);
     await _open(tester, app, 'general');
     final name = find.descendant(
-      of: find.byType(MessageBubble),
+      of: find.byType(CompactMessage),
       matching: find.textContaining('Priya Shah', findRichText: true),
     );
 

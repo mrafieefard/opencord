@@ -11,7 +11,6 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/attachments/download.dart';
 import 'package:opencord/features/chat/hover_bar.dart';
 import 'package:opencord/features/chat/message_actions.dart';
-import 'package:opencord/features/chat/message_line.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 
@@ -38,23 +37,15 @@ class MessageItem extends StatefulWidget {
     required this.first,
     required this.actions,
     required this.builder,
-    this.avatar,
-    this.compact = false,
   });
 
   final Message message;
   final bool own;
   final bool first;
   final MessageActions actions;
-  final Widget? avatar;
 
-  /// Builds the bubble, or the whole line in compact density, reporting
-  /// text selected inside it.
+  /// Builds the message line, reporting text selected inside it.
   final Widget Function(SelectionChanged onSelectionChanged) builder;
-
-  /// Compact density (§8.1): a line without a bubble; the bar sits on its
-  /// top edge at the right, like Discord's.
-  final bool compact;
 
   @override
   State<MessageItem> createState() => _MessageItemState();
@@ -119,66 +110,39 @@ class _MessageItemState extends State<MessageItem> {
     _bar.show();
   }
 
-  /// React, Edit and Reply when they apply; More only on compact lines,
-  /// since a bubble's menu is a right-click away.
+  /// React, Edit, Reply and More on the compact line.
   HoverActionBar _barFor(Message message) {
     final actions = widget.actions;
     return HoverActionBar(
       onReact: actions.canReact(message)
           ? (anchor) => actions.react(message, anchor: anchor)
           : null,
-      onEdit: widget.compact && actions.canEdit(message)
-          ? () => actions.edit(message)
-          : null,
+      onEdit: actions.canEdit(message) ? () => actions.edit(message) : null,
       onReply: actions.canReply(message) ? () => actions.reply(message) : null,
-      onMore: widget.compact
-          ? (anchor) => actions.showMenu(
-              message,
-              position: anchor.bottomLeft,
-              selection: _selection,
-            )
-          : null,
+      onMore: (anchor) => actions.showMenu(
+        message,
+        position: anchor.bottomLeft,
+        selection: _selection,
+      ),
     );
   }
 
-  int get _buttons => _barFor(_message).buttons;
-
-  /// Beside the bubble on its outer side when there is room, otherwise on
-  /// its top corner; against its bottom when its top has scrolled away.
+  /// On the line's top edge at the right; against its bottom when the top
+  /// has scrolled away.
   _Placement _place() {
-    if (widget.compact) return _placeOnLine();
-    final own = widget.own;
     final overlay = Overlay.of(context).context.findRenderObject();
-    final bubble = _bubbleKey.currentContext?.findRenderObject();
-    var outside = true;
+    final line = _bubbleKey.currentContext?.findRenderObject();
     var bottom = false;
-    if (overlay is RenderBox && bubble is RenderBox && bubble.hasSize) {
-      final rect =
-          bubble.localToGlobal(Offset.zero, ancestor: overlay) & bubble.size;
-      final room = own ? rect.left : overlay.size.width - rect.right;
-      outside =
-          room >= HoverActionBar.widthFor(_buttons) + OcSpace.s6 + OcSpace.s4;
-      // Beside the bubble the bar starts at its top; on the edge it rises
-      // above it.
-      final above = outside
-          ? 0.0
-          : HoverActionBar.height - HoverActionBar.overlap;
-      bottom = rect.top < above + OcSpace.s4;
+    if (overlay is RenderBox && line is RenderBox && line.hasSize) {
+      final top = line.localToGlobal(Offset.zero, ancestor: overlay).dy;
+      bottom =
+          top < HoverActionBar.height - HoverActionBar.overlap + OcSpace.s4;
     }
-    final side = own ? -1.0 : 1.0;
-    if (outside) {
-      return (
-        target: Alignment(side, bottom ? 1 : -1),
-        follower: Alignment(-side, bottom ? 1 : -1),
-        offset: Offset(side * OcSpace.s6, 0),
-      );
-    }
-    // Straddling the bubble's edge, tucked into its outer corner.
     return (
-      target: Alignment(side, bottom ? 1 : -1),
-      follower: Alignment(side, bottom ? -1 : 1),
+      target: Alignment(1, bottom ? 1 : -1),
+      follower: Alignment(1, bottom ? -1 : 1),
       offset: Offset(
-        -side * OcSpace.s8,
+        -OcSpace.s16,
         bottom ? -HoverActionBar.overlap : HoverActionBar.overlap,
       ),
     );
@@ -272,27 +236,6 @@ class _MessageItemState extends State<MessageItem> {
     );
   }
 
-  /// On the line's top edge at the right; against its bottom when the top
-  /// has scrolled away.
-  _Placement _placeOnLine() {
-    final overlay = Overlay.of(context).context.findRenderObject();
-    final line = _bubbleKey.currentContext?.findRenderObject();
-    var bottom = false;
-    if (overlay is RenderBox && line is RenderBox && line.hasSize) {
-      final top = line.localToGlobal(Offset.zero, ancestor: overlay).dy;
-      bottom =
-          top < HoverActionBar.height - HoverActionBar.overlap + OcSpace.s4;
-    }
-    return (
-      target: Alignment(1, bottom ? 1 : -1),
-      follower: Alignment(1, bottom ? -1 : 1),
-      offset: Offset(
-        -OcSpace.s16,
-        bottom ? -HoverActionBar.overlap : HoverActionBar.overlap,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final message = _message;
@@ -359,14 +302,7 @@ class _MessageItemState extends State<MessageItem> {
                     ? Border.all(color: colors.text, width: 1.5)
                     : null,
               ),
-              child: widget.compact
-                  ? MessageHover(hovered: _hovered, child: anchored)
-                  : MessageLine(
-                      own: widget.own,
-                      first: widget.first,
-                      avatar: widget.avatar,
-                      bubble: anchored,
-                    ),
+              child: MessageHover(hovered: _hovered, child: anchored),
             ),
           ),
         ),

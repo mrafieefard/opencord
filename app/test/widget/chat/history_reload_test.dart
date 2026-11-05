@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -17,8 +17,8 @@ int _channel(MockApp app, String name) => app
     .firstWhere((channel) => channel.name == name)
     .id;
 
-Finder _bubble(int id) => find.byWidgetPredicate(
-  (widget) => widget is MessageBubble && widget.message.id == id,
+Finder _row(int id) => find.byWidgetPredicate(
+  (widget) => widget is CompactMessage && widget.message.id == id,
 );
 
 void main() {
@@ -33,10 +33,10 @@ void main() {
       await tester.drag(find.byType(MessageList), const Offset(0, 400));
       await tester.pumpAndSettle();
       final reading = tester
-          .widget<MessageBubble>(find.byType(MessageBubble).first)
+          .widget<CompactMessage>(find.byType(CompactMessage).first)
           .message
           .id;
-      final where = tester.getTopLeft(_bubble(reading));
+      final where = tester.getTopLeft(_row(reading));
 
       app.repository
         ..debugHistoryDelay = delay
@@ -51,7 +51,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(tester.getTopLeft(_bubble(reading)), where);
+      expect(tester.getTopLeft(_row(reading)), where);
       await app.dispose(tester);
     });
   }
@@ -69,14 +69,14 @@ void main() {
     await tester.pump();
 
     expect(find.text("Couldn't load messages"), findsOneWidget);
-    expect(find.byType(MessageBubble), findsNothing);
+    expect(find.byType(CompactMessage), findsNothing);
 
     app.repository.debugFailHistory = false;
     await tester.tap(find.widgetWithText(OcButton, 'Try again'));
     await tester.pumpAndSettle();
 
     expect(find.text("Couldn't load messages"), findsNothing);
-    expect(find.byType(MessageBubble), findsWidgets);
+    expect(find.byType(CompactMessage), findsWidgets);
     await app.dispose(tester);
   });
 }

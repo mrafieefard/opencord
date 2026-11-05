@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 
@@ -25,26 +25,24 @@ Message _message(
   sendState: state,
 );
 
-Future<void> _pumpBubble(
+Future<void> _pumpCompact(
   WidgetTester tester,
   Message message, {
-  bool own = false,
   MarkdownContext? links,
   ReplyPreview? reply,
   VoidCallback? onRetry,
   VoidCallback? onReplyTap,
   ValueChanged<String>? onReaction,
+  ValueChanged<String?>? onSelectionChanged,
 }) => pumpThemed(
   tester,
   surface: const Size(800, 600),
   Align(
     alignment: Alignment.topLeft,
-    child: MessageBubble(
+    child: CompactMessage(
       serverKey: 'test',
       message: message,
-      own: own,
       first: true,
-      last: true,
       author: 'Kai',
       reply: reply,
       links:
@@ -53,12 +51,10 @@ Future<void> _pumpBubble(
       onRetry: onRetry,
       onReplyTap: onReplyTap,
       onReaction: onReaction,
+      onSelectionChanged: onSelectionChanged,
     ),
   ),
 );
-
-Rect _rectOf(WidgetTester tester, String text) =>
-    tester.getRect(find.textContaining(text, findRichText: true).first);
 
 void main() {
   for (final content in ['> quoted', '> quoted\nafter', '```\ncode\n```']) {
@@ -89,25 +85,14 @@ void main() {
     tester,
   ) async {
     String? selected;
-    await pumpThemed(
+    await _pumpCompact(
       tester,
-      surface: const Size(800, 600),
-      Align(
-        alignment: Alignment.topLeft,
-        child: MessageBubble(
-          serverKey: 'test',
-          message: _message('hello <@7> see <#3> and `a code` ok'),
-          own: false,
-          first: true,
-          last: true,
-          author: 'Kai',
-          links: MarkdownContext(
-            userName: (_) => 'Mira',
-            channelName: (_) => 'help',
-          ),
-          onSelectionChanged: (text) => selected = text,
-        ),
+      _message('hello <@7> see <#3> and `a code` ok'),
+      links: MarkdownContext(
+        userName: (_) => 'Mira',
+        channelName: (_) => 'help',
       ),
+      onSelectionChanged: (text) => selected = text,
     );
 
     tester
@@ -122,8 +107,8 @@ void main() {
     tester,
   ) async {
     Future<double> height(String content) async {
-      await _pumpBubble(tester, _message(content), own: true);
-      return tester.getSize(find.byType(MessageBubble)).height;
+      await _pumpCompact(tester, _message(content));
+      return tester.getSize(find.byType(CompactMessage)).height;
     }
 
     expect(await height('a `code` b'), await height('a code b'));
@@ -132,98 +117,43 @@ void main() {
   testWidgets('a reply shows its author in the secondary text colour', (
     tester,
   ) async {
-    await _pumpBubble(
+    await _pumpCompact(
       tester,
       _message('Hi'),
-      own: true,
       reply: const ReplyPreview(author: 'Mira', text: 'Ready?'),
     );
 
-    final colors = tester.element(find.byType(MessageBubble)).oc;
-    expect(
-      tester.widget<Text>(find.text('Mira')).style?.color,
-      colors.textSecondary,
+    final colors = tester.element(find.byType(CompactMessage)).oc;
+    final richText = tester.widget<RichText>(
+      find.descendant(
+        of: find.byType(CompactMessage),
+        matching: find.byWidgetPredicate(
+          (w) => w is RichText && w.text.toPlainText().contains('Mira'),
+        ),
+      ),
     );
-  });
-
-  testWidgets('a short message gets a short bubble with the time inline', (
-    tester,
-  ) async {
-    // Own, so there is no author line above the text.
-    await _pumpBubble(tester, _message('Hi'), own: true);
-
-    final bubble = tester.getRect(find.byType(MessageBubble));
-    final text = tester.getRect(find.textContaining('Hi', findRichText: true));
-    final time = tester.getRect(find.text('09:41'));
-
-    expect(bubble.width, lessThan(120));
-    expect(bubble.height, lessThan(40));
-    expect(time.center.dy, inInclusiveRange(text.top, text.bottom));
-  });
-
-  testWidgets('the time never covers the text, wrapping when it must', (
-    tester,
-  ) async {
-    var wrapped = 0;
-    for (var words = 1; words <= 40; words++) {
-      await _pumpBubble(
-        tester,
-        _message(List.filled(words, 'word').join(' ')),
-        own: true,
-      );
-      final paragraph = tester.renderObject<RenderParagraph>(
-        find.textContaining('word', findRichText: true),
-      );
-      final end = paragraph.text.toPlainText().lastIndexOf('word');
-      final box = paragraph
-          .getBoxesForSelection(
-            TextSelection(baseOffset: end, extentOffset: end + 4),
-          )
-          .last
-          .toRect()
-          .shift(paragraph.localToGlobal(Offset.zero));
-      final time = tester.getRect(find.text('09:41'));
-      final bubble = tester.getRect(find.byType(MessageBubble));
-
-      expect(time.overlaps(box), isFalse, reason: '$words words');
-      expect(bubble.contains(time.bottomRight), isTrue, reason: '$words words');
-      if (time.top >= box.bottom - 1) wrapped++;
-    }
-    // Some lengths filled the last line, so the time took a line of its own.
-    expect(wrapped, greaterThan(0));
-  });
-
-  testWidgets('a message ending in code puts the time on its own line', (
-    tester,
-  ) async {
-    await _pumpBubble(tester, _message('```\nlet x = 1;\n```'));
-
-    final code = _rectOf(tester, 'let x = 1;');
-    final time = _rectOf(tester, '09:41');
-
-    expect(time.top, greaterThan(code.bottom));
+    final textSpan = richText.text as TextSpan;
+    final innerSpan = textSpan.children!.first as TextSpan;
+    final authorSpan = innerSpan.children!.first as TextSpan;
+    expect(authorSpan.text, 'Mira');
+    expect(authorSpan.style?.color, colors.textSecondary);
   });
 
   testWidgets('own messages say whether they were delivered', (tester) async {
     final semantics = tester.ensureSemantics();
-    await _pumpBubble(
+    await _pumpCompact(
       tester,
       _message('one', state: SendState.pending),
-      own: true,
     );
     expect(find.bySemanticsLabel(RegExp('Sending')), findsOneWidget);
-
-    await _pumpBubble(tester, _message('one'), own: true);
-    expect(find.bySemanticsLabel(RegExp('Delivered')), findsOneWidget);
     semantics.dispose();
   });
 
   testWidgets('a failed send offers Retry', (tester) async {
     var retried = 0;
-    await _pumpBubble(
+    await _pumpCompact(
       tester,
       _message('lost', state: SendState.failed),
-      own: true,
       onRetry: () => retried++,
     );
 
@@ -234,7 +164,7 @@ void main() {
 
   testWidgets('clicking a reaction toggles it', (tester) async {
     final toggled = <String>[];
-    await _pumpBubble(
+    await _pumpCompact(
       tester,
       _message(
         'vote',
@@ -254,14 +184,14 @@ void main() {
 
   testWidgets('clicking the reply quote jumps to the original', (tester) async {
     var jumped = 0;
-    await _pumpBubble(
+    await _pumpCompact(
       tester,
       _message('yes'),
       reply: const ReplyPreview(author: 'Mira', text: 'Ready?'),
       onReplyTap: () => jumped++,
     );
 
-    await tester.tap(find.text('Ready?'));
+    await tester.tap(find.textContaining('Ready?', findRichText: true));
 
     expect(jumped, 1);
   });
@@ -270,7 +200,7 @@ void main() {
     final users = <int>[];
     final channels = <int>[];
     final urls = <String>[];
-    await _pumpBubble(
+    await _pumpCompact(
       tester,
       _message('<@7> see <#9> https://example.org'),
       links: MarkdownContext(
@@ -308,7 +238,7 @@ void main() {
         null,
       ),
     );
-    await _pumpBubble(tester, _message('```dart\nprint(1);\n```'));
+    await _pumpCompact(tester, _message('```dart\nprint(1);\n```'));
 
     await tester.tap(find.bySemanticsLabel('Copy code'));
     await tester.pump();

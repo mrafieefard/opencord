@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/settings/app_settings.dart';
-import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/hover_bar.dart';
@@ -52,14 +50,14 @@ Future<ChannelRef> _openGeneral(WidgetTester tester, MockApp app) async {
   return (server: _server, channel: general);
 }
 
-Finder _bubble(String containing) => find.byWidgetPredicate(
+Finder _compact(String containing) => find.byWidgetPredicate(
   (widget) =>
-      widget is MessageBubble && widget.message.content.contains(containing),
+      widget is CompactMessage && widget.message.content.contains(containing),
 );
 
 /// The middle of a message's text: not a chip, link or quote.
 Offset _textOf(WidgetTester tester, String containing) => tester.getCenter(
-  find.descendant(of: _bubble(containing), matching: find.byType(MarkdownView)),
+  find.descendant(of: _compact(containing), matching: find.byType(MarkdownView)),
 );
 
 Future<void> _rightClick(WidgetTester tester, Offset at) async {
@@ -167,7 +165,7 @@ void main() {
   testWidgets('double-clicking a reaction chip does not reply', (tester) async {
     final app = await MockApp.pump(tester);
     final channel = await _openGeneral(tester, app);
-    final chip = find.descendant(of: _bubble(_ping), matching: find.text('👀'));
+    final chip = find.descendant(of: _compact(_ping), matching: find.text('👀'));
 
     await tester.tap(chip);
     await tester.pump(const Duration(milliseconds: 80));
@@ -214,8 +212,9 @@ void main() {
       button.tooltip,
   ];
 
-  testWidgets('bubbles leave More off the hover bar, as right-click opens '
-      'the menu', (tester) async {
+  testWidgets('hover bar has Edit on your own, and More', (
+    tester,
+  ) async {
     final app = await MockApp.pump(tester);
     await _openGeneral(tester, app);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -224,43 +223,8 @@ void main() {
 
     await mouse.moveTo(_textOf(tester, _ping));
     await tester.pump();
-    expect(barButtons(tester), ['Add reaction', 'Reply']);
-    await mouse.moveTo(_textOf(tester, _mine));
-    await tester.pump();
-    await tester.pump();
-    expect(barButtons(tester), ['Add reaction', 'Reply']);
-    await app.dispose(tester);
-  });
-
-  testWidgets('compact lines get Discord\'s bar: Edit on your own, and More', (
-    tester,
-  ) async {
-    final app = await MockApp.pump(
-      tester,
-      settings: (settings) =>
-          settings.copyWith(density: MessageDensity.compact),
-    );
-    await _openGeneral(tester, app);
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: const Offset(200, 400));
-    addTearDown(mouse.removePointer);
-    Offset line(String containing) => tester.getCenter(
-      find
-          .descendant(
-            of: find.byWidgetPredicate(
-              (widget) =>
-                  widget is CompactMessage &&
-                  widget.message.content.contains(containing),
-            ),
-            matching: find.byType(MarkdownView),
-          )
-          .first,
-    );
-
-    await mouse.moveTo(line(_ping));
-    await tester.pump();
     expect(barButtons(tester), ['Add reaction', 'Reply', 'More']);
-    await mouse.moveTo(line(_mine));
+    await mouse.moveTo(_textOf(tester, _mine));
     await tester.pump();
     await tester.pump();
     expect(barButtons(tester), ['Add reaction', 'Edit', 'Reply', 'More']);
@@ -275,48 +239,45 @@ void main() {
     await app.dispose(tester);
   });
 
-  for (final density in MessageDensity.values) {
-    testWidgets(
-      'the hover bar always stays inside the list (${density.name})',
-      (tester) async {
-        final app = await MockApp.pump(
-          tester,
-          size: const Size(900, 700),
-          settings: (settings) => settings.copyWith(density: density),
-        );
-        await _openGeneral(tester, app);
-        final list = tester.getRect(find.byType(MessageList));
-        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-        // Over the server rail, away from any message.
-        await mouse.addPointer(location: const Offset(30, 650));
-        addTearDown(mouse.removePointer);
-        final texts = [
-          for (final element in find.byType(MarkdownView).evaluate())
-            tester.getCenter(find.byWidget(element.widget)),
-        ].where((point) => list.deflate(4).contains(point)).toList();
-        expect(texts.length, greaterThan(4));
+  testWidgets(
+    'the hover bar always stays inside the list',
+    (tester) async {
+      final app = await MockApp.pump(
+        tester,
+        size: const Size(900, 700),
+      );
+      await _openGeneral(tester, app);
+      final list = tester.getRect(find.byType(MessageList));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      // Over the server rail, away from any message.
+      await mouse.addPointer(location: const Offset(30, 650));
+      addTearDown(mouse.removePointer);
+      final texts = [
+        for (final element in find.byType(MarkdownView).evaluate())
+          tester.getCenter(find.byWidget(element.widget)),
+      ].where((point) => list.deflate(4).contains(point)).toList();
+      expect(texts.length, greaterThan(4));
 
-        for (final point in texts) {
-          await mouse.moveTo(point);
-          await tester.pump();
-          final bar = tester.getRect(find.byType(HoverActionBar));
-          expect(
-            list.inflate(1).contains(bar.topLeft),
-            isTrue,
-            reason: '$point',
-          );
-          expect(
-            list.inflate(1).contains(bar.bottomRight),
-            isTrue,
-            reason: '$point',
-          );
-          await mouse.moveTo(const Offset(30, 650));
-          await tester.pump(const Duration(milliseconds: 200));
-        }
-        await app.dispose(tester);
-      },
-    );
-  }
+      for (final point in texts) {
+        await mouse.moveTo(point);
+        await tester.pump();
+        final bar = tester.getRect(find.byType(HoverActionBar));
+        expect(
+          list.inflate(1).contains(bar.topLeft),
+          isTrue,
+          reason: '$point',
+        );
+        expect(
+          list.inflate(1).contains(bar.bottomRight),
+          isTrue,
+          reason: '$point',
+        );
+        await mouse.moveTo(const Offset(30, 650));
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await app.dispose(tester);
+    },
+  );
 
   testWidgets('a reaction picked from the hover bar is added', (tester) async {
     final app = await MockApp.pump(tester);
@@ -364,7 +325,7 @@ void main() {
     expect(find.text('Delete message?'), findsOneWidget);
     await tester.tap(find.widgetWithText(OcButton, 'Cancel'));
     await _pumpFor(tester, const Duration(milliseconds: 300));
-    expect(_bubble(_ping), findsOneWidget);
+    expect(_compact(_ping), findsOneWidget);
 
     await _rightClick(tester, _textOf(tester, _ping));
     await tester.tap(find.text('Delete'));
@@ -372,7 +333,7 @@ void main() {
     await tester.tap(find.widgetWithText(OcButton, 'Delete'));
     await _pumpFor(tester, const Duration(milliseconds: 800));
 
-    expect(_bubble(_ping), findsNothing);
+    expect(_compact(_ping), findsNothing);
     await app.dispose(tester);
   });
 
@@ -380,7 +341,7 @@ void main() {
     _mockClipboard(tester);
     final app = await MockApp.pump(tester);
     final channel = await _openGeneral(tester, app);
-    final message = tester.widget<MessageBubble>(_bubble(_ping)).message;
+    final message = tester.widget<CompactMessage>(_compact(_ping)).message;
 
     await _rightClick(tester, _textOf(tester, _ping));
     await tester.tap(find.text('Copy message link'));
@@ -397,7 +358,7 @@ void main() {
     final app = await MockApp.pump(tester);
     await _openGeneral(tester, app);
     final item = find.ancestor(
-      of: _bubble(_ping),
+      of: _compact(_ping),
       matching: find.byType(MessageItem),
     );
     Focus.of(
@@ -418,25 +379,29 @@ void main() {
 
   testWidgets('selected text can be copied on its own', (tester) async {
     _mockClipboard(tester);
-    final app = await MockApp.pump(tester);
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
     await _openGeneral(tester, app);
     final text = find.descendant(
-      of: _bubble(_mine),
+      of: _compact(_mine),
       matching: find.byType(MarkdownView),
     );
     final rect = tester.getRect(text);
 
+    final start = rect.centerLeft + const Offset(2, 0);
+    final mid = rect.centerLeft + const Offset(50, 0);
+    final end = rect.centerLeft + const Offset(150, 0);
+
     final mouse = await tester.startGesture(
-      rect.centerLeft + const Offset(2, 0),
+      start,
       kind: PointerDeviceKind.mouse,
     );
     await tester.pump();
-    await mouse.moveTo(rect.center);
+    await mouse.moveTo(end);
     await tester.pump();
     await mouse.up();
     await tester.pump(const Duration(milliseconds: 400));
 
-    await _rightClick(tester, rect.center);
+    await _rightClick(tester, mid);
     expect(_menuLabels(tester).first, 'Copy selection');
     await tester.tap(find.text('Copy selection'));
     await _pumpFor(tester, const Duration(milliseconds: 200));
