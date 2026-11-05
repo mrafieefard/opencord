@@ -526,20 +526,23 @@ class _JoinPromptState extends ConsumerState<_JoinPrompt>
     _opacityController = AnimationController(vsync: this, value: 0.0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (MediaQuery.disableAnimationsOf(context)) {
-        _translateController.value = 0.0;
-        _opacityController.value = 1.0;
-      } else {
-        _translateController.animateWith(
-          OcSpring.pop.simulation(6.0, 0.0, 0.0),
-        );
-        _opacityController.animateTo(
-          1.0,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        );
-      }
+      if (MediaQuery.disableAnimationsOf(context)) return;
+      _translateController.animateWith(OcSpring.pop.simulation(6.0, 0.0, 0.0));
+      _opacityController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      );
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _translateController.value = 0.0;
+      _opacityController.value = 1.0;
+    }
   }
 
   @override

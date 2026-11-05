@@ -238,6 +238,12 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
       _activity = newActivity;
       _activity?.addListener(_onActivityChanged);
     }
+    if (MediaQuery.disableAnimationsOf(context)) {
+      final visible = _activity?.visible ?? true;
+      _lastVisible = visible;
+      _translateController.value = visible ? 0.0 : 16.0;
+      _opacityController.value = visible ? 1.0 : 0.0;
+    }
   }
 
   void _onActivityChanged() {
@@ -250,7 +256,6 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
     if (reduced) {
       _translateController.value = visible ? 0.0 : 16.0;
       _opacityController.value = visible ? 1.0 : 0.0;
-      setState(() {});
       return;
     }
 

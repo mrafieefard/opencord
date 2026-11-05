@@ -22,7 +22,7 @@ class PanelHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      height: OcFloats.header,
+      constraints: const BoxConstraints(minHeight: OcFloats.header),
       decoration: BoxDecoration(
         color: color ?? colors.sidebar,
         border: Border(bottom: BorderSide(color: colors.border)),
