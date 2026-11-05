@@ -16,6 +16,8 @@ import 'package:opencord/features/music/now_playing_card.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/pane_switch.dart';
+import 'package:opencord/features/shell/shortcuts.dart';
+import 'package:opencord/features/voice/voice_chat_slot.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -62,6 +64,12 @@ Future<void> _paneOn(WidgetTester tester, String tooltip) async {
   final open = find.byTooltip('Open the right pane');
   if (open.evaluate().isNotEmpty) {
     await tester.tap(open);
+    await _settle(tester);
+  } else if (find.byType(VoiceChatSlot).evaluate().isNotEmpty) {
+    Actions.invoke(
+      tester.element(find.byType(VoiceChatSlot)),
+      const ToggleMembersIntent(),
+    );
     await _settle(tester);
   }
   await tester.tap(_paneButton(tooltip));
