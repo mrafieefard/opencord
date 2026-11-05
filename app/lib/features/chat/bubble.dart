@@ -127,14 +127,14 @@ class MessageBubble extends StatelessWidget {
         : colors.bubbleIn;
     final radius = _radius;
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.fromLTRB(12, 7, 12, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           if (first && !own)
             Padding(
-              padding: const EdgeInsets.only(bottom: 2),
+              padding: const EdgeInsets.only(bottom: 1),
               child: _AuthorLine(
                 author: author,
                 role: role,
@@ -180,7 +180,7 @@ class MessageBubble extends StatelessWidget {
             ),
           if (message.reactions.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 1),
+              padding: const EdgeInsets.only(top: 5, bottom: 1),
               child: Wrap(
                 spacing: 4,
                 runSpacing: 4,
@@ -206,7 +206,7 @@ class MessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius: radius,
-        border: own ? null : Border.all(color: colors.border, width: 0.8),
+        border: Border.all(color: colors.border, width: 1.0),
       ),
       // Shrink-wraps the content, so short messages get short bubbles.
       child: IntrinsicWidth(
@@ -356,7 +356,7 @@ class _Meta extends StatelessWidget {
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: 1,
     )..layout();
-    const gap = 8.0;
+    const gap = 10.0;
     final icon = own ? 4.0 + _iconSize : 0.0;
     final size = Size(
       gap + painter.width + icon,
@@ -366,7 +366,7 @@ class _Meta extends StatelessWidget {
     return size;
   }
 
-  static const double _iconSize = 14;
+  static const double _iconSize = 13;
 
   @override
   Widget build(BuildContext context) {
@@ -438,24 +438,24 @@ class _ReplyQuote extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 6),
+      padding: const EdgeInsets.fromLTRB(0, 2, 0, 4),
       child: Hoverable(
         onTap: onTap,
         semanticLabel: 'Reply to ${reply.author}: ${reply.text}',
-        focusRadius: BorderRadius.circular(OcRadius.quote),
+        focusRadius: BorderRadius.circular(6),
         builder: (context, state) => ClipRRect(
-          borderRadius: BorderRadius.circular(OcRadius.quote),
+          borderRadius: BorderRadius.circular(6),
           child: Container(
-            color: colors.text.withValues(alpha: state.active ? 0.1 : 0.06),
+            color: colors.hover,
             child: IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 2, color: colors.text),
+                  Container(width: 2, color: colors.textSecondary),
                   Flexible(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -465,6 +465,7 @@ class _ReplyQuote extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: OcText.small.copyWith(
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w600,
                               color: colors.text,
                             ),
@@ -474,6 +475,7 @@ class _ReplyQuote extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: OcText.small.copyWith(
+                              fontSize: 12.5,
                               color: colors.textSecondary,
                             ),
                           ),
@@ -513,19 +515,14 @@ class ReactionChip extends StatelessWidget {
       semanticLabel:
           '${reaction.emoji} ${reaction.count}${mine ? ', including you' : ''}',
       selected: mine,
-      focusRadius: BorderRadius.circular(OcRadius.reaction),
+      focusRadius: BorderRadius.circular(12),
       builder: (context, state) => AnimatedContainer(
         duration: OcMotion.of(context).hover,
         height: 24,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: mine
-              ? colors.accent
-              : state.active
-              ? colors.selected
-              : null,
-          borderRadius: BorderRadius.circular(OcRadius.reaction),
-          border: mine ? null : Border.all(color: colors.border),
+          color: mine ? colors.accent : colors.selected,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -538,7 +535,8 @@ class ReactionChip extends StatelessWidget {
             Text(
               '${reaction.count}',
               style: OcText.small.copyWith(
-                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
                 height: 1,
                 color: mine ? colors.onAccent : colors.text,
               ),

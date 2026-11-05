@@ -68,7 +68,7 @@ class ChatHeader extends ConsumerWidget {
       builder: (context, notch, row) => PanelHeader(
         key: ShellKeys.hd,
         padding: EdgeInsets.only(
-          left: OcSpace.s16,
+          left: onOpenSidebar != null ? OcFloats.gap : OcSpace.s16,
           right: OcFloats.gap + _notchClearance * notch / OcFloats.notch,
         ),
         child: row!,
@@ -81,7 +81,7 @@ class ChatHeader extends ConsumerWidget {
               tooltip: 'Channels',
               onPressed: onOpenSidebar,
             ),
-          const SizedBox(width: OcSpace.s4),
+          const SizedBox(width: OcSpace.s10),
           Expanded(
             child: IgnorePointer(
               child: open == null || target == null
@@ -216,7 +216,12 @@ class _Title extends ConsumerWidget {
           )
         : null;
     final topic = target.topic;
-    final style = OcText.small.copyWith(color: colors.textSecondary);
+    final style = OcText.small.copyWith(
+      fontSize: 12.5,
+      fontWeight: FontWeight.w400,
+      height: 1.25,
+      color: colors.textSecondary,
+    );
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,7 +230,12 @@ class _Title extends ConsumerWidget {
         Flexible(
           child: EllipsisText(
             target.kind.isTextLike ? '#${target.name}' : target.name,
-            style: OcText.header.copyWith(color: colors.text),
+            style: OcText.header.copyWith(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
+              color: colors.text,
+            ),
           ),
         ),
         if (names.isNotEmpty)

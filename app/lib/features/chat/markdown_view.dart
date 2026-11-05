@@ -186,6 +186,7 @@ class _MarkdownViewState extends State<MarkdownView> {
           ),
         ),
         MdQuote(:final inlines) => Container(
+          margin: const EdgeInsets.fromLTRB(0, 2, 0, 3),
           padding: const EdgeInsets.only(left: OcSpace.s8),
           decoration: BoxDecoration(
             border: Border(left: BorderSide(color: colors.textMuted, width: 2)),

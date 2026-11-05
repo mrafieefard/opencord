@@ -76,28 +76,39 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
     bool fillsMain = true,
   }) {
     final composer = includeComposer ?? widget.includeComposer;
+    final hasPins = pins && ref.watch(pinsProvider(open)).isNotEmpty;
     final list = MessageList(
       key: ValueKey(open),
       channel: open,
       controller: _controller,
+      topInset: hasPins ? 68.0 : 0.0,
+    );
+    final messages = fillsMain ? MainInnerWidth(child: list) : list;
+    final body = Stack(
+      children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: unreachable ? 0.55 : 1,
+            child: messages,
+          ),
+        ),
+        if (hasPins)
+          Positioned(
+            top: 8,
+            left: 12,
+            right: 12,
+            child: PinnedBar(
+              key: ValueKey(('pins', open)),
+              channel: open,
+              onJumpTo: _controller.jumpToMessage,
+            ),
+          ),
+      ],
     );
     final chat = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (pins)
-          PinnedBar(
-            key: ValueKey(('pins', open)),
-            channel: open,
-            onJumpTo: _controller.jumpToMessage,
-          ),
-        Expanded(
-          // The last cached state, greyed out while the server cannot be
-          // reached (§4.13).
-          child: Opacity(
-            opacity: unreachable ? 0.55 : 1,
-            child: fillsMain ? MainInnerWidth(child: list) : list,
-          ),
-        ),
+        Expanded(child: body),
         if (composer)
           MeasuredHeight(
             onChanged: (height) => _composerHeight.value = height,

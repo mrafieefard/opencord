@@ -150,7 +150,7 @@ class ChatRowView extends StatelessWidget {
         child: CenterPill(text: dayLabel(day, now)),
       ),
       UnreadRow() => const Padding(
-        padding: EdgeInsets.only(top: OcSpace.s16, bottom: OcSpace.s4),
+        padding: EdgeInsets.symmetric(vertical: 6),
         child: UnreadLine(),
       ),
       SystemRow(:final message) => Padding(

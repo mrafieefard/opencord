@@ -47,10 +47,12 @@ class MessageList extends ConsumerStatefulWidget {
     super.key,
     required this.channel,
     required this.controller,
+    this.topInset = 0.0,
   });
 
   final ChannelRef channel;
   final ChatController controller;
+  final double topInset;
 
   @override
   ConsumerState<MessageList> createState() => _MessageListState();
@@ -386,6 +388,8 @@ class _MessageListState extends ConsumerState<MessageList>
                   OcSpace.s16,
                   (constraints.maxWidth - OcSize.messageColumn) / 2,
                 );
+          final topPadding =
+              widget.topInset > 0 ? widget.topInset : OcSpace.s12;
           return Stack(
             children: [
               NotificationListener<ScrollNotification>(
@@ -396,7 +400,12 @@ class _MessageListState extends ConsumerState<MessageList>
                   anchor: 1,
                   slivers: [
                     SliverPadding(
-                      padding: EdgeInsets.fromLTRB(side, OcSpace.s8, side, 0),
+                      padding: EdgeInsets.fromLTRB(
+                        side,
+                        topPadding,
+                        side,
+                        0,
+                      ),
                       sliver: SliverList.builder(
                         itemCount: split + (state.hasOlder ? 1 : 0),
                         findChildIndexCallback: (key) =>
@@ -420,7 +429,7 @@ class _MessageListState extends ConsumerState<MessageList>
                 ),
               ),
               Positioned(
-                top: OcSpace.s8,
+                top: widget.topInset > 0 ? 64.0 : OcSpace.s8,
                 left: 0,
                 right: 0,
                 child: FloatingDayPill(label: _pill),

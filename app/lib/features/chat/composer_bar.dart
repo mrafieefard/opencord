@@ -129,10 +129,10 @@ class ComposerFrame extends StatelessWidget {
   /// button plus [_buttonInset] on each side, so they share a middle.
   static const fieldPadding = EdgeInsets.symmetric(
     horizontal: OcSpace.s8,
-    vertical: 15,
+    vertical: 20.5,
   );
 
-  static const double _buttonInset = 7;
+  static const double _buttonInset = 12.0;
 
   @override
   Widget build(BuildContext context) {
@@ -141,51 +141,49 @@ class ComposerFrame extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: _buttonInset),
       child: child,
     );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.sidebar,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        spacing: 2,
         children: [
-          if (above.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                OcSpace.s12,
-                OcSpace.s8,
-                OcSpace.s12,
-                0,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: above,
-              ),
-            ),
-          Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (final child in leading) button(child),
-                    Expanded(child: field),
-                    for (final child in trailing) button(child),
-                  ],
-                ),
-              ),
-              if (cover case final cover?)
-                Positioned.fill(
-                  child: ColoredBox(color: colors.sidebar, child: cover),
-                ),
-            ],
-          ),
+          for (final child in leading) button(child),
+          Expanded(child: field),
+          for (final child in trailing) button(child),
         ],
       ),
     );
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (above.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              OcSpace.s12,
+              OcSpace.s8,
+              OcSpace.s12,
+              0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: above,
+            ),
+          ),
+        row,
+      ],
+    );
+    final body = Stack(
+      children: [
+        column,
+        if (cover case final cover?)
+          Positioned.fill(
+            child: ColoredBox(color: colors.sidebar, child: cover),
+          ),
+      ],
+    );
+    return ColoredBox(color: colors.sidebar, child: body);
   }
 }
 

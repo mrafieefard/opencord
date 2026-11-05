@@ -7,11 +7,13 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/attachments/summary.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/toast.dart';
@@ -92,10 +94,12 @@ class _PinnedBarState extends ConsumerState<PinnedBar> {
         : 'Pinned message ${pins.length - index} of ${pins.length}';
     final preview = _preview(ref, widget.channel, pin);
     return Container(
-      constraints: const BoxConstraints(minHeight: OcSize.pinnedBar),
+      key: ShellKeys.pin,
       decoration: BoxDecoration(
         color: colors.sidebar,
-        border: Border(bottom: BorderSide(color: colors.border)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border, width: 1),
+        boxShadow: OcShadows.float(colors),
       ),
       child: Hoverable(
         onTap: () {
@@ -103,19 +107,24 @@ class _PinnedBarState extends ConsumerState<PinnedBar> {
           setState(() => _index = (index + 1) % pins.length);
         },
         semanticLabel: '$label: $preview',
+        focusRadius: BorderRadius.circular(12),
         builder: (context, state) => AnimatedContainer(
           duration: OcMotion.of(context).hover,
-          color: state.active ? colors.hover : null,
-          constraints: const BoxConstraints(minHeight: OcSize.pinnedBar - 1),
-          padding: const EdgeInsets.fromLTRB(
-            OcSpace.s16,
-            OcSpace.s4,
-            OcSpace.s8,
-            OcSpace.s4,
+          decoration: BoxDecoration(
+            color: state.active ? colors.hover : null,
+            borderRadius: BorderRadius.circular(12),
           ),
+          padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
           child: Row(
             children: [
-              Container(width: 2, height: 32, color: colors.text),
+              Container(
+                width: 2,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: colors.text,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
               const SizedBox(width: OcSpace.s10),
               Expanded(
                 child: Column(
@@ -126,6 +135,7 @@ class _PinnedBarState extends ConsumerState<PinnedBar> {
                       label,
                       maxLines: 1,
                       style: OcText.small.copyWith(
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         color: colors.text,
                       ),
@@ -134,11 +144,15 @@ class _PinnedBarState extends ConsumerState<PinnedBar> {
                       preview,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: OcText.small.copyWith(color: colors.textSecondary),
+                      style: OcText.small.copyWith(
+                        fontSize: 12.5,
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: OcSpace.s10),
               if (_canUnpin(ref, widget.channel))
                 OcIconButton(
                   icon: OcIcons.close,
