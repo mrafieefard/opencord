@@ -150,8 +150,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     ref.read(nativeWindowProvider).setFullscreen(!fullscreen);
   }
 
-  void _selectMusic() => _showRightPanel(RightPanelMode.music);
-
   void _selectMembers() => _showRightPanel(RightPanelMode.people);
 
   /// Opens the right-side panel on [mode].
@@ -198,16 +196,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               key: const ValueKey('music'),
               channel: channel,
               onClose: _closeRightPanel,
-              isOverlay: true,
-              onSelectMembers: _selectMembers,
-              onSelectMusic: _selectMusic,
             )
           : MemberPanel(
               key: const ValueKey('people'),
               onClose: _closeRightPanel,
-              isOverlay: true,
-              onSelectMembers: _selectMembers,
-              onSelectMusic: _selectMusic,
             ),
     );
   }

@@ -19,6 +19,7 @@ import 'package:opencord/features/settings/server/music/local_songs_section.dart
 import 'package:opencord/features/settings/server/permission_info.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
+import 'package:opencord/features/shell/pane_switch.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 
@@ -49,7 +50,9 @@ Future<MusicChannel> _openMusic(WidgetTester tester, MockApp app) async {
   await tester.tap(
     find.descendant(
       of: find.byKey(DesktopShell.membersKey),
-      matching: find.byTooltip('Music'),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is PaneSwitchButton && widget.label == 'Music',
+      ),
     ),
   );
   await _settle(tester);

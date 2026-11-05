@@ -15,12 +15,12 @@ import 'package:opencord/features/music/music_search.dart';
 import 'package:opencord/features/music/music_uploads.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
+import 'package:opencord/features/shell/pane_switch.dart';
 import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/choice_chips.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -28,25 +28,6 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/oc_spinner.dart';
 import 'package:opencord/ui/widgets/popover.dart';
-
-/// People · Music, under the right-side panel's header when a voice
-/// channel is involved (§19.2).
-class RightPanelModeBar extends ConsumerWidget {
-  const RightPanelModeBar({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => Padding(
-    padding: const EdgeInsets.fromLTRB(OcSpace.s12, OcSpace.s8, OcSpace.s12, 0),
-    child: ChoiceChips<RightPanelMode>(
-      options: const [
-        (RightPanelMode.people, 'People'),
-        (RightPanelMode.music, 'Music'),
-      ],
-      value: ref.watch(rightPanelModeProvider),
-      onChanged: (mode) => ref.read(rightPanelModeProvider.notifier).set(mode),
-    ),
-  );
-}
 
 /// Whether the right-side panel offers Music for [channel]: music is set
 /// up there, or this member can set it up.
@@ -70,16 +51,10 @@ class MusicPanel extends ConsumerWidget {
     super.key,
     required this.channel,
     required this.onClose,
-    this.isOverlay = false,
-    this.onSelectMembers,
-    this.onSelectMusic,
   });
 
   final MusicChannel channel;
   final VoidCallback onClose;
-  final bool isOverlay;
-  final VoidCallback? onSelectMembers;
-  final VoidCallback? onSelectMusic;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -90,6 +65,7 @@ class MusicPanel extends ConsumerWidget {
       ).select((state) => state.data?.channels[channel.channel]?.name),
     );
     final configured = ref.watch(musicConfiguredProvider(channel.server));
+    final musicOffered = ref.watch(musicOfferedProvider(channel));
     return ColoredBox(
       color: colors.sidebar,
       child: Column(
@@ -97,35 +73,30 @@ class MusicPanel extends ConsumerWidget {
         children: [
           PanelHeader(
             padding: const EdgeInsets.only(
-              left: OcSpace.s16,
-              right: OcSpace.s8,
+              left: 16,
+              right: 8,
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: Text(
-                    'Music · ${name ?? ''}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: OcText.header.copyWith(color: colors.text),
+                if (musicOffered) ...[
+                  const PaneSwitch(),
+                  const Spacer(),
+                ] else
+                  Expanded(
+                    child: Text(
+                      'Music · ${name ?? ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: OcText.header.copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: colors.text,
+                      ),
+                    ),
                   ),
-                ),
-                if (configured) _PanelMenu(channel: channel),
-                if (isOverlay) ...[
-                  OcIconButton(
-                    icon: OcIcons.group,
-                    tooltip: 'Members',
-                    active: false,
-                    size: OcIconButtonSize.compact,
-                    onPressed: onSelectMembers,
-                  ),
-                  OcIconButton(
-                    icon: OcIcons.libraryMusic,
-                    tooltip: 'Music',
-                    active: true,
-                    size: OcIconButtonSize.compact,
-                    onPressed: onSelectMusic,
-                  ),
+                if (configured) ...[
+                  _PanelMenu(channel: channel),
+                  const SizedBox(width: 6),
                 ],
                 OcIconButton(
                   icon: OcIcons.close,
@@ -329,9 +300,12 @@ class _MusicBodyState extends ConsumerState<_MusicBody> {
             SliverToBoxAdapter(child: _JoinToControl(channel: channel)),
           SliverToBoxAdapter(child: NowPlayingView(channel: channel)),
           SliverPadding(
-            padding: pad.copyWith(top: OcSpace.s16, bottom: OcSpace.s8),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
             sliver: SliverToBoxAdapter(
-              child: MusicSearchField(channel: channel, autofocus: !playing),
+              child: SizedBox(
+                height: 36,
+                child: MusicSearchField(channel: channel, autofocus: !playing),
+              ),
             ),
           ),
           SliverPadding(
@@ -504,22 +478,18 @@ class NowPlayingView extends ConsumerWidget {
     final track = item?.track;
     // Songs dropped here play at once (design 2026-10-24).
     final coverKey = MusicDropZone.coverKeyOf(context);
-    final cover = LayoutBuilder(
+    final cover = MusicArtwork(
       key: coverKey,
-      builder: (context, constraints) => MusicArtwork(
-        serverKey: channel.server,
-        artworkId: track?.artworkId ?? '',
-        size: coverSize.clamp(96, constraints.maxWidth),
-        radius: 12,
-      ),
+      serverKey: channel.server,
+      artworkId: track?.artworkId ?? '',
+      width: double.infinity,
+      height: 172,
+      radius: 14,
+      placeholderColor: colors.surface,
+      placeholderIconSize: 48,
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        OcSpace.s16,
-        OcSpace.s16,
-        OcSpace.s16,
-        0,
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Column(
         children: [
           DragTarget<MusicDrop>(
@@ -539,7 +509,7 @@ class NowPlayingView extends ConsumerWidget {
             builder: (context, candidates, _) => DecoratedBox(
               position: DecorationPosition.foreground,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: candidates.isEmpty
                     ? null
                     : Border.all(color: colors.text, width: 2),
@@ -547,27 +517,34 @@ class NowPlayingView extends ConsumerWidget {
               child: cover,
             ),
           ),
-          const SizedBox(height: OcSpace.s12),
+          const SizedBox(height: 12),
           Text(
             track?.title ?? 'Nothing playing',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: OcText.title.copyWith(color: colors.text),
+            style: OcText.title.copyWith(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: colors.text,
+            ),
           ),
           if (track != null && track.artist.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: OcSpace.s2),
+              padding: const EdgeInsets.only(top: 2),
               child: Text(
                 track.artist,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: OcText.small.copyWith(color: colors.textSecondary),
+                style: OcText.small.copyWith(
+                  fontSize: 12.5,
+                  color: colors.textSecondary,
+                ),
               ),
             ),
           if (track != null) ...[
-            const SizedBox(height: OcSpace.s8),
+            const SizedBox(height: 2),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -577,7 +554,10 @@ class NowPlayingView extends ConsumerWidget {
                 ],
                 Text(
                   'Added by ',
-                  style: OcText.meta.copyWith(color: colors.textMuted),
+                  style: OcText.meta.copyWith(
+                    fontSize: 11,
+                    color: colors.textMuted,
+                  ),
                 ),
                 MemberAvatar(
                   serverKey: channel.server,
@@ -585,30 +565,35 @@ class NowPlayingView extends ConsumerWidget {
                   name: requester ?? '?',
                   size: 16,
                 ),
-                const SizedBox(width: OcSpace.s4),
+                const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     requester ?? 'someone',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: OcText.meta.copyWith(color: colors.textSecondary),
+                    style: OcText.meta.copyWith(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
                   ),
                 ),
               ],
             ),
           ],
-          const SizedBox(height: OcSpace.s8),
+          const SizedBox(height: 12),
           MusicProgress(channel: channel),
-          const SizedBox(height: OcSpace.s4),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              MusicTransport(channel: channel),
-              const Align(
-                alignment: Alignment.centerRight,
-                child: MusicVolumeButton(),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 12),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                MusicTransport(channel: channel),
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: MusicVolumeButton(),
+                ),
+              ],
+            ),
           ),
           if (notice != null)
             Padding(

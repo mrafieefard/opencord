@@ -20,7 +20,7 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
-const _rowHeight = 52.0;
+const _rowHeight = 44.0;
 
 /// "12 tracks · 47 min".
 String queueSummary(MusicSession session) {
@@ -306,11 +306,12 @@ class MusicQueueRow extends ConsumerWidget {
               '${requester ?? 'someone'}',
           builder: (context, state) => AnimatedContainer(
             duration: OcMotion.of(context).hover,
+            constraints: const BoxConstraints(minHeight: 44),
             height: _rowHeight,
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: state.active ? colors.hover : null,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
@@ -318,9 +319,10 @@ class MusicQueueRow extends ConsumerWidget {
                 MusicArtwork(
                   serverKey: channel.server,
                   artworkId: track.artworkId,
-                  size: 40,
+                  size: 32,
+                  radius: 8,
                 ),
-                const SizedBox(width: OcSpace.s10),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -330,13 +332,20 @@ class MusicQueueRow extends ConsumerWidget {
                         track.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: OcText.body.copyWith(color: colors.text),
+                        style: OcText.body.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: colors.text,
+                        ),
                       ),
                       Text(
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: OcText.small.copyWith(color: colors.textMuted),
+                        style: OcText.small.copyWith(
+                          fontSize: 11,
+                          color: colors.textMuted,
+                        ),
                       ),
                     ],
                   ),

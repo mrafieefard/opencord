@@ -427,7 +427,7 @@ void main() {
     await tester.pumpAndSettle();
     final open = tester.getTopLeft(find.byKey(ShellKeys.panel)).dx;
 
-    await tester.tap(find.byTooltip('Close member list'));
+    await tester.tap(find.byTooltip('Close'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 40));
 

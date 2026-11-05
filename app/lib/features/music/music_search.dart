@@ -223,9 +223,10 @@ class _MusicSearchFieldState extends ConsumerState<MusicSearchField> {
 
     final field = OcTextField(
       controller: _controller,
-      // Without Lavalink, search finds uploaded songs only.
-      hint: settings?.hasNodes ?? true ? 'Add a song' : 'Find an uploaded song',
+      hint: 'Search, or drop song files here',
       prefix: selector,
+      prefixIcon: selector == null ? OcIcons.search : null,
+      radius: OcRadius.searchPill,
       autofocus: widget.autofocus && access.canAdd,
       enabled: access.canAdd,
       maxLength: 200,

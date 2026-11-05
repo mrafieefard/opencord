@@ -83,6 +83,7 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
         ? 'This track can’t be seeked'
         : access.why(Permissions.musicControl);
     final style = OcText.meta.copyWith(
+      fontSize: 11,
       color: colors.textMuted,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
@@ -92,13 +93,14 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 4,
+        trackShape: const RoundedRectSliderTrackShape(),
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
         overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
         activeTrackColor: colors.text,
-        inactiveTrackColor: colors.border,
+        inactiveTrackColor: colors.selected,
         thumbColor: colors.text,
         disabledActiveTrackColor: colors.textSecondary,
-        disabledInactiveTrackColor: colors.border,
+        disabledInactiveTrackColor: colors.selected,
         disabledThumbColor: Colors.transparent,
       ),
       child: Slider(
@@ -205,7 +207,7 @@ class MusicTransport extends ConsumerWidget {
                 )
               : null,
         ),
-        const SizedBox(width: OcSpace.s8),
+        const SizedBox(width: 10),
         _TransportButton(
           icon: OcIcons.skipPrevious,
           tooltip: why ?? 'Previous',
@@ -220,7 +222,7 @@ class MusicTransport extends ConsumerWidget {
                 )
               : null,
         ),
-        const SizedBox(width: OcSpace.s12),
+        const SizedBox(width: 10),
         _PlayButton(
           playing: playing,
           tooltip: why ?? (playing ? 'Pause' : 'Play'),
@@ -231,7 +233,7 @@ class MusicTransport extends ConsumerWidget {
                 )
               : null,
         ),
-        const SizedBox(width: OcSpace.s12),
+        const SizedBox(width: 10),
         () {
           final canDirectSkip =
               item != null && access.canSkip(item.requesterId);
@@ -281,7 +283,7 @@ class MusicTransport extends ConsumerWidget {
             onPressed: nextOnPressed,
           );
         }(),
-        const SizedBox(width: OcSpace.s8),
+        const SizedBox(width: 10),
         _ModeButton(
           icon: repeat == MusicRepeat.track
               ? OcIcons.repeatOne
@@ -309,7 +311,7 @@ class MusicTransport extends ConsumerWidget {
   }
 }
 
-/// 44 px, inverted (§19.4).
+/// 48 px, inverted while playing (§5.13).
 class _PlayButton extends StatelessWidget {
   const _PlayButton({
     required this.playing,
@@ -331,23 +333,26 @@ class _PlayButton extends StatelessWidget {
       child: Hoverable(
         onTap: onPressed,
         semanticLabel: playing ? 'Pause' : 'Play',
-        focusRadius: BorderRadius.circular(22),
+        focusRadius: BorderRadius.circular(24),
         builder: (context, state) => AnimatedContainer(
           duration: OcMotion.of(context).hover,
-          width: 44,
-          height: 44,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: enabled
-                ? state.active
-                      ? colors.textSecondary
-                      : colors.accent
+                ? playing
+                    ? (state.active ? colors.textSecondary : colors.accent)
+                    : (state.active ? colors.hover : colors.surface)
                 : colors.hover,
+            border: playing ? null : Border.all(color: colors.border),
           ),
           child: Icon(
             playing ? OcIcons.pause : OcIcons.playArrow,
             size: 26,
-            color: enabled ? colors.onAccent : colors.textMuted,
+            color: enabled
+                ? (playing ? colors.onAccent : colors.text)
+                : colors.textMuted,
           ),
         ),
       ),

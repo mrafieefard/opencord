@@ -5,6 +5,7 @@ import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/music/music_search.dart';
 import 'package:opencord/features/music/music_source_icon.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
+import 'package:opencord/features/shell/pane_switch.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
@@ -37,7 +38,11 @@ Finder _inMenu(Finder finder) =>
 Finder _paneButton(String tooltip) => find.descendant(
   of: find.byKey(DesktopShell.membersKey),
   matching: find.byWidgetPredicate(
-    (widget) => widget is OcIconButton && widget.tooltip == tooltip,
+    (widget) =>
+        (widget is PaneSwitchButton &&
+            (widget.label == tooltip ||
+                (tooltip == 'Members' && widget.label == 'People'))) ||
+        (widget is OcIconButton && widget.tooltip == tooltip),
   ),
 );
 
