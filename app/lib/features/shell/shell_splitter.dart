@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -123,7 +124,7 @@ class _ShellSplitterState extends State<ShellSplitter> {
           behavior: HitTestBehavior.opaque,
           onPointerDown: (event) {
             if (event.buttons != kPrimaryButton) return;
-            final now = DateTime.now();
+            final now = clock.now();
             if (_lastTapTime != null &&
                 now.difference(_lastTapTime!) <
                     const Duration(milliseconds: 300)) {
