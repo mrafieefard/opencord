@@ -2,13 +2,13 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-11-04-floating-ui.md`: the desktop app rebuilt as floating panels, 1:1 with the owner's prototype. The design it builds on is `docs/superpowers/specs/2026-11-04-floating-ui-design.md`, which holds every number; where they disagree, the prototype beside it wins. The phone apps plan before it is finished.
+You are implementing `docs/superpowers/plans/2026-11-05-floating-ui-followups.md`: nine changes the owner asked for after the floating UI. The design is `docs/superpowers/specs/2026-11-05-floating-ui-followups-design.md`.
 
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
-- **One draft pull request for the whole plan.** The first milestone opens it into `beta`, later ones push to it. For this plan, that replaces "at the end of each milestone, open a pull request" below.
-- The plan gives behavior, interfaces, names, numbers and tests, not finished code. You write the code, and the rules below are what the review checks it against.
+- **One draft pull request for the whole plan.** It stays a draft until the last checkpoint passes. For this plan, that replaces "at the end of each milestone, open a pull request" below.
+- The plan gives behavior, interfaces, names and tests, and the spec gives the numbers and words. You write the code, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-- **Keep going until CP6 passes; don't wait for the owner between milestones.** At each checkpoint (CP0–CP6) hand the review to Claude and wait for its verdict. That score decides: PASS starts the next milestone, FAIL goes back to fixing. The plan's "UI checkpoints and scoring" says how, and when to stop and ask the owner.
+- **Keep going until CP4 passes; don't wait for the owner between milestones.** At each checkpoint hand the review to Claude and wait for its verdict. That score decides: PASS starts the next milestone, FAIL goes back to fixing. The plan's "UI checkpoints and scoring" says how, and when to stop and ask the owner.
 - **The decisions entry is Claude's** for this plan, at the last review. Don't write one per milestone.
 
 ## Every change is a pull request
