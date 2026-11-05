@@ -22,6 +22,7 @@ class _Probe {
     Duration delay = Duration.zero,
     Duration fallingDelay = Duration.zero,
     bool reduced = false,
+    bool immediate = false,
   }) => MediaQuery(
     data: MediaQueryData(disableAnimations: reduced),
     child: SpringValue(
@@ -30,6 +31,7 @@ class _Probe {
       falling: falling,
       delay: delay,
       fallingDelay: fallingDelay,
+      immediate: immediate,
       builder: (context, value, child) {
         built.add(value);
         return const SizedBox.shrink();
@@ -39,6 +41,40 @@ class _Probe {
 }
 
 void main() {
+  testWidgets('immediate_reaches_a_new_target_at_once_and_stops_the_spring', (
+    tester,
+  ) async {
+    final probe = _Probe();
+    await tester.pumpWidget(probe.at(0));
+    await tester.pumpWidget(probe.at(100));
+    await tester.pump(_ms(40));
+    expect(probe.value, closeTo(100 * OcSpring.pane.valueAt(_ms(40)), 0.5));
+    expect(probe.value, lessThan(90));
+
+    // Mid-spring, the pointer takes over: there at once, and still.
+    await tester.pumpWidget(probe.at(150, immediate: true));
+    expect(probe.value, 150);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(_frame);
+      expect(probe.value, 150);
+    }
+    await tester.pumpWidget(probe.at(140, immediate: true));
+    expect(probe.value, 140);
+    await tester.pump(_frame);
+    expect(probe.value, 140);
+    expect(tester.hasRunningAnimations, isFalse);
+
+    // Let go, the next target springs again, from there.
+    await tester.pumpWidget(probe.at(40));
+    await tester.pump(_ms(40));
+    expect(
+      probe.value,
+      closeTo(140 - 100 * OcSpring.pane.valueAt(_ms(40)), 0.5),
+    );
+    await tester.pump(_ms(600));
+    expect(probe.value, 40);
+  });
+
   testWidgets('listenable_moves_on_the_curve_without_a_rebuild', (
     tester,
   ) async {

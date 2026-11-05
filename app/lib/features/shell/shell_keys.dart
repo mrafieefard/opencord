@@ -12,6 +12,10 @@ abstract final class ShellKeys {
   static const me = Key('float-me');
   static const left = Key('float-left');
   static const splitter = Key('float-splitter');
+
+  /// The gap the right pane's splitter sits in, there only while it's inline
+  /// and open.
+  static const sideSplitter = Key('float-side-splitter');
   static const main = Key('float-main');
   static const hd = Key('float-hd');
   static const acts = Key('float-acts');

@@ -86,6 +86,15 @@ abstract final class OcFloats {
       notch = 52,
       paneButton = 44,
       paneButtonInset = 4;
+
+  /// The right pane's limits while dragged (follow-ups §2), and the room
+  /// main keeps beside it: [voiceStageMin] beside a voice channel's chat.
+  static const double sideMin = 232,
+      sideMusicMin = 300,
+      voiceChatMin = 300,
+      sideMax = 480,
+      mainMin = 380,
+      voiceStageMin = 600;
   static const double leftDefault = 288,
       leftNarrow = 264,
       leftMin = 232,

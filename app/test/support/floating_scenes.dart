@@ -81,6 +81,13 @@ class FloatingScene {
 const floatingScenes = [
   FloatingScene('text', playText),
   FloatingScene('text-pane-closed', playTextPaneClosed),
+  // The follow-ups' own: the pane has a splitter only where it's inline.
+  FloatingScene(
+    'pane-resized',
+    playPaneResized,
+    widths: [wide1440, wide1280, wide1180],
+    light: [wide1280],
+  ),
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
   FloatingScene('voice-join', playVoiceJoin),
@@ -348,6 +355,25 @@ Future<void> playTextPaneClosed(SceneDriver scene) async {
     await scene.tap('the pane\'s close button', scene.paneClose);
     await scene.settle();
   }
+}
+
+/// #general with People dragged to 340 (follow-ups §2), the pointer left
+/// over the splitter, so its pill shows.
+Future<void> playPaneResized(SceneDriver scene) async {
+  await playText(scene);
+  await scene.paneOn('People');
+  final tester = scene.tester;
+  final splitter = scene.reach('the right pane\'s splitter', [
+    find.byKey(ShellKeys.sideSplitter),
+  ]);
+  final width = tester.getSize(find.byKey(ShellKeys.side)).width;
+  final drag = await tester.startGesture(tester.getCenter(splitter));
+  await drag.moveBy(Offset(width - 340, 0));
+  await tester.pump();
+  await drag.up();
+  await scene.settle();
+  await scene.hoverAt(tester.getCenter(find.byKey(ShellKeys.sideSplitter)));
+  await scene.settle(200);
 }
 
 /// The voice page, without the pointer over it.

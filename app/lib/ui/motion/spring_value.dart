@@ -15,6 +15,7 @@ class SpringValue extends StatefulWidget {
     this.falling,
     this.delay = Duration.zero,
     this.fallingDelay = Duration.zero,
+    this.immediate = false,
     required ValueWidgetBuilder<double> this.builder,
     this.child,
   }) : listenableBuilder = null;
@@ -28,6 +29,7 @@ class SpringValue extends StatefulWidget {
     this.falling,
     this.delay = Duration.zero,
     this.fallingDelay = Duration.zero,
+    this.immediate = false,
     required ValueWidgetBuilder<ValueListenable<double>> builder,
     this.child,
   }) : builder = null,
@@ -47,6 +49,10 @@ class SpringValue extends StatefulWidget {
 
   /// The same as [delay], for a fall.
   final Duration fallingDelay;
+
+  /// A new target is reached at once, and stops a spring that was running:
+  /// for a value the pointer is moving.
+  final bool immediate;
 
   final ValueWidgetBuilder<double>? builder;
   final ValueWidgetBuilder<ValueListenable<double>>? listenableBuilder;
@@ -79,7 +85,7 @@ class _SpringValueState extends State<SpringValue>
   void didUpdateWidget(SpringValue oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.target == oldWidget.target) return;
-    if (_reduced) {
+    if (_reduced || widget.immediate) {
       _controller.value = widget.target;
       return;
     }

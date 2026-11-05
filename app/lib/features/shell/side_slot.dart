@@ -74,12 +74,16 @@ class SideSlot extends StatelessWidget {
     required this.width,
     required this.child,
     this.float = true,
+    this.immediate = false,
   });
 
   final bool open;
   final double width;
   final Widget child;
   final bool float;
+
+  /// A new [width] or [open] is there at once: while its splitter is dragged.
+  final bool immediate;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +94,7 @@ class SideSlot extends StatelessWidget {
       target: open ? OcFloats.gap : 0,
       spring: OcSpring.pane,
       falling: falling,
+      immediate: immediate,
       builder: (context, gap, slot) => Padding(
         padding: EdgeInsets.only(left: gap),
         child: slot,
@@ -98,6 +103,7 @@ class SideSlot extends StatelessWidget {
         target: open ? width : 0,
         spring: OcSpring.pane,
         falling: falling,
+        immediate: immediate,
         builder: (context, slot, floatContent) => SizedBox(
           key: ShellKeys.side,
           width: slot,
