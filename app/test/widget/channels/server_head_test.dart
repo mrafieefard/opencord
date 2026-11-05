@@ -66,7 +66,7 @@ void main() {
 
       // Tap 1: open menu
       await tester.tap(headFinder);
-      await tester.pump(const Duration(milliseconds: 140));
+      await tester.pumpAndSettle();
 
       final menuFinder = find.byKey(ShellKeys.srvMenu);
       expect(menuFinder, findsOneWidget);
@@ -76,7 +76,7 @@ void main() {
       expect(menuRect.top, 98); // 40 + 52 + 6
       expect(menuRect.width, 288);
 
-      // Arrow turns 180° (0.5 turns) over 140 ms
+      // Arrow turns 180° (0.5 turns)
       final rotation1 = tester.widget<AnimatedRotation>(
         find.descendant(
           of: headFinder,
@@ -99,7 +99,7 @@ void main() {
 
       // Tap 2 (twice): open again
       await tester.tap(headFinder);
-      await tester.pump(const Duration(milliseconds: 140));
+      await tester.pumpAndSettle();
 
       expect(find.byKey(ShellKeys.srvMenu), findsOneWidget);
       final rotation2 = tester.widget<AnimatedRotation>(
@@ -150,7 +150,7 @@ void main() {
 
       final headFinder = find.byKey(ShellKeys.head);
       await tester.tap(headFinder);
-      await tester.pump(const Duration(milliseconds: 140));
+      await tester.pumpAndSettle();
 
       final menuFinder = find.byKey(ShellKeys.srvMenu);
       expect(menuFinder, findsOneWidget);
