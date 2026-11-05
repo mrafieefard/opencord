@@ -25,28 +25,38 @@ final _badgeText = OcText.meta.copyWith(
 
 /// Unread count: an inverted pill, or a grey one when muted (§5.3).
 class UnreadBadge extends StatelessWidget {
-  const UnreadBadge({super.key, required this.count, this.muted = false});
+  const UnreadBadge({
+    super.key,
+    required this.count,
+    this.muted = false,
+    this.inverted = false,
+  });
 
   final int count;
   final bool muted;
+  final bool inverted;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final color = inverted
+        ? colors.onAccent
+        : (muted ? colors.selected : colors.accent);
+    final textColor = inverted
+        ? colors.accent
+        : (muted ? colors.textSecondary : colors.onAccent);
     return Container(
       constraints: const BoxConstraints(minWidth: 18),
       height: 18,
       padding: const EdgeInsets.symmetric(horizontal: 5),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: muted ? colors.selected : colors.accent,
+        color: color,
         borderRadius: BorderRadius.circular(9),
       ),
       child: Text(
         formatCount(count),
-        style: _badgeText.copyWith(
-          color: muted ? colors.textSecondary : colors.onAccent,
-        ),
+        style: _badgeText.copyWith(color: textColor),
       ),
     );
   }

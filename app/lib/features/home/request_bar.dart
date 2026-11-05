@@ -24,14 +24,12 @@ class RequestBar extends ConsumerWidget {
     final name = ref.watch(contactNameProvider(peer));
 
     return Container(
+      constraints: const BoxConstraints(minHeight: OcFloats.bottom),
       padding: const EdgeInsets.symmetric(
         horizontal: OcSpace.s16,
         vertical: OcSpace.s12,
       ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
+      alignment: Alignment.center,
       child: Row(
         children: [
           Expanded(

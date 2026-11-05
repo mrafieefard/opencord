@@ -13,11 +13,13 @@ import 'package:opencord/features/home/private_errors.dart';
 import 'package:opencord/features/home/private_header.dart';
 import 'package:opencord/features/home/private_message_list.dart';
 import 'package:opencord/features/home/request_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/window/window_providers.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/ui/widgets/oc_float.dart';
 
 /// The conversation view for private messaging (§6.3).
 class PrivateChat extends ConsumerStatefulWidget {
@@ -121,7 +123,17 @@ class _PrivateChatState extends ConsumerState<PrivateChat> {
             ),
           ),
         if (!isRequestMode && !isBlocked) KeyBanners(peer: widget.peer),
-        if (widget.includeComposer) PrivateChatBottomBar(peer: widget.peer),
+        if (widget.includeComposer) ...[
+          const SizedBox(height: OcFloats.gap),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: OcFloats.bottom),
+            child: OcFloat(
+              key: ShellKeys.composer,
+              color: colors.sidebar,
+              child: PrivateChatBottomBar(peer: widget.peer),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -155,16 +167,24 @@ class PrivateChatBottomBar extends ConsumerWidget {
           srv.data != null;
     });
 
+    final relayKey = contact?.relayServerKey;
+    final relayServer =
+        relayKey != null ? ref.watch(serverProvider(relayKey)) : null;
+    final isRelayConnected =
+        relayServer != null &&
+        relayServer.connection.phase == ConnectionPhase.connected &&
+        relayServer.data != null;
+
+    final hasSharedServer = sharedServers.isNotEmpty || relayKey != null;
+    final anyConnected = anyConnectedSharedServer || isRelayConnected;
+
     if (isRequestMode) {
       return RequestBar(peer: peer);
     } else if (isBlocked) {
       return Container(
-        height: 56,
+        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
+        alignment: Alignment.center,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -187,15 +207,11 @@ class PrivateChatBottomBar extends ConsumerWidget {
           ],
         ),
       );
-    } else if (sharedServers.isEmpty) {
+    } else if (!hasSharedServer) {
       return Container(
-        height: 56,
+        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
         child: Text(
           'You no longer share a server with $name.',
           style: OcText.body.copyWith(color: colors.textMuted),
@@ -203,28 +219,20 @@ class PrivateChatBottomBar extends ConsumerWidget {
       );
     } else if (contact != null && !contact.reachable) {
       return Container(
-        height: 56,
+        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
         child: Text(
           'Nothing you write would reach $name until you compare the words '
           'or use the new keys.',
           style: OcText.body.copyWith(color: colors.textMuted),
         ),
       );
-    } else if (!anyConnectedSharedServer) {
+    } else if (!anyConnected) {
       return Container(
-        height: 56,
+        constraints: const BoxConstraints(minHeight: OcFloats.bottom),
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
         child: Text(
           "You don't share a connected server with $name right now.",
           style: OcText.body.copyWith(color: colors.textMuted),

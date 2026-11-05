@@ -117,8 +117,8 @@ class PrivateHeader extends ConsumerWidget {
                 ),
                 const SizedBox(width: OcSpace.s8),
               ],
-              ContactAvatar(peer: peer, presence: presence),
-              const SizedBox(width: OcSpace.s12),
+              ContactAvatar(peer: peer, size: 36, presence: presence),
+              const SizedBox(width: 10),
               Expanded(
                 child: IgnorePointer(
                   child: Column(
@@ -168,7 +168,7 @@ class PrivateHeader extends ConsumerWidget {
 
               const SizedBox(width: OcSpace.s8),
 
-              // Relay chip (§6.3)
+              // Relay chip (§5.16)
               Builder(
                 builder: (btnContext) => Hoverable(
                   onTap: sharedServers.isNotEmpty
@@ -182,19 +182,16 @@ class PrivateHeader extends ConsumerWidget {
                       : null,
                   semanticLabel: 'Relay server',
                   builder: (context, state) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: OcSpace.s8,
-                      vertical: OcSpace.s4,
-                    ),
+                    height: 30,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     decoration: BoxDecoration(
                       color: state.active ? colors.hover : colors.surface,
-                      borderRadius: BorderRadius.circular(
-                        OcRadius.bubbleGrouped,
-                      ),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: !isRelayConnected && relayKey != null
                             ? colors.textSecondary
                             : colors.border,
+                        width: 1,
                       ),
                     ),
                     child: Row(
@@ -207,20 +204,19 @@ class PrivateHeader extends ConsumerWidget {
                             size: 16,
                             borderRadius: 4,
                           ),
-                        const SizedBox(width: OcSpace.s6),
+                        const SizedBox(width: 6),
                         Text(
                           'via $relayServerName',
-                          style: OcText.small.copyWith(
-                            color: !isRelayConnected && relayKey != null
-                                ? colors.textSecondary
-                                : colors.text,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: colors.textSecondary,
                           ),
                         ),
-                        const SizedBox(width: OcSpace.s4),
+                        const SizedBox(width: 6),
                         Icon(
                           OcIcons.expandMore,
                           size: 16,
-                          color: colors.textMuted,
+                          color: colors.textSecondary,
                         ),
                       ],
                     ),
