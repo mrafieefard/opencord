@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'package:opencord/ui/motion/oc_spring.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
+import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
+
+class _ClampedCurve extends Curve {
+  const _ClampedCurve(this.curve);
+  final Curve curve;
+
+  @override
+  double transformInternal(double t) => curve.transform(t).clamp(0.0, 1.0);
+}
 
 /// A transparent-barrier popup placed by a layout delegate: the base of
 /// menus and popovers. A click outside or Escape closes it.
@@ -10,13 +20,18 @@ class OcPopupRoute<T> extends PopupRoute<T> {
   OcPopupRoute({
     required this.builder,
     required this.layout,
-    required this.duration,
+    this.alignment = Alignment.topLeft,
+    Duration? duration,
+    this.reducedMotion = false,
     required this.themes,
-  });
+  }) : duration =
+           duration ?? (reducedMotion ? Duration.zero : OcSpring.pop.settle);
 
   final WidgetBuilder builder;
   final SingleChildLayoutDelegate layout;
+  final Alignment alignment;
   final Duration duration;
+  final bool reducedMotion;
   final CapturedThemes themes;
 
   @override
@@ -32,16 +47,62 @@ class OcPopupRoute<T> extends PopupRoute<T> {
   Duration get transitionDuration => duration;
 
   @override
+  Duration get reverseTransitionDuration => Duration.zero;
+
+  @override
+  TickerFuture didPush() {
+    if (transitionDuration == Duration.zero) {
+      controller?.value = 1.0;
+      return TickerFuture.complete();
+    }
+    return super.didPush();
+  }
+
+  @override
+  bool didPop(T? result) {
+    final popped = super.didPop(result);
+    if (reverseTransitionDuration == Duration.zero) {
+      controller?.value = 0.0;
+      controller?.stop();
+    }
+    return popped;
+  }
+
+  @override
   Widget buildPage(
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
   ) {
+    Widget content = Builder(builder: builder);
+    if (!reducedMotion && duration > Duration.zero) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: OcSpring.pop.curve,
+      );
+      final opacityCurve = CurvedAnimation(
+        parent: animation,
+        curve: _ClampedCurve(OcSpring.pop.curve),
+      );
+      content = AnimatedBuilder(
+        animation: curved,
+        builder: (context, child) {
+          final t = curved.value;
+          final dy = -2.0 * (1.0 - t);
+          return Transform.translate(offset: Offset(0, dy), child: child);
+        },
+        child: FadeTransition(
+          opacity: opacityCurve,
+          child: ScaleTransition(
+            alignment: alignment,
+            scale: Tween<double>(begin: 0.97, end: 1.0).animate(curved),
+            child: content,
+          ),
+        ),
+      );
+    }
     return themes.wrap(
-      CustomSingleChildLayout(
-        delegate: layout,
-        child: Builder(builder: builder),
-      ),
+      CustomSingleChildLayout(delegate: layout, child: content),
     );
   }
 
@@ -52,10 +113,7 @@ class OcPopupRoute<T> extends PopupRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    return FadeTransition(
-      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-      child: child,
-    );
+    return child;
   }
 }
 
@@ -65,14 +123,18 @@ Future<T?> pushPopup<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   required SingleChildLayoutDelegate layout,
-  required Duration duration,
+  Alignment alignment = Alignment.topLeft,
+  Duration? duration,
 }) {
   final navigator = Navigator.of(context, rootNavigator: true);
+  final motion = OcMotion.of(context);
   return navigator.push<T>(
     OcPopupRoute<T>(
       builder: builder,
       layout: layout,
+      alignment: alignment,
       duration: duration,
+      reducedMotion: motion.reduced,
       themes: InheritedTheme.capture(from: context, to: navigator.context),
     ),
   );

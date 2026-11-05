@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
-import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
@@ -55,6 +54,16 @@ class OcMenuCustom extends OcMenuEntry {
   final WidgetBuilder builder;
 }
 
+/// Computes the corner nearest the trigger for a click at [point] in a window of [size].
+Alignment alignmentForPoint(Offset point, Size size) {
+  final x = point.dx < size.width / 2 ? -1.0 : 1.0;
+  final y = point.dy < size.height / 2 ? -1.0 : 1.0;
+  if (x == -1.0 && y == -1.0) return Alignment.topLeft;
+  if (x == 1.0 && y == -1.0) return Alignment.topRight;
+  if (x == -1.0 && y == 1.0) return Alignment.bottomLeft;
+  return Alignment.bottomRight;
+}
+
 /// Opens a context menu at [position] (global). The chosen item runs after
 /// the menu has closed, so it can open dialogs of its own.
 Future<void> showOcMenu({
@@ -64,10 +73,13 @@ Future<void> showOcMenu({
   double? width,
   Key? key,
 }) async {
+  final media = MediaQuery.sizeOf(context);
+  final alignment = alignmentForPoint(position, media);
   final action = await _openMenu(
     context,
     entries,
     _MenuLayout.at(position),
+    alignment: alignment,
     width: width,
     key: key,
   );
@@ -78,13 +90,14 @@ Future<VoidCallback?> _openMenu(
   BuildContext context,
   List<OcMenuEntry> entries,
   _MenuLayout layout, {
+  Alignment alignment = Alignment.topLeft,
   double? width,
   Key? key,
 }) {
   return pushPopup<VoidCallback>(
     context,
-    duration: OcMotion.of(context).menu,
     layout: layout,
+    alignment: alignment,
     builder: (context) => OcMenuPanel(key: key, entries: entries, width: width),
   );
 }
@@ -156,7 +169,10 @@ class OcMenuPanel extends StatelessWidget {
             OcMenuItem() => _MenuItemTile(item: entry),
             OcMenuDivider() => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Divider(height: 1, thickness: 1, color: colors.border),
+              child: SizedBox(
+                height: 1,
+                child: ColoredBox(color: colors.border),
+              ),
             ),
             OcMenuCustom(:final builder) => Builder(builder: builder),
           },
@@ -196,10 +212,22 @@ class _MenuItemTile extends StatelessWidget {
       Navigator.pop(context, item.onSelected);
       return;
     }
+    final rect = globalRectOf(context);
+    final media = MediaQuery.sizeOf(context);
+    final x = rect.right + 200 > media.width ? 1.0 : -1.0;
+    final y = rect.top + 100 > media.height ? 1.0 : -1.0;
+    final alignment = (x == -1.0 && y == -1.0)
+        ? Alignment.topLeft
+        : (x == 1.0 && y == -1.0)
+        ? Alignment.topRight
+        : (x == -1.0 && y == 1.0)
+        ? Alignment.bottomLeft
+        : Alignment.bottomRight;
     final chosen = await _openMenu(
       context,
       submenu,
-      _MenuLayout.beside(globalRectOf(context)),
+      _MenuLayout.beside(rect),
+      alignment: alignment,
     );
     if (chosen != null && context.mounted) Navigator.pop(context, chosen);
   }
