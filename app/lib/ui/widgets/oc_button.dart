@@ -23,6 +23,7 @@ class OcButton extends StatelessWidget {
     this.autofocus = false,
     this.focusNode,
     this.height,
+    this.padding,
     this.pressedScale = 1,
   });
 
@@ -37,6 +38,7 @@ class OcButton extends StatelessWidget {
     this.autofocus = false,
     this.focusNode,
     this.height,
+    this.padding,
     this.pressedScale = 1,
   }) : variant = OcButtonVariant.primary;
 
@@ -51,6 +53,7 @@ class OcButton extends StatelessWidget {
     this.autofocus = false,
     this.focusNode,
     this.height,
+    this.padding,
     this.pressedScale = 1,
   }) : variant = OcButtonVariant.ghost;
 
@@ -72,6 +75,9 @@ class OcButton extends StatelessWidget {
 
   /// In place of the 36 or, [dense], 28.
   final double? height;
+
+  /// Custom padding inside the button.
+  final EdgeInsetsGeometry? padding;
 
   /// What it shrinks to while pressed.
   final double pressedScale;
@@ -139,7 +145,7 @@ class OcButton extends StatelessWidget {
             curve: OcMotion.curve,
             height: height ?? (dense ? 28 : 36),
             width: expand ? double.infinity : null,
-            padding: EdgeInsets.symmetric(horizontal: dense ? 12 : 16),
+            padding: padding ?? EdgeInsets.symmetric(horizontal: dense ? 12 : 16),
             decoration: BoxDecoration(color: background, borderRadius: radius),
             // An aligned container fills the width it is offered, so only
             // an expanding button centres its label that way.

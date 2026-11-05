@@ -43,6 +43,7 @@ import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/features/window/app_title_bar.dart';
 import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/features/voice/voice_chat_slot.dart';
 import 'package:opencord/features/voice/voice_dock.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_reconnect_bar.dart';
@@ -355,6 +356,22 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
     final paneWanted =
         ref.watch(memberPanelProvider) && !ref.watch(voiceChatShownProvider);
 
+    final server = ref.watch(currentServerProvider);
+    final channelId = ref.watch(currentChannelProvider);
+    final channel = server == null
+        ? null
+        : ref.watch(
+            serverProvider(
+              server,
+            ).select((state) => state.data?.channels[channelId]),
+          );
+    final open = server == null || channel == null
+        ? null
+        : (server: server, channel: channel.id);
+    final isVoice = !ref.watch(homeShownProvider) &&
+        channel != null &&
+        channel.kind == ChannelKind.voice;
+
     // The voice channel open, or else the one this device is in: the
     // now-playing card opens its music from a text channel too (§19.3).
     final musicChannel = ref.watch(musicChannelProvider);
@@ -362,7 +379,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
         musicChannel != null &&
         ref.watch(musicOfferedProvider(musicChannel)) &&
         ref.watch(rightPanelModeProvider) == RightPanelMode.music;
-    final paneWidth = musicShown ? OcFloats.sideMusic : OcFloats.side;
 
     // Text fields (the composer, searches) need Material underneath.
     return Material(
@@ -406,12 +422,37 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                             final savedWidth = ref.watch(sidebarWidthProvider);
                             final targetWidth = savedWidth ?? defaultWidth;
 
+                            final hasRoomForBoth = (constraints.maxWidth -
+                                    (OcFloats.gap +
+                                        OcFloats.rail +
+                                        OcFloats.gap +
+                                        (layout.sidebarInline
+                                            ? targetWidth
+                                            : 0) +
+                                        OcFloats.gap +
+                                        OcFloats.gap) -
+                                    380.0 -
+                                    OcFloats.gap) >=
+                                600.0;
+                            final voiceChat =
+                                ref.watch(voiceChatShownProvider);
+                            final voiceChatInSlot =
+                                isVoice && voiceChat && hasRoomForBoth;
+                            final voiceChatAlone =
+                                isVoice && voiceChat && !hasRoomForBoth;
+
+                            final paneWidth = voiceChatInSlot
+                                ? 380.0
+                                : (musicShown
+                                    ? OcFloats.sideMusic
+                                    : OcFloats.side);
+
                             final paneOpen = layout.membersInline
-                                ? paneWanted
+                                ? (paneWanted || voiceChatInSlot)
                                 : _membersDrawer && !_membersDrawerClosing;
                             final slotOpen =
                                 layout.membersInline &&
-                                paneWanted &&
+                                (paneWanted || voiceChatInSlot) &&
                                 serverView;
 
                             final minWidth = OcFloats.leftMin;
@@ -515,6 +556,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                                   layout: layout,
                                                   paneOpen: paneOpen,
                                                   onOpenPane: _openRightPanel,
+                                                  voiceChatAlone:
+                                                      voiceChatAlone,
                                                   onOpenSidebar:
                                                       layout.sidebarInline
                                                       ? null
@@ -528,9 +571,21 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                                 SideSlot(
                                                   open: slotOpen,
                                                   width: paneWidth,
-                                                  child: _rightPanel(
-                                                    music: musicShown,
-                                                  ),
+                                                  float: !voiceChatInSlot,
+                                                  child: voiceChatInSlot &&
+                                                          open != null
+                                                      ? VoiceChatSlot(
+                                                          channel: open,
+                                                          onClose: () => ref
+                                                              .read(
+                                                                voiceViewPrefsProvider
+                                                                    .notifier,
+                                                              )
+                                                              .toggleChat(),
+                                                        )
+                                                      : _rightPanel(
+                                                          music: musicShown,
+                                                        ),
                                                 ),
                                             ],
                                           ),
@@ -805,12 +860,14 @@ class _MainColumn extends ConsumerWidget {
     required this.paneOpen,
     required this.onOpenPane,
     required this.onOpenSidebar,
+    this.voiceChatAlone = false,
   });
 
   final ShellLayout layout;
   final bool paneOpen;
   final VoidCallback onOpenPane;
   final VoidCallback? onOpenSidebar;
+  final bool voiceChatAlone;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -851,6 +908,8 @@ class _MainColumn extends ConsumerWidget {
           !noServers && open != null && channel!.kind == ChannelKind.voice;
     }
 
+    final hasComposer = isChat || (isVoice && voiceChatAlone);
+
     Widget mainContent;
     Widget? composerContent;
 
@@ -869,8 +928,9 @@ class _MainColumn extends ConsumerWidget {
       mainContent = ChatArea(
         onOpenSidebar: onOpenSidebar,
         includeComposer: false,
+        voiceChatAlone: voiceChatAlone,
       );
-      if (isChat && open != null) {
+      if (hasComposer && open != null) {
         composerContent = Composer(
           key: ValueKey(('composer', open)),
           channel: open,
@@ -891,7 +951,7 @@ class _MainColumn extends ConsumerWidget {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: isVoice
+                  child: (isVoice && !voiceChatAlone)
                       ? VoiceDockActivityScope(
                           child: NotchedFloat(
                             key: ShellKeys.main,
@@ -920,7 +980,7 @@ class _MainColumn extends ConsumerWidget {
               ],
             ),
           ),
-          if (isChat && composerContent != null) ...[
+          if (hasComposer && composerContent != null) ...[
             const SizedBox(height: OcFloats.gap),
             ConstrainedBox(
               constraints: const BoxConstraints(minHeight: OcFloats.bottom),

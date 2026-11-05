@@ -37,12 +37,16 @@ final voiceChatShownProvider = Provider<bool>((ref) {
 
 /// The main column: the open channel's header and content.
 class ChatArea extends ConsumerStatefulWidget {
-  const ChatArea({super.key, this.onOpenSidebar, this.includeComposer = true});
+  const ChatArea({
+    super.key,
+    this.onOpenSidebar,
+    this.includeComposer = true,
+    this.voiceChatAlone,
+  });
 
   final bool includeComposer;
-
-  /// Shown as a menu button when the sidebar is collapsed (§3).
   final VoidCallback? onOpenSidebar;
+  final bool? voiceChatAlone;
 
   @override
   ConsumerState<ChatArea> createState() => _ChatAreaState();
@@ -143,8 +147,8 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
           // them back and forth.
           final width =
               ShellMetrics.maybeOf(context)?.mainInner ?? constraints.maxWidth;
-          final chatAlone =
-              voiceChat && width - _voiceChatWidth - 1 < _stageMinWidth;
+          final chatAlone = widget.voiceChatAlone ??
+              (voiceChat && width - _voiceChatWidth - 1 < _stageMinWidth);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -163,40 +167,17 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                 Expanded(child: _channelChat(open, unreachable, pins: pins))
               else if (open != null && channel!.kind == ChannelKind.voice)
                 Expanded(
-                  child: switch ((voiceChat, chatAlone)) {
-                    (false, _) => VoiceView(
-                      key: ValueKey(('voice', open)),
-                      channel: open,
-                    ),
-                    (true, true) => _channelChat(
-                      open,
-                      unreachable,
-                      pins: false,
-                      includeComposer: true,
-                    ),
-                    (true, false) => Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: VoiceView(
-                            key: ValueKey(('voice', open)),
-                            channel: open,
-                          ),
+                  child: (voiceChat && chatAlone)
+                      ? _channelChat(
+                          open,
+                          unreachable,
+                          pins: false,
+                          includeComposer: widget.includeComposer,
+                        )
+                      : VoiceView(
+                          key: ValueKey(('voice', open)),
+                          channel: open,
                         ),
-                        VerticalDivider(width: 1, color: colors.border),
-                        SizedBox(
-                          width: _voiceChatWidth,
-                          child: _channelChat(
-                            open,
-                            unreachable,
-                            pins: false,
-                            includeComposer: true,
-                            fillsMain: false,
-                          ),
-                        ),
-                      ],
-                    ),
-                  },
                 )
               else
                 const Expanded(child: SizedBox()),

@@ -18,6 +18,7 @@ import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/features/voice/user_audio_controls.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
 import 'package:opencord/ui/motion/flip_box.dart';
+import 'package:opencord/ui/motion/oc_spring.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -498,8 +499,11 @@ class _NoVideo extends ConsumerWidget {
 }
 
 /// Before joining (§4.10): the channel, who is in it, and Join voice.
-class _JoinPrompt extends ConsumerWidget {
-  const _JoinPrompt({required this.channel, required this.participants});
+class _JoinPrompt extends ConsumerStatefulWidget {
+  const _JoinPrompt({
+    required this.channel,
+    required this.participants,
+  });
 
   static const _shownAvatars = 8;
 
@@ -507,94 +511,176 @@ class _JoinPrompt extends ConsumerWidget {
   final List<VoiceParticipant> participants;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_JoinPrompt> createState() => _JoinPromptState();
+}
+
+class _JoinPromptState extends ConsumerState<_JoinPrompt>
+    with TickerProviderStateMixin {
+  late final AnimationController _translateController;
+  late final AnimationController _opacityController;
+
+  @override
+  void initState() {
+    super.initState();
+    _translateController = AnimationController.unbounded(
+      vsync: this,
+      value: 6.0,
+    );
+    _opacityController = AnimationController(vsync: this, value: 0.0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _translateController.value = 0.0;
+        _opacityController.value = 1.0;
+      } else {
+        _translateController.animateWith(
+          OcSpring.pop.simulation(6.0, 0.0, 0.0),
+        );
+        _opacityController.animateTo(
+          1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _translateController.dispose();
+    _opacityController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.oc;
+    final channel = widget.channel;
+    final participants = widget.participants;
     final data = ref.watch(
       serverProvider(channel.server).select((state) => state.data),
     );
     final name = data?.channels[channel.channel]?.name ?? '';
     final canJoin =
         data?.permissionsIn(channel.channel).has(Permissions.connect) ?? false;
-    final extra = participants.length - _shownAvatars;
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(OcSpace.s24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              style: OcText.title.copyWith(color: colors.text),
-            ),
-            const SizedBox(height: OcSpace.s6),
-            Text(
-              participants.isEmpty
-                  ? 'No one is here yet.'
-                  : '${participants.length} connected',
-              style: OcText.body.copyWith(color: colors.textSecondary),
-            ),
-            if (participants.isNotEmpty) ...[
-              const SizedBox(height: OcSpace.s16),
-              // Overlapping, like a stack of faces.
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final participant in participants.take(_shownAvatars))
-                    Align(
-                      widthFactor: 0.8,
-                      child: DecoratedBox(
+    final extra = participants.length - _JoinPrompt._shownAvatars;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_translateController, _opacityController]),
+      builder: (context, child) => Transform.translate(
+        key: const ValueKey('join-prompt-motion'),
+        offset: Offset(0, _translateController.value),
+        child: Opacity(
+          opacity: _opacityController.value.clamp(0.0, 1.0),
+          child: child,
+        ),
+      ),
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(OcSpace.s24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: colors.selected,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Center(
+                  child: Icon(
+                    OcIcons.volumeUp,
+                    size: 20,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                style: OcText.title.copyWith(color: colors.text),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                participants.isEmpty
+                    ? 'No one is here yet.'
+                    : '${participants.length} connected',
+                style: OcText.body.copyWith(
+                  fontSize: 12.5,
+                  color: colors.textSecondary,
+                ),
+              ),
+              if (participants.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                // Overlapping, like a stack of faces.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final participant
+                        in participants.take(_JoinPrompt._shownAvatars))
+                      Align(
+                        widthFactor: 0.8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: colors.chat, width: 3),
+                          ),
+                          child: MemberAvatar(
+                            serverKey: channel.server,
+                            userId: participant.userId,
+                            name:
+                                data?.members[participant.userId]?.displayName ??
+                                'Someone',
+                            size: 40,
+                          ),
+                        ),
+                      ),
+                    if (extra > 0)
+                      Container(
+                        width: 46,
+                        height: 46,
+                        alignment: Alignment.center,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
+                          color: colors.hover,
                           border: Border.all(color: colors.chat, width: 3),
                         ),
-                        child: MemberAvatar(
-                          serverKey: channel.server,
-                          userId: participant.userId,
-                          name:
-                              data?.members[participant.userId]?.displayName ??
-                              'Someone',
-                          size: 40,
+                        child: Text(
+                          '+$extra',
+                          style: OcText.small.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colors.text,
+                          ),
                         ),
                       ),
-                    ),
-                  if (extra > 0)
-                    Container(
-                      width: 46,
-                      height: 46,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: colors.hover,
-                        border: Border.all(color: colors.chat, width: 3),
-                      ),
-                      child: Text(
-                        '+$extra',
-                        style: OcText.small.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                ],
+                  ],
+                ),
+              ],
+              const SizedBox(height: 24),
+              OcButton.primary(
+                label: 'Join voice',
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                onPressed: canJoin
+                    ? () => joinVoice(
+                          context,
+                          ref,
+                          channel.server,
+                          channel.channel,
+                        )
+                    : null,
               ),
+              if (!canJoin) ...[
+                const SizedBox(height: 8),
+                Text(
+                  "You don't have permission to join this channel.",
+                  style: OcText.small.copyWith(color: colors.textMuted),
+                ),
+              ],
             ],
-            const SizedBox(height: OcSpace.s24),
-            OcButton.primary(
-              label: 'Join voice',
-              onPressed: canJoin
-                  ? () =>
-                        joinVoice(context, ref, channel.server, channel.channel)
-                  : null,
-            ),
-            if (!canJoin) ...[
-              const SizedBox(height: OcSpace.s8),
-              Text(
-                "You don't have permission to join this channel.",
-                style: OcText.small.copyWith(color: colors.textMuted),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

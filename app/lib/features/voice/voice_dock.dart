@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
+import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
@@ -495,7 +496,12 @@ class VoiceChatButton extends ConsumerWidget {
         channel.server,
       ).select((activity) => activity.of(channel.channel).read.unread),
     );
-    final toggle = ref.read(voiceViewPrefsProvider.notifier).toggleChat;
+    void toggle() {
+      if (!open) {
+        ref.read(memberPanelProvider.notifier).close();
+      }
+      ref.read(voiceViewPrefsProvider.notifier).toggleChat();
+    }
     final tooltip = switch ((open, unread)) {
       (true, _) => 'Hide chat',
       (false, 0) => 'Show chat',

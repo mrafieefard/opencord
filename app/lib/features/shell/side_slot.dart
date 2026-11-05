@@ -73,11 +73,13 @@ class SideSlot extends StatelessWidget {
     required this.open,
     required this.width,
     required this.child,
+    this.float = true,
   });
 
   final bool open;
   final double width;
   final Widget child;
+  final bool float;
 
   @override
   Widget build(BuildContext context) {
@@ -96,10 +98,10 @@ class SideSlot extends StatelessWidget {
         target: open ? width : 0,
         spring: OcSpring.pane,
         falling: falling,
-        builder: (context, slot, float) => SizedBox(
+        builder: (context, slot, floatContent) => SizedBox(
           key: ShellKeys.side,
           width: slot,
-          child: open || slot > 0 ? float : null,
+          child: open || slot > 0 ? floatContent : null,
         ),
         child: OverflowBox(
           alignment: Alignment.topLeft,
@@ -107,7 +109,9 @@ class SideSlot extends StatelessWidget {
           maxWidth: width,
           child: KeyedSubtree(
             key: ShellKeys.panel,
-            child: OcFloat(color: context.oc.sidebar, child: child),
+            child: float
+                ? OcFloat(color: context.oc.sidebar, child: child)
+                : child,
           ),
         ),
       ),
