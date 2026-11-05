@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +32,7 @@ import 'package:opencord/features/shell/pane_switch.dart';
 import 'package:opencord/features/shell/shell_drawer.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/shell/shell_layout.dart';
+import 'package:opencord/features/shell/shell_splitter.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
 import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/features/shell/title_crumb.dart';
@@ -66,7 +69,8 @@ class DesktopShell extends ConsumerStatefulWidget {
   ConsumerState<DesktopShell> createState() => _DesktopShellState();
 }
 
-class _DesktopShellState extends ConsumerState<DesktopShell> {
+class _DesktopShellState extends ConsumerState<DesktopShell>
+    with TickerProviderStateMixin {
   bool _sidebarDrawer = false;
   bool _membersDrawer = false;
 
@@ -75,6 +79,18 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   final _sidebarDrawerKey = GlobalKey<ShellDrawerState>();
   final _membersDrawerKey = GlobalKey<ShellDrawerState>();
   ShellLayout _layout = ShellLayout.wide;
+
+  late final AnimationController _sidebarWidthController =
+      AnimationController.unbounded(vsync: this);
+  bool _isDraggingSplitter = false;
+  double? _splitterDragWidth;
+  double? _lastClampedTarget;
+
+  @override
+  void dispose() {
+    _sidebarWidthController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -380,6 +396,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                               constraints.maxWidth,
                             );
                             _layout = layout;
+                            final defaultWidth = layout.sidebarWidth;
+                            final savedWidth = ref.watch(sidebarWidthProvider);
+                            final targetWidth = savedWidth ?? defaultWidth;
+
                             final paneOpen = layout.membersInline
                                 ? paneWanted
                                 : _membersDrawer && !_membersDrawerClosing;
@@ -387,114 +407,257 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                                 layout.membersInline &&
                                 paneWanted &&
                                 serverView;
-                            return SpringValue.listenable(
-                              target: paneOpen ? 0 : OcFloats.notch,
-                              spring: OcSpring.pane,
-                              falling: OcSpring.paneOut,
-                              fallingDelay: OcMotion.notchDelay,
-                              builder: (context, notch, _) => ShellMetrics(
-                                mainInner: ShellMetrics.mainInnerFor(
-                                  window: constraints.maxWidth,
-                                  left: layout.sidebarInline
-                                      ? layout.sidebarWidth
-                                      : 0,
-                                  side: slotOpen ? paneWidth : 0,
-                                ),
-                                // Only a server's page has a notch, and it
-                                // goes and comes with the page.
-                                notch: serverView
-                                    ? notch
-                                    : const AlwaysStoppedAnimation(0.0),
-                                layout: layout,
-                                child: Stack(
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        OcFloats.gap,
-                                        0,
-                                        OcFloats.gap,
-                                        OcFloats.gap,
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          const SizedBox(
-                                            width: OcSize.railWidth,
-                                            child: OcFloat(
-                                              key: ShellKeys.rail,
-                                              child: ServerRail(),
-                                            ),
-                                          ),
-                                          if (layout.sidebarInline) ...[
-                                            const SizedBox(width: OcFloats.gap),
-                                            SizedBox(
-                                              key: ShellKeys.left,
-                                              width: layout.sidebarWidth,
-                                              child: const _LeftColumn(),
-                                            ),
-                                            const SizedBox(
-                                              key: ShellKeys.splitter,
-                                              width: OcFloats.gap,
-                                            ),
-                                          ] else ...[
-                                            const SizedBox(width: OcFloats.gap),
-                                          ],
-                                          Expanded(
-                                            child: _MainColumn(
-                                              layout: layout,
-                                              paneOpen: paneOpen,
-                                              onOpenPane: _openRightPanel,
-                                              onOpenSidebar:
-                                                  layout.sidebarInline
-                                                  ? null
-                                                  : () => setState(
-                                                      () =>
-                                                          _sidebarDrawer = true,
-                                                    ),
-                                            ),
-                                          ),
-                                          if (layout.membersInline)
-                                            SideSlot(
-                                              open: slotOpen,
-                                              width: paneWidth,
-                                              child: _rightPanel(
-                                                music: musicShown,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    if (!layout.sidebarInline && _sidebarDrawer)
-                                      ShellDrawer(
-                                        key: _sidebarDrawerKey,
-                                        fromRight: false,
-                                        inset: OcFloats.gap * 2 + OcFloats.rail,
-                                        width: layout.leftDrawerWidth(
-                                          constraints.maxWidth,
-                                        ),
-                                        onClose: () => setState(
-                                          () => _sidebarDrawer = false,
-                                        ),
-                                        child: const _LeftColumn(),
-                                      ),
-                                    if (!layout.membersInline && _membersDrawer)
-                                      ShellDrawer(
-                                        key: _membersDrawerKey,
-                                        fromRight: true,
-                                        width: paneWidth,
-                                        onClosing: () => setState(
-                                          () => _membersDrawerClosing = true,
-                                        ),
-                                        onClose: () => setState(() {
-                                          _membersDrawer = false;
-                                          _membersDrawerClosing = false;
-                                        }),
-                                        child: _rightPanel(music: musicShown),
-                                      ),
-                                  ],
-                                ),
+
+                            final minWidth = OcFloats.leftMin;
+                            final maxWidth = math.max(
+                              minWidth,
+                              math.min(
+                                OcFloats.leftMax,
+                                constraints.maxWidth -
+                                    OcFloats.rail -
+                                    4 * OcFloats.gap -
+                                    (slotOpen ? paneWidth : 0) -
+                                    380.0,
                               ),
+                            );
+                            final clampedTarget = targetWidth.clamp(
+                              minWidth,
+                              maxWidth,
+                            );
+
+                            if (!_isDraggingSplitter) {
+                              if (_lastClampedTarget == null) {
+                                _sidebarWidthController.value = clampedTarget;
+                                _lastClampedTarget = clampedTarget;
+                              } else if (_lastClampedTarget != clampedTarget) {
+                                _lastClampedTarget = clampedTarget;
+                                if (MediaQuery.disableAnimationsOf(context)) {
+                                  _sidebarWidthController.value = clampedTarget;
+                                } else {
+                                  _sidebarWidthController.animateWith(
+                                    OcSpring.pane.simulation(
+                                      _sidebarWidthController.value,
+                                      clampedTarget,
+                                      _sidebarWidthController.velocity,
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+
+                            return AnimatedBuilder(
+                              animation: _sidebarWidthController,
+                              builder: (context, _) {
+                                final currentSidebarWidth = _isDraggingSplitter
+                                    ? (_splitterDragWidth ?? clampedTarget)
+                                    : _sidebarWidthController.value;
+
+                                return SpringValue.listenable(
+                                  target: paneOpen ? 0 : OcFloats.notch,
+                                  spring: OcSpring.pane,
+                                  falling: OcSpring.paneOut,
+                                  fallingDelay: OcMotion.notchDelay,
+                                  builder: (context, notch, _) => ShellMetrics(
+                                    mainInner: ShellMetrics.mainInnerFor(
+                                      window: constraints.maxWidth,
+                                      left: layout.sidebarInline
+                                          ? currentSidebarWidth
+                                          : 0,
+                                      side: slotOpen ? paneWidth : 0,
+                                    ),
+                                    // Only a server's page has a notch, and it
+                                    // goes and comes with the page.
+                                    notch: serverView
+                                        ? notch
+                                        : const AlwaysStoppedAnimation(0.0),
+                                    layout: layout,
+                                    child: Stack(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            OcFloats.gap,
+                                            0,
+                                            OcFloats.gap,
+                                            OcFloats.gap,
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              const SizedBox(
+                                                width: OcSize.railWidth,
+                                                child: OcFloat(
+                                                  key: ShellKeys.rail,
+                                                  child: ServerRail(),
+                                                ),
+                                              ),
+                                              if (layout.sidebarInline) ...[
+                                                const SizedBox(
+                                                  width: OcFloats.gap,
+                                                ),
+                                                SizedBox(
+                                                  key: ShellKeys.left,
+                                                  width: currentSidebarWidth,
+                                                  child: const _LeftColumn(),
+                                                ),
+                                                ShellSplitter(
+                                                  key: ShellKeys.splitter,
+                                                  currentWidth:
+                                                      currentSidebarWidth,
+                                                  minWidth: minWidth,
+                                                  maxWidth: maxWidth,
+                                                  defaultWidth: defaultWidth,
+                                                  isDragging:
+                                                      _isDraggingSplitter,
+                                                  onDragStart: () {
+                                                    _sidebarWidthController
+                                                        .stop();
+                                                    setState(() {
+                                                      _isDraggingSplitter =
+                                                          true;
+                                                      _splitterDragWidth =
+                                                          currentSidebarWidth
+                                                              .clamp(
+                                                                minWidth,
+                                                                maxWidth,
+                                                              );
+                                                    });
+                                                  },
+                                                  onDragDelta: (dx) {
+                                                    setState(() {
+                                                      _splitterDragWidth =
+                                                          ((_splitterDragWidth ??
+                                                                      currentSidebarWidth) +
+                                                                  dx)
+                                                              .clamp(
+                                                                minWidth,
+                                                                maxWidth,
+                                                              );
+                                                      _sidebarWidthController
+                                                              .value =
+                                                          _splitterDragWidth!;
+                                                    });
+                                                  },
+                                                  onDragEnd: () {
+                                                    if (!_isDraggingSplitter) {
+                                                      return;
+                                                    }
+                                                    final finalWidth =
+                                                        _splitterDragWidth ??
+                                                        _sidebarWidthController
+                                                            .value;
+                                                    setState(() {
+                                                      _isDraggingSplitter =
+                                                          false;
+                                                      _splitterDragWidth = null;
+                                                      _lastClampedTarget =
+                                                          finalWidth;
+                                                    });
+                                                    ref
+                                                        .read(
+                                                          sidebarWidthProvider
+                                                              .notifier,
+                                                        )
+                                                        .save(finalWidth);
+                                                  },
+                                                  onReset: () {
+                                                    ref
+                                                        .read(
+                                                          sidebarWidthProvider
+                                                              .notifier,
+                                                        )
+                                                        .reset();
+                                                  },
+                                                  onStep: (delta) {
+                                                    final next =
+                                                        (currentSidebarWidth +
+                                                                delta)
+                                                            .clamp(
+                                                              minWidth,
+                                                              maxWidth,
+                                                            );
+                                                    _sidebarWidthController
+                                                            .value =
+                                                        next;
+                                                    _lastClampedTarget = next;
+                                                    ref
+                                                        .read(
+                                                          sidebarWidthProvider
+                                                              .notifier,
+                                                        )
+                                                        .save(next);
+                                                    setState(() {});
+                                                  },
+                                                ),
+                                              ] else ...[
+                                                const SizedBox(
+                                                  width: OcFloats.gap,
+                                                ),
+                                              ],
+                                              Expanded(
+                                                child: _MainColumn(
+                                                  layout: layout,
+                                                  paneOpen: paneOpen,
+                                                  onOpenPane: _openRightPanel,
+                                                  onOpenSidebar:
+                                                      layout.sidebarInline
+                                                      ? null
+                                                      : () => setState(
+                                                          () => _sidebarDrawer =
+                                                              true,
+                                                        ),
+                                                ),
+                                              ),
+                                              if (layout.membersInline)
+                                                SideSlot(
+                                                  open: slotOpen,
+                                                  width: paneWidth,
+                                                  child: _rightPanel(
+                                                    music: musicShown,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (!layout.sidebarInline &&
+                                            _sidebarDrawer)
+                                          ShellDrawer(
+                                            key: _sidebarDrawerKey,
+                                            fromRight: false,
+                                            inset:
+                                                OcFloats.gap * 2 +
+                                                OcFloats.rail,
+                                            width: layout.leftDrawerWidth(
+                                              constraints.maxWidth,
+                                            ),
+                                            onClose: () => setState(
+                                              () => _sidebarDrawer = false,
+                                            ),
+                                            child: const _LeftColumn(),
+                                          ),
+                                        if (!layout.membersInline &&
+                                            _membersDrawer)
+                                          ShellDrawer(
+                                            key: _membersDrawerKey,
+                                            fromRight: true,
+                                            width: paneWidth,
+                                            onClosing: () => setState(
+                                              () =>
+                                                  _membersDrawerClosing = true,
+                                            ),
+                                            onClose: () => setState(() {
+                                              _membersDrawer = false;
+                                              _membersDrawerClosing = false;
+                                            }),
+                                            child: _rightPanel(
+                                              music: musicShown,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),

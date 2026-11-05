@@ -163,8 +163,8 @@ class _ServerHeadState extends ConsumerState<ServerHead> {
       isConnected = state.connection.isConnected;
     }
 
-    return SizedBox(
-      height: OcFloats.header,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: OcFloats.header),
       child: Hoverable(
         onTap: isButton ? () => _showMenu(context, ref, name, serverKey) : null,
         semanticLabel: isButton
