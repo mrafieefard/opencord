@@ -235,9 +235,13 @@ class _ServerRailState extends ConsumerState<ServerRail>
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: OcSpace.s8),
-                child: Hoverable(
-                  onTap: () => ref.read(navigationProvider.notifier).openHome(),
-                  semanticLabel: 'Private messages',
+                child: Tooltip(
+                  message: 'Private messages',
+                  triggerMode: TooltipTriggerMode.manual,
+                  child: Hoverable(
+                    onTap: () =>
+                        ref.read(navigationProvider.notifier).openHome(),
+                    semanticLabel: 'Private messages',
                   onHover: (hovered) {
                     if (hovered) {
                       showPopover('private', context);
@@ -262,6 +266,7 @@ class _ServerRailState extends ConsumerState<ServerRail>
                   ),
                 ),
               ),
+            ),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,

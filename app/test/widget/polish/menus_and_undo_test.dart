@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -64,7 +65,9 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byKey(DesktopShell.railKey),
-          matching: find.text('Opencord Dev'),
+          matching: find.byWidgetPredicate(
+            (w) => w is RailItemView && w.name == 'Opencord Dev',
+          ),
         ),
         buttons: kSecondaryButton,
       );
