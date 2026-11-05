@@ -13,9 +13,9 @@ void main() {
         tester,
         colors: colors,
         background: (c) => c.rail,
-        surface: const Size(7 * 76, 84),
+        surface: const Size(7 * 62, 58),
         const Padding(
-          padding: EdgeInsets.only(top: 6),
+          padding: EdgeInsets.only(top: 3),
           child: Row(
             children: [
               RailItemView(id: 'a', name: 'Opencord Dev'),

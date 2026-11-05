@@ -317,7 +317,12 @@ class SceneDriver {
   ];
 
   /// Fails the scene when [what] isn't on screen.
-  void need(String what, List<Finder> finders) => reach(what, finders);
+  void need(String what, List<Finder> finders) {
+    for (final finder in finders) {
+      if (finder.evaluate().isNotEmpty) return;
+    }
+    throw SceneUnavailable(what);
+  }
 }
 
 /// Joined General, then #general: where every other scene starts, as the

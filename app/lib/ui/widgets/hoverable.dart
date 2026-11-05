@@ -42,6 +42,8 @@ class Hoverable extends StatefulWidget {
     this.toggled,
     this.button = true,
     this.showFocusRing = true,
+    this.onHover,
+    this.onFocusChange,
   });
 
   /// Lets tests find the focus ring.
@@ -69,6 +71,12 @@ class Hoverable extends StatefulWidget {
   /// Off for surfaces that show focus themselves, like menu items.
   final bool showFocusRing;
 
+  /// Called when pointer enters (true) or exits (false).
+  final ValueChanged<bool>? onHover;
+
+  /// Called when keyboard focus is gained (true) or lost (false).
+  final ValueChanged<bool>? onFocusChange;
+
   @override
   State<Hoverable> createState() => _HoverableState();
 }
@@ -86,7 +94,9 @@ class _HoverableState extends State<Hoverable> {
   bool get _interactive =>
       widget.onTap != null ||
       widget.onDoubleTap != null ||
-      widget.onSecondaryTap != null;
+      widget.onSecondaryTap != null ||
+      widget.onHover != null ||
+      widget.onFocusChange != null;
 
   void _set(VoidCallback change) {
     if (mounted) setState(change);
@@ -121,15 +131,24 @@ class _HoverableState extends State<Hoverable> {
       toggled: widget.toggled,
       child: MouseRegion(
         cursor: _interactive ? widget.cursor : MouseCursor.defer,
-        onEnter: (_) => _set(() => _hovered = true),
-        onExit: (_) => _set(() => _hovered = false),
+        onEnter: (_) {
+          _set(() => _hovered = true);
+          widget.onHover?.call(true);
+        },
+        onExit: (_) {
+          _set(() => _hovered = false);
+          widget.onHover?.call(false);
+        },
         child: FocusableActionDetector(
           enabled: _interactive,
           focusNode: widget.focusNode,
           autofocus: widget.autofocus,
           onShowFocusHighlight: (value) =>
               _set(() => _showFocusRing = value && widget.showFocusRing),
-          onFocusChange: (value) => _set(() => _focused = value),
+          onFocusChange: (value) {
+            _set(() => _focused = value);
+            widget.onFocusChange?.call(value);
+          },
           shortcuts: {
             if (onSecondaryTap != null) ...{
               const SingleActivator(LogicalKeyboardKey.f10, shift: true):

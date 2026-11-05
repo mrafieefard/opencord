@@ -1,20 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:opencord/features/members/member_avatar.dart';
-import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/dialogs/add_server_dialog.dart';
 import 'package:opencord/features/dialogs/invite_dialog.dart';
-import 'package:opencord/features/shell/navigation.dart';
-import 'package:opencord/features/window/drag_area.dart';
-import 'package:opencord/features/window/window_mode.dart';
-import 'package:opencord/features/window/window_providers.dart';
+import 'package:opencord/features/members/member_avatar.dart';
+import 'package:opencord/features/servers/rail_popover.dart';
 import 'package:opencord/features/settings/server_settings.dart';
+import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/ui/motion/oc_spring.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -24,95 +25,318 @@ import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
-import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
-/// The server rail (§4.1): one icon per server with its name underneath,
-/// Telegram-folder style, reordered by dragging.
-class ServerRail extends ConsumerWidget {
+/// Controls the rail popover from items down the tree (§5.2).
+abstract interface class RailPopoverController {
+  void showPopover(Object id, BuildContext itemContext);
+  void hidePopover(Object id);
+  void dismissImmediately();
+}
+
+/// Scope exposing the rail popover controller to items down the tree.
+class RailPopoverScope extends InheritedWidget {
+  const RailPopoverScope({
+    super.key,
+    required this.controller,
+    required super.child,
+  });
+
+  final RailPopoverController controller;
+
+  static RailPopoverController? of(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<RailPopoverScope>()
+      ?.controller;
+
+  @override
+  bool updateShouldNotify(RailPopoverScope oldWidget) =>
+      controller != oldWidget.controller;
+}
+
+/// The server rail (§5.2): one icon per server, reordered by dragging,
+/// with the rail popover showing on hover/focus.
+class ServerRail extends ConsumerStatefulWidget {
   const ServerRail({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ServerRail> createState() => _ServerRailState();
+}
+
+class _ServerRailState extends ConsumerState<ServerRail>
+    with TickerProviderStateMixin
+    implements RailPopoverController {
+  final _portalController = OverlayPortalController();
+  late final AnimationController _scaleController;
+  late final AnimationController _opacityController;
+  late final AnimationController _yController;
+  Timer? _leaveTimer;
+  Object? _activeId;
+  double _currentY = 0.0;
+  double _targetY = 0.0;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleController = AnimationController(vsync: this, value: 0.96);
+    _opacityController = AnimationController(vsync: this, value: 0.0);
+    _yController = AnimationController.unbounded(vsync: this);
+    _yController.addListener(() {
+      setState(() {
+        _currentY = _yController.value;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _leaveTimer?.cancel();
+    _scaleController.dispose();
+    _opacityController.dispose();
+    _yController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void showPopover(Object id, BuildContext itemContext) {
+    final box = itemContext.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return;
+    final center = box.localToGlobal(box.size.center(Offset.zero));
+    _showAt(id, center.dy);
+  }
+
+  void _showAt(Object id, double y) {
+    _leaveTimer?.cancel();
+    _leaveTimer = null;
+
+    if (!_visible || !_portalController.isShowing) {
+      _visible = true;
+      _activeId = id;
+      _currentY = y;
+      _targetY = y;
+      _portalController.show();
+      _scaleController.value = 0.96;
+      _scaleController.animateWith(OcSpring.pop.simulation(0.96, 1.0, 0.0));
+      _opacityController.value = 0.0;
+      _opacityController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeOut,
+      );
+      setState(() {});
+    } else {
+      _activeId = id;
+      if ((_targetY - y).abs() > 0.5) {
+        final fromY = _currentY;
+        _targetY = y;
+        _yController.stop();
+        _yController.animateWith(OcSpring.paneOut.simulation(fromY, y, 0.0));
+      }
+      if (_scaleController.value < 1.0 && !_scaleController.isAnimating) {
+        _scaleController.value = 1.0;
+      }
+      if (_opacityController.value < 1.0 && !_opacityController.isAnimating) {
+        _opacityController.value = 1.0;
+      }
+      setState(() {});
+    }
+  }
+
+  @override
+  void hidePopover(Object id) {
+    if (_activeId != id) return;
+    _leaveTimer?.cancel();
+    _leaveTimer = Timer(const Duration(milliseconds: 90), () {
+      _leaveTimer = null;
+      if (!mounted || !_visible) return;
+      _scaleController.animateTo(
+        0.96,
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeIn,
+      );
+      _opacityController
+          .animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 80),
+            curve: Curves.easeIn,
+          )
+          .whenCompleteOrCancel(() {
+            if (mounted && _leaveTimer == null && _activeId == id) {
+              _visible = false;
+              _activeId = null;
+              if (_portalController.isShowing) {
+                _portalController.hide();
+              }
+              setState(() {});
+            }
+          });
+    });
+  }
+
+  @override
+  void dismissImmediately() {
+    _leaveTimer?.cancel();
+    _leaveTimer = null;
+    _scaleController.stop();
+    _opacityController.stop();
+    _yController.stop();
+    _visible = false;
+    _activeId = null;
+    if (_portalController.isShowing) {
+      _portalController.hide();
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.oc;
+    final motion = OcMotion.of(context);
     final servers = ref.watch(serverListProvider);
-    // macOS keeps its traffic lights above the rail (§3.1).
-    final trafficLights =
-        Theme.of(context).platform == TargetPlatform.macOS &&
-        ref.watch(windowChromeProvider) == WindowChrome.custom &&
-        !ref.watch(windowStatusProvider.select((status) => status.fullscreen));
-    return ColoredBox(
-      color: colors.sidebar,
-      child: Column(
-        children: [
-          if (trafficLights)
-            const SizedBox(height: 52, child: WindowDragArea()),
-          // The home entry is a whole rail item, name included, so it
-          // takes the item's height rather than the header's.
-          Padding(
-            padding: const EdgeInsets.only(top: OcSpace.s8),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Positioned.fill(child: WindowDragArea()),
-                Tooltip(
-                  message: 'Private messages',
-                  child: Hoverable(
-                    onTap: () =>
-                        ref.read(navigationProvider.notifier).openHome(),
-                    semanticLabel: 'Private messages',
-                    builder: (context, state) => RailItemView(
-                      id: 'private-home',
-                      name: 'Private',
-                      glyph: OcIcons.chat,
-                      selected: ref.watch(homeShownProvider),
-                      hovered: state.active,
-                      mentions: ref.watch(privateUnreadProvider),
+
+    ref.listen(serverListProvider, (prev, next) {
+      if (_activeId is String && !next.any((s) => s.key == _activeId)) {
+        dismissImmediately();
+      }
+    });
+
+    return RailPopoverScope(
+      controller: this,
+      child: OverlayPortal(
+        controller: _portalController,
+        overlayChildBuilder: (context) {
+          if (!_visible || _activeId == null) {
+            return const SizedBox.shrink();
+          }
+          return Positioned(
+            left: 78,
+            top: _currentY,
+            child: FractionalTranslation(
+              translation: const Offset(0, -0.5),
+              child: IgnorePointer(
+                child: FadeTransition(
+                  key: const Key('rail-popover-fade'),
+                  opacity: _opacityController,
+                  child: ScaleTransition(
+                    key: const Key('rail-popover-scale'),
+                    scale: _scaleController,
+                    alignment: Alignment.centerLeft,
+                    child: RailPopover(id: _activeId!),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        child: ColoredBox(
+          color: colors.sidebar,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: OcSpace.s8),
+                child: Hoverable(
+                  onTap: () => ref.read(navigationProvider.notifier).openHome(),
+                  semanticLabel: 'Private messages',
+                  onHover: (hovered) {
+                    if (hovered) {
+                      showPopover('private', context);
+                    } else {
+                      hidePopover('private');
+                    }
+                  },
+                  onFocusChange: (focused) {
+                    if (focused) {
+                      showPopover('private', context);
+                    } else {
+                      hidePopover('private');
+                    }
+                  },
+                  builder: (context, state) => RailItemView(
+                    id: 'private',
+                    name: 'Private',
+                    glyph: OcIcons.chat,
+                    selected: ref.watch(homeShownProvider),
+                    hovered: state.active,
+                    mentions: ref.watch(privateUnreadProvider),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 2,
+                ),
+                child: SizedBox(
+                  height: 1,
+                  child: ColoredBox(color: colors.border),
+                ),
+              ),
+              Expanded(
+                child: ReorderableListView.builder(
+                  padding: EdgeInsets.zero,
+                  buildDefaultDragHandles: false,
+                  itemCount: servers.length,
+                  proxyDecorator: (child, index, animation) =>
+                      Opacity(opacity: 0.9, child: child),
+                  onReorderStart: (index) => dismissImmediately(),
+                  onReorderItem: (from, to) => ref
+                      .read(serverListProvider.notifier)
+                      .move(servers[from].key, to),
+                  itemBuilder: (context, index) => Padding(
+                    key: ValueKey(servers[index].key),
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: ReorderableDragStartListener(
+                      index: index,
+                      child: _RailEntry(server: servers[index]),
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: OcSpace.s8),
-            child: SizedBox(
-              width: 32,
-              child: Divider(height: 1, color: colors.border),
-            ),
-          ),
-          Expanded(
-            child: ReorderableListView.builder(
-              padding: EdgeInsets.zero,
-              buildDefaultDragHandles: false,
-              itemCount: servers.length,
-              proxyDecorator: (child, index, animation) =>
-                  Opacity(opacity: 0.9, child: child),
-              onReorderItem: (from, to) => ref
-                  .read(serverListProvider.notifier)
-                  .move(servers[from].key, to),
-              itemBuilder: (context, index) => ReorderableDragStartListener(
-                key: ValueKey(servers[index].key),
-                index: index,
-                child: _RailEntry(server: servers[index]),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                child: Hoverable(
+                  onTap: () => showAddServer(context),
+                  semanticLabel: 'Add a server',
+                  onHover: (hovered) {
+                    if (hovered) {
+                      showPopover('add', context);
+                    } else {
+                      hidePopover('add');
+                    }
+                  },
+                  onFocusChange: (focused) {
+                    if (focused) {
+                      showPopover('add', context);
+                    } else {
+                      hidePopover('add');
+                    }
+                  },
+                  builder: (context, state) => AnimatedContainer(
+                    duration: motion.hover,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: state.active ? colors.hover : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      OcIcons.add,
+                      size: 20,
+                      color: state.active ? colors.text : colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: OcSpace.s4),
-          OcIconButton(
-            icon: OcIcons.add,
-            tooltip: 'Add server',
-            onPressed: () => showAddServer(context),
-          ),
-          const SizedBox(height: OcSpace.s12),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Where a server's connection stands, as the rail shows it (§5.3).
+/// Where a server's connection stands, as the rail shows it (§5.2).
 enum RailConnection { connected, connecting, failed }
 
 String _stateLabel(ConnectionStatus status) => switch (status.phase) {
@@ -147,40 +371,52 @@ class _RailEntry extends ConsumerWidget {
       ),
     );
     final mentions = ref.watch(activityProvider(key).select((a) => a.mentions));
-    return Tooltip(
-      message: '$name\n${_stateLabel(status)}',
-      excludeFromSemantics: true,
-      child: Hoverable(
-        onTap: () => ref.read(navigationProvider.notifier).openServer(key),
-        onSecondaryTap: (position) =>
-            _showMenu(context, ref, position, name, muted),
-        semanticLabel: '$name, ${_stateLabel(status)}',
-        selected: selected,
-        focusRadius: BorderRadius.circular(OcRadius.serverIconActive),
-        builder: (context, state) => RailItemView(
-          id: key,
-          name: name,
-          icon: avatarImage(
-            ref,
-            key,
-            ref.watch(serverProvider(key).select((s) => s.data?.info.iconHash)),
-          ),
-          selected: selected,
-          hovered: state.active,
-          unread: unread && !muted,
-          mentions: muted ? 0 : mentions,
-          connection: switch (status.phase) {
-            ConnectionPhase.connected => RailConnection.connected,
-            ConnectionPhase.connecting ||
-            ConnectionPhase.reconnecting => RailConnection.connecting,
-            ConnectionPhase.failed => RailConnection.failed,
-          },
+    final scope = RailPopoverScope.of(context);
+
+    return Hoverable(
+      onTap: () => ref.read(navigationProvider.notifier).openServer(key),
+      onSecondaryTap: (position) =>
+          _showMenu(context, ref, position, name, muted),
+      semanticLabel: '$name, ${_stateLabel(status)}',
+      selected: selected,
+      focusRadius: BorderRadius.circular(OcRadius.serverIconActive),
+      onHover: (hovered) {
+        if (hovered) {
+          scope?.showPopover(key, context);
+        } else {
+          scope?.hidePopover(key);
+        }
+      },
+      onFocusChange: (focused) {
+        if (focused) {
+          scope?.showPopover(key, context);
+        } else {
+          scope?.hidePopover(key);
+        }
+      },
+      builder: (context, state) => RailItemView(
+        id: key,
+        name: name,
+        icon: avatarImage(
+          ref,
+          key,
+          ref.watch(serverProvider(key).select((s) => s.data?.info.iconHash)),
         ),
+        selected: selected,
+        hovered: state.active,
+        unread: unread && !muted,
+        mentions: muted ? 0 : mentions,
+        connection: switch (status.phase) {
+          ConnectionPhase.connected => RailConnection.connected,
+          ConnectionPhase.connecting ||
+          ConnectionPhase.reconnecting => RailConnection.connecting,
+          ConnectionPhase.failed => RailConnection.failed,
+        },
       ),
     );
   }
 
-  /// §4.1: Mark as read · Mute / Unmute notifications · Invite people ·
+  /// Mark as read · Mute / Unmute notifications · Invite people ·
   /// Server settings (if permitted) · Copy address · — · Leave server.
   Future<void> _showMenu(
     BuildContext context,
@@ -258,7 +494,7 @@ Future<void> confirmLeaveServer(
   if (leave) await ref.read(repositoryProvider).removeServer(serverKey);
 }
 
-/// One rail item (§4.1), separate from its data so every state can be
+/// One rail item (§5.2), separate from its data so every state can be
 /// drawn on its own.
 class RailItemView extends StatelessWidget {
   const RailItemView({
@@ -288,12 +524,11 @@ class RailItemView extends StatelessWidget {
   final int mentions;
   final RailConnection connection;
 
-  static const double height = 76;
+  static const double height = 52;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final motion = OcMotion.of(context);
     final pill = selected
         ? 34.0
         : hovered
@@ -308,22 +543,22 @@ class RailItemView extends StatelessWidget {
         children: [
           Positioned(
             left: 0,
-            top: 4 + (OcSize.serverIcon - pill) / 2,
+            top: (height - pill) / 2,
             child: AnimatedContainer(
-              duration: motion.morph,
+              duration: const Duration(milliseconds: 150),
               curve: OcMotion.curve,
               width: 4,
               height: pill,
               decoration: BoxDecoration(
                 color: colors.text,
                 borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(2),
+                  right: Radius.circular(4),
                 ),
               ),
             ),
           ),
           Positioned(
-            top: 4,
+            top: 3,
             left: (OcSize.railWidth - OcSize.serverIcon) / 2,
             child: SizedBox.square(
               dimension: OcSize.serverIcon,
@@ -336,14 +571,15 @@ class RailItemView extends StatelessWidget {
                           ? OcRadius.serverIconActive
                           : OcRadius.serverIcon,
                     ),
-                    duration: motion.morph,
+                    duration: const Duration(milliseconds: 150),
                     curve: OcMotion.curve,
                     builder: (context, radius, _) {
                       final initials = Text(
                         initialsOf(name),
                         textScaler: TextScaler.noScaling,
                         style: OcText.bodyStrong.copyWith(
-                          fontSize: 16,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
                           height: 1,
                           color: selected ? colors.onAccent : colors.text,
                         ),
@@ -357,7 +593,7 @@ class RailItemView extends StatelessWidget {
                           : initials;
                       final icon = this.icon;
                       return AnimatedContainer(
-                        duration: motion.hover,
+                        duration: const Duration(milliseconds: 120),
                         width: OcSize.serverIcon,
                         height: OcSize.serverIcon,
                         alignment: Alignment.center,
@@ -387,25 +623,25 @@ class RailItemView extends StatelessWidget {
                   if (mentions > 0)
                     Positioned(
                       top: -4,
-                      right: -6,
+                      right: -4,
                       child: _Ringed(
                         ring: colors.sidebar,
-                        radius: 12,
+                        radius: 11,
                         child: UnreadBadge(count: mentions),
                       ),
                     ),
                   if (connection != RailConnection.connected)
                     Positioned(
-                      right: -4,
-                      bottom: -4,
+                      right: -3,
+                      bottom: -3,
                       child: _Ringed(
                         ring: colors.sidebar,
-                        radius: 10,
+                        radius: 11,
                         child: Container(
                           width: 18,
                           height: 18,
                           decoration: BoxDecoration(
-                            color: colors.selected,
+                            color: colors.sidebar,
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -414,27 +650,12 @@ class RailItemView extends StatelessWidget {
                                 : OcIcons.sync,
                             size: 12,
                             fill: 0,
-                            color: colors.text,
+                            color: colors.textSecondary,
                           ),
                         ),
                       ),
                     ),
                 ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: 4,
-            right: 4,
-            top: 4 + OcSize.serverIcon + 4,
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: OcText.meta.copyWith(
-                color: selected ? colors.text : colors.textSecondary,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ),
@@ -444,7 +665,7 @@ class RailItemView extends StatelessWidget {
   }
 }
 
-/// A 2 px ring in the rail's color around a badge (§4.1).
+/// A 2 px ring in the rail's color around a badge (§5.2).
 class _Ringed extends StatelessWidget {
   const _Ringed({
     required this.ring,

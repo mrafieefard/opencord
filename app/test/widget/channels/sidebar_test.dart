@@ -14,11 +14,11 @@ import 'package:opencord/features/channels/voice_panel.dart';
 import '../../support/app.dart';
 
 RailItemView railItem(WidgetTester tester, String name) =>
-    tester.widget<RailItemView>(
-      find.byWidgetPredicate(
-        (widget) => widget is RailItemView && widget.name == name,
-      ),
-    );
+    tester.widget<RailItemView>(railItemFinder(name));
+
+Finder railItemFinder(String name) => find.byWidgetPredicate(
+  (widget) => widget is RailItemView && widget.name == name,
+);
 
 ChannelRowView row(WidgetTester tester, String name) =>
     tester.widget<ChannelRowView>(
@@ -62,7 +62,10 @@ void main() {
     testWidgets('a right click mutes a server', (tester) async {
       final app = await MockApp.pump(tester);
 
-      await tester.tap(find.text('Rust Berlin'), buttons: kSecondaryButton);
+      await tester.tap(
+        railItemFinder('Rust Berlin'),
+        buttons: kSecondaryButton,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mute notifications'));
       await tester.pumpAndSettle();
@@ -82,8 +85,8 @@ void main() {
     ) async {
       final app = await MockApp.pump(tester);
 
-      final from = tester.getCenter(find.text('Homelab'));
-      final to = tester.getCenter(find.text('Opencord Dev').first);
+      final from = tester.getCenter(railItemFinder('Homelab'));
+      final to = tester.getCenter(railItemFinder('Opencord Dev'));
       final gesture = await tester.startGesture(
         from,
         kind: PointerDeviceKind.mouse,
