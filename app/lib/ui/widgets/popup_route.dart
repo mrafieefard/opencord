@@ -14,13 +14,52 @@ class _ClampedCurve extends Curve {
   double transformInternal(double t) => curve.transform(t).clamp(0.0, 1.0);
 }
 
+/// Where a popup grows from: its corner nearest the trigger, found by its
+/// layout once it knows where the popup lands (§5.17).
+class _Origin {
+  Alignment corner = Alignment.topLeft;
+}
+
+/// [inner]'s layout, noting the popup's corner nearest [trigger].
+class _GrowFrom extends SingleChildLayoutDelegate {
+  _GrowFrom(this.inner, this.trigger, this.origin);
+
+  final SingleChildLayoutDelegate inner;
+  final Offset trigger;
+  final _Origin origin;
+
+  @override
+  Size getSize(BoxConstraints constraints) => inner.getSize(constraints);
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      inner.getConstraintsForChild(constraints);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final at = inner.getPositionForChild(size, childSize);
+    final popup = at & childSize;
+    origin.corner = Alignment(
+      trigger.dx <= popup.center.dx ? -1 : 1,
+      trigger.dy <= popup.center.dy ? -1 : 1,
+    );
+    return at;
+  }
+
+  @override
+  bool shouldRelayout(_GrowFrom old) =>
+      old.trigger != trigger ||
+      old.inner.runtimeType != inner.runtimeType ||
+      inner.shouldRelayout(old.inner);
+}
+
 /// A transparent-barrier popup placed by a layout delegate: the base of
 /// menus and popovers. A click outside or Escape closes it.
 class OcPopupRoute<T> extends PopupRoute<T> {
   OcPopupRoute({
     required this.builder,
     required this.layout,
-    this.alignment = Alignment.topLeft,
+    this.trigger,
     Duration? duration,
     this.reducedMotion = false,
     required this.themes,
@@ -29,10 +68,14 @@ class OcPopupRoute<T> extends PopupRoute<T> {
 
   final WidgetBuilder builder;
   final SingleChildLayoutDelegate layout;
-  final Alignment alignment;
+
+  /// Where it was opened from, global: it grows from its corner nearest
+  /// this, wherever [layout] puts it.
+  final Offset? trigger;
   final Duration duration;
   final bool reducedMotion;
   final CapturedThemes themes;
+  final _origin = _Origin();
 
   @override
   Color? get barrierColor => null;
@@ -84,25 +127,32 @@ class OcPopupRoute<T> extends PopupRoute<T> {
         parent: animation,
         curve: _ClampedCurve(OcSpring.pop.curve),
       );
+      final scale = Tween<double>(begin: 0.97, end: 1.0).animate(curved);
       content = AnimatedBuilder(
         animation: curved,
         builder: (context, child) {
           final t = curved.value;
           final dy = -2.0 * (1.0 - t);
-          return Transform.translate(offset: Offset(0, dy), child: child);
+          return Transform.translate(
+            offset: Offset(0, dy),
+            // The corner is read every frame: the layout finds it after the
+            // first frame is built, while the popup is still transparent.
+            child: ScaleTransition(
+              alignment: _origin.corner,
+              scale: scale,
+              child: child,
+            ),
+          );
         },
-        child: FadeTransition(
-          opacity: opacityCurve,
-          child: ScaleTransition(
-            alignment: alignment,
-            scale: Tween<double>(begin: 0.97, end: 1.0).animate(curved),
-            child: content,
-          ),
-        ),
+        child: FadeTransition(opacity: opacityCurve, child: content),
       );
     }
+    final at = trigger;
     return themes.wrap(
-      CustomSingleChildLayout(delegate: layout, child: content),
+      CustomSingleChildLayout(
+        delegate: at == null ? layout : _GrowFrom(layout, at, _origin),
+        child: content,
+      ),
     );
   }
 
@@ -118,12 +168,13 @@ class OcPopupRoute<T> extends PopupRoute<T> {
 }
 
 /// Pushes [route] above everything, including dialogs, with the caller's
-/// theme so a menu opened from a light surface stays light.
+/// theme so a menu opened from a light surface stays light. It grows from
+/// its corner nearest [trigger] (global), or its top left without one.
 Future<T?> pushPopup<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   required SingleChildLayoutDelegate layout,
-  Alignment alignment = Alignment.topLeft,
+  Offset? trigger,
   Duration? duration,
 }) {
   final navigator = Navigator.of(context, rootNavigator: true);
@@ -132,7 +183,7 @@ Future<T?> pushPopup<T>(
     OcPopupRoute<T>(
       builder: builder,
       layout: layout,
-      alignment: alignment,
+      trigger: trigger,
       duration: duration,
       reducedMotion: motion.reduced,
       themes: InheritedTheme.capture(from: context, to: navigator.context),

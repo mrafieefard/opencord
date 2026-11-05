@@ -202,33 +202,54 @@ void main() {
         ),
       );
 
-      final quadrants = [
-        (const Offset(100, 100), Alignment.topLeft),
-        (const Offset(700, 100), Alignment.topRight),
-        (const Offset(100, 500), Alignment.bottomLeft),
-        (const Offset(700, 500), Alignment.bottomRight),
-      ];
-
-      for (final (clickOffset, expectedAlignment) in quadrants) {
-        showOcMenu(
-          context: rootContext,
-          position: clickOffset,
-          entries: [OcMenuItem(label: 'Choice', onSelected: () {})],
-        );
+      // Mid-way, the corner nearest the click is where it ends, apart from
+      // the rise; the rest of the menu is still growing towards its place.
+      Future<void> growsFrom(Finder popup, Alignment corner, String at) async {
         await tester.pump();
-        final scaleTransition = tester.widget<ScaleTransition>(
-          find.byType(ScaleTransition),
-        );
-        expect(
-          scaleTransition.alignment,
-          expectedAlignment,
-          reason: 'at $clickOffset',
-        );
-
-        // Dismiss
+        await tester.pump(const Duration(milliseconds: 40));
+        final mid = tester.getRect(popup);
+        await tester.pumpAndSettle();
+        final end = tester.getRect(popup);
+        final from = corner.withinRect(mid) - corner.withinRect(end);
+        expect(from.dx, moreOrLessEquals(0, epsilon: 0.01), reason: at);
+        expect(from.dy, inInclusiveRange(-2, 0), reason: at);
+        expect(mid.width, lessThan(end.width - 1), reason: at);
         Navigator.pop(rootContext);
         await tester.pump();
       }
+
+      final clicks = [
+        (const Offset(100, 100), Alignment.topLeft),
+        // Too near the right edge: it opens to the click's left.
+        (const Offset(700, 100), Alignment.topRight),
+        // In the window's lower half, it still opens below the click.
+        (const Offset(100, 500), Alignment.topLeft),
+        (const Offset(700, 500), Alignment.topRight),
+        // Too near the bottom: pushed up, so the click is on its lower half.
+        (const Offset(100, 585), Alignment.bottomLeft),
+        (const Offset(700, 585), Alignment.bottomRight),
+      ];
+      for (final (click, corner) in clicks) {
+        showOcMenu(
+          context: rootContext,
+          position: click,
+          entries: [OcMenuItem(label: 'Choice', onSelected: () {})],
+        );
+        await growsFrom(find.byType(OcMenuPanel), corner, 'menu at $click');
+      }
+
+      // A popover that flips above its anchor grows from its lower corner.
+      showPopover(
+        context: rootContext,
+        anchor: const Rect.fromLTWH(200, 560, 40, 40),
+        side: PopoverSide.below,
+        builder: (context) => const SizedBox(width: 100, height: 100),
+      );
+      await growsFrom(
+        find.byType(PopoverPanel),
+        Alignment.bottomLeft,
+        'popover flipped above',
+      );
     });
 
     testWidgets('closing_is_instant_and_the_action_still_runs', (tester) async {

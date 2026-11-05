@@ -54,16 +54,6 @@ class OcMenuCustom extends OcMenuEntry {
   final WidgetBuilder builder;
 }
 
-/// Computes the corner nearest the trigger for a click at [point] in a window of [size].
-Alignment alignmentForPoint(Offset point, Size size) {
-  final x = point.dx < size.width / 2 ? -1.0 : 1.0;
-  final y = point.dy < size.height / 2 ? -1.0 : 1.0;
-  if (x == -1.0 && y == -1.0) return Alignment.topLeft;
-  if (x == 1.0 && y == -1.0) return Alignment.topRight;
-  if (x == -1.0 && y == 1.0) return Alignment.bottomLeft;
-  return Alignment.bottomRight;
-}
-
 /// Opens a context menu at [position] (global). The chosen item runs after
 /// the menu has closed, so it can open dialogs of its own.
 Future<void> showOcMenu({
@@ -73,13 +63,11 @@ Future<void> showOcMenu({
   double? width,
   Key? key,
 }) async {
-  final media = MediaQuery.sizeOf(context);
-  final alignment = alignmentForPoint(position, media);
   final action = await _openMenu(
     context,
     entries,
     _MenuLayout.at(position),
-    alignment: alignment,
+    trigger: position,
     width: width,
     key: key,
   );
@@ -90,14 +78,14 @@ Future<VoidCallback?> _openMenu(
   BuildContext context,
   List<OcMenuEntry> entries,
   _MenuLayout layout, {
-  Alignment alignment = Alignment.topLeft,
+  required Offset trigger,
   double? width,
   Key? key,
 }) {
   return pushPopup<VoidCallback>(
     context,
     layout: layout,
-    alignment: alignment,
+    trigger: trigger,
     builder: (context) => OcMenuPanel(key: key, entries: entries, width: width),
   );
 }
@@ -213,21 +201,11 @@ class _MenuItemTile extends StatelessWidget {
       return;
     }
     final rect = globalRectOf(context);
-    final media = MediaQuery.sizeOf(context);
-    final x = rect.right + 200 > media.width ? 1.0 : -1.0;
-    final y = rect.top + 100 > media.height ? 1.0 : -1.0;
-    final alignment = (x == -1.0 && y == -1.0)
-        ? Alignment.topLeft
-        : (x == 1.0 && y == -1.0)
-        ? Alignment.topRight
-        : (x == -1.0 && y == 1.0)
-        ? Alignment.bottomLeft
-        : Alignment.bottomRight;
     final chosen = await _openMenu(
       context,
       submenu,
       _MenuLayout.beside(rect),
-      alignment: alignment,
+      trigger: rect.center,
     );
     if (chosen != null && context.mounted) Navigator.pop(context, chosen);
   }
