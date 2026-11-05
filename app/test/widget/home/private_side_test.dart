@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_world.dart';
-import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -223,26 +222,11 @@ void main() {
     final app = await MockApp.pump(tester);
     app.container.read(navigationProvider.notifier).openFriends();
 
-    // Add another non-spam incoming request so incomingRequests count is 2
-    final extraKey = fakeFingerprint('key-extra-friend');
-    final extraContact = PrivateContact(
-      peer: extraKey,
-      name: 'Extra Friend',
-      friend: FriendStatus.incoming,
-      requestSpam: false,
-      conversation: ConversationStatus.none,
-      relayServerKey: 'opencord.example:7710',
-      lastActivity: DateTime.now(),
-      unread: 0,
-    );
-    app.repository.privateWorld.contacts[extraKey] = extraContact;
-    app.repository.emit(PrivateContactChanged(extraContact));
-
     await _pumpHomeSidebar(tester, app);
 
     // 2 online friends: Kai Nakamura and Mira Okafor
     expect(find.text('2 online'), findsOneWidget);
-    // Incoming requests: Jonas Weber + Extra Friend = 2
+    // Incoming requests: Jonas Weber + Lena Fischer = 2
     expect(
       find.descendant(
         of: find.widgetWithText(HomeTile, 'Friends'),

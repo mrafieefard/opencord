@@ -64,7 +64,7 @@ void main() {
     // Tabs: Online, All, Pending, Blocked with counts
     // Kai and Mira are online -> Online 2
     // Kai, Mira, Noah are friends -> All 3
-    // Jonas (incoming) + Tomás (outgoing) -> Pending 2
+    // Jonas (incoming) + Lena (spam) + Tomás (outgoing) -> Pending 3
     // Old Friend is blocked -> Blocked 1
     expect(find.descendant(of: headerFinder, matching: find.text('Online')), findsOneWidget);
     expect(find.text('2'), findsWidgets); // Online 2

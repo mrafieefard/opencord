@@ -73,8 +73,9 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       return presence != Presence.offline;
     }).length;
     final allCount = contacts.friends.length;
-    final pendingCount =
-        contacts.incomingRequests.length + contacts.outgoingRequests.length;
+    final pendingCount = contacts.incomingRequests.length +
+        contacts.spamRequests.length +
+        contacts.outgoingRequests.length;
     final blockedCount = contacts.blocked.length;
 
     return Column(
@@ -166,7 +167,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
               key: ValueKey(tab),
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Center(
+                child: Align(
+                  alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 760),
                     child: switch (tab) {

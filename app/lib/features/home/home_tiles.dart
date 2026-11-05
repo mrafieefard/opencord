@@ -26,7 +26,8 @@ class HomeTiles extends ConsumerWidget {
     final isRequestsOpen = isFriends && tab == FriendsTab.requests;
     final isFriendsOpen = isFriends && tab != FriendsTab.requests;
 
-    final incomingRequests = contacts.incomingRequests.length;
+    final incomingRequests =
+        contacts.incomingRequests.length + contacts.spamRequests.length;
     final messageRequests = contacts.messageRequests.length;
 
     // Count online friends from contacts.
@@ -159,8 +160,7 @@ class HomeTile extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
