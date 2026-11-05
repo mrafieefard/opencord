@@ -52,11 +52,9 @@ class OcMotion {
   /// Server icon morph, category arrow, badge appearing.
   Duration get morph => _maybe(150);
 
-  /// Dialog fade and scale.
+  /// The quick switcher's fade and scale. Dialogs and menus open on
+  /// `OcSpring.pop`.
   Duration get dialog => _maybe(120);
-
-  /// Menu fade.
-  Duration get menu => _maybe(90);
 
   /// Message arrival and removal fade.
   Duration get message => _maybe(100);
