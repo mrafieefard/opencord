@@ -14,7 +14,6 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
-import 'package:opencord/ui/widgets/popover.dart';
 
 /// How often the bar moves on by itself while music plays (§0.1).
 const progressTick = Duration(milliseconds: 250);
@@ -36,6 +35,7 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
 
   /// Where the thumb is while dragged.
   double? _dragging;
+  bool _hovered = false;
 
   @override
   void dispose() {
@@ -90,24 +90,9 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
         ? (shown.inMilliseconds / length.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
     final slider = SliderTheme(
-      data: SliderTheme.of(context).copyWith(
-        trackHeight: 4,
-        trackShape: const _MusicSliderTrackShape(),
-        thumbShape: _dragging == null
-            ? const RoundSliderThumbShape(
-                enabledThumbRadius: 0,
-                disabledThumbRadius: 0,
-              )
-            : const RoundSliderThumbShape(enabledThumbRadius: 6),
-        overlayShape: _dragging == null
-            ? SliderComponentShape.noOverlay
-            : const RoundSliderOverlayShape(overlayRadius: 12),
-        activeTrackColor: colors.text,
-        inactiveTrackColor: colors.selected,
-        thumbColor: colors.text,
-        disabledActiveTrackColor: colors.textSecondary,
-        disabledInactiveTrackColor: colors.selected,
-        disabledThumbColor: Colors.transparent,
+      data: _musicSliderTheme(
+        context: context,
+        thumbVisible: _dragging != null || _hovered,
       ),
       child: Slider(
         value: track?.isStream ?? false ? 1 : fraction,
@@ -162,12 +147,43 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
           ),
           SizedBox(
             height: 20,
-            child: why == null ? slider : Tooltip(message: why, child: slider),
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hovered = true),
+              onExit: (_) => setState(() => _hovered = false),
+              child: why == null ? slider : Tooltip(message: why, child: slider),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+SliderThemeData _musicSliderTheme({
+  required BuildContext context,
+  required bool thumbVisible,
+  bool muted = false,
+}) {
+  final colors = context.oc;
+  return SliderTheme.of(context).copyWith(
+    trackHeight: 4,
+    trackShape: const _MusicSliderTrackShape(),
+    thumbShape: thumbVisible
+        ? const RoundSliderThumbShape(enabledThumbRadius: 6)
+        : const RoundSliderThumbShape(
+            enabledThumbRadius: 0,
+            disabledThumbRadius: 0,
+          ),
+    overlayShape: thumbVisible
+        ? const RoundSliderOverlayShape(overlayRadius: 12)
+        : SliderComponentShape.noOverlay,
+    activeTrackColor: muted ? colors.textMuted : colors.text,
+    inactiveTrackColor: colors.selected,
+    thumbColor: colors.text,
+    disabledActiveTrackColor: colors.textSecondary,
+    disabledInactiveTrackColor: colors.selected,
+    disabledThumbColor: Colors.transparent,
+  );
 }
 
 class _MusicSliderTrackShape extends RoundedRectSliderTrackShape {
@@ -471,6 +487,7 @@ class _RoundIcon extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     required this.iconSize,
+    this.size = 36,
     this.active,
     this.badge,
   });
@@ -479,6 +496,7 @@ class _RoundIcon extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onPressed;
   final double iconSize;
+  final double size;
 
   /// Null for buttons without a mode.
   final bool? active;
@@ -502,11 +520,11 @@ class _RoundIcon extends StatelessWidget {
         onTap: onPressed,
         semanticLabel: tooltip,
         selected: active ?? false,
-        focusRadius: BorderRadius.circular(18),
+        focusRadius: BorderRadius.circular(size / 2),
         builder: (context, state) => AnimatedContainer(
           duration: OcMotion.of(context).hover,
-          width: 36,
-          height: 36,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: enabled && state.active ? colors.hover : null,
@@ -618,25 +636,86 @@ class MusicVolumeControls extends ConsumerWidget {
   }
 }
 
-/// The speaker button that opens [MusicVolumeControls].
-class MusicVolumeButton extends ConsumerWidget {
-  const MusicVolumeButton({super.key});
+/// This person's music volume bar on the music panel (§3): speaker mute button,
+/// volume slider (0–200), and percentage/muted text.
+class MusicVolumeBar extends ConsumerStatefulWidget {
+  const MusicVolumeBar({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MusicVolumeBar> createState() => _MusicVolumeBarState();
+}
+
+class _MusicVolumeBarState extends ConsumerState<MusicVolumeBar> {
+  bool _hovered = false;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
     final listening = ref.watch(musicListeningProvider);
-    final off = listening.muted || listening.volume == 0;
-    return Builder(
-      builder: (button) => _RoundIcon(
-        icon: off ? OcIcons.volumeOff : OcIcons.volumeUp,
-        tooltip: off ? 'Your music volume: muted' : 'Your music volume',
-        iconSize: 20,
-        onPressed: () => showPopover<void>(
-          context: button,
-          anchor: globalRectOf(button),
-          side: PopoverSide.above,
-          builder: (_) => const MusicVolumeControls(),
-        ),
+    final notifier = ref.read(musicListeningProvider.notifier);
+    final isMuted = listening.muted;
+    final isOff = isMuted || listening.volume == 0;
+    final shown = isMuted ? 'Muted' : '${listening.volume}%';
+
+    return SizedBox(
+      height: 32,
+      child: Row(
+        children: [
+          _RoundIcon(
+            icon: isOff ? OcIcons.volumeOff : OcIcons.volumeUp,
+            tooltip: isMuted ? 'Unmute music' : 'Mute music',
+            iconSize: 20,
+            size: 32,
+            onPressed: () => notifier.update((l) => l.copyWith(muted: !l.muted)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hovered = true),
+              onExit: (_) => setState(() => _hovered = false),
+              child: SliderTheme(
+                data: _musicSliderTheme(
+                  context: context,
+                  thumbVisible: _hovered || _dragging,
+                  muted: isMuted,
+                ),
+                child: Semantics(
+                  label: 'Your music volume',
+                  value: shown,
+                  child: Slider(
+                    value: listening.volume.toDouble().clamp(0.0, 200.0),
+                    min: 0,
+                    max: 200,
+                    divisions: 200,
+                    semanticFormatterCallback: (_) => shown,
+                    onChangeStart: (_) => setState(() => _dragging = true),
+                    onChangeEnd: (_) => setState(() => _dragging = false),
+                    onChanged: (value) {
+                      notifier.update((l) => l.copyWith(
+                        volume: value.round(),
+                        muted: false,
+                      ));
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 36,
+            child: Text(
+              shown,
+              textAlign: TextAlign.right,
+              style: OcText.meta.copyWith(
+                fontSize: 11,
+                color: colors.textMuted,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -564,19 +564,11 @@ class NowPlayingView extends ConsumerWidget {
           // 12 to the bar, 8 of it inside MusicProgress's pointer area.
           const SizedBox(height: 4),
           MusicProgress(channel: channel),
-          Padding(
-            padding: const EdgeInsets.only(top: 6, bottom: 12),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                MusicTransport(channel: channel),
-                const Align(
-                  alignment: Alignment.centerRight,
-                  child: MusicVolumeButton(),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 6),
+          Center(child: MusicTransport(channel: channel)),
+          const SizedBox(height: 6),
+          const MusicVolumeBar(),
+          const SizedBox(height: 12),
           if (notice != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
