@@ -451,4 +451,36 @@ void main() {
 
     await app.dispose(tester);
   });
+
+  testWidgets('dock_mounted_after_the_timer_ran_out_shows_and_takes_clicks', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final dev = app.read(serverProvider(_dev)).data!;
+    final general = dev.channels.values
+        .firstWhere((c) => c.name == 'General')
+        .id;
+    app.read(navigationProvider.notifier).openChannel(_dev, general);
+    await tester.pumpAndSettle();
+    expect(_dock(), findsNothing);
+
+    // Let the 2.5s activity timer run out while showing the join prompt.
+    await _pumpTime(tester, const Duration(seconds: 3));
+
+    // Now click Join voice.
+    await tester.tap(find.widgetWithText(OcButton, 'Join voice'));
+    await tester.pumpAndSettle();
+
+    // Dock is mounted, visible, and takes clicks.
+    expect(_dock(), findsOneWidget);
+    expect(_dockVisible(tester), isTrue);
+
+    // Mute button responds to click.
+    expect(_control('Mute'), findsOneWidget);
+    await tester.tap(_control('Mute'));
+    await tester.pumpAndSettle();
+    expect(_control('Unmute'), findsOneWidget);
+
+    await app.dispose(tester);
+  });
 }

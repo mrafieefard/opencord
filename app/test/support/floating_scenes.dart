@@ -10,7 +10,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/app.dart';
+import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
 
@@ -77,6 +83,9 @@ const floatingScenes = [
   FloatingScene('text-pane-closed', playTextPaneClosed),
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
+  FloatingScene('voice-join', playVoiceJoin),
+  FloatingScene('voice-join-denied', playVoiceJoinDenied),
+  FloatingScene('voice-chat', playVoiceChat),
   FloatingScene('music', playMusic),
   FloatingScene('music-playing', playMusicPlaying),
   FloatingScene('dm', playDm),
@@ -350,6 +359,12 @@ Future<void> openVoicePage(SceneDriver scene) async {
 
 Future<void> playVoice(SceneDriver scene) async {
   await openVoicePage(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  container.read(speakingProvider('opencord.example:7710').notifier).set({
+    1002,
+  });
   await scene.hoverAt(const Offset(600, 400));
   await scene.settle(200);
 }
@@ -364,8 +379,58 @@ Future<void> watchStream(SceneDriver scene) async {
 
 Future<void> playVoiceFocus(SceneDriver scene) async {
   await watchStream(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  container.read(speakingProvider('opencord.example:7710').notifier).set({
+    1002,
+  });
   await scene.hoverAt(const Offset(600, 300));
   await scene.settle(200);
+}
+
+Future<void> playVoiceJoin(SceneDriver scene) async {
+  await playText(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  await container.read(voiceSessionProvider.notifier).leave();
+  final dev = container.read(serverProvider('opencord.example:7710')).data!;
+  final general = dev.channels.values.firstWhere((c) => c.name == 'General').id;
+  container
+      .read(navigationProvider.notifier)
+      .openChannel('opencord.example:7710', general);
+  await scene.settle(600);
+}
+
+Future<void> playVoiceJoinDenied(SceneDriver scene) async {
+  await playVoiceJoin(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  const serverKey = 'opencord.example:7710';
+  final serverData = container.read(serverProvider(serverKey)).data!;
+  final general = serverData.channels.values
+      .firstWhere((c) => c.name == 'General')
+      .id;
+  final updatedPermissions =
+      (serverData.channelPermissions[general] ?? Permissions.all) -
+      Permissions.connect;
+  container
+      .read(serverProvider(serverKey).notifier)
+      .apply(
+        PermissionsChanged(serverKey, serverData.serverPermissions, {
+          ...serverData.channelPermissions,
+          general: updatedPermissions,
+        }),
+      );
+  await scene.settle(300);
+}
+
+Future<void> playVoiceChat(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.tap('Show chat', [find.byTooltip('Show chat')]);
+  await scene.settle(600);
 }
 
 Future<void> playMusic(SceneDriver scene) async {

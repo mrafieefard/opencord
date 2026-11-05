@@ -126,9 +126,7 @@ class VoiceTileView extends StatelessWidget {
           decoration: BoxDecoration(
             color: screen ? colors.chat : colors.surface,
             borderRadius: radius,
-            border: Border.all(
-              color: focused ? colors.selected : colors.border,
-            ),
+            border: Border.all(color: colors.border),
           ),
           // Drawn over the content so speaking never moves anything.
           foregroundDecoration: speaking && !screen

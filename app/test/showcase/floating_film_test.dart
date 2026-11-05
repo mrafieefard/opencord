@@ -11,8 +11,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/app.dart';
+import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/features/shell/navigation.dart';
 
 import '../support/app.dart';
 import '../support/floating_scenes.dart';
@@ -53,11 +57,56 @@ Future<void> _textGeneralShown(SceneDriver scene) async {
 Future<void> _openVoice(SceneDriver scene) =>
     scene.tap('General', scene.inLeft('General'));
 
-Future<void> _watch(SceneDriver scene) =>
-    scene.tap('Watch', [find.text('Watch')]);
+Future<void> _watch(SceneDriver scene) async {
+  await scene.hoverAt(const Offset(600, 300));
+  await scene.settle(50);
+  await scene.tap('Watch', [find.text('Watch')]);
+}
 
-Future<void> _unfocus(SceneDriver scene) =>
-    scene.tap('the tile shown large', scene.focusedTile);
+Future<void> _unfocus(SceneDriver scene) async {
+  await scene.hoverAt(const Offset(600, 300));
+  await scene.settle(50);
+  await scene.tap('the tile shown large', scene.focusedTile);
+}
+
+Future<void> _dockHidden(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.hoverAt(const Offset(100, 100));
+  await scene.settle(800);
+}
+
+Future<void> _showDock(SceneDriver scene) =>
+    scene.hoverAt(const Offset(600, 400));
+
+Future<void> _dockShown(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.hoverAt(const Offset(600, 400));
+  await scene.settle(600);
+}
+
+Future<void> _hideDock(SceneDriver scene) =>
+    scene.hoverAt(const Offset(100, 100));
+
+Future<void> _beforeJoinRise(SceneDriver scene) async {
+  await playText(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  await container.read(voiceSessionProvider.notifier).leave();
+  await scene.settle(200);
+  await scene.revealInLeft('General');
+}
+
+Future<void> _openJoinPrompt(SceneDriver scene) async {
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  final dev = container.read(serverProvider('opencord.example:7710')).data!;
+  final general = dev.channels.values.firstWhere((c) => c.name == 'General').id;
+  container
+      .read(navigationProvider.notifier)
+      .openChannel('opencord.example:7710', general);
+}
 
 Future<void> _music(SceneDriver scene) =>
     scene.tap('Music in the right pane', scene.paneTab('Music'));
@@ -78,6 +127,15 @@ const _films = [
   _Film('voice-open', _textGeneralShown, _openVoice, _mainClip, _tileTimes),
   _Film('tile-focus', openVoicePage, _watch, _mainClip, _tileTimes),
   _Film('tile-unfocus', watchStream, _unfocus, _mainClip, _tileTimes),
+  _Film('dock-show', _dockHidden, _showDock, _mainClip, [0, 40, 80, 120, 200]),
+  _Film('dock-hide', _dockShown, _hideDock, _mainClip, [0, 40, 80, 120, 130]),
+  _Film('join-rise', _beforeJoinRise, _openJoinPrompt, _mainClip, [
+    0,
+    40,
+    80,
+    120,
+    200,
+  ]),
   _Film(
     'music-swap',
     openVoicePage,

@@ -50,9 +50,10 @@ class VoiceDockActivityNotifier extends ChangeNotifier {
   bool get isHeld => _pointerOnDock || _dockFocused || _popupCount > 0;
 
   void ping() {
+    final wasHidden = !_visible;
     _visible = true;
     _resetHideTimer();
-    notifyListeners();
+    if (wasHidden) notifyListeners();
   }
 
   void onExit() {
@@ -221,6 +222,9 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
       value: 0.0,
     );
     _opacityController = AnimationController(vsync: this, value: 1.0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _activity?.ping();
+    });
   }
 
   @override
@@ -231,9 +235,6 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
       _activity?.removeListener(_onActivityChanged);
       _activity = newActivity;
       _activity?.addListener(_onActivityChanged);
-      if (_activity != null) {
-        _lastVisible = _activity!.visible;
-      }
     }
   }
 
