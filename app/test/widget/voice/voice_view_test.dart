@@ -325,7 +325,8 @@ void main() {
     await tester.pump();
 
     expect(tester.getSize(_tileOf(_priya)).width, greaterThan(gridWidth));
-    expect(tester.getSize(_tileOf(_mira)).width, 160);
+    // Five share the 768 inside the stage's padding, 8 apart.
+    expect(tester.getSize(_tileOf(_mira)).width, moreOrLessEquals(147.2));
     expect(tester.widget<VoiceTileView>(_tileOf(_priya)).focused, isTrue);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);

@@ -394,7 +394,7 @@ Each part names the widget that becomes it. A number here replaces the widget's 
 
 - The main float, no composer. **Stage** padding `12`, tiles `8` apart.
 - **Grid:** `gridColumns` stays. Tile shape **16:10**. The group is at most `1040` wide, or `520` with fewer than 3 tiles, centred.
-- **Tile:** radius `14`, `surface`, 1 px `border`; speaking: a `2` `text` border drawn over it; a screen: `chat`. Avatar `72` (initials 24), at most half the tile's height.
+- **Tile:** radius `14`, `surface`, 1 px `border`; speaking: a `2` `text` border drawn over it; a screen: `chat`. Avatar `72` (initials 24), at most `0.61` of the height inside its border (§9).
 - **Name pill:** left and bottom `8`, padding `3 9`, radius `12`, background `sidebar`, 12.5/600 `text`, gap `5`, icon 16.
 - **`LIVE`** at top and right `10`.
 - **Not watched yet:** `Tomás Ruiz is live` 14/600, gap `8`, `Watch`: height `32`, padding `0 16`, radius `10`, `accent`/`onAccent`, 14/600, press `0.97`.
@@ -526,3 +526,6 @@ Not in the prototype, or a small departure from it. The owner read this list and
 7. **Strip tiles at most `200` wide.** The prototype stretched them without limit, which looks wrong with one or two people.
 8. **`gridColumns` stays.** 4 tiles are 2 × 2 here; the prototype's stand-in grid gave 3 + 1.
 9. **The voice card's clip follows its slot** (added at CP3, not yet read by the owner). The prototype animates `grid-template-rows` below `1fr`, where CSS sizes the row twice: the slot follows §4.3, but the card inside is cut to about the slot's height × the slot's fraction, so ground shows under the card as it goes (41 of 66.5 at 40 ms). Here the card fills its slot all the way. Say if it should copy the prototype.
+10. **Tiles at the narrow widths** (added in Task 15, not yet read by the owner). `gridColumns` gives the most columns, and the prototype's `190` minimum takes one away where they don't fit, so 6 tiles are 2 × 3 at 1180, 980 and 940 as in the prototype. The grid never scrolls, as today's doesn't: at `narrow-940`, where the prototype's 3 rows run 96 past the stage, its tiles shrink to fit, a group of 453.9 × 434 instead of 556 × 529.8. A short last row starts at the left, as in the prototype; today's was centred.
+11. **The avatar's limit** (added in Task 15, not yet read by the owner). This section once said at most half the tile's height, which would make it 60 at 1280, where the prototype draws 72 on a tile 121.7 tall. `0.61` keeps the prototype's 72 at every width and still shrinks it on smaller tiles.
+12. **No hover icon or tooltip on a tile** (added in Task 15, not yet read by the owner). The expand icon that showed on hover isn't in the prototype or §8. The prototype's `title` tips, `Focus on …` and `Back to the grid`, aren't built either: a Flutter tooltip sat over the name pill or in the middle of a video for as long as the pointer rested there.

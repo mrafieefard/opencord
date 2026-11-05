@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,10 +13,13 @@ import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/music/music_stage.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/features/voice/user_audio_controls.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
+import 'package:opencord/ui/motion/flip_box.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -68,21 +69,34 @@ class VoiceView extends ConsumerWidget {
     // Level with the user panel and any composer.
     final resting =
         ref.watch(restingComposerHeightProvider) ?? OcSize.userPanel;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final stage = _Stage(channel: channel, participants: participants);
+    return Stack(
       children: [
-        Expanded(
-          child: _Stage(channel: channel, participants: participants),
-        ),
-        switch (composerHeight) {
-          // The composer beside, as it grows too.
-          final composer? => ValueListenableBuilder(
-            valueListenable: composer,
-            builder: (context, height, _) =>
-                _ControlStrip(height: height ?? resting, child: bar),
+        // The stage has the whole page, under what floats on it (§5.14). Laid
+        // out at the width main ends at, it ignores a pane on its way (§4.4);
+        // with the chat beside, main isn't all its own.
+        Positioned.fill(
+          child: KeyedSubtree(
+            key: ShellKeys.stage,
+            child: composerHeight == null
+                ? MainInnerWidth(child: stage)
+                : stage,
           ),
-          null => _ControlStrip(height: resting, child: bar),
-        },
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: switch (composerHeight) {
+            // The composer beside, as it grows too.
+            final composer? => ValueListenableBuilder(
+              valueListenable: composer,
+              builder: (context, height, _) =>
+                  _ControlStrip(height: height ?? resting, child: bar),
+            ),
+            null => _ControlStrip(height: resting, child: bar),
+          },
+        ),
       ],
     );
   }
@@ -116,14 +130,12 @@ class _ControlStrip extends StatelessWidget {
   }
 }
 
-/// The tiles: a grid, or one large with the rest in a strip (focus mode).
-/// Tiles showing video ask for it at their size; nothing is asked for once
-/// the stage is gone.
+/// The tiles: a grid, or one large with the rest in a strip (focus mode),
+/// moving between the two on [FlipBox]es. Tiles showing video ask for it at
+/// their size, which layout knows at once; nothing is asked for once the stage
+/// is gone.
 class _Stage extends ConsumerStatefulWidget {
   const _Stage({required this.channel, required this.participants});
-
-  static const _gap = OcSpace.s8;
-  static const _strip = Size(160, 90);
 
   final ChannelRef channel;
   final List<VoiceParticipant> participants;
@@ -134,6 +146,10 @@ class _Stage extends ConsumerStatefulWidget {
 
 class _StageState extends ConsumerState<_Stage> {
   late final VideoWantsNotifier _wants;
+
+  /// Each tile on the stage, so it keeps its state and its video from the grid
+  /// to the strip. A tile that left has none: it arrives again if it's back.
+  final _tileKeys = <VoiceTileId, GlobalKey>{};
 
   @override
   void initState() {
@@ -205,6 +221,9 @@ class _StageState extends ConsumerState<_Stage> {
     final ownShare = ref.watch(ownScreenShareProvider);
     final viewers = ref.watch(ownStreamViewersProvider);
     final wants = <VideoWant>[];
+    _tileKeys.removeWhere((id, _) => !tiles.contains(id));
+    // What moves the tiles, not a resize or a pane on its way.
+    final generation = '${tiles.join(',')}|$focused|${music != null}';
     Widget tile(VoiceTileId id, Size size, {bool small = false}) {
       final participant = byUser[id.userId];
       final own = id.userId == self;
@@ -233,8 +252,10 @@ class _StageState extends ConsumerState<_Stage> {
           ),
         );
       }
-      return SizedBox.fromSize(
-        size: size,
+      return FlipBox(
+        key: _tileKeys.putIfAbsent(id, GlobalKey.new),
+        generation: generation,
+        arriveDelay: FlipBox.stagger(tiles.indexOf(id)),
         child: VoiceTileView(
           key: ValueKey(id),
           userId: id.userId,
@@ -321,22 +342,19 @@ class _StageState extends ConsumerState<_Stage> {
       _report(const []);
       return const _NoVideo();
     }
-    return Padding(
-      padding: const EdgeInsets.all(OcSpace.s16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          wants.clear();
-          final layout = _layout(
-            constraints.biggest,
-            tiles,
-            focused,
-            tile,
-            music: music,
-          );
-          _report(List.of(wants));
-          return layout;
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        wants.clear();
+        final layout = _layout(
+          constraints.biggest,
+          tiles,
+          focused,
+          tile,
+          music: music,
+        );
+        _report(List.of(wants));
+        return layout;
+      },
     );
   }
 
@@ -389,74 +407,109 @@ class _StageState extends ConsumerState<_Stage> {
   }
 
   Widget _layout(
-    Size area,
+    Size stage,
     List<VoiceTileId> tiles,
     VoiceTileId? focused,
     Widget Function(VoiceTileId id, Size size, {bool small}) tile, {
     Widget? music,
   }) {
-    const gap = _Stage._gap;
-    const strip = _Stage._strip;
     if (focused != null || music != null) {
       final others = [
         for (final id in tiles)
           if (id != focused || music != null) id,
       ];
-      final stripHeight = others.isEmpty ? 0.0 : strip.height + gap;
-      final large = fitTiles(
-        Size(area.width, math.max(0, area.height - stripHeight)),
-        1,
-      );
-      return Column(
-        children: [
-          Expanded(child: music ?? Center(child: tile(focused!, large))),
-          if (others.isNotEmpty) ...[
-            const SizedBox(height: gap),
-            SizedBox(
-              height: strip.height,
-              child: Center(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final (index, id) in others.indexed) ...[
-                        if (index > 0) const SizedBox(width: gap),
-                        tile(id, strip, small: true),
-                      ],
-                    ],
+      final area = const EdgeInsets.all(focusPadding).deflateSize(stage);
+      final layout = focusLayout(area, others.length);
+      return _group(const Offset(focusPadding, focusPadding) & area, [
+        Positioned.fromRect(
+          rect: layout.large,
+          child: music ?? tile(focused!, layout.large.size),
+        ),
+        if (others.isNotEmpty)
+          Positioned.fromRect(
+            rect: layout.strip,
+            child: _Strip(
+              children: [
+                for (final id in others)
+                  SizedBox.fromSize(
+                    key: ValueKey(id),
+                    size: layout.stripTile,
+                    child: tile(id, layout.stripTile, small: true),
                   ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      );
-    }
-    final size = fitTiles(area, tiles.length, gap: gap);
-    final columns = gridColumns(tiles.length);
-    final rows = [
-      for (var start = 0; start < tiles.length; start += columns)
-        tiles.sublist(start, math.min(start + columns, tiles.length)),
-    ];
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (final (index, row) in rows.indexed) ...[
-          if (index > 0) const SizedBox(height: gap),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final (column, id) in row.indexed) ...[
-                if (column > 0) const SizedBox(width: gap),
-                tile(id, size),
               ],
-            ],
+            ),
           ),
-        ],
-      ],
+      ]);
+    }
+    final area = const EdgeInsets.all(gridPadding).deflateSize(stage);
+    final layout = gridLayout(area, tiles.length);
+    return _group(layout.group.shift(const Offset(gridPadding, gridPadding)), [
+      for (final (index, id) in tiles.indexed)
+        Positioned.fromRect(
+          key: ValueKey(id),
+          rect: layout.tiles[index],
+          child: tile(id, layout.tiles[index].size),
+        ),
+    ]);
+  }
+
+  /// A tile on its way may be painted outside the group.
+  Widget _group(Rect rect, List<Widget> children) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      Positioned.fromRect(
+        rect: rect,
+        child: Stack(
+          key: ShellKeys.tiles,
+          clipBehavior: Clip.none,
+          children: children,
+        ),
+      ),
+    ],
+  );
+}
+
+/// Focus mode's row of the others, centred, scrolling sideways when they don't
+/// fit. It clips only sideways: a tile on its way comes from above it.
+class _Strip extends StatelessWidget {
+  const _Strip({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => ClipRect(
+        clipper: const _SidewaysClip(),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              spacing: tileGap,
+              children: children,
+            ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+class _SidewaysClip extends CustomClipper<Rect> {
+  const _SidewaysClip();
+
+  /// Further than a window is tall.
+  static const _reach = 1e5;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, -_reach, size.width, size.height + _reach);
+
+  @override
+  bool shouldReclip(_SidewaysClip oldClipper) => false;
 }
 
 /// Everyone without video hidden, and nobody has any.
