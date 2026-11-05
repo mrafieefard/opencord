@@ -40,6 +40,7 @@ class OcIconButton extends StatelessWidget {
     this.disabledColor,
     this.focusNode,
     this.showTooltip = true,
+    this.iconSize,
   });
 
   final IconData icon;
@@ -50,6 +51,7 @@ class OcIconButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final ValueChanged<Offset>? onSecondaryTap;
   final OcIconButtonSize size;
+  final double? iconSize;
   final bool active;
   final OcActiveStyle activeStyle;
 
@@ -115,7 +117,7 @@ class OcIconButton extends StatelessWidget {
           decoration: BoxDecoration(shape: BoxShape.circle, color: background),
           child: Icon(
             active ? (activeIcon ?? icon) : icon,
-            size: size.iconSize,
+            size: iconSize ?? size.iconSize,
             color: foreground,
           ),
         );

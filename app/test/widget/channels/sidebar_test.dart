@@ -190,7 +190,8 @@ void main() {
 
         final live = find.byType(LivePill).evaluate().length;
         await tester.tap(find.text('General').first);
-        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
         final connected = find.text('Voice connected').evaluate().length;
         await tester.tap(find.bySemanticsLabel('Camera'));
         await tester.pump();
@@ -202,6 +203,7 @@ void main() {
           ),
         );
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
 
         expect(live, 1);
         expect(connected, 1);

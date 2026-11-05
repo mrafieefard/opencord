@@ -682,8 +682,6 @@ class _LeftColumn extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     final homeShown = ref.watch(homeShownProvider);
-    final voice = ref.watch(voiceSessionProvider);
-    final inVoice = voice.serverKey != null && voice.channelId != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -697,20 +695,86 @@ class _LeftColumn extends ConsumerWidget {
             child: homeShown ? const HomeSidebar() : const ChannelSidebar(),
           ),
         ),
-        if (inVoice) ...[
-          const SizedBox(height: OcFloats.gap),
-          OcFloat(
-            key: ShellKeys.vcard,
-            color: colors.sidebar,
-            child: const VoiceConnectedPanel(),
-          ),
-        ],
+        const _VoiceCardSlot(),
         const SizedBox(height: OcFloats.gap),
         ConstrainedBox(
           constraints: const BoxConstraints(minHeight: OcFloats.bottom),
           child: const OcFloat(key: ShellKeys.me, child: UserPanel()),
         ),
       ],
+    );
+  }
+}
+
+/// The animated slot for the voice connected card (§5.5).
+///
+/// Springs into view on [OcSpring.pane] and leaves on [OcSpring.paneOut].
+/// Keeps showing the last channel name while leaving so nothing jumps.
+class _VoiceCardSlot extends ConsumerStatefulWidget {
+  const _VoiceCardSlot();
+
+  @override
+  ConsumerState<_VoiceCardSlot> createState() => _VoiceCardSlotState();
+}
+
+class _VoiceCardSlotState extends ConsumerState<_VoiceCardSlot> {
+  String? _lastServer;
+  int? _lastChannel;
+
+  @override
+  Widget build(BuildContext context) {
+    final voice = ref.watch(voiceSessionProvider);
+    final inVoice = voice.serverKey != null && voice.channelId != null;
+    if (inVoice) {
+      _lastServer = voice.serverKey;
+      _lastChannel = voice.channelId;
+    }
+
+    final colors = context.oc;
+    final textScaler = MediaQuery.textScalerOf(context);
+    final scale = textScaler.scale(1.0);
+    final cardHeight = 103.4 + math.max(0.0, (scale - 1.0) * 32.0);
+
+    return SpringValue(
+      target: inVoice ? 1.0 : 0.0,
+      spring: OcSpring.pane,
+      falling: OcSpring.paneOut,
+      builder: (context, factor, child) {
+        if ((factor <= 0.0001 && !inVoice) ||
+            _lastServer == null ||
+            _lastChannel == null) {
+          return const SizedBox.shrink();
+        }
+        final visibleHeight = (cardHeight * factor).clamp(0.0, cardHeight);
+        final gapHeight = (OcFloats.gap * factor).clamp(0.0, OcFloats.gap);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(height: gapHeight),
+            SizedBox(
+              key: ShellKeys.vcard,
+              height: visibleHeight,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(OcFloats.radius),
+                child: OverflowBox(
+                  alignment: Alignment.topCenter,
+                  minHeight: cardHeight,
+                  maxHeight: cardHeight,
+                  child: OcFloat(
+                    color: colors.sidebar,
+                    child: VoiceConnectedPanel(
+                      serverKey: inVoice ? voice.serverKey : _lastServer,
+                      channelId: inVoice ? voice.channelId : _lastChannel,
+                      inVoice: inVoice,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

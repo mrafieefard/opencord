@@ -46,7 +46,7 @@ class UserPanel extends ConsumerWidget {
       height: resting != null
           ? math.max(resting, OcFloats.bottom - 2)
           : (OcFloats.bottom - 2),
-      padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+      padding: const EdgeInsets.fromLTRB(8, 0, 6, 0),
       decoration: BoxDecoration(color: colors.sidebar),
       child: Row(
         children: [
@@ -57,10 +57,10 @@ class UserPanel extends ConsumerWidget {
                 semanticLabel: '$name, ${presence.label}. Change status',
                 builder: (context, state) => AnimatedContainer(
                   duration: OcMotion.of(context).hover,
-                  padding: const EdgeInsets.all(OcSpace.s4),
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: state.active ? colors.hover : null,
-                    borderRadius: BorderRadius.circular(OcRadius.row),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [
@@ -74,7 +74,7 @@ class UserPanel extends ConsumerWidget {
                         presence: presence.shown,
                         ringColor: state.active ? colors.hover : colors.sidebar,
                       ),
-                      const SizedBox(width: OcSpace.s8),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,6 +85,8 @@ class UserPanel extends ConsumerWidget {
                               style: OcText.bodyStrong.copyWith(
                                 color: colors.text,
                                 fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                height: 1.25,
                               ),
                             ),
                             Text(
@@ -93,6 +95,8 @@ class UserPanel extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                               style: OcText.meta.copyWith(
                                 color: colors.textMuted,
+                                fontSize: 11,
+                                height: 1.25,
                               ),
                             ),
                           ],
@@ -190,8 +194,8 @@ class _SplitButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
-                OcIcons.arrowDropDown,
-                size: 16,
+                OcIcons.expandMore,
+                size: 12,
                 color: state.active ? context.oc.text : context.oc.textMuted,
               ),
             ),
