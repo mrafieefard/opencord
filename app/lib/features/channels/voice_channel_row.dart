@@ -143,25 +143,25 @@ class VoiceChannelRow extends ConsumerWidget {
       builder: (context, state) => AnimatedContainer(
         duration: OcMotion.of(context).hover,
         height: 36,
-        margin: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s10),
+        margin: const EdgeInsets.fromLTRB(8, 0, 8, 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: selected || dropping
               ? colors.selected
               : state.active
               ? colors.hover
               : null,
-          borderRadius: BorderRadius.circular(OcRadius.row),
+          borderRadius: BorderRadius.circular(10),
           border: dropping ? Border.all(color: colors.text) : null,
         ),
         child: Row(
           children: [
             Icon(
               OcIcons.volumeUp,
-              size: OcSize.iconRow,
+              size: 18,
               color: selected ? colors.text : colors.textSecondary,
             ),
-            const SizedBox(width: OcSpace.s8),
+            const SizedBox(width: 10),
             Expanded(
               child: EllipsisText(
                 channel.name,
@@ -173,11 +173,11 @@ class VoiceChannelRow extends ConsumerWidget {
             ),
             if (read.mentions > 0) ...[
               const MentionBadge(),
-              const SizedBox(width: OcSpace.s4),
+              const SizedBox(width: 4),
             ],
             if (read.unread > 0) ...[
               UnreadBadge(count: read.unread, muted: muted),
-              const SizedBox(width: OcSpace.s4),
+              const SizedBox(width: 4),
             ],
             if (!voice)
               Text(
@@ -187,7 +187,10 @@ class VoiceChannelRow extends ConsumerWidget {
             else if (participants > 0)
               Text(
                 '$participants',
-                style: OcText.small.copyWith(color: colors.textMuted),
+                style: OcText.meta.copyWith(
+                  fontSize: 12.5,
+                  color: colors.textMuted,
+                ),
               ),
           ],
         ),
@@ -349,70 +352,63 @@ class _Participant extends ConsumerWidget {
       semanticLabel: state.isEmpty ? name : '$name, ${state.join(', ')}',
       cursor: SystemMouseCursors.basic,
       builder: (context, hover) => Container(
-        margin: const EdgeInsets.fromLTRB(36, 1, 8, 1),
-        padding: const EdgeInsets.fromLTRB(8, 1, 8, 1),
+        height: 30,
+        margin: const EdgeInsets.fromLTRB(42, 0, 16, 0),
         decoration: BoxDecoration(
           color: hover.active ? colors.hover : null,
-          borderRadius: BorderRadius.circular(OcRadius.row),
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: SizedBox(
-          height: 28,
-          child: Row(
-            children: [
-              SoundboardRing(
-                playing: sound != null,
-                child: MemberAvatar(
-                  serverKey: serverKey,
-                  userId: participant.userId,
-                  name: name,
-                  size: OcSize.voiceAvatar,
-                  speaking: speaking,
+        child: Row(
+          children: [
+            SoundboardRing(
+              playing: sound != null,
+              child: MemberAvatar(
+                serverKey: serverKey,
+                userId: participant.userId,
+                name: name,
+                size: 22,
+                speaking: speaking,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: EllipsisText(
+                name,
+                style: OcText.small.copyWith(
+                  fontSize: 13,
+                  color: speaking ? colors.text : colors.textSecondary,
                 ),
               ),
-              const SizedBox(width: OcSpace.s8),
-              Flexible(
-                child: EllipsisText(
-                  name,
-                  style: OcText.small.copyWith(
-                    color: speaking ? colors.text : colors.textSecondary,
-                  ),
+            ),
+            if (sound?.emoji case final emoji?)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: ExcludeSemantics(
+                  child: Text(emoji, style: const TextStyle(fontSize: 13)),
                 ),
               ),
-              if (sound?.emoji case final emoji?)
-                Padding(
-                  padding: const EdgeInsets.only(left: OcSpace.s4),
-                  child: ExcludeSemantics(
-                    child: Text(emoji, style: const TextStyle(fontSize: 13)),
-                  ),
-                ),
-              const Spacer(),
-              for (final icon in [
-                if (mutedHere) OcIcons.volumeOff,
-                if (participant.muted || participant.serverMuted)
-                  OcIcons.micOff,
-                if (participant.deafened || participant.serverDeafened)
-                  OcIcons.headsetOff,
-                if (participant.camera) OcIcons.videocam,
-              ])
-                Padding(
-                  padding: const EdgeInsets.only(left: OcSpace.s4),
-                  child: Icon(
-                    icon,
-                    size: OcSize.iconInline,
-                    color: colors.textMuted,
-                  ),
-                ),
-              if (participant.screensharing) ...[
-                const SizedBox(width: OcSpace.s4),
-                Hoverable(
-                  onTap: () => _watch(context, ref),
-                  semanticLabel: 'Watch $name',
-                  focusRadius: BorderRadius.circular(8),
-                  builder: (context, state) => const LivePill(),
-                ),
-              ],
+            const Spacer(),
+            for (final icon in [
+              if (mutedHere) OcIcons.volumeOff,
+              if (participant.muted || participant.serverMuted) OcIcons.micOff,
+              if (participant.deafened || participant.serverDeafened)
+                OcIcons.headsetOff,
+              if (participant.camera) OcIcons.videocam,
+            ])
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Icon(icon, size: 16, color: colors.textMuted),
+              ),
+            if (participant.screensharing) ...[
+              const SizedBox(width: 4),
+              Hoverable(
+                onTap: () => _watch(context, ref),
+                semanticLabel: 'Watch $name',
+                focusRadius: BorderRadius.circular(5),
+                builder: (context, state) => const LivePill(),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );

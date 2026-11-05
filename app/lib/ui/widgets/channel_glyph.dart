@@ -49,7 +49,6 @@ class ChannelGlyph extends StatelessWidget {
       ),
     );
     if (!locked) return glyph;
-    final badge = size * 0.4;
     return SizedBox.square(
       dimension: size,
       child: Stack(
@@ -60,8 +59,8 @@ class ChannelGlyph extends StatelessWidget {
             right: -3,
             bottom: -3,
             child: Container(
-              width: badge + 4,
-              height: badge + 4,
+              width: 16,
+              height: 16,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: ringColor ?? colors.sidebar,
@@ -69,7 +68,7 @@ class ChannelGlyph extends StatelessWidget {
               alignment: Alignment.center,
               child: Icon(
                 OcIcons.lock,
-                size: badge * 0.7,
+                size: 10,
                 fill: 1,
                 color: colors.textSecondary,
               ),

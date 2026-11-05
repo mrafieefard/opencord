@@ -14,7 +14,6 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
-import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/badges.dart';
@@ -239,12 +238,12 @@ class ChannelRowView extends StatelessWidget {
     final strong = unread > 0 || selected;
     return AnimatedContainer(
       duration: OcMotion.of(context).hover,
-      height: OcSize.channelRow,
-      margin: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-      padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
+      height: 56,
+      margin: const EdgeInsets.fromLTRB(8, 0, 8, 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(OcRadius.row),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
@@ -254,7 +253,7 @@ class ChannelRowView extends StatelessWidget {
             locked: locked,
             ringColor: background,
           ),
-          const SizedBox(width: OcSpace.s10),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -266,6 +265,7 @@ class ChannelRowView extends StatelessWidget {
                       child: EllipsisText(
                         name,
                         style: OcText.body.copyWith(
+                          fontSize: 14,
                           fontWeight: strong
                               ? FontWeight.w600
                               : FontWeight.w500,
@@ -274,10 +274,13 @@ class ChannelRowView extends StatelessWidget {
                       ),
                     ),
                     if (time != null) ...[
-                      const SizedBox(width: OcSpace.s6),
+                      const SizedBox(width: 8),
                       Text(
                         time!,
-                        style: OcText.meta.copyWith(color: colors.textMuted),
+                        style: OcText.meta.copyWith(
+                          fontSize: 11,
+                          color: colors.textMuted,
+                        ),
                       ),
                     ],
                   ],
@@ -290,15 +293,18 @@ class ChannelRowView extends StatelessWidget {
                         preview,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: OcText.small.copyWith(color: colors.textMuted),
+                        style: OcText.small.copyWith(
+                          fontSize: 12.5,
+                          color: colors.textMuted,
+                        ),
                       ),
                     ),
                     if (mentions > 0) ...[
-                      const SizedBox(width: OcSpace.s6),
+                      const SizedBox(width: 8),
                       const MentionBadge(),
                     ],
                     if (unread > 0) ...[
-                      const SizedBox(width: OcSpace.s4),
+                      SizedBox(width: mentions > 0 ? 4 : 8),
                       UnreadBadge(count: unread, muted: muted),
                     ],
                   ],

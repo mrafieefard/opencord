@@ -75,11 +75,11 @@ class KeyHint extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: colors.border),
+        border: Border.all(color: colors.border, width: 1),
       ),
       child: Text(
         shortcutLabel(shortcut, Theme.of(context).platform, separator: ' '),
-        style: OcText.meta.copyWith(color: colors.textMuted),
+        style: OcText.mono.copyWith(fontSize: 11, color: colors.textMuted),
       ),
     );
   }

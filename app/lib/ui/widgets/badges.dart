@@ -81,19 +81,19 @@ class LivePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      height: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colors.accent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
         'LIVE',
         style: _badgeText.copyWith(
           color: colors.onAccent,
-          fontSize: 9.5,
-          letterSpacing: 0.6,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
         ),
       ),
     );

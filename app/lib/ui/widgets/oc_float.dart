@@ -16,6 +16,7 @@ class OcFloat extends StatelessWidget {
     required this.child,
     this.color,
     this.radius = OcFloats.radius,
+    this.duration,
   });
 
   final Widget child;
@@ -26,23 +27,33 @@ class OcFloat extends StatelessWidget {
   /// The outer corner radius; the content is clipped one less.
   final double radius;
 
+  /// Optional duration for animating color changes.
+  final Duration? duration;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color ?? colors.sidebar,
-        border: Border.all(color: colors.border, width: _line),
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: OcShadows.float(colors),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(_line),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(radius - _line),
-          child: child,
-        ),
+    final decoration = BoxDecoration(
+      color: color ?? colors.sidebar,
+      border: Border.all(color: colors.border, width: _line),
+      borderRadius: BorderRadius.circular(radius),
+      boxShadow: OcShadows.float(colors),
+    );
+    final inner = Padding(
+      padding: const EdgeInsets.all(_line),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius - _line),
+        child: child,
       ),
     );
+    if (duration != null) {
+      return AnimatedContainer(
+        duration: duration!,
+        curve: Curves.easeOut,
+        decoration: decoration,
+        child: inner,
+      );
+    }
+    return DecoratedBox(decoration: decoration, child: inner);
   }
 }

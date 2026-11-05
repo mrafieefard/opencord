@@ -4,11 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/private_state.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/channels/server_head.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/shell/navigation.dart';
-import 'package:opencord/features/shell/shell_keys.dart';
-import 'package:opencord/ui/widgets/oc_float.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -26,24 +25,7 @@ class HomeHead extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.oc;
-    return SizedBox(
-      height: OcFloats.header,
-      child: OcFloat(
-        key: ShellKeys.head,
-        color: colors.sidebar,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s16),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Private messages',
-              style: OcText.header.copyWith(color: colors.text),
-            ),
-          ),
-        ),
-      ),
-    );
+    return const ServerHead();
   }
 }
 
