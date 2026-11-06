@@ -252,11 +252,11 @@ export function findFences(text: string): Fence[] {
 
         const codeLines = codeRaw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
         let startLine = 0;
-        while (startLine < codeLines.length && codeLines[startLine]!.trim().length === 0) {
+        while (startLine < codeLines.length && (codeLines[startLine] ?? '').trim().length === 0) {
           startLine++;
         }
         let endLine = codeLines.length - 1;
-        while (endLine >= startLine && codeLines[endLine]!.trim().length === 0) {
+        while (endLine >= startLine && (codeLines[endLine] ?? '').trim().length === 0) {
           endLine--;
         }
 
