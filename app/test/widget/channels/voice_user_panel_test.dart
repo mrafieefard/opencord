@@ -64,10 +64,12 @@ void main() {
 
       // Line 1: clickable link
       final statusIcon = tester.widget<Icon>(
-        find.descendant(
-          of: find.byType(VoiceConnectedPanel),
-          matching: find.byIcon(OcIcons.graphicEq),
-        ),
+        find
+            .descendant(
+              of: find.byType(VoiceConnectedPanel),
+              matching: find.byIcon(OcIcons.graphicEq),
+            )
+            .first,
       );
       expect(statusIcon.size, 16);
 

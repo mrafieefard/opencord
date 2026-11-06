@@ -5,6 +5,7 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/voice/mic_test_panel.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
@@ -58,7 +59,7 @@ class _NoiseChipState extends ConsumerState<NoiseChip> {
     final rounded = BorderRadius.circular(12);
 
     return Tooltip(
-      message: 'Noise suppression',
+      message: 'Noise suppression: $label',
       excludeFromSemantics: true,
       child: Semantics(
         label: 'Noise suppression: $label',
@@ -70,7 +71,7 @@ class _NoiseChipState extends ConsumerState<NoiseChip> {
           builder: (context, state) {
             final active = state.active || _popoverOpen;
             final bg = active ? colors.selected : colors.hover;
-            final fg = state.active
+            final fg = active
                 ? colors.text
                 : (mode == NoiseSuppression.off
                       ? colors.textMuted
@@ -78,18 +79,11 @@ class _NoiseChipState extends ConsumerState<NoiseChip> {
 
             return AnimatedContainer(
               duration: OcMotion.of(context).hover,
+              width: 24,
               height: 24,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(color: bg, borderRadius: rounded),
               alignment: Alignment.center,
-              child: Text(
-                label,
-                style: OcText.header.copyWith(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                ),
-              ),
+              child: Icon(OcIcons.graphicEq, size: 16, color: fg),
             );
           },
         ),

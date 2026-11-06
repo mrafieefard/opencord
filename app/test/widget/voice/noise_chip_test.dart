@@ -16,6 +16,7 @@ import 'package:opencord/features/voice/mic_test.dart';
 import 'package:opencord/features/voice/mic_test_panel.dart';
 import 'package:opencord/features/voice/noise_chip.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_segmented.dart';
@@ -87,7 +88,7 @@ void main() {
       expect(
         find.descendant(
           of: chipFinder,
-          matching: find.byTooltip('Noise suppression'),
+          matching: find.byTooltip('Noise suppression: Standard'),
         ),
         findsOneWidget,
       );
@@ -114,10 +115,11 @@ void main() {
       final hoveredDeco = hoveredContainer.decoration as BoxDecoration;
       expect(hoveredDeco.color, colors.selected);
 
-      final text = tester.widget<Text>(
-        find.descendant(of: chipFinder, matching: find.byType(Text)),
+      final icon = tester.widget<Icon>(
+        find.descendant(of: chipFinder, matching: find.byType(Icon)),
       );
-      expect(text.style?.color, colors.text);
+      expect(icon.icon, OcIcons.graphicEq);
+      expect(icon.color, colors.text);
 
       await gesture.removePointer();
       await app.dispose(tester);
@@ -145,42 +147,63 @@ void main() {
             (a) => a.copyWith(noiseSuppression: NoiseSuppression.standard),
           );
       await _settle(tester);
-      var text = tester.widget<Text>(
+      var icon = tester.widget<Icon>(
         find.descendant(
           of: find.byType(NoiseChip),
-          matching: find.byType(Text),
+          matching: find.byType(Icon),
         ),
       );
-      expect(text.data, 'Standard');
-      expect(text.style?.color, colors.textSecondary);
+      expect(icon.icon, OcIcons.graphicEq);
+      expect(icon.color, colors.textSecondary);
+      expect(
+        find.descendant(
+          of: find.byType(NoiseChip),
+          matching: find.byTooltip('Noise suppression: Standard'),
+        ),
+        findsOneWidget,
+      );
 
       // 2. High
       app
           .read(audioSettingsProvider.notifier)
           .update((a) => a.copyWith(noiseSuppression: NoiseSuppression.high));
       await _settle(tester);
-      text = tester.widget<Text>(
+      icon = tester.widget<Icon>(
         find.descendant(
           of: find.byType(NoiseChip),
-          matching: find.byType(Text),
+          matching: find.byType(Icon),
         ),
       );
-      expect(text.data, 'High');
-      expect(text.style?.color, colors.textSecondary);
+      expect(icon.icon, OcIcons.graphicEq);
+      expect(icon.color, colors.textSecondary);
+      expect(
+        find.descendant(
+          of: find.byType(NoiseChip),
+          matching: find.byTooltip('Noise suppression: High'),
+        ),
+        findsOneWidget,
+      );
 
       // 3. Off
       app
           .read(audioSettingsProvider.notifier)
           .update((a) => a.copyWith(noiseSuppression: NoiseSuppression.off));
       await _settle(tester);
-      text = tester.widget<Text>(
+      icon = tester.widget<Icon>(
         find.descendant(
           of: find.byType(NoiseChip),
-          matching: find.byType(Text),
+          matching: find.byType(Icon),
         ),
       );
-      expect(text.data, 'Off');
-      expect(text.style?.color, colors.textMuted);
+      expect(icon.icon, OcIcons.graphicEq);
+      expect(icon.color, colors.textMuted);
+      expect(
+        find.descendant(
+          of: find.byType(NoiseChip),
+          matching: find.byTooltip('Noise suppression: Off'),
+        ),
+        findsOneWidget,
+      );
 
       await app.dispose(tester);
     });
@@ -758,7 +781,8 @@ void main() {
       await drag.up();
       await _settle(tester);
 
-      expectRowFits(232, ellipsized: true);
+      // With the compact 24x24 icon button, the status text fits without being ellipsized even at 232.
+      expectRowFits(232, ellipsized: false);
       expect(tester.takeException(), isNull);
 
       await app.dispose(tester);
