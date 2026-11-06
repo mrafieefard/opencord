@@ -21,6 +21,15 @@
 //! converting and scaling on the GPU instead is W6 step 7's, and only if
 //! the measurement says so.
 //!
+//! A window is the one thing GDI shares *first*. The capture API draws
+//! Windows' yellow border around whatever it captures, and only Windows 11
+//! can be asked to leave it off (`IsBorderRequired` arrived with it;
+//! Windows 10 answers "No such interface supported"). GDI draws no border,
+//! so a window share there goes through GDI, and only falls to the capture
+//! API — border and all — for a window neither `PrintWindow` nor `BitBlt`
+//! will copy. Screens are unaffected: their border is around a monitor
+//! nobody is looking at from outside.
+//!
 //! The capture API needs Windows 10 1903, and some Windows 10 installs that
 //! have it still refuse it: N editions, stripped-down builds, and machines
 //! whose session opens but never sends a frame. As WebRTC does, the share
@@ -396,6 +405,30 @@ fn item_for(what: &Chosen) -> Result<GraphicsCaptureItem, ScreenError> {
     .map_err(failed)
 }
 
+/// Whether a share goes to GDI before the capture API: only a window
+/// does, and only because the capture API draws Windows' yellow border
+/// around it (`IsBorderRequired` is Windows 11's, so `borderless` is
+/// false on Windows 10 and the border cannot go). `gdi_draws` is asked
+/// last, and only when the rest already says GDI: a window neither
+/// `PrintWindow` nor `BitBlt` will copy has to go to the capture API,
+/// border and all, rather than share nothing.
+fn prefers_gdi(
+    kind: SourceKind,
+    capture_api: bool,
+    borderless: bool,
+    gdi_draws: impl FnOnce() -> bool,
+) -> bool {
+    capture_api && kind == SourceKind::Window && !borderless && gdi_draws()
+}
+
+/// Whether GDI can draw this window at all. A minimised window draws
+/// nothing and is no refusal: it has a size and draws again once it is
+/// restored.
+fn gdi_can_draw(window: HWND) -> bool {
+    let mut grabber = Grabber::new(Target::Window(window));
+    grabber.rect().is_none() || grabber.grab().is_some()
+}
+
 fn run(
     what: Chosen,
     fps: u32,
@@ -405,6 +438,21 @@ fn run(
     finished: &AtomicBool,
     started: &mpsc::Sender<Result<(u32, u32), ScreenError>>,
 ) {
+    // A window without the yellow border: GDI draws none, and on Windows
+    // 10 the capture API cannot be asked to leave it off.
+    if let Chosen::Window(window) = what
+        && prefers_gdi(SourceKind::Window, capture_api, borderless_allowed(), || {
+            gdi_can_draw(window)
+        })
+    {
+        tracing::info!(
+            method = "gdi",
+            "sharing a window without the capture API's border"
+        );
+        read_with_gdi(what, fps, frames, stop, finished, Some(started));
+        return;
+    }
+
     let trying = Instant::now();
     let session = capture_api
         .then(|| {
@@ -944,6 +992,55 @@ mod tests {
             "a share never waits long on the border"
         );
         assert_eq!(borderless_allowed(), allowed, "asked once per run");
+    }
+
+    /// The border decides which way a window goes, and nothing else does
+    /// (W6: Windows 10 cannot turn the capture border off).
+    #[test]
+    fn a_window_goes_to_gdi_only_to_lose_the_capture_border() {
+        let draws = || true;
+        assert!(
+            prefers_gdi(SourceKind::Window, true, false, draws),
+            "a window whose border cannot go is GDI's"
+        );
+        assert!(
+            !prefers_gdi(SourceKind::Window, true, true, draws),
+            "with the border gone the capture API is cheaper"
+        );
+        assert!(
+            !prefers_gdi(SourceKind::Screen, true, false, draws),
+            "a screen keeps the capture API, border or not"
+        );
+        assert!(
+            !prefers_gdi(SourceKind::Window, true, false, || false),
+            "a window GDI cannot draw goes to the capture API, border and all"
+        );
+        assert!(
+            !prefers_gdi(SourceKind::Window, false, false, draws),
+            "without the capture API there is no choice to make"
+        );
+    }
+
+    /// `gdi_draws` costs a `PrintWindow`, so it is asked only when the
+    /// answer can still change the outcome.
+    #[test]
+    fn whether_gdi_draws_is_asked_last() {
+        let mut asked = false;
+        let _ = prefers_gdi(SourceKind::Screen, true, false, || {
+            asked = true;
+            true
+        });
+        assert!(!asked, "a screen never has to be drawn to decide");
+        let _ = prefers_gdi(SourceKind::Window, true, true, || {
+            asked = true;
+            true
+        });
+        assert!(!asked, "nor a window that keeps no border");
+        let _ = prefers_gdi(SourceKind::Window, true, false, || {
+            asked = true;
+            true
+        });
+        assert!(asked, "a window on Windows 10 is drawn once to decide");
     }
 
     #[test]
