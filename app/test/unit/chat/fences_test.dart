@@ -128,5 +128,40 @@ void main() {
     test('mid-line fence is not open fence', () {
       expect(endsInsideFence('see ```x'), isFalse);
     });
+
+    test('it_agrees_with_the_scanner', () {
+      const typed = [
+        '```py\n\nCODE```',
+        '```js\nCode\n```',
+        '```one line```',
+        '```py code```',
+        'before\n  ```rs\nfn a() {}\n\n```\nafter',
+        '```a\nb```\n```c\nd\n```',
+      ];
+      for (final text in typed) {
+        final fences = findFences(text);
+        expect(fences, isNotEmpty, reason: text);
+        for (var cut = 0; cut <= text.length; cut++) {
+          // Open from just after an opening fence until its closing one is
+          // typed in full, and nowhere else.
+          final open = fences.any(
+            (fence) =>
+                cut >= text.indexOf('```', fence.start) + 3 && cut < fence.end,
+          );
+          expect(
+            endsInsideFence(text.substring(0, cut)),
+            open,
+            reason: '${text.substring(0, cut)}|',
+          );
+        }
+      }
+    });
+
+    test('an_empty_pair_is_not_a_close', () {
+      // Nothing between the fences isn't a block (§7.1), so the second
+      // fence opens one.
+      expect(findFences('```\n```'), isEmpty);
+      expect(endsInsideFence('```\n```'), isTrue);
+    });
   });
 }

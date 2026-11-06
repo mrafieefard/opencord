@@ -136,42 +136,12 @@ List<Fence> findFences(String text) {
   return fences;
 }
 
-/// Whether the text before the cursor is inside an unclosed fence (§7.2).
+/// Whether the text before the cursor is inside an unclosed fence (§7.2):
+/// [findFences] would make a block of it once a closing fence is typed.
 bool endsInsideFence(String textBeforeCursor) {
-  var cursor = 0;
-
-  while (cursor < textBeforeCursor.length) {
-    final lineStart = cursor;
-    var i = lineStart;
-    while (i < textBeforeCursor.length &&
-        (textBeforeCursor[i] == ' ' || textBeforeCursor[i] == '\t')) {
-      i++;
-    }
-
-    if (i + 3 <= textBeforeCursor.length &&
-        textBeforeCursor.startsWith('```', i)) {
-      final openFenceEnd = i + 3;
-      final closeStart = textBeforeCursor.indexOf('```', openFenceEnd);
-      if (closeStart == -1) {
-        return true;
-      }
-      final closeEnd = closeStart + 3;
-      final nextNewline = textBeforeCursor.indexOf('\n', closeEnd);
-      if (nextNewline != -1) {
-        cursor = nextNewline + 1;
-      } else {
-        cursor = textBeforeCursor.length;
-      }
-      continue;
-    }
-
-    final nextNewline = textBeforeCursor.indexOf('\n', cursor);
-    if (nextNewline != -1) {
-      cursor = nextNewline + 1;
-    } else {
-      break;
-    }
-  }
-
-  return false;
+  // Blocks closed before the cursor end inside it, so only an open one can
+  // reach the closing fence added here, and a line of code keeps it from
+  // being empty.
+  final probe = findFences('$textBeforeCursor\nx\n```');
+  return probe.isNotEmpty && probe.last.end > textBeforeCursor.length;
 }
