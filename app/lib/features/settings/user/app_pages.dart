@@ -15,6 +15,8 @@ import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/settings/user/keybind_recorder.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
+import 'package:opencord/features/voice/mic_test.dart';
+import 'package:opencord/features/voice/mic_test_panel.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -163,15 +165,48 @@ class VoicePage extends ConsumerStatefulWidget {
 }
 
 class _VoicePageState extends ConsumerState<VoicePage> {
+  late final OpencordRepository _repository;
+  bool _testing = false;
+  late AudioSettings _savedAudio;
+
   @override
   void initState() {
     super.initState();
+    _repository = ref.read(repositoryProvider);
+    _savedAudio = ref.read(audioSettingsProvider);
     // Devices plugged in since voice last looked.
     ref.read(audioDeviceListProvider.notifier).refresh();
   }
 
   @override
+  void dispose() {
+    if (_testing) {
+      _repository.applyAudio(_savedAudio.config);
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(micTestProvider, (previous, testing) {
+      _testing = testing;
+      if (testing) {
+        _repository.applyAudio(ref.read(shownAudioProvider).config);
+      } else {
+        _repository.applyAudio(ref.read(audioSettingsProvider).config);
+      }
+    });
+
+    ref.listen<AudioSettings>(audioSettingsProvider, (previous, next) {
+      _savedAudio = next;
+    });
+
+    ref.listen<AudioSettings>(shownAudioProvider, (previous, next) {
+      if (ref.read(micTestProvider)) {
+        _repository.applyAudio(next.config);
+      }
+    });
+
     final audio = ref.watch(shownAudioProvider);
     final devices = ref.watch(audioDeviceListProvider);
     final update = ref.read(clientSettingsDraftProvider.notifier).updateAudio;
@@ -314,6 +349,16 @@ class _VoicePageState extends ConsumerState<VoicePage> {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+        const SizedBox(height: OcSpace.s24),
+        const SettingsSection(
+          title: 'Microphone test',
+          children: [
+            Padding(
+              padding: EdgeInsets.all(OcSpace.s12),
+              child: MicTestPanel(),
             ),
           ],
         ),

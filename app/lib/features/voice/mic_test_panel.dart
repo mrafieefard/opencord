@@ -23,6 +23,7 @@ class MicTestPanel extends ConsumerStatefulWidget {
 
 class _MicTestPanelState extends ConsumerState<MicTestPanel> {
   bool _startedByThis = false;
+  bool _testing = false;
   late final MicTestNotifier _notifier;
 
   @override
@@ -51,7 +52,7 @@ class _MicTestPanelState extends ConsumerState<MicTestPanel> {
 
   @override
   void dispose() {
-    if (_startedByThis) {
+    if (_startedByThis || _testing) {
       scheduleMicrotask(_notifier.stop);
     }
     super.dispose();
@@ -59,6 +60,7 @@ class _MicTestPanelState extends ConsumerState<MicTestPanel> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(micTestProvider, (_, testing) => _testing = testing);
     final colors = context.oc;
     final inCall = ref.watch(voiceSessionProvider.select((s) => s.connected));
     final testing = ref.watch(micTestProvider);

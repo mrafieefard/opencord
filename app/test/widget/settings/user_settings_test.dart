@@ -12,10 +12,14 @@ import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/user_panel.dart';
+import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/features/desktop/installation.dart';
 import 'package:opencord/features/desktop/tray_menu.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/features/voice/input_level_meter.dart';
+import 'package:opencord/features/voice/mic_test.dart';
+import 'package:opencord/features/voice/mic_test_panel.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
@@ -502,6 +506,292 @@ void main() {
       'Idle',
       'Do not disturb',
     ]);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) the_section_is_after_noise_suppression', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    final noiseSuppression = _inPage(
+      find.byWidgetPredicate(
+        (w) => w is SettingsSection && w.title == 'Noise suppression',
+      ),
+    );
+    final micTest = _inPage(
+      find.byWidgetPredicate(
+        (w) => w is SettingsSection && w.title == 'Microphone test',
+      ),
+    );
+    final volume = _inPage(
+      find.byWidgetPredicate(
+        (w) => w is SettingsSection && w.title == 'Volume',
+      ),
+    );
+
+    expect(micTest, findsOneWidget);
+    expect(
+      find.descendant(of: micTest, matching: find.byType(MicTestPanel)),
+      findsOneWidget,
+    );
+
+    final noiseTop = tester.getTopLeft(noiseSuppression).dy;
+    final micTestTop = tester.getTopLeft(micTest).dy;
+    final volumeTop = tester.getTopLeft(volume).dy;
+
+    expect(noiseTop, lessThan(micTestTop));
+    expect(micTestTop, lessThan(volumeTop));
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) out_of_a_call_it_tests_without_deafening', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    const expectedNote =
+        'Hear what Opencord sends. Use headphones, or you may hear an echo.';
+    expect(_inPage(find.text(expectedNote)), findsOneWidget);
+
+    final testBtn = _inPage(find.widgetWithText(OcButton, 'Test'));
+    await tester.ensureVisible(testBtn);
+    await tester.tap(testBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(micTestProvider), isTrue);
+    expect(app.repository.micTest, isTrue);
+    expect(app.container.read(voiceSessionProvider).deafened, isFalse);
+    expect(_inPage(find.text('Stop test')), findsOneWidget);
+    expect(_inPage(find.byType(InputLevelMeter)), findsNWidgets(2));
+
+    final stopBtn = _inPage(find.widgetWithText(OcButton, 'Stop test'));
+    await tester.tap(stopBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(micTestProvider), isFalse);
+    expect(app.repository.micTest, isFalse);
+    expect(_inPage(find.text('Test')), findsOneWidget);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) in_a_call_it_deafens_and_restores', (tester) async {
+    final app = await MockApp.pump(tester);
+    final server = app.repository.servers.first.key;
+    final channel = app.container
+        .read(serverProvider(server))
+        .data!
+        .channels
+        .values
+        .firstWhere((c) => c.kind == ChannelKind.voice)
+        .id;
+    await app.read(voiceSessionProvider.notifier).join(server, channel);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(voiceSessionProvider).connected, isTrue);
+    expect(app.container.read(voiceSessionProvider).deafened, isFalse);
+
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    const expectedNote =
+        "Hear what Opencord sends. You're deafened until you stop. Use headphones, or you may hear an echo.";
+    expect(_inPage(find.text(expectedNote)), findsOneWidget);
+
+    final testBtn = _inPage(find.widgetWithText(OcButton, 'Test'));
+    await tester.ensureVisible(testBtn);
+    await tester.tap(testBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(micTestProvider), isTrue);
+    expect(app.repository.micTest, isTrue);
+    expect(app.container.read(voiceSessionProvider).deafened, isTrue);
+
+    final stopBtn = _inPage(find.widgetWithText(OcButton, 'Stop test'));
+    await tester.tap(stopBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(micTestProvider), isFalse);
+    expect(app.repository.micTest, isFalse);
+    expect(app.container.read(voiceSessionProvider).deafened, isFalse);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) leaving_the_page_ends_it', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    final testBtn = _inPage(find.widgetWithText(OcButton, 'Test'));
+    await tester.ensureVisible(testBtn);
+    await tester.tap(testBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(micTestProvider), isTrue);
+    expect(app.repository.micTest, isTrue);
+
+    await _page(tester, 'Appearance');
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(micTestProvider), isFalse);
+    expect(app.repository.micTest, isFalse);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) closing_settings_ends_it', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    final testBtn = _inPage(find.widgetWithText(OcButton, 'Test'));
+    await tester.ensureVisible(testBtn);
+    await tester.tap(testBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.container.read(micTestProvider), isTrue);
+    expect(app.repository.micTest, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(find.byType(SettingsDialog), findsNothing);
+    expect(app.container.read(micTestProvider), isFalse);
+    expect(app.repository.micTest, isFalse);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) it_hears_the_draft', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    final savedNoise =
+        app.container.read(audioSettingsProvider).noiseSuppression ??
+        NoiseSuppression.standard;
+    final savedVolume = app.container.read(audioSettingsProvider).inputVolume;
+
+    final testBtn = _inPage(find.widgetWithText(OcButton, 'Test'));
+    await tester.ensureVisible(testBtn);
+    await tester.tap(testBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.repository.micTest, isTrue);
+
+    // Change noise suppression to Off in draft
+    final offCard = _inPage(find.text('Off')).first;
+    await tester.ensureVisible(offCard);
+    await tester.tap(offCard);
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+
+    // Change input volume in draft
+    final volumeSection = _inPage(
+      find.byWidgetPredicate(
+        (w) => w is SettingsSection && w.title == 'Volume',
+      ),
+    );
+    final slider = find
+        .descendant(of: volumeSection, matching: find.byType(Slider))
+        .first;
+    await tester.ensureVisible(slider);
+    await tester.drag(slider, const Offset(-100, 0));
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+
+    // The mock follows the draft unsaved
+    expect(
+      app.container.read(clientSettingsDraftProvider).audio?.noiseSuppression,
+      NoiseSuppression.off,
+    );
+    expect(
+      app.container.read(audioSettingsProvider).noiseSuppression,
+      savedNoise,
+    );
+    expect(app.repository.audio?.noiseSuppression, NoiseSuppression.off);
+    expect(app.repository.audio?.inputVolume, isNot(savedVolume));
+
+    // Stop: it goes back to the saved settings
+    final stopBtn = _inPage(find.widgetWithText(OcButton, 'Stop test'));
+    await tester.ensureVisible(stopBtn);
+    await tester.tap(stopBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.repository.audio?.noiseSuppression, savedNoise);
+    expect(app.repository.audio?.inputVolume, savedVolume);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) saving_during_a_test_keeps_the_saved', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    final testBtn = _inPage(find.widgetWithText(OcButton, 'Test'));
+    await tester.ensureVisible(testBtn);
+    await tester.tap(testBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    // Change noise suppression to Off in draft
+    final offCard = _inPage(find.text('Off')).first;
+    await tester.ensureVisible(offCard);
+    await tester.tap(offCard);
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+    expect(app.repository.audio?.noiseSuppression, NoiseSuppression.off);
+
+    // Save changes while test is still running
+    await _saveChanges(tester);
+    expect(
+      app.container.read(audioSettingsProvider).noiseSuppression,
+      NoiseSuppression.off,
+    );
+    expect(app.repository.audio?.noiseSuppression, NoiseSuppression.off);
+
+    // Stop test: no flicker back to old settings, keeps saved
+    final stopBtn = _inPage(find.widgetWithText(OcButton, 'Stop test'));
+    await tester.ensureVisible(stopBtn);
+    await tester.tap(stopBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+
+    expect(app.repository.audio?.noiseSuppression, NoiseSuppression.off);
+    expect(
+      app.container.read(audioSettingsProvider).noiseSuppression,
+      NoiseSuppression.off,
+    );
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('(Task 11) it_always_starts_off', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+
+    final testBtn = _inPage(find.widgetWithText(OcButton, 'Test'));
+    await tester.ensureVisible(testBtn);
+    await tester.tap(testBtn);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.container.read(micTestProvider), isTrue);
+
+    // Close settings
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(app.container.read(micTestProvider), isFalse);
+
+    // Reopen settings
+    await _openSettings(tester);
+    await _page(tester, 'Voice & audio');
+    expect(app.container.read(micTestProvider), isFalse);
+    expect(app.repository.micTest, isFalse);
+    expect(_inPage(find.text('Test')), findsOneWidget);
+    expect(_inPage(find.text('Stop test')), findsNothing);
 
     await app.dispose(tester);
   });

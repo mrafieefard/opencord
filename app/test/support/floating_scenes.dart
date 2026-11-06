@@ -113,6 +113,12 @@ const floatingScenes = [
     light: [wide1280],
   ),
   FloatingScene(
+    'settings-voice',
+    playSettingsVoice,
+    widths: [wide1280, medium980],
+    light: [wide1280, medium980],
+  ),
+  FloatingScene(
     'code-block',
     playCodeBlock,
     widths: [wide1280, medium980, narrow940],
@@ -438,6 +444,25 @@ Future<void> playSettingsAppearance(SceneDriver scene) async {
     find.descendant(
       of: find.byType(SettingsDialog),
       matching: find.text('Appearance'),
+    ),
+  );
+  await scene.settle(300);
+}
+
+/// The User settings dialog open on Voice & audio.
+Future<void> playSettingsVoice(SceneDriver scene) async {
+  await playText(scene);
+  final tester = scene.tester;
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is OcIconButton && widget.tooltip == 'User settings',
+    ),
+  );
+  await scene.settle(300);
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Voice & audio'),
     ),
   );
   await scene.settle(300);
