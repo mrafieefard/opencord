@@ -8,6 +8,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/connection_info.dart';
+import 'package:opencord/features/voice/noise_chip.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -150,6 +151,8 @@ class VoiceConnectedPanel extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(width: 6),
+                const NoiseChip(),
                 const SizedBox(width: 6),
                 OcIconButton(
                   icon: OcIcons.callEnd,

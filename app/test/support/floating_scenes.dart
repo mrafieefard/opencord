@@ -22,6 +22,7 @@ import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/features/voice/noise_chip.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
@@ -116,6 +117,24 @@ const floatingScenes = [
     playCodeBlock,
     widths: [wide1280, medium980, narrow940],
     light: [wide1280, medium980, narrow940],
+  ),
+  FloatingScene(
+    'voice-card',
+    playVoiceCard,
+    widths: [wide1440, wide1280, wide1180],
+    light: [wide1440, wide1280, wide1180],
+  ),
+  FloatingScene(
+    'noise-popover',
+    playNoisePopover,
+    widths: [wide1440, wide1280, wide1180],
+    light: [wide1440, wide1280, wide1180],
+  ),
+  FloatingScene(
+    'noise-popover-testing',
+    playNoisePopoverTesting,
+    widths: [wide1440, wide1280, wide1180],
+    light: [wide1440, wide1280, wide1180],
   ),
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
@@ -481,6 +500,28 @@ Future<void> playCodeBlock(SceneDriver scene) async {
     await scene.settle(100);
   }
   await scene.tester.drag(scroll, const Offset(0, 150));
+  await scene.settle(300);
+}
+
+Future<void> playVoiceCard(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.hoverAt(const Offset(600, 400));
+  await scene.settle(200);
+}
+
+Future<void> playNoisePopover(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.tap('Noise chip', [find.byType(NoiseChip)]);
+  await scene.hoverAt(const Offset(600, 400));
+  await scene.settle(300);
+}
+
+Future<void> playNoisePopoverTesting(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.tap('Noise chip', [find.byType(NoiseChip)]);
+  await scene.settle(300);
+  await scene.tap('Test button', [find.text('Test')]);
+  await scene.hoverAt(const Offset(600, 400));
   await scene.settle(300);
 }
 
