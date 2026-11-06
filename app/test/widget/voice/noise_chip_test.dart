@@ -1,13 +1,13 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/core/settings/app_settings.dart' show ThemePreference;
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
@@ -22,7 +22,6 @@ import 'package:opencord/ui/widgets/oc_segmented.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
 
 import '../../support/app.dart';
-import '../../support/floating_scenes.dart' show writeShot;
 
 const _dev = 'opencord.example:7710';
 
@@ -208,10 +207,25 @@ void main() {
       final popoverRect = tester.getRect(find.byType(NoiseSuppressionPopover));
       expect(popoverRect.left, greaterThanOrEqualTo(chipRect.right));
 
+      // `selected` while its popover is open, `hover` again once it shuts.
+      final colors = tester.element(find.byType(NoiseChip)).oc;
+      Color? chipColour() {
+        final container = tester.widget<AnimatedContainer>(
+          find.descendant(
+            of: find.byType(NoiseChip),
+            matching: find.byType(AnimatedContainer),
+          ),
+        );
+        return (container.decoration! as BoxDecoration).color;
+      }
+
+      expect(chipColour(), colors.selected);
+
       // Close by clicking outside
       await tester.tapAt(const Offset(10, 10));
       await _settle(tester);
       expect(find.byType(NoiseSuppressionPopover), findsNothing);
+      expect(chipColour(), colors.hover);
 
       // Second open (twice)
       await tester.tap(find.byType(NoiseChip));
@@ -264,6 +278,18 @@ void main() {
       expect(descRect.top - segmentedRect.bottom, closeTo(6, 1.0));
       expect(dividerRect.top - descRect.bottom, closeTo(12, 1.0));
       expect(micPanelRect.top - dividerRect.bottom, closeTo(12, 1.0));
+
+      // Shrink-wrapped at the start, as the People and Music switch is:
+      // 2 around and between the two segments.
+      final segments = find.descendant(
+        of: segmentedFinder,
+        matching: find.byType(OcSegmentedButton),
+      );
+      final segmentsWidth =
+          tester.getSize(segments.at(0)).width +
+          tester.getSize(segments.at(1)).width;
+      expect(segmentedRect.left, popoverRect.left);
+      expect(segmentedRect.width, closeTo(segmentsWidth + 6, 0.5));
 
       final colors = tester.element(popoverFinder).oc;
       final titleText = tester.widget<Text>(titleFinder);
@@ -692,45 +718,50 @@ void main() {
       await app.dispose(tester);
     });
 
-    testWidgets('crops_at_232_and_288', (tester) async {
-      for (final theme in [ThemePreference.dark, ThemePreference.light]) {
-        final app = await MockApp.pump(
-          tester,
-          size: const Size(1280, 800),
-          settings: (s) => s.copyWith(theme: theme),
-        );
-        await _settle(tester);
+    testWidgets('the_first_row_fits_at_288_and_232', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
 
-        final channelId = _voiceChannel(app);
-        await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
-        await _settle(tester);
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      await _settle(tester);
 
-        final vcardFinder = find.byKey(ShellKeys.vcard);
-        final rect288 = tester.getRect(vcardFinder);
-        final firstRow288 = Rect.fromLTWH(rect288.left, rect288.top, 288, 44);
-        await writeShot(
-          tester,
-          '../.superpowers/sdd/followups/screens/cp4/crop_card_288_${theme.name}.png',
-          clip: firstRow288,
-        );
+      final vcardFinder = find.byKey(ShellKeys.vcard);
+      final status = find.descendant(
+        of: find.byType(VoiceConnectedPanel),
+        matching: find.text('Voice connected'),
+      );
+      final disconnect = find.descendant(
+        of: find.byType(VoiceConnectedPanel),
+        matching: find.byWidgetPredicate(
+          (w) => w is OcIconButton && w.tooltip == 'Disconnect',
+        ),
+      );
 
-        final splitterCenter = tester.getCenter(find.byKey(ShellKeys.splitter));
-        final drag = await tester.startGesture(splitterCenter);
-        await drag.moveBy(const Offset(-100, 0));
-        await drag.up();
-        await _settle(tester);
-
-        final rect232 = tester.getRect(vcardFinder);
-        expect(rect232.width, closeTo(232, 0.5));
-        final firstRow232 = Rect.fromLTWH(rect232.left, rect232.top, 232, 44);
-        await writeShot(
-          tester,
-          '../.superpowers/sdd/followups/screens/cp4/crop_card_232_${theme.name}.png',
-          clip: firstRow232,
-        );
-
-        await app.dispose(tester);
+      void expectRowFits(double width, {required bool ellipsized}) {
+        final card = tester.getRect(vcardFinder);
+        expect(card.width, closeTo(width, 0.5));
+        final chip = tester.getRect(find.byType(NoiseChip));
+        final end = tester.getRect(disconnect);
+        expect(end.left - chip.right, closeTo(6, 0.5));
+        expect(end.right, lessThanOrEqualTo(card.right));
+        expect(tester.getRect(status).right, lessThanOrEqualTo(chip.left - 6));
+        final paragraph = tester.renderObject<RenderParagraph>(status);
+        expect(paragraph.didExceedMaxLines, ellipsized);
       }
+
+      expectRowFits(288, ellipsized: false);
+
+      final splitterCenter = tester.getCenter(find.byKey(ShellKeys.splitter));
+      final drag = await tester.startGesture(splitterCenter);
+      await drag.moveBy(const Offset(-100, 0));
+      await drag.up();
+      await _settle(tester);
+
+      expectRowFits(232, ellipsized: true);
+      expect(tester.takeException(), isNull);
+
+      await app.dispose(tester);
     });
   });
 }

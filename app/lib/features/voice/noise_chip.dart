@@ -179,13 +179,17 @@ class _NoiseSuppressionPopoverState
             ],
           ),
           const SizedBox(height: 8),
-          OcSegmented<NoiseSuppression>(
-            value: isOff ? null : mode,
-            options: const [
-              (NoiseSuppression.standard, 'Standard'),
-              (NoiseSuppression.high, 'High'),
-            ],
-            onChanged: _setMode,
+          // Shrink-wrapped, as the People and Music switch is.
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OcSegmented<NoiseSuppression>(
+              value: isOff ? null : mode,
+              options: const [
+                (NoiseSuppression.standard, 'Standard'),
+                (NoiseSuppression.high, 'High'),
+              ],
+              onChanged: _setMode,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
