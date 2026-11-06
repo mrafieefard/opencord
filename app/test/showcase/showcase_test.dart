@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/settings/app_settings.dart';
+import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
@@ -90,7 +91,11 @@ void main() {
     await _settle(tester, 1500);
     await _shoot(tester, 'voice-watch');
 
-    await tester.tap(find.text('Private').first);
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is RailItemView && widget.name == 'Private',
+      ),
+    );
     await _settle(tester);
     await tester.tap(find.text('Mira Okafor').first);
     await _settle(tester);

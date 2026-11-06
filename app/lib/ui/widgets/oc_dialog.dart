@@ -1,37 +1,104 @@
 import 'package:flutter/material.dart';
 
+import 'package:opencord/ui/motion/oc_spring.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
-/// Opens a dialog over a scrim with a short fade and scale (§2.4). Escape
-/// and a click on the scrim close it unless [dismissible] is false.
+class _ClampedCurve extends Curve {
+  const _ClampedCurve(this.curve);
+  final Curve curve;
+
+  @override
+  double transformInternal(double t) => curve.transform(t).clamp(0.0, 1.0);
+}
+
+class _OcDialogRoute<T> extends RawDialogRoute<T> {
+  _OcDialogRoute({
+    required super.pageBuilder,
+    super.barrierDismissible = true,
+    super.barrierColor,
+    super.barrierLabel,
+    required super.transitionDuration,
+    required this.reverseDuration,
+    super.transitionBuilder,
+    super.settings,
+  });
+
+  final Duration reverseDuration;
+
+  @override
+  Duration get reverseTransitionDuration => reverseDuration;
+
+  @override
+  TickerFuture didPush() {
+    if (transitionDuration == Duration.zero) {
+      controller?.value = 1.0;
+      return TickerFuture.complete();
+    }
+    return super.didPush();
+  }
+
+  @override
+  bool didPop(T? result) {
+    final popped = super.didPop(result);
+    if (reverseTransitionDuration == Duration.zero) {
+      controller?.value = 0.0;
+      controller?.stop();
+    }
+    return popped;
+  }
+}
+
+/// Opens a dialog over a scrim on the pop spring (scale 0.97, fade) and closes
+/// in 100ms fade (§5.17). Escape and a click on the scrim close it unless
+/// [dismissible] is false.
 Future<T?> showOcDialog<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   bool dismissible = true,
 }) {
   final colors = context.oc;
-  return showGeneralDialog<T>(
-    context: context,
-    barrierDismissible: dismissible,
-    barrierLabel: 'Close',
-    barrierColor: colors.scrim,
-    transitionDuration: OcMotion.of(context).dialog,
-    pageBuilder: (context, animation, secondaryAnimation) =>
-        Builder(builder: builder),
-    transitionBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-          child: child,
-        ),
-      );
-    },
+  final motion = OcMotion.of(context);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  return navigator.push<T>(
+    _OcDialogRoute<T>(
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          Builder(builder: builder),
+      barrierDismissible: dismissible,
+      barrierLabel: 'Close',
+      barrierColor: colors.scrim,
+      transitionDuration: motion.reduced ? Duration.zero : OcSpring.pop.settle,
+      reverseDuration: motion.reduced
+          ? Duration.zero
+          : const Duration(milliseconds: 100),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        if (motion.reduced) return child;
+        if (animation.status == AnimationStatus.reverse) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),
+            child: child,
+          );
+        }
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: OcSpring.pop.curve,
+        );
+        final opacityCurve = CurvedAnimation(
+          parent: animation,
+          curve: _ClampedCurve(OcSpring.pop.curve),
+        );
+        return FadeTransition(
+          opacity: opacityCurve,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.97, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    ),
   );
 }
 

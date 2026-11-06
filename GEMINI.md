@@ -2,14 +2,14 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-10-26-mobile-client.md`: the phone apps, in React Native on the Rust core. The design it builds on is `docs/superpowers/specs/2026-10-26-mobile-client-design.md`. Milestone R0 (the facade, the app's build, its core layer and its store) is Claude's and comes first; the screens from R1 on are mostly yours. The private messages plan before it is finished.
+You are implementing `docs/superpowers/plans/2026-11-04-floating-ui.md`: the desktop app rebuilt as floating panels, 1:1 with the owner's prototype. The design it builds on is `docs/superpowers/specs/2026-11-04-floating-ui-design.md`, which holds every number; where they disagree, the prototype beside it wins. The phone apps plan before it is finished.
 
-- **UI work follows Software Mansion's React Native skills** (`~/.claude/plugins/marketplaces/swmansion/skills/react-native-best-practices`), as the plan's "Skills for UI work" says.
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
-- Each milestone ends in a pull request (see "Every change is a pull request"). Its code is reviewed and fixed there, and its decisions entry gets a **Review** bullet. Read the latest one before starting, and build on the fixed code, not on what you remember writing.
-- The plan gives behavior, interfaces, names and tests, not finished code. Only the proto, the SQL and a few types are given exactly: copy those as they are. You write the rest, and the rules below are what the review checks it against.
+- **One draft pull request for the whole plan.** The first milestone opens it into `beta`, later ones push to it. For this plan, that replaces "at the end of each milestone, open a pull request" below.
+- The plan gives behavior, interfaces, names, numbers and tests, not finished code. You write the code, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-- The user releases one milestone at a time. Stop at the end of each milestone and report.
+- **Keep going until CP6 passes; don't wait for the owner between milestones.** At each checkpoint (CP0–CP6) hand the review to Claude and wait for its verdict. That score decides: PASS starts the next milestone, FAIL goes back to fixing. The plan's "UI checkpoints and scoring" says how, and when to stop and ask the owner.
+- **The decisions entry is Claude's** for this plan, at the last review. Don't write one per milestone.
 
 ## Every change is a pull request
 
@@ -220,6 +220,12 @@ Every rule here was broken at least once and caught in review.
 
 - **Test against what ships.** When the app carries its own build of a library (FFmpeg in `target/ffmpeg`), run the tests that use it with that build, as CI does: prefix the command with `PKG_CONFIG_PATH=$PWD/target/ffmpeg/lib/pkgconfig LD_LIBRARY_PATH=$PWD/target/ffmpeg/lib`. The system's copy has everything; a test that passes on it says nothing about the app.
 - **A test must be able to fail.** Before trusting one, name a wrong implementation that would still pass it. An assertion on a value the code echoes back (a seek reporting its own target) proves nothing; check an effect only the real behavior produces, such as how much sound came out and how long it took.
+- **A UI test pins the design's number, not your code's.** Read it from the prototype's CSS or `measure.json`, then measure the widget where it's really used. M0's `@` badge test pinned the width 18 the code had; the prototype's is 21. A badge in a `Column` stretches to the window's width, so measure it in a `Row`.
+- **A failing test outside your plan's scope is reported, not changed.** Read the log, find out why it failed, re-run the job once and say what you found. M0 lowered a noise test in `crates/` from 40 to 35 dB to turn CI green. It had most likely failed because a loaded runner made High fall back to Standard, which the lower number hides from everyone after you.
+- **Flutter's tests draw no shadow blur** unless `debugDisableShadows` is false, so a float gets a hard band under it. Anything that judges a shadow runs in `withRealShadows` (`test/support/floating_scenes.dart`).
+- **Moving a widget can break what depended on where it was.** Before moving one, grep what reaches it: keys, ancestors, listeners, measured sizes. Then test the behaviour in the shell, not only the widget alone. M1 moved the composer to its own float, and every test passed while editing a private message did nothing (its `GlobalKey` pointed at nothing) and files dropped on it were lost (it had left `AttachmentDropZone`).
+- **`compare.py` only checks rectangles.** Colours and text can be wrong while it prints nothing. Open the side-by-side sheets at full size and sample colours against the reference (the screens are at 2×, so a point at x, y is the pixel at 2x, 2y). If text differs in width, measure it and find out why. M1 scored the main header and the rail 5 in the wrong colours, and all text ran 3–4 % wide from Material's inherited letter spacing.
+- **Score only what you measured or rendered.** M1 gave drawers 5 at widths nobody measured, and the title bar 5 from renders that had no window buttons.
 - **A test sets up everything it depends on.** Never rely on a default (an empty list, a setting's starting value) or on another test's data. Set it in the test.
 - **Test every mode of a flow, not just the first.** A form that adds and edits gets a test for editing; a send that can fail and retry gets a test for the retry.
 - **Fakes answer like the real thing.** A mock repository masks what the server masks and sends the last event the core sends (on a cancel, too). It ends like the real thing too: once the core's worker is gone (a player that played to the end), the fake ignores what that worker would have answered. A fake speaker plays silence when it runs dry and never banks the time for later. Otherwise tests pass on behavior real users never get.
@@ -241,7 +247,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   - **Tests**.
 - **Describe the code, not the plan.** For each sentence, open the code it describes, and copy labels, counts and messages from there. The plan says what was asked for; only the code says what was built.
 - **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name. Checksums, versions and hashes are copied from the file, never typed from memory.
-- **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger and your report.
+- **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger, your report and the pull request's description, which also lists every commit outside the plan's scope.
 - **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
 
 ## Reports and the ledger
@@ -253,6 +259,9 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   Private helpers you needed to build what the plan describes are not deviations.
 
   Name each one in the ledger and in the report, with the failure that made you add it. If `git diff` shows one, "Deviations: none" is wrong.
+- **A fix commit is a deviation too.** M1's report said "Deviations: none" and left out three commits that changed voice and toast behaviour. Name each one, with the failure that made you add it.
+- **A number in a report comes from output you saw.** Paste it, don't recall it. M1's report gave a spring's stiffness 380, damping 34, settle 370 ms and a 200 ms scrim; the real values are 503.6, 44.9, 342 ms and 120 ms. Its pull request described a 32 px title bar, a 44 px header and breakpoints that don't exist.
+- **Never `git add -f`.** What's ignored stays out of the repository. That includes `.superpowers/sdd/`, where the ledger and the scorecard live: M1 force-added both, so don't commit them at all.
 - **A required step you skipped leads the report** (screenshots, a check, a by-hand step), with why. The ledger alone doesn't count.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.
 - **Re-run a flaky test alone,** one test per command, and paste the result:

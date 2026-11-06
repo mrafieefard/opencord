@@ -27,6 +27,8 @@ class OcAvatar extends StatelessWidget {
     this.speaking = false,
     this.ringColor,
     this.image,
+    this.backgroundColor,
+    this.initialsStyle,
   });
 
   /// Picks the grey, so the same user or server always looks the same.
@@ -51,6 +53,12 @@ class OcAvatar extends StatelessWidget {
   /// and if it can't be read.
   final ImageProvider? image;
 
+  /// Overrides the background color.
+  final Color? backgroundColor;
+
+  /// Overrides the initials text style.
+  final TextStyle? initialsStyle;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -64,11 +72,13 @@ class OcAvatar extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.clip,
       textScaler: TextScaler.noScaling,
-      style: OcText.bodyStrong.copyWith(
-        fontSize: size * 0.38,
-        height: 1,
-        color: inverted ? colors.onAccent : colors.text,
-      ),
+      style:
+          initialsStyle ??
+          OcText.bodyStrong.copyWith(
+            fontSize: initialsFontSize(size),
+            height: 1,
+            color: inverted ? colors.onAccent : colors.text,
+          ),
     );
     final image = this.image;
     final avatar = Container(
@@ -78,7 +88,9 @@ class OcAvatar extends StatelessWidget {
       clipBehavior: image == null ? Clip.none : Clip.antiAlias,
       decoration: ShapeDecoration(
         shape: shape,
-        color: inverted ? colors.accent : colors.avatarShade(id),
+        color:
+            backgroundColor ??
+            (inverted ? colors.accent : colors.avatarShade(id)),
       ),
       foregroundDecoration: speaking
           ? ShapeDecoration(
@@ -111,8 +123,8 @@ class OcAvatar extends StatelessWidget {
         children: [
           avatar,
           Positioned(
-            right: -PresenceBadge.ring,
-            bottom: -PresenceBadge.ring,
+            right: -PresenceBadge.overhang - PresenceBadge.ring,
+            bottom: -PresenceBadge.overhang - PresenceBadge.ring,
             child: PresenceBadge(
               presence: presence,
               size: badge,
@@ -124,6 +136,22 @@ class OcAvatar extends StatelessWidget {
     );
   }
 }
+
+/// The initials' font size in an avatar of [size]: the design's own at the
+/// sizes it uses, and the line through them for any other.
+double initialsFontSize(double size) =>
+    _initialsFontSizes[size] ?? 0.31 * size + 1.7;
+
+final _initialsFontSizes = <double, double>{
+  20.0: 8.0,
+  22.0: 8.5,
+  26.0: 9.5,
+  32.0: 12.0,
+  34.0: 12.0,
+  36.0: 12.5,
+  40.0: 13.5,
+  72.0: 24.0,
+};
 
 /// Presence badge diameter for an avatar of [avatarSize].
 double presenceBadgeSize(double avatarSize) => avatarSize >= 60
@@ -143,7 +171,11 @@ class PresenceBadge extends StatelessWidget {
   });
 
   /// Width of the ring that separates the badge from what is behind it.
-  static const double ring = 2.5;
+  static const double ring = 2;
+
+  /// How far the badge's disc reaches past the avatar's edge, not counting
+  /// the ring.
+  static const double overhang = 2;
 
   final Presence presence;
   final double size;

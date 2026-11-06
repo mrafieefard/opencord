@@ -4,7 +4,7 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 
-/// Soft shadows for the few places that have one (§1: almost no shadows).
+/// Soft shadows: the window frame's, the floats' and the menus'.
 abstract final class OcShadows {
   static const Color _shadow = Color(0xFF000000);
 
@@ -13,13 +13,26 @@ abstract final class OcShadows {
     BoxShadow(color: Color(0x40000000), blurRadius: 18, offset: Offset(0, 4)),
   ];
 
-  /// Under menus and popovers.
-  static List<BoxShadow> menu(OcColors colors) => [
-    BoxShadow(
-      color: _shadow.withValues(alpha: colors == OcColors.dark ? 0.5 : 0.12),
-      blurRadius: 16,
-      offset: const Offset(0, 4),
-    ),
+  /// Under every float (the floating UI's design, §2.3): the prototype's
+  /// `0 8px 24px` in dark and `0 6px 20px` in light.
+  static List<BoxShadow> float(OcColors colors) =>
+      colors == OcColors.dark ? _floatDark : _floatLight;
+
+  /// Under menus and popovers (§2.3): the prototype's `0 4px 16px`.
+  static List<BoxShadow> menu(OcColors colors) =>
+      colors == OcColors.dark ? _menuDark : _menuLight;
+
+  static const _floatDark = [
+    BoxShadow(color: Color(0x73000000), offset: Offset(0, 8), blurRadius: 19.9),
+  ];
+  static const _floatLight = [
+    BoxShadow(color: Color(0x14111114), offset: Offset(0, 6), blurRadius: 16.4),
+  ];
+  static const _menuDark = [
+    BoxShadow(color: Color(0x80000000), offset: Offset(0, 4), blurRadius: 13),
+  ];
+  static const _menuLight = [
+    BoxShadow(color: Color(0x1F111114), offset: Offset(0, 4), blurRadius: 13),
   ];
 }
 

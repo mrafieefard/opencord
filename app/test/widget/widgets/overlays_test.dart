@@ -6,6 +6,8 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/popover.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
 import '../../support/pump.dart';
@@ -293,5 +295,37 @@ void main() {
       expect(undone, isTrue);
       expect(find.text('Reaction removed'), findsNothing);
     });
+  });
+
+  testWidgets('a_toaster_outlives_the_context_it_came_from', (tester) async {
+    late OcToaster toast;
+    var shown = true;
+    late StateSetter update;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(OcColors.dark),
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return shown
+                ? Builder(
+                    builder: (inner) {
+                      toast = ocToaster(inner);
+                      return const SizedBox();
+                    },
+                  )
+                : const SizedBox();
+          },
+        ),
+      ),
+    );
+    update(() => shown = false);
+    await tester.pump();
+
+    toast('Still here');
+    await tester.pump();
+
+    expect(find.text('Still here'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 6));
   });
 }

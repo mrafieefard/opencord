@@ -302,7 +302,16 @@ Nothing in these is macOS code. A short pass is enough; also try trackpad scroll
 
 - **Notifications on macOS** (through `UNUserNotificationCenter`): planned, not built. Their checks will be added here.
 
-## 11. Report
+## 11. Floating UI hand checks (`feat/floating-ui`)
+
+- [ ] **Traffic lights:** Centred vertically in the 40 px title row, and back in position after full screen.
+- [ ] **Navigation arrows:** Back and Forward arrows in the title row sit clear to the right of the traffic lights (`78` from left), never overlapping or crowded.
+- [ ] **Shortcuts:** `⌘[` and `⌘]` navigate back and forward through channel history.
+- [ ] **Mouse side buttons:** Back (button 4) and Forward (button 5) navigate channel history as `⌘[` and `⌘]` do.
+- [ ] **Video and screen share:** A real video and a real screen share through focus mode (click to focus, strip underneath) and back.
+- [ ] **Two-person call with dock:** In a call, voice dock appears on mouse movement over the stage, auto-hides after 2.5 s of inactivity or pointer departure, and never hides while hovering the dock or with popups/menus open.
+
+## 12. Report
 
 - Post the ticked list in the batch's thread, with the failures, screenshots and session logs.
 - The building work (§5, §6.2) and fixes for macOS-only problems go in pull requests from a branch off the one under test, into `beta` (see the top of this file). Name the step each one is for.

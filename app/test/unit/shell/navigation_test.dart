@@ -87,7 +87,7 @@ void main() {
     expect(ShellLayout.forWidth(1179), ShellLayout.medium);
     expect(ShellLayout.forWidth(979), ShellLayout.narrow);
     expect(ShellLayout.forWidth(759), ShellLayout.compact);
-    expect(ShellLayout.wide.sidebarWidth, 304);
+    expect(ShellLayout.wide.sidebarWidth, 288);
     expect(ShellLayout.narrow.sidebarWidth, 264);
     expect(ShellLayout.wide.membersInline, isTrue);
     expect(ShellLayout.medium.membersInline, isFalse);

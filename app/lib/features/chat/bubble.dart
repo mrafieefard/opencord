@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:opencord/core/format.dart';
@@ -127,14 +129,14 @@ class MessageBubble extends StatelessWidget {
         : colors.bubbleIn;
     final radius = _radius;
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: EdgeInsets.fromLTRB(mentionsMe ? 13 : 12, 7, 12, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           if (first && !own)
             Padding(
-              padding: const EdgeInsets.only(bottom: 2),
+              padding: const EdgeInsets.only(bottom: 1),
               child: _AuthorLine(
                 author: author,
                 role: role,
@@ -155,8 +157,7 @@ class MessageBubble extends StatelessWidget {
                         : _Meta.size(context, message, own: own),
                   ),
                 ),
-                if (!separateMeta)
-                  Positioned(right: 0, bottom: -1, child: meta),
+                if (!separateMeta) Positioned(right: 0, bottom: 2, child: meta),
               ],
             ),
           if (message.attachments.isNotEmpty)
@@ -180,7 +181,7 @@ class MessageBubble extends StatelessWidget {
             ),
           if (message.reactions.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 1),
+              padding: const EdgeInsets.only(top: 5, bottom: 1),
               child: Wrap(
                 spacing: 4,
                 runSpacing: 4,
@@ -199,34 +200,25 @@ class MessageBubble extends StatelessWidget {
         ],
       ),
     );
-    return AnimatedContainer(
+    final bubble = AnimatedContainer(
       duration: OcMotion.of(context).morph,
       constraints: const BoxConstraints(maxWidth: OcSize.bubbleMaxWidth),
-      clipBehavior: mentionsMe ? Clip.antiAlias : Clip.none,
+      clipBehavior: Clip.none,
       decoration: BoxDecoration(
         color: background,
         borderRadius: radius,
-        border: own ? null : Border.all(color: colors.border, width: 0.8),
+        border: Border.all(color: colors.border, width: 1.0),
       ),
       // Shrink-wraps the content, so short messages get short bubbles.
-      child: IntrinsicWidth(
-        child: mentionsMe
-            ? Stack(
-                children: [
-                  content,
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: ColoredBox(
-                      color: colors.text,
-                      child: const SizedBox(width: 2),
-                    ),
-                  ),
-                ],
-              )
-            : content,
+      child: IntrinsicWidth(child: content),
+    );
+    if (!mentionsMe) return bubble;
+    return CustomPaint(
+      foregroundPainter: _MentionBorderPainter(
+        radius: radius,
+        color: colors.text,
       ),
+      child: bubble,
     );
   }
 }
@@ -356,7 +348,7 @@ class _Meta extends StatelessWidget {
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: 1,
     )..layout();
-    const gap = 8.0;
+    const gap = 10.0;
     final icon = own ? 4.0 + _iconSize : 0.0;
     final size = Size(
       gap + painter.width + icon,
@@ -366,7 +358,7 @@ class _Meta extends StatelessWidget {
     return size;
   }
 
-  static const double _iconSize = 14;
+  static const double _iconSize = 13;
 
   @override
   Widget build(BuildContext context) {
@@ -438,24 +430,27 @@ class _ReplyQuote extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 6),
+      padding: const EdgeInsets.fromLTRB(0, 2, 0, 4),
       child: Hoverable(
         onTap: onTap,
         semanticLabel: 'Reply to ${reply.author}: ${reply.text}',
-        focusRadius: BorderRadius.circular(OcRadius.quote),
+        focusRadius: BorderRadius.circular(6),
         builder: (context, state) => ClipRRect(
-          borderRadius: BorderRadius.circular(OcRadius.quote),
+          borderRadius: BorderRadius.circular(6),
           child: Container(
-            color: colors.text.withValues(alpha: state.active ? 0.1 : 0.06),
+            color: colors.hover,
             child: IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 2, color: colors.text),
+                  Container(width: 2, color: colors.textSecondary),
                   Flexible(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -465,8 +460,9 @@ class _ReplyQuote extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: OcText.small.copyWith(
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: colors.text,
+                              color: colors.textSecondary,
                             ),
                           ),
                           Text(
@@ -474,6 +470,7 @@ class _ReplyQuote extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: OcText.small.copyWith(
+                              fontSize: 12.5,
                               color: colors.textSecondary,
                             ),
                           ),
@@ -513,19 +510,14 @@ class ReactionChip extends StatelessWidget {
       semanticLabel:
           '${reaction.emoji} ${reaction.count}${mine ? ', including you' : ''}',
       selected: mine,
-      focusRadius: BorderRadius.circular(OcRadius.reaction),
+      focusRadius: BorderRadius.circular(12),
       builder: (context, state) => AnimatedContainer(
         duration: OcMotion.of(context).hover,
         height: 24,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: mine
-              ? colors.accent
-              : state.active
-              ? colors.selected
-              : null,
-          borderRadius: BorderRadius.circular(OcRadius.reaction),
-          border: mine ? null : Border.all(color: colors.border),
+          color: mine ? colors.accent : colors.selected,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -534,11 +526,12 @@ class ReactionChip extends StatelessWidget {
               reaction.emoji,
               style: const TextStyle(fontSize: 13, height: 1),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 5),
             Text(
               '${reaction.count}',
               style: OcText.small.copyWith(
-                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
                 height: 1,
                 color: mine ? colors.onAccent : colors.text,
               ),
@@ -549,4 +542,52 @@ class ReactionChip extends StatelessWidget {
     );
     return names == null ? chip : Tooltip(message: names!, child: chip);
   }
+}
+
+/// A mention's left edge (§5.11), a `(`, drawn as the prototype's CSS border
+/// is: 2 wide, narrowing into the 1 px top and bottom, and ending at the mitre
+/// from the outer corner through the inner one.
+class _MentionBorderPainter extends CustomPainter {
+  const _MentionBorderPainter({required this.radius, required this.color});
+
+  final BorderRadius radius;
+  final Color color;
+
+  static Radius _inside(Radius corner, double dx) =>
+      Radius.elliptical(math.max(0, corner.x - dx), math.max(0, corner.y - 1));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final inner = RRect.fromLTRBAndCorners(
+      2,
+      1,
+      size.width - 1,
+      size.height - 1,
+      topLeft: _inside(radius.topLeft, 2),
+      topRight: _inside(radius.topRight, 1),
+      bottomLeft: _inside(radius.bottomLeft, 2),
+      bottomRight: _inside(radius.bottomRight, 1),
+    );
+    final reach = math.max(radius.topLeft.x, radius.bottomLeft.x);
+    canvas
+      ..save()
+      ..clipPath(
+        Path()
+          ..moveTo(0, 0)
+          ..lineTo(reach, reach / 2)
+          ..lineTo(reach, size.height - reach / 2)
+          ..lineTo(0, size.height)
+          ..close(),
+      )
+      ..drawDRRect(
+        radius.toRRect(Offset.zero & size),
+        inner,
+        Paint()..color = color,
+      )
+      ..restore();
+  }
+
+  @override
+  bool shouldRepaint(_MentionBorderPainter oldDelegate) =>
+      radius != oldDelegate.radius || color != oldDelegate.color;
 }

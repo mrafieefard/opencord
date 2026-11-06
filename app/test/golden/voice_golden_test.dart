@@ -83,6 +83,9 @@ void main() {
         ),
       );
 
+      // A camera's silhouette pops in.
+      await tester.pumpAndSettle();
+
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/voice_tiles_$name.png'),

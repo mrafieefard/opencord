@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -325,42 +326,42 @@ class _PrivateMessageListState extends ConsumerState<PrivateMessageList> {
       for (var i = split; i < messages.length; i++) messages[i].id: i - split,
     };
     final loadingOlder = state.loading;
-    return CustomScrollView(
-      controller: scroll,
-      center: _newerKey,
-      anchor: 1,
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(
-            OcSpace.s16,
-            OcSpace.s12,
-            OcSpace.s16,
-            0,
-          ),
-          sliver: SliverList.builder(
-            itemCount: split + (loadingOlder ? 1 : 0),
-            findChildIndexCallback: (key) =>
-                olderIndex[(key as ValueKey<Object>).value],
-            itemBuilder: (context, index) =>
-                index == split ? const _Spinner() : rowAt(split - 1 - index),
-          ),
-        ),
-        SliverPadding(
-          key: _newerKey,
-          padding: const EdgeInsets.fromLTRB(
-            OcSpace.s16,
-            0,
-            OcSpace.s16,
-            OcSpace.s12,
-          ),
-          sliver: SliverList.builder(
-            itemCount: messages.length - split,
-            findChildIndexCallback: (key) =>
-                newerIndex[(key as ValueKey<Object>).value],
-            itemBuilder: (context, index) => rowAt(split + index),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // As a channel's list: bubbles keep to a readable column (§5.11),
+        // compact lines use the whole width.
+        final side = compact
+            ? OcSpace.s16
+            : OcSpace.s16 + math.max(0.0, (constraints.maxWidth - 880.0) / 2);
+        return CustomScrollView(
+          controller: scroll,
+          center: _newerKey,
+          anchor: 1,
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(side, OcSpace.s12, side, 0),
+              sliver: SliverList.builder(
+                itemCount: split + (loadingOlder ? 1 : 0),
+                findChildIndexCallback: (key) =>
+                    olderIndex[(key as ValueKey<Object>).value],
+                itemBuilder: (context, index) => index == split
+                    ? const _Spinner()
+                    : rowAt(split - 1 - index),
+              ),
+            ),
+            SliverPadding(
+              key: _newerKey,
+              padding: EdgeInsets.fromLTRB(side, 0, side, OcSpace.s12),
+              sliver: SliverList.builder(
+                itemCount: messages.length - split,
+                findChildIndexCallback: (key) =>
+                    newerIndex[(key as ValueKey<Object>).value],
+                itemBuilder: (context, index) => rowAt(split + index),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

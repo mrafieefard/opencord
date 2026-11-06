@@ -2,46 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/permissions.dart';
-import 'package:opencord/core/model/presence.dart';
-import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
-import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_channel_row.dart';
-import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/dialogs/create_channel_dialog.dart';
 import 'package:opencord/features/dialogs/invite_dialog.dart';
-import 'package:opencord/features/settings/server_settings.dart';
-import 'package:opencord/features/servers/server_rail.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/switcher/quick_switcher.dart';
-import 'package:opencord/features/window/header_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
-import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
-import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
-import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
-import 'package:opencord/ui/widgets/popover.dart';
-import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/toast.dart';
-import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/ui/widgets/ellipsis_text.dart';
+
+export 'server_head.dart';
 
 /// The channel sidebar (§4.2).
 class ChannelSidebar extends ConsumerWidget {
-  const ChannelSidebar({super.key, this.leadingControls = false});
-
-  /// Carries left-hand window controls (§3.1).
-  final bool leadingControls;
+  const ChannelSidebar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,171 +38,14 @@ class ChannelSidebar extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderBar(
-            leadingControls: leadingControls,
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-            child: server == null
-                ? const SizedBox()
-                : _ServerHeader(serverKey: server),
-          ),
           const _SearchLauncher(),
           Expanded(
             child: server == null
                 ? const SizedBox()
                 : _ChannelList(serverKey: server),
           ),
-          const VoiceConnectedPanel(),
-          const UserPanel(),
         ],
       ),
-    );
-  }
-}
-
-class _ServerHeader extends ConsumerWidget {
-  const _ServerHeader({required this.serverKey});
-
-  final String serverKey;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.oc;
-    final state = ref.watch(serverProvider(serverKey));
-    final online = ref.watch(
-      presenceProvider(serverKey).select(
-        (p) => p.presences.values
-            .where((presence) => presence != Presence.offline)
-            .length,
-      ),
-    );
-    final name =
-        state.data?.info.name ??
-        ref
-            .watch(serverListProvider)
-            .where((s) => s.key == serverKey)
-            .firstOrNull
-            ?.name ??
-        serverKey;
-    final members = state.data?.members.length ?? 0;
-    final status = switch (state.connection.phase) {
-      ConnectionPhase.connected =>
-        '${countLabel(online)} online · ${countLabel(members)} members',
-      ConnectionPhase.connecting => 'Connecting…',
-      ConnectionPhase.reconnecting => 'Reconnecting…',
-      ConnectionPhase.failed => 'Connection failed',
-    };
-    return Hoverable(
-      onTap: () => _showMenu(context, ref, name),
-      semanticLabel: '$name, $status. Server menu',
-      builder: (context, hover) => AnimatedContainer(
-        duration: OcMotion.of(context).hover,
-        constraints: const BoxConstraints(minHeight: 44),
-        padding: const EdgeInsets.symmetric(horizontal: OcSpace.s8),
-        decoration: BoxDecoration(
-          color: hover.active ? colors.hover : null,
-          borderRadius: BorderRadius.circular(OcRadius.row),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  EllipsisText(
-                    name,
-                    style: OcText.header.copyWith(color: colors.text),
-                  ),
-                  Row(
-                    children: [
-                      ConnectionDot(
-                        connected: state.connection.isConnected,
-                        size: 6,
-                      ),
-                      const SizedBox(width: OcSpace.s6),
-                      Expanded(
-                        child: Text(
-                          status,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: OcText.meta.copyWith(color: colors.textMuted),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              OcIcons.expandMore,
-              size: OcSize.iconRow,
-              color: colors.textSecondary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showMenu(BuildContext context, WidgetRef ref, String name) {
-    final muted = ref.read(notificationPrefsProvider).serverMuted(serverKey);
-    final data = ref.read(serverProvider(serverKey)).data;
-    final invite = data?.can(Permissions.createInvite) ?? false;
-    final manage = data?.can(Permissions.manageChannels) ?? false;
-    final rect = globalRectOf(context);
-    return showOcMenu(
-      context: context,
-      position: rect.bottomLeft.translate(0, 6),
-      entries: [
-        if (invite)
-          OcMenuItem(
-            label: 'Invite people',
-            icon: OcIcons.personAdd,
-            onSelected: () => showInvitePeople(context, serverKey: serverKey),
-          ),
-        if (manage) ...[
-          OcMenuItem(
-            label: 'Create channel',
-            icon: OcIcons.add,
-            onSelected: () => showCreateChannel(context, serverKey: serverKey),
-          ),
-          OcMenuItem(
-            label: 'Create category',
-            icon: OcIcons.createNewFolder,
-            onSelected: () => showCreateCategory(context, serverKey: serverKey),
-          ),
-        ],
-        if (canOpenServerSettings(data))
-          OcMenuItem(
-            label: 'Server settings',
-            icon: OcIcons.settings,
-            onSelected: () =>
-                showServerSettings(context, ref, serverKey: serverKey),
-          ),
-        if (invite || manage || canOpenServerSettings(data))
-          const OcMenuDivider(),
-        OcMenuItem(
-          label: muted ? 'Unmute notifications' : 'Mute notifications',
-          icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,
-          onSelected: () => ref
-              .read(notificationPrefsProvider.notifier)
-              .toggleServer(serverKey),
-        ),
-        OcMenuItem(
-          label: 'Copy server address',
-          icon: OcIcons.link,
-          onSelected: () {
-            Clipboard.setData(ClipboardData(text: serverKey));
-            showOcToast(context, 'Address copied');
-          },
-        ),
-        const OcMenuDivider(),
-        OcMenuItem(
-          label: 'Leave server',
-          icon: OcIcons.logout,
-          onSelected: () => confirmLeaveServer(context, ref, serverKey, name),
-        ),
-      ],
     );
   }
 }
@@ -229,36 +58,31 @@ class _SearchLauncher extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        OcSpace.s12,
-        OcSpace.s10,
-        OcSpace.s12,
-        OcSpace.s4,
-      ),
+      padding: const EdgeInsets.all(8),
       child: Hoverable(
         onTap: () => showQuickSwitcher(context, ref),
         semanticLabel: 'Search, jump to a channel, server or member',
-        focusRadius: BorderRadius.circular(OcRadius.searchPill),
+        focusRadius: BorderRadius.circular(18),
         builder: (context, state) => AnimatedContainer(
+          key: ShellKeys.search,
           duration: OcMotion.of(context).hover,
           height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: state.active ? colors.selected : colors.hover,
-            borderRadius: BorderRadius.circular(OcRadius.searchPill),
+            borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             children: [
-              Icon(
-                OcIcons.search,
-                size: OcSize.iconRow,
-                color: colors.textMuted,
-              ),
-              const SizedBox(width: OcSpace.s8),
+              Icon(OcIcons.search, size: 18, color: colors.textMuted),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Search',
-                  style: OcText.body.copyWith(color: colors.textMuted),
+                  style: OcText.body.copyWith(
+                    fontSize: 14,
+                    color: colors.textMuted,
+                  ),
                 ),
               ),
               KeyHint(
@@ -384,10 +208,7 @@ class _ChannelList extends ConsumerWidget {
             channel: channel,
             reorderIndex: reorderIndex,
           )
-        : Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: ChannelRow(serverKey: serverKey, channel: channel),
-          );
+        : ChannelRow(serverKey: serverKey, channel: channel);
 
     /// Text or voice channels of one group, which drag among themselves.
     Widget segment(List<Channel> group, {required bool draggable}) {
@@ -461,7 +282,7 @@ class _ChannelList extends ConsumerWidget {
     // Categories drag as blocks, their channels with them (§16). A
     // right-click between channels offers to create one.
     final list = ReorderableListView(
-      padding: const EdgeInsets.only(top: OcSpace.s4, bottom: OcSpace.s12),
+      padding: const EdgeInsets.only(top: 0, bottom: 8),
       buildDefaultDragHandles: false,
       proxyDecorator: _lift,
       header: loose == null
@@ -507,7 +328,7 @@ class _ChannelList extends ConsumerWidget {
   }
 }
 
-class _CategoryRow extends ConsumerWidget {
+class _CategoryRow extends ConsumerStatefulWidget {
   const _CategoryRow({
     required this.serverKey,
     required this.category,
@@ -518,81 +339,118 @@ class _CategoryRow extends ConsumerWidget {
   final String serverKey;
   final Channel category;
   final bool collapsed;
-
-  /// The category's place among the draggable blocks, for people who may
-  /// reorder them. Only the label drags, so the "+" stays a button.
   final int? dragIndex;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CategoryRow> createState() => _CategoryRowState();
+}
+
+class _CategoryRowState extends ConsumerState<_CategoryRow> {
+  bool _hovered = false;
+  bool _plusFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
     final manage =
         ref.watch(
           serverProvider(
-            serverKey,
+            widget.serverKey,
           ).select((s) => s.data?.can(Permissions.manageChannels)),
         ) ??
         false;
-    final label = _toggle(context, ref);
-    final toggle = dragIndex == null
-        ? label
-        : ReorderableDragStartListener(index: dragIndex!, child: label);
-    if (!manage) return toggle;
-    return Row(
-      children: [
-        Expanded(child: toggle),
-        Padding(
-          padding: const EdgeInsets.only(top: OcSpace.s8, right: OcSpace.s8),
-          child: OcIconButton(
-            icon: OcIcons.add,
-            tooltip: 'Create channel in ${category.name}',
-            size: OcIconButtonSize.compact,
-            onPressed: () => showCreateChannel(
-              context,
-              serverKey: serverKey,
-              parentId: category.id,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _toggle(BuildContext context, WidgetRef ref) {
-    final colors = context.oc;
-    return Hoverable(
+    final showPlus = _hovered || _plusFocused;
+
+    final toggle = Hoverable(
       onTap: () => ref
           .read(collapsedCategoriesProvider.notifier)
-          .toggle(serverKey, category.id),
+          .toggle(widget.serverKey, widget.category.id),
       onSecondaryTap: (position) => _showCreateMenu(
         context,
         ref,
-        serverKey,
+        widget.serverKey,
         position,
-        category: category,
+        category: widget.category,
       ),
       semanticLabel:
-          '${category.name}, ${collapsed ? 'collapsed' : 'expanded'}',
+          '${widget.category.name}, ${widget.collapsed ? 'collapsed' : 'expanded'}',
       cursor: SystemMouseCursors.basic,
-      builder: (context, state) => Padding(
-        padding: const EdgeInsets.fromLTRB(
-          OcSpace.s12,
-          OcSpace.s12,
-          OcSpace.s12,
-          OcSpace.s4,
-        ),
-        child: Row(
-          children: [
-            AnimatedRotation(
-              turns: collapsed ? -0.25 : 0,
-              duration: OcMotion.of(context).morph,
-              child: Icon(
-                OcIcons.expandMore,
-                size: OcSize.iconInline,
-                color: state.active ? colors.textSecondary : colors.textMuted,
+      builder: (context, state) => Row(
+        children: [
+          AnimatedRotation(
+            turns: widget.collapsed ? -0.25 : 0,
+            duration: OcMotion.of(context).morph,
+            curve: OcMotion.curve,
+            child: Icon(
+              OcIcons.expandMore,
+              size: 16,
+              color: state.active ? colors.textSecondary : colors.textMuted,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              widget.category.name.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: OcText.meta.copyWith(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.7,
+                color: colors.textMuted,
               ),
             ),
-            const SizedBox(width: 2),
-            Expanded(child: SectionLabel(category.name)),
+          ),
+        ],
+      ),
+    );
+
+    final draggableToggle = widget.dragIndex == null
+        ? toggle
+        : ReorderableDragStartListener(index: widget.dragIndex!, child: toggle);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 12, 4),
+        child: Row(
+          children: [
+            Expanded(child: draggableToggle),
+            if (manage)
+              Focus(
+                onFocusChange: (f) => setState(() => _plusFocused = f),
+                child: AnimatedOpacity(
+                  opacity: showPlus ? 1.0 : 0.0,
+                  duration: OcMotion.of(context).hover,
+                  curve: OcMotion.curve,
+                  child: IgnorePointer(
+                    ignoring: !showPlus,
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Hoverable(
+                        onTap: () => showCreateChannel(
+                          context,
+                          serverKey: widget.serverKey,
+                          parentId: widget.category.id,
+                        ),
+                        focusRadius: BorderRadius.circular(4),
+                        semanticLabel:
+                            'Create channel in ${widget.category.name}',
+                        builder: (context, state) => Center(
+                          child: Icon(
+                            OcIcons.add,
+                            size: 16,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

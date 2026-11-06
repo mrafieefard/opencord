@@ -20,10 +20,16 @@ class AttachmentDropZone extends ConsumerStatefulWidget {
     super.key,
     required this.channel,
     required this.child,
+    this.radius = 0,
   });
 
-  final ChannelRef channel;
+  /// Where dropped files go; takes none while null. Stays in the tree then,
+  /// so what it wraps keeps its state as the channel changes kind.
+  final ChannelRef? channel;
   final Widget child;
+
+  /// The corners of the target's scrim.
+  final double radius;
 
   @override
   ConsumerState<AttachmentDropZone> createState() => _AttachmentDropZoneState();
@@ -35,18 +41,19 @@ class _AttachmentDropZoneState extends ConsumerState<AttachmentDropZone> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final data = ref.watch(
-      serverProvider(widget.channel.server).select((s) => s.data),
-    );
-    final channelName = data?.channels[widget.channel.channel]?.name ?? '';
+    final channel = widget.channel;
+    final data = channel == null
+        ? null
+        : ref.watch(serverProvider(channel.server).select((s) => s.data));
+    final channelName = data?.channels[channel?.channel]?.name ?? '';
     final limit = data?.myUploadLimit ?? UploadSettings.fallback.maxFileBytes;
     final canAttach =
-        data
-            ?.permissionsIn(widget.channel.channel)
-            .has(Permissions.attachFiles) ??
-        false;
+        channel != null &&
+        (data?.permissionsIn(channel.channel).has(Permissions.attachFiles) ??
+            false);
 
     return DropTarget(
+      enable: channel != null,
       onDragEntered: (_) => setState(() => _dragging = true),
       onDragExited: (_) => setState(() => _dragging = false),
       onDragDone: (details) {
@@ -54,7 +61,7 @@ class _AttachmentDropZoneState extends ConsumerState<AttachmentDropZone> {
         if (!canAttach) return;
         final paths = details.files.map((f) => f.path).toList();
         unawaited(
-          ref.read(composerProvider(widget.channel).notifier).stagePaths(paths),
+          ref.read(composerProvider(channel).notifier).stagePaths(paths),
         );
       },
       child: Stack(
@@ -64,8 +71,11 @@ class _AttachmentDropZoneState extends ConsumerState<AttachmentDropZone> {
           if (_dragging)
             Positioned.fill(
               child: IgnorePointer(
-                child: ColoredBox(
-                  color: colors.scrim,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.scrim,
+                    borderRadius: BorderRadius.circular(widget.radius),
+                  ),
                   child: Center(
                     child: Container(
                       width: 320,

@@ -22,6 +22,9 @@ class OcButton extends StatelessWidget {
     this.expand = false,
     this.autofocus = false,
     this.focusNode,
+    this.height,
+    this.padding,
+    this.pressedScale = 1,
   });
 
   const OcButton.primary({
@@ -34,6 +37,9 @@ class OcButton extends StatelessWidget {
     this.expand = false,
     this.autofocus = false,
     this.focusNode,
+    this.height,
+    this.padding,
+    this.pressedScale = 1,
   }) : variant = OcButtonVariant.primary;
 
   const OcButton.ghost({
@@ -46,6 +52,9 @@ class OcButton extends StatelessWidget {
     this.expand = false,
     this.autofocus = false,
     this.focusNode,
+    this.height,
+    this.padding,
+    this.pressedScale = 1,
   }) : variant = OcButtonVariant.ghost;
 
   final String label;
@@ -63,6 +72,15 @@ class OcButton extends StatelessWidget {
   final bool expand;
   final bool autofocus;
   final FocusNode? focusNode;
+
+  /// In place of the 36 or, [dense], 28.
+  final double? height;
+
+  /// Custom padding inside the button.
+  final EdgeInsetsGeometry? padding;
+
+  /// What it shrinks to while pressed.
+  final double pressedScale;
 
   @override
   Widget build(BuildContext context) {
@@ -122,12 +140,13 @@ class OcButton extends StatelessWidget {
               ),
             ],
           );
-          return AnimatedContainer(
+          final button = AnimatedContainer(
             duration: motion.hover,
             curve: OcMotion.curve,
-            height: dense ? 28 : 36,
+            height: height ?? (dense ? 28 : 36),
             width: expand ? double.infinity : null,
-            padding: EdgeInsets.symmetric(horizontal: dense ? 12 : 16),
+            padding:
+                padding ?? EdgeInsets.symmetric(horizontal: dense ? 12 : 16),
             decoration: BoxDecoration(color: background, borderRadius: radius),
             // An aligned container fills the width it is offered, so only
             // an expanding button centres its label that way.
@@ -141,6 +160,13 @@ class OcButton extends StatelessWidget {
                     ],
                   )
                 : content,
+          );
+          if (pressedScale == 1) return button;
+          return AnimatedScale(
+            scale: state.pressed ? pressedScale : 1,
+            duration: motion.press,
+            curve: OcMotion.curve,
+            child: button,
           );
         },
       ),

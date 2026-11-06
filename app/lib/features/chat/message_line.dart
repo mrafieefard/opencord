@@ -22,23 +22,21 @@ class MessageLine extends StatelessWidget {
   /// the others so the bubbles line up.
   final Widget? avatar;
 
-  /// Space kept free on the far side, so a long bubble never touches it.
-  static const double gutter = 48;
-  static const double _avatarGap = OcSpace.s8;
+  static const double _avatarGap = 10;
 
   @override
   Widget build(BuildContext context) {
-    final top = first ? OcSpace.s8 : OcSpace.s2;
+    final top = first ? 6.0 : 2.0;
     if (own) {
       return Padding(
-        padding: EdgeInsets.only(top: top, left: gutter),
+        padding: EdgeInsets.only(top: top),
         child: Align(alignment: Alignment.centerRight, child: bubble),
       );
     }
     // The avatar hangs beside the bubble without adding to the row's
     // height, so moving it to a newer bubble never shifts the rows above.
     return Padding(
-      padding: EdgeInsets.only(top: top, right: gutter),
+      padding: EdgeInsets.only(top: top),
       child: Stack(
         clipBehavior: Clip.none,
         children: [

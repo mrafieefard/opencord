@@ -84,7 +84,6 @@ class _MarkdownViewState extends State<MarkdownView> {
   List<InlineSpan> _spans(List<MdInline> inlines, TextStyle base) {
     final colors = context.oc;
     final links = widget.links;
-    final highlight = Paint()..color = colors.mentionBg;
     return [
       for (final inline in inlines)
         switch (inline) {
@@ -98,12 +97,23 @@ class _MarkdownViewState extends State<MarkdownView> {
                 decorationColor: base.color,
               ),
             ),
-          MdInlineCode(:final code) => TextSpan(
-            text: code,
-            style: OcText.mono.copyWith(
-              fontSize: (base.fontSize ?? 14) * 0.9,
-              color: base.color,
-              background: highlight,
+          MdInlineCode(:final code) => WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            // The pill's 1 above and below is painted and not laid out, so a
+            // line with code in it is as tall as any other.
+            child: CustomPaint(
+              painter: _CodePill(colors.mentionBg),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  code,
+                  style: OcText.mono.copyWith(
+                    fontSize: 12.5,
+                    color: base.color,
+                  ),
+                ),
+              ),
             ),
           ),
           MdLink(:final url) => TextSpan(
@@ -117,27 +127,57 @@ class _MarkdownViewState extends State<MarkdownView> {
                 ? null
                 : _tap(() => links.onLink!(url)),
           ),
-          MdUserMention(:final userId) => TextSpan(
-            text: '@${links.userName(userId) ?? 'unknown'}',
-            style: base.copyWith(
-              fontWeight: FontWeight.w600,
-              background: highlight,
+          MdUserMention(:final userId) => WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: links.onUser == null
+                    ? null
+                    : () => links.onUser!(userId),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.mentionBg,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '@${links.userName(userId) ?? 'unknown'}',
+                    style: base.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
             ),
-            mouseCursor: SystemMouseCursors.click,
-            recognizer: links.onUser == null
-                ? null
-                : _tap(() => links.onUser!(userId)),
           ),
-          MdChannelMention(:final channelId) => TextSpan(
-            text: '#${links.channelName(channelId) ?? 'unknown'}',
-            style: base.copyWith(
-              fontWeight: FontWeight.w600,
-              background: highlight,
+          MdChannelMention(:final channelId) => WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: links.onChannel == null
+                    ? null
+                    : () => links.onChannel!(channelId),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.mentionBg,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '#${links.channelName(channelId) ?? 'unknown'}',
+                    style: base.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
             ),
-            mouseCursor: SystemMouseCursors.click,
-            recognizer: links.onChannel == null
-                ? null
-                : _tap(() => links.onChannel!(channelId)),
           ),
         },
     ];
@@ -170,7 +210,10 @@ class _MarkdownViewState extends State<MarkdownView> {
               ),
             ]
           : const <InlineSpan>[];
-      if (children.isNotEmpty) {
+      // A quote's own margin is the gap on either side of it. A lead on its
+      // own line, before the first block, keeps the usual gap.
+      if (children.isNotEmpty &&
+          (i == 0 || (block is! MdQuote && blocks[i - 1] is! MdQuote))) {
         children.add(const SizedBox(height: OcSpace.s4));
       }
       children.add(switch (block) {
@@ -186,6 +229,7 @@ class _MarkdownViewState extends State<MarkdownView> {
           ),
         ),
         MdQuote(:final inlines) => Container(
+          margin: const EdgeInsets.fromLTRB(0, 1, 0, 2),
           padding: const EdgeInsets.only(left: OcSpace.s8),
           decoration: BoxDecoration(
             border: Border(left: BorderSide(color: colors.textMuted, width: 2)),
@@ -216,6 +260,25 @@ class _MarkdownViewState extends State<MarkdownView> {
       children: children,
     );
   }
+}
+
+/// The pill behind inline code (§5.11): its box, and 1 above and below.
+class _CodePill extends CustomPainter {
+  const _CodePill(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      Rect.fromLTRB(0, -1, size.width, size.height + 1),
+      const Radius.circular(4),
+    ),
+    Paint()..color = color,
+  );
+
+  @override
+  bool shouldRepaint(_CodePill oldDelegate) => color != oldDelegate.color;
 }
 
 /// A fenced code block (§4.5): full bubble width, an optional language

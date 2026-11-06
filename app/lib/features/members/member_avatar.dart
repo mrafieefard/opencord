@@ -81,12 +81,16 @@ class ServerAvatar extends ConsumerWidget {
     required this.name,
     this.size = 36,
     this.borderRadius = 9,
+    this.backgroundColor,
+    this.initialsStyle,
   });
 
   final String serverKey;
   final String name;
   final double size;
   final double borderRadius;
+  final Color? backgroundColor;
+  final TextStyle? initialsStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -99,6 +103,8 @@ class ServerAvatar extends ConsumerWidget {
       size: size,
       borderRadius: borderRadius,
       image: avatarImage(ref, serverKey, hash),
+      backgroundColor: backgroundColor,
+      initialsStyle: initialsStyle,
     );
   }
 }

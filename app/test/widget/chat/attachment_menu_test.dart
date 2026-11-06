@@ -4,6 +4,7 @@ import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/attachments/file_card.dart';
 import 'package:opencord/features/chat/attachments/image_grid.dart';
+import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/voice/voice_bubble.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
@@ -69,6 +70,9 @@ void main() {
   ) async {
     final app = await MockApp.pump(tester);
     await _open(tester, app, 'design-review');
+
+    await tester.drag(find.byType(MessageList), const Offset(0, -200));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
 
     await _rightClick(tester, find.byType(VoiceBubble));
 

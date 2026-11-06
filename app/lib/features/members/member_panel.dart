@@ -13,7 +13,9 @@ import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/music/now_playing_card.dart';
 import 'package:opencord/features/shell/navigation.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/pane_switch.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -28,22 +30,9 @@ import 'package:opencord/ui/widgets/ellipsis_text.dart';
 /// The member panel (§4.7, Telegram's "group info"): who can see the open
 /// channel, in sections by hoisted role, online and offline.
 class MemberPanel extends ConsumerStatefulWidget {
-  const MemberPanel({
-    super.key,
-    required this.onClose,
-    this.isOverlay = false,
-    this.onSelectMembers,
-    this.onSelectMusic,
-    this.trailingControls = false,
-  });
+  const MemberPanel({super.key, required this.onClose});
 
   final VoidCallback onClose;
-  final bool isOverlay;
-  final VoidCallback? onSelectMembers;
-  final VoidCallback? onSelectMusic;
-
-  /// Carries the right-hand window controls (§3.1).
-  final bool trailingControls;
 
   @override
   ConsumerState<MemberPanel> createState() => _MemberPanelState();
@@ -115,16 +104,14 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderBar(
-            trailingControls: widget.trailingControls,
-            padding: const EdgeInsets.only(
-              left: OcSpace.s16,
-              right: OcSpace.s8,
-            ),
+          PanelHeader(
+            padding: const EdgeInsets.only(left: 16, right: 8),
             child: Row(
               children: [
-                Expanded(
-                  child: IgnorePointer(
+                if (musicOffered)
+                  const PaneSwitch()
+                else
+                  IgnorePointer(
                     child: Text.rich(
                       TextSpan(
                         children: [
@@ -132,6 +119,7 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
                           TextSpan(
                             text: '  ${countLabel(members.length)}',
                             style: OcText.body.copyWith(
+                              fontSize: 13,
                               color: colors.textMuted,
                             ),
                           ),
@@ -139,97 +127,88 @@ class _MemberPanelState extends ConsumerState<MemberPanel> {
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: OcText.header.copyWith(color: colors.text),
+                      style: OcText.header.copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: colors.text,
+                      ),
                     ),
                   ),
+                const Spacer(),
+                OcIconButton(
+                  icon: OcIcons.close,
+                  tooltip: 'Close',
+                  size: OcIconButtonSize.compact,
+                  onPressed: widget.onClose,
                 ),
-                if (widget.isOverlay && musicOffered) ...[
-                  OcIconButton(
-                    icon: OcIcons.group,
-                    tooltip: 'Members',
-                    active: true,
-                    size: OcIconButtonSize.compact,
-                    onPressed: widget.onSelectMembers,
-                  ),
-                  OcIconButton(
-                    icon: OcIcons.libraryMusic,
-                    tooltip: 'Music',
-                    active: false,
-                    size: OcIconButtonSize.compact,
-                    onPressed: widget.onSelectMusic,
-                  ),
-                ],
-                // Window buttons beside it would make two × in a row; the
-                // list still toggles from the chat header.
-                if (!widget.trailingControls ||
-                    !showsTrailingWindowControls(context, ref))
-                  OcIconButton(
-                    icon: OcIcons.close,
-                    tooltip: 'Close member list',
-                    size: OcIconButtonSize.compact,
-                    onPressed: widget.onClose,
-                  ),
               ],
             ),
           ),
-          const NowPlayingCard(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              OcSpace.s12,
-              OcSpace.s12,
-              OcSpace.s12,
-              OcSpace.s4,
-            ),
-            child: OcTextField(
-              controller: _search,
-              hint: 'Search members',
-              prefixIcon: OcIcons.search,
-              radius: OcRadius.searchPill,
-              semanticLabel: 'Search members',
-              onChanged: (value) => setState(() => _query = value),
-            ),
-          ),
           Expanded(
-            child: entries.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(OcSpace.s24),
-                    child: Text(
-                      _query.trim().isEmpty
-                          ? 'No one is here yet.'
-                          : 'No members match "${_query.trim()}".',
-                      textAlign: TextAlign.center,
-                      style: OcText.small.copyWith(color: colors.textMuted),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(
-                      OcSpace.s8,
-                      OcSpace.s4,
-                      OcSpace.s8,
-                      OcSpace.s12,
-                    ),
-                    itemCount: entries.length,
-                    itemBuilder: (context, index) => switch (entries[index]) {
-                      final MemberHeader header => _SectionHeader(
-                        key: ValueKey(header.key),
-                        header: header,
-                        onToggle: header.collapsible
-                            ? () => setState(
-                                () => _offlineExpanded = !_offlineExpanded,
-                              )
-                            : null,
+            child: PaneSwapBody(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const NowPlayingCard(),
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SizedBox(
+                      key: ShellKeys.memSearch,
+                      height: 36,
+                      child: OcTextField(
+                        controller: _search,
+                        hint: 'Search members',
+                        prefixIcon: OcIcons.search,
+                        radius: OcRadius.searchPill,
+                        semanticLabel: 'Search members',
+                        onChanged: (value) => setState(() => _query = value),
                       ),
-                      final MemberLine line => MemberRow(
-                        key: ValueKey(line.key),
-                        line: line,
-                        actions: MemberActions(
-                          context: context,
-                          ref: ref,
-                          serverKey: server!,
-                        ),
-                      ),
-                    },
+                    ),
                   ),
+                  Expanded(
+                    child: entries.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(OcSpace.s24),
+                            child: Text(
+                              _query.trim().isEmpty
+                                  ? 'No one is here yet.'
+                                  : 'No members match "${_query.trim()}".',
+                              textAlign: TextAlign.center,
+                              style: OcText.small.copyWith(
+                                color: colors.textMuted,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            itemCount: entries.length,
+                            itemBuilder: (context, index) =>
+                                switch (entries[index]) {
+                                  final MemberHeader header => _SectionHeader(
+                                    key: ValueKey(header.key),
+                                    header: header,
+                                    onToggle: header.collapsible
+                                        ? () => setState(
+                                            () => _offlineExpanded =
+                                                !_offlineExpanded,
+                                          )
+                                        : null,
+                                  ),
+                                  final MemberLine line => MemberRow(
+                                    key: ValueKey(line.key),
+                                    line: line,
+                                    actions: MemberActions(
+                                      context: context,
+                                      ref: ref,
+                                      serverKey: server!,
+                                    ),
+                                  ),
+                                },
+                          ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -248,12 +227,7 @@ class _SectionHeader extends StatelessWidget {
     final colors = context.oc;
     final label = SectionLabel(
       '${header.label} — ${countLabel(header.count)}',
-      padding: const EdgeInsets.fromLTRB(
-        OcSpace.s8,
-        OcSpace.s16,
-        OcSpace.s8,
-        OcSpace.s6,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       trailing: onToggle == null
           ? null
           : Icon(
@@ -287,31 +261,29 @@ class MemberRow extends StatelessWidget {
     final member = line.member;
     final offline = line.presence == Presence.offline;
     final activity = line.activity;
-    return Hoverable(
-      onTap: () => actions.profile(member),
-      onSecondaryTap: (position) => actions.showMenu(member, position),
-      semanticLabel: [
-        member.displayName,
-        line.presence.label,
-        if (line.owner) 'server owner',
-        ?activity,
-      ].join(', '),
-      builder: (context, state) => AnimatedContainer(
-        duration: OcMotion.of(context).hover,
-        constraints: const BoxConstraints(minHeight: 44),
-        padding: const EdgeInsets.symmetric(
-          horizontal: OcSpace.s8,
-          vertical: OcSpace.s4,
-        ),
-        decoration: BoxDecoration(
-          color: state.active ? colors.hover : null,
-          borderRadius: BorderRadius.circular(OcRadius.row),
-        ),
-        child: Row(
-          children: [
-            Opacity(
-              opacity: offline ? 0.55 : 1,
-              child: MemberAvatar(
+    return Opacity(
+      opacity: offline ? 0.55 : 1.0,
+      child: Hoverable(
+        onTap: () => actions.profile(member),
+        onSecondaryTap: (position) => actions.showMenu(member, position),
+        semanticLabel: [
+          member.displayName,
+          line.presence.label,
+          if (line.owner) 'server owner',
+          ?activity,
+        ].join(', '),
+        builder: (context, state) => AnimatedContainer(
+          duration: OcMotion.of(context).hover,
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: state.active ? colors.hover : null,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              MemberAvatar(
                 serverKey: actions.serverKey,
                 userId: member.id,
                 name: member.displayName,
@@ -319,41 +291,45 @@ class MemberRow extends StatelessWidget {
                 presence: line.presence,
                 ringColor: state.active ? colors.hover : colors.sidebar,
               ),
-            ),
-            const SizedBox(width: OcSpace.s12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: EllipsisText(
-                          member.displayName,
-                          style: OcText.body.copyWith(
-                            fontWeight: FontWeight.w500,
-                            color: offline ? colors.textMuted : colors.text,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: EllipsisText(
+                            member.displayName,
+                            style: OcText.body.copyWith(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: colors.text,
+                            ),
                           ),
                         ),
-                      ),
-                      if (line.owner) ...[
-                        const SizedBox(width: OcSpace.s4),
-                        Icon(OcIcons.star, size: 14, color: colors.textMuted),
+                        if (line.owner) ...[
+                          const SizedBox(width: 4),
+                          Icon(OcIcons.star, size: 16, color: colors.textMuted),
+                        ],
                       ],
-                    ],
-                  ),
-                  if (activity != null)
-                    Text(
-                      activity,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: OcText.small.copyWith(color: colors.textMuted),
                     ),
-                ],
+                    if (activity != null)
+                      Text(
+                        activity,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: OcText.small.copyWith(
+                          fontSize: 12.5,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

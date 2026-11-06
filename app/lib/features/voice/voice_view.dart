@@ -1,6 +1,3 @@
-import 'dart:math' as math;
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,14 +8,17 @@ import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
-import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/members/member_actions.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/music/music_stage.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
 import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/features/voice/user_audio_controls.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
+import 'package:opencord/ui/motion/flip_box.dart';
+import 'package:opencord/ui/motion/oc_spring.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -31,13 +31,9 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 /// The main area for a voice channel (§4.10): its tiles and controls once
 /// connected, a prompt to join before. Runs on mock data in Phase 1.
 class VoiceView extends ConsumerWidget {
-  const VoiceView({super.key, required this.channel, this.composerHeight});
+  const VoiceView({super.key, required this.channel});
 
   final ChannelRef channel;
-
-  /// The chat's composer beside the tiles, whose top edge the control
-  /// bar's lines up with (Phase 2 §12); null without the chat beside.
-  final ValueListenable<double?>? composerHeight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,66 +60,41 @@ class VoiceView extends ConsumerWidget {
         (state) => state.data?.channels[channel.channel]?.textInVoice ?? false,
       ),
     );
-    final bar = VoiceControlBar(channel: channel, chat: chat);
-    // Level with the user panel and any composer.
-    final resting =
-        ref.watch(restingComposerHeightProvider) ?? OcSize.userPanel;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final stage = _Stage(channel: channel, participants: participants);
+    Widget content = Stack(
       children: [
-        Expanded(
-          child: _Stage(channel: channel, participants: participants),
-        ),
-        switch (composerHeight) {
-          // The composer beside, as it grows too.
-          final composer? => ValueListenableBuilder(
-            valueListenable: composer,
-            builder: (context, height, _) =>
-                _ControlStrip(height: height ?? resting, child: bar),
+        // The stage has the whole page, under what floats on it (§5.14). Laid
+        // out at the width main ends at, it ignores a pane on its way (§4.4).
+        Positioned.fill(
+          child: KeyedSubtree(
+            key: ShellKeys.stage,
+            child: MainInnerWidth(child: stage),
           ),
-          null => _ControlStrip(height: resting, child: bar),
-        },
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 14,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: VoiceControlBar(channel: channel, chat: chat),
+          ),
+        ),
       ],
     );
+    if (VoiceDockActivity.maybeOf(context) == null) {
+      content = VoiceDockActivityScope(child: content);
+    }
+    return content;
   }
 }
 
-/// The control bar's strip under the tiles, edged like the composer's, and
-/// as tall as it when the chat is beside.
-class _ControlStrip extends StatelessWidget {
-  const _ControlStrip({required this.height, required this.child});
-
-  final double height;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.oc;
-    return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s16,
-        vertical: OcSpace.s4,
-      ),
-      decoration: BoxDecoration(
-        color: colors.sidebar,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: Center(
-        child: FittedBox(fit: BoxFit.scaleDown, child: child),
-      ),
-    );
-  }
-}
-
-/// The tiles: a grid, or one large with the rest in a strip (focus mode).
-/// Tiles showing video ask for it at their size; nothing is asked for once
-/// the stage is gone.
+/// The tiles: a grid, or one large with the rest in a strip (focus mode),
+/// moving between the two on [FlipBox]es. Tiles showing video ask for it at
+/// their size, which layout knows at once; nothing is asked for once the stage
+/// is gone.
 class _Stage extends ConsumerStatefulWidget {
   const _Stage({required this.channel, required this.participants});
-
-  static const _gap = OcSpace.s8;
-  static const _strip = Size(160, 90);
 
   final ChannelRef channel;
   final List<VoiceParticipant> participants;
@@ -134,6 +105,10 @@ class _Stage extends ConsumerStatefulWidget {
 
 class _StageState extends ConsumerState<_Stage> {
   late final VideoWantsNotifier _wants;
+
+  /// Each tile on the stage, so it keeps its state and its video from the grid
+  /// to the strip. A tile that left has none: it arrives again if it's back.
+  final _tileKeys = <VoiceTileId, GlobalKey>{};
 
   @override
   void initState() {
@@ -205,6 +180,9 @@ class _StageState extends ConsumerState<_Stage> {
     final ownShare = ref.watch(ownScreenShareProvider);
     final viewers = ref.watch(ownStreamViewersProvider);
     final wants = <VideoWant>[];
+    _tileKeys.removeWhere((id, _) => !tiles.contains(id));
+    // What moves the tiles, not a resize or a pane on its way.
+    final generation = '${tiles.join(',')}|$focused|${music != null}';
     Widget tile(VoiceTileId id, Size size, {bool small = false}) {
       final participant = byUser[id.userId];
       final own = id.userId == self;
@@ -233,8 +211,10 @@ class _StageState extends ConsumerState<_Stage> {
           ),
         );
       }
-      return SizedBox.fromSize(
-        size: size,
+      return FlipBox(
+        key: _tileKeys.putIfAbsent(id, GlobalKey.new),
+        generation: generation,
+        arriveDelay: FlipBox.stagger(tiles.indexOf(id)),
         child: VoiceTileView(
           key: ValueKey(id),
           userId: id.userId,
@@ -321,22 +301,19 @@ class _StageState extends ConsumerState<_Stage> {
       _report(const []);
       return const _NoVideo();
     }
-    return Padding(
-      padding: const EdgeInsets.all(OcSpace.s16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          wants.clear();
-          final layout = _layout(
-            constraints.biggest,
-            tiles,
-            focused,
-            tile,
-            music: music,
-          );
-          _report(List.of(wants));
-          return layout;
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        wants.clear();
+        final layout = _layout(
+          constraints.biggest,
+          tiles,
+          focused,
+          tile,
+          music: music,
+        );
+        _report(List.of(wants));
+        return layout;
+      },
     );
   }
 
@@ -389,74 +366,109 @@ class _StageState extends ConsumerState<_Stage> {
   }
 
   Widget _layout(
-    Size area,
+    Size stage,
     List<VoiceTileId> tiles,
     VoiceTileId? focused,
     Widget Function(VoiceTileId id, Size size, {bool small}) tile, {
     Widget? music,
   }) {
-    const gap = _Stage._gap;
-    const strip = _Stage._strip;
     if (focused != null || music != null) {
       final others = [
         for (final id in tiles)
           if (id != focused || music != null) id,
       ];
-      final stripHeight = others.isEmpty ? 0.0 : strip.height + gap;
-      final large = fitTiles(
-        Size(area.width, math.max(0, area.height - stripHeight)),
-        1,
-      );
-      return Column(
-        children: [
-          Expanded(child: music ?? Center(child: tile(focused!, large))),
-          if (others.isNotEmpty) ...[
-            const SizedBox(height: gap),
-            SizedBox(
-              height: strip.height,
-              child: Center(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final (index, id) in others.indexed) ...[
-                        if (index > 0) const SizedBox(width: gap),
-                        tile(id, strip, small: true),
-                      ],
-                    ],
+      final area = const EdgeInsets.all(focusPadding).deflateSize(stage);
+      final layout = focusLayout(area, others.length);
+      return _group(const Offset(focusPadding, focusPadding) & area, [
+        Positioned.fromRect(
+          rect: layout.large,
+          child: music ?? tile(focused!, layout.large.size),
+        ),
+        if (others.isNotEmpty)
+          Positioned.fromRect(
+            rect: layout.strip,
+            child: _Strip(
+              children: [
+                for (final id in others)
+                  SizedBox.fromSize(
+                    key: ValueKey(id),
+                    size: layout.stripTile,
+                    child: tile(id, layout.stripTile, small: true),
                   ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      );
-    }
-    final size = fitTiles(area, tiles.length, gap: gap);
-    final columns = gridColumns(tiles.length);
-    final rows = [
-      for (var start = 0; start < tiles.length; start += columns)
-        tiles.sublist(start, math.min(start + columns, tiles.length)),
-    ];
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (final (index, row) in rows.indexed) ...[
-          if (index > 0) const SizedBox(height: gap),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final (column, id) in row.indexed) ...[
-                if (column > 0) const SizedBox(width: gap),
-                tile(id, size),
               ],
-            ],
+            ),
           ),
-        ],
-      ],
+      ]);
+    }
+    final area = const EdgeInsets.all(gridPadding).deflateSize(stage);
+    final layout = gridLayout(area, tiles.length);
+    return _group(layout.group.shift(const Offset(gridPadding, gridPadding)), [
+      for (final (index, id) in tiles.indexed)
+        Positioned.fromRect(
+          key: ValueKey(id),
+          rect: layout.tiles[index],
+          child: tile(id, layout.tiles[index].size),
+        ),
+    ]);
+  }
+
+  /// A tile on its way may be painted outside the group.
+  Widget _group(Rect rect, List<Widget> children) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      Positioned.fromRect(
+        rect: rect,
+        child: Stack(
+          key: ShellKeys.tiles,
+          clipBehavior: Clip.none,
+          children: children,
+        ),
+      ),
+    ],
+  );
+}
+
+/// Focus mode's row of the others, centred, scrolling sideways when they don't
+/// fit. It clips only sideways: a tile on its way comes from above it.
+class _Strip extends StatelessWidget {
+  const _Strip({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => ClipRect(
+        clipper: const _SidewaysClip(),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              spacing: tileGap,
+              children: children,
+            ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+class _SidewaysClip extends CustomClipper<Rect> {
+  const _SidewaysClip();
+
+  /// Further than a window is tall.
+  static const _reach = 1e5;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, -_reach, size.width, size.height + _reach);
+
+  @override
+  bool shouldReclip(_SidewaysClip oldClipper) => false;
 }
 
 /// Everyone without video hidden, and nobody has any.
@@ -487,7 +499,7 @@ class _NoVideo extends ConsumerWidget {
 }
 
 /// Before joining (§4.10): the channel, who is in it, and Join voice.
-class _JoinPrompt extends ConsumerWidget {
+class _JoinPrompt extends ConsumerStatefulWidget {
   const _JoinPrompt({required this.channel, required this.participants});
 
   static const _shownAvatars = 8;
@@ -496,94 +508,182 @@ class _JoinPrompt extends ConsumerWidget {
   final List<VoiceParticipant> participants;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_JoinPrompt> createState() => _JoinPromptState();
+}
+
+class _JoinPromptState extends ConsumerState<_JoinPrompt>
+    with TickerProviderStateMixin {
+  late final AnimationController _translateController;
+  late final AnimationController _opacityController;
+
+  @override
+  void initState() {
+    super.initState();
+    _translateController = AnimationController.unbounded(
+      vsync: this,
+      value: 6.0,
+    );
+    _opacityController = AnimationController(vsync: this, value: 0.0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (MediaQuery.disableAnimationsOf(context)) return;
+      _translateController.animateWith(OcSpring.pop.simulation(6.0, 0.0, 0.0));
+      _opacityController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _translateController.value = 0.0;
+      _opacityController.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _translateController.dispose();
+    _opacityController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.oc;
+    final channel = widget.channel;
+    final participants = widget.participants;
     final data = ref.watch(
       serverProvider(channel.server).select((state) => state.data),
     );
     final name = data?.channels[channel.channel]?.name ?? '';
     final canJoin =
         data?.permissionsIn(channel.channel).has(Permissions.connect) ?? false;
-    final extra = participants.length - _shownAvatars;
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(OcSpace.s24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              style: OcText.title.copyWith(color: colors.text),
-            ),
-            const SizedBox(height: OcSpace.s6),
-            Text(
-              participants.isEmpty
-                  ? 'No one is here yet.'
-                  : '${participants.length} connected',
-              style: OcText.body.copyWith(color: colors.textSecondary),
-            ),
-            if (participants.isNotEmpty) ...[
-              const SizedBox(height: OcSpace.s16),
-              // Overlapping, like a stack of faces.
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final participant in participants.take(_shownAvatars))
-                    Align(
-                      widthFactor: 0.8,
-                      child: DecoratedBox(
+    final extra = participants.length - _JoinPrompt._shownAvatars;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_translateController, _opacityController]),
+      builder: (context, child) => Transform.translate(
+        key: const ValueKey('join-prompt-motion'),
+        offset: Offset(0, _translateController.value),
+        child: Opacity(
+          opacity: _opacityController.value.clamp(0.0, 1.0),
+          child: child,
+        ),
+      ),
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(OcSpace.s24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: colors.selected,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Center(
+                  child: Icon(
+                    OcIcons.volumeUp,
+                    size: 20,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                style: OcText.title.copyWith(color: colors.text),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                participants.isEmpty
+                    ? 'No one is here yet.'
+                    : '${participants.length} connected',
+                style: OcText.body.copyWith(
+                  fontSize: 12.5,
+                  color: colors.textSecondary,
+                ),
+              ),
+              if (participants.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                // Overlapping, like a stack of faces.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final participant in participants.take(
+                      _JoinPrompt._shownAvatars,
+                    ))
+                      Align(
+                        widthFactor: 0.8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: colors.chat, width: 3),
+                          ),
+                          child: MemberAvatar(
+                            serverKey: channel.server,
+                            userId: participant.userId,
+                            name:
+                                data
+                                    ?.members[participant.userId]
+                                    ?.displayName ??
+                                'Someone',
+                            size: 40,
+                          ),
+                        ),
+                      ),
+                    if (extra > 0)
+                      Container(
+                        width: 46,
+                        height: 46,
+                        alignment: Alignment.center,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
+                          color: colors.hover,
                           border: Border.all(color: colors.chat, width: 3),
                         ),
-                        child: MemberAvatar(
-                          serverKey: channel.server,
-                          userId: participant.userId,
-                          name:
-                              data?.members[participant.userId]?.displayName ??
-                              'Someone',
-                          size: 40,
+                        child: Text(
+                          '+$extra',
+                          style: OcText.small.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colors.text,
+                          ),
                         ),
                       ),
-                    ),
-                  if (extra > 0)
-                    Container(
-                      width: 46,
-                      height: 46,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: colors.hover,
-                        border: Border.all(color: colors.chat, width: 3),
-                      ),
-                      child: Text(
-                        '+$extra',
-                        style: OcText.small.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                ],
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+              OcButton.primary(
+                label: 'Join voice',
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                onPressed: canJoin
+                    ? () => joinVoice(
+                        context,
+                        ref,
+                        channel.server,
+                        channel.channel,
+                      )
+                    : null,
               ),
+              if (!canJoin) ...[
+                const SizedBox(height: 8),
+                Text(
+                  "You don't have permission to join this channel.",
+                  style: OcText.small.copyWith(color: colors.textMuted),
+                ),
+              ],
             ],
-            const SizedBox(height: OcSpace.s24),
-            OcButton.primary(
-              label: 'Join voice',
-              onPressed: canJoin
-                  ? () =>
-                        joinVoice(context, ref, channel.server, channel.channel)
-                  : null,
-            ),
-            if (!canJoin) ...[
-              const SizedBox(height: OcSpace.s8),
-              Text(
-                "You don't have permission to join this channel.",
-                style: OcText.small.copyWith(color: colors.textMuted),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

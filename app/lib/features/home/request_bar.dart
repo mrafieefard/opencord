@@ -12,7 +12,58 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
-/// The bar shown at the bottom of a conversation in request mode (§6.3).
+/// How tall a bar in the composer's place is, inside the float's two 1 px
+/// lines: the float stays level with the user panel (§5.12).
+const privateBarHeight = OcFloats.bottom - 2;
+
+/// Shared helper to accept a message request (§5.16).
+Future<void> acceptMessageRequestAction(
+  BuildContext context,
+  WidgetRef ref,
+  String peer,
+  String name, {
+  bool openChat = false,
+}) async {
+  try {
+    await ref.read(repositoryProvider).acceptMessageRequest(peer);
+    if (openChat && context.mounted) {
+      ref.read(navigationProvider.notifier).openConversation(peer);
+    }
+  } on RepoException catch (e) {
+    if (!context.mounted) return;
+    await showPrivateFailure(context, e, name: name);
+  }
+}
+
+/// Shared helper to decline (ignore) a message request (§5.16).
+Future<bool> declineMessageRequestAction(
+  BuildContext context,
+  WidgetRef ref,
+  String peer,
+  String name, {
+  bool navigateToFriends = false,
+}) async {
+  final confirmed = await confirmAction(
+    context,
+    title: 'Ignore request?',
+    message: 'This removes the conversation.',
+    action: 'Ignore',
+  );
+  if (!confirmed || !context.mounted) return false;
+  try {
+    await ref.read(repositoryProvider).ignoreMessageRequest(peer);
+    if (navigateToFriends && context.mounted) {
+      ref.read(navigationProvider.notifier).openFriends();
+    }
+    return true;
+  } on RepoException catch (e) {
+    if (!context.mounted) return false;
+    await showPrivateFailure(context, e, name: name);
+    return false;
+  }
+}
+
+/// The bar shown at the bottom of a conversation in request mode (§6.3, §5.12).
 class RequestBar extends ConsumerWidget {
   const RequestBar({super.key, required this.peer});
 
@@ -24,14 +75,12 @@ class RequestBar extends ConsumerWidget {
     final name = ref.watch(contactNameProvider(peer));
 
     return Container(
+      constraints: const BoxConstraints(minHeight: privateBarHeight),
       padding: const EdgeInsets.symmetric(
         horizontal: OcSpace.s16,
         vertical: OcSpace.s12,
       ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
+      alignment: Alignment.center,
       child: Row(
         children: [
           Expanded(
@@ -45,35 +94,19 @@ class RequestBar extends ConsumerWidget {
           ),
           OcButton.primary(
             label: 'Accept',
-            onPressed: () async {
-              try {
-                await ref.read(repositoryProvider).acceptMessageRequest(peer);
-              } on RepoException catch (e) {
-                if (!context.mounted) return;
-                await showPrivateFailure(context, e, name: name);
-              }
-            },
+            onPressed: () =>
+                acceptMessageRequestAction(context, ref, peer, name),
           ),
           const SizedBox(width: OcSpace.s8),
           OcButton(
             label: 'Ignore',
-            onPressed: () async {
-              final confirmed = await confirmAction(
-                context,
-                title: 'Ignore request?',
-                message: 'This removes the conversation.',
-                action: 'Ignore',
-              );
-              if (!confirmed || !context.mounted) return;
-              try {
-                await ref.read(repositoryProvider).ignoreMessageRequest(peer);
-                if (!context.mounted) return;
-                ref.read(navigationProvider.notifier).openFriends();
-              } on RepoException catch (e) {
-                if (!context.mounted) return;
-                await showPrivateFailure(context, e, name: name);
-              }
-            },
+            onPressed: () => declineMessageRequestAction(
+              context,
+              ref,
+              peer,
+              name,
+              navigateToFriends: true,
+            ),
           ),
           const SizedBox(width: OcSpace.s8),
           OcButton(

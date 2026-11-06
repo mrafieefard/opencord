@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
 
 import '../../support/pump.dart';
 
@@ -60,6 +61,91 @@ Rect _rectOf(WidgetTester tester, String text) =>
     tester.getRect(find.textContaining(text, findRichText: true).first);
 
 void main() {
+  for (final content in ['> quoted', '> quoted\nafter', '```\ncode\n```']) {
+    testWidgets('a lead on its own line goes before: $content', (tester) async {
+      await pumpThemed(
+        tester,
+        surface: const Size(800, 600),
+        Align(
+          alignment: Alignment.topLeft,
+          child: MarkdownView(
+            blocks: parsedContent(content),
+            links: MarkdownContext(
+              userName: (_) => 'Mira',
+              channelName: (_) => 'help',
+            ),
+            color: const Color(0xFFFFFFFF),
+            lead: const [TextSpan(text: 'Kai')],
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('Kai', findRichText: true), findsOneWidget);
+    });
+  }
+
+  testWidgets('selecting a message copies its mentions and code as text', (
+    tester,
+  ) async {
+    String? selected;
+    await pumpThemed(
+      tester,
+      surface: const Size(800, 600),
+      Align(
+        alignment: Alignment.topLeft,
+        child: MessageBubble(
+          serverKey: 'test',
+          message: _message('hello <@7> see <#3> and `a code` ok'),
+          own: false,
+          first: true,
+          last: true,
+          author: 'Kai',
+          links: MarkdownContext(
+            userName: (_) => 'Mira',
+            channelName: (_) => 'help',
+          ),
+          onSelectionChanged: (text) => selected = text,
+        ),
+      ),
+    );
+
+    tester
+        .state<SelectableRegionState>(find.byType(SelectableRegion))
+        .selectAll(SelectionChangedCause.keyboard);
+    await tester.pump();
+
+    expect(selected, 'hello @Mira see #help and a code ok');
+  });
+
+  testWidgets('code in a line leaves the line as tall as any other', (
+    tester,
+  ) async {
+    Future<double> height(String content) async {
+      await _pumpBubble(tester, _message(content), own: true);
+      return tester.getSize(find.byType(MessageBubble)).height;
+    }
+
+    expect(await height('a `code` b'), await height('a code b'));
+  });
+
+  testWidgets('a reply shows its author in the secondary text colour', (
+    tester,
+  ) async {
+    await _pumpBubble(
+      tester,
+      _message('Hi'),
+      own: true,
+      reply: const ReplyPreview(author: 'Mira', text: 'Ready?'),
+    );
+
+    final colors = tester.element(find.byType(MessageBubble)).oc;
+    expect(
+      tester.widget<Text>(find.text('Mira')).style?.color,
+      colors.textSecondary,
+    );
+  });
+
   testWidgets('a short message gets a short bubble with the time inline', (
     tester,
   ) async {

@@ -69,7 +69,9 @@ class VoiceReconnectNotifier extends Notifier<VoiceDrop?> {
   @override
   VoiceDrop? build() {
     ref.listen(
-      voiceSessionProvider.select((voice) => (voice.serverKey, voice.channelId)),
+      voiceSessionProvider.select(
+        (voice) => (voice.serverKey, voice.channelId),
+      ),
       (_, call) {
         if (call case (final String server, final int channel)) {
           _store.write(

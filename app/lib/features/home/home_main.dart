@@ -7,7 +7,9 @@ import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/home/private_chat.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/no_servers.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -17,15 +19,10 @@ import 'package:opencord/ui/widgets/oc_dialog.dart';
 
 /// The main content area of the home view (§6.2).
 class HomeMain extends ConsumerStatefulWidget {
-  const HomeMain({
-    super.key,
-    this.leadingControls = false,
-    this.trailingControls = false,
-  });
+  const HomeMain({super.key, this.onOpenSidebar, this.includeComposer = true});
 
-  /// Window controls (§3.1), for the header of whichever page is shown.
-  final bool leadingControls;
-  final bool trailingControls;
+  final VoidCallback? onOpenSidebar;
+  final bool includeComposer;
 
   @override
   ConsumerState<HomeMain> createState() => _HomeMainState();
@@ -132,25 +129,31 @@ class _HomeMainState extends ConsumerState<HomeMain> {
     if (currentPeer != null) {
       return PrivateChat(
         peer: currentPeer,
-        leadingControls: widget.leadingControls,
-        trailingControls: widget.trailingControls,
+        onOpenSidebar: widget.onOpenSidebar,
+        includeComposer: widget.includeComposer,
       );
     }
 
-    return FriendsPage(
-      leadingControls: widget.leadingControls,
-      trailingControls: widget.trailingControls,
-    );
+    return FriendsPage(onOpenSidebar: widget.onOpenSidebar);
   }
 
   /// A page with no header of its own still gets the title bar's.
   Widget _withHeader(Widget page) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      HeaderBar(
-        leadingControls: widget.leadingControls,
-        trailingControls: widget.trailingControls,
-        child: const SizedBox(),
+      PanelHeader(
+        key: ShellKeys.hd,
+        child: widget.onOpenSidebar == null
+            ? const SizedBox()
+            : Row(
+                children: [
+                  OcIconButton(
+                    icon: OcIcons.menu,
+                    tooltip: 'Open channels',
+                    onPressed: widget.onOpenSidebar,
+                  ),
+                ],
+              ),
       ),
       Expanded(child: page),
     ],

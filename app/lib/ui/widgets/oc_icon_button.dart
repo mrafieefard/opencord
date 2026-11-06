@@ -37,8 +37,11 @@ class OcIconButton extends StatelessWidget {
     this.activeStyle = OcActiveStyle.selected,
     this.shortcut,
     this.color,
+    this.disabledColor,
     this.focusNode,
     this.showTooltip = true,
+    this.iconSize,
+    this.pressedScale = 1.0,
   });
 
   final IconData icon;
@@ -49,6 +52,8 @@ class OcIconButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final ValueChanged<Offset>? onSecondaryTap;
   final OcIconButtonSize size;
+  final double? iconSize;
+  final double pressedScale;
   final bool active;
   final OcActiveStyle activeStyle;
 
@@ -57,6 +62,9 @@ class OcIconButton extends StatelessWidget {
 
   /// Icon color at rest; defaults to `textSecondary`.
   final Color? color;
+
+  /// Icon color when disabled; defaults to `textMuted`.
+  final Color? disabledColor;
   final FocusNode? focusNode;
 
   /// Off where the surroundings label the button themselves (the hover
@@ -84,7 +92,10 @@ class OcIconButton extends StatelessWidget {
           active,
           activeStyle,
         )) {
-          (false, _, _) => (Colors.transparent, colors.textMuted),
+          (false, _, _) => (
+            Colors.transparent,
+            disabledColor ?? colors.textMuted,
+          ),
           (true, true, OcActiveStyle.inverted) => (
             state.active
                 ? Color.lerp(colors.accent, colors.onAccent, 0.12)!
@@ -100,7 +111,7 @@ class OcIconButton extends StatelessWidget {
             state.active ? colors.text : (color ?? colors.textSecondary),
           ),
         };
-        return AnimatedContainer(
+        final child = AnimatedContainer(
           duration: motion.hover,
           curve: OcMotion.curve,
           width: size.extent,
@@ -108,9 +119,16 @@ class OcIconButton extends StatelessWidget {
           decoration: BoxDecoration(shape: BoxShape.circle, color: background),
           child: Icon(
             active ? (activeIcon ?? icon) : icon,
-            size: size.iconSize,
+            size: iconSize ?? size.iconSize,
             color: foreground,
           ),
+        );
+        if (pressedScale == 1.0) return child;
+        return AnimatedScale(
+          scale: state.pressed ? pressedScale : 1.0,
+          duration: motion.press,
+          curve: OcMotion.curve,
+          child: child,
         );
       },
     );

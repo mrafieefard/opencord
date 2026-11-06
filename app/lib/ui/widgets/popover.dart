@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:opencord/ui/theme/oc_colors.dart';
-import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/widgets/popup_route.dart';
 
 export 'package:opencord/ui/widgets/popup_route.dart' show globalRectOf;
@@ -24,8 +23,8 @@ Future<T?> showPopover<T>({
 }) {
   return pushPopup<T>(
     context,
-    duration: OcMotion.of(context).menu,
     layout: _PopoverLayout(anchor, side, alignEnd, gap),
+    trigger: anchor.center,
     builder: (context) => PopoverPanel(
       padding: padding,
       child: Builder(builder: builder),

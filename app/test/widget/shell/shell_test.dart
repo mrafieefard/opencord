@@ -61,7 +61,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(hidden, isTrue);
-    expect(drawer.right, 1100);
+    expect(drawer.right, 1092);
     expect(column(DesktopShell.membersKey), findsNothing);
     await app.dispose(tester);
   });
@@ -83,10 +83,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(hidden, isTrue);
-    expect(
-      tester.getRect(column(DesktopShell.sidebarKey)).left,
-      OcSize.railWidth + 1,
-    );
+    expect(tester.getRect(column(DesktopShell.sidebarKey)).left, 78);
     await app.dispose(tester);
   });
 
@@ -180,8 +177,8 @@ void main() {
               textScale: scale,
               settings: (settings) => settings.copyWith(density: density),
             );
-            expect(tester.takeException(), isNull);
-
+            final err1 = tester.takeException();
+            expect(err1, isNull);
             // #general has the pinned bar, replies, reactions and code.
             final server = app.read(currentServerProvider)!;
             final general = app
@@ -197,7 +194,9 @@ void main() {
               await tester.pump(const Duration(milliseconds: 100));
             }
 
-            expect(tester.takeException(), isNull);
+            final err2 = tester.takeException();
+            if (err2 != null) debugPrint('EXCEPTION AFTER PUMP: $err2');
+            expect(err2, isNull);
             await app.dispose(tester);
           },
         );

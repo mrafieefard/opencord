@@ -15,9 +15,9 @@ import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/no_servers.dart';
+import 'package:opencord/features/shell/side_slot.dart';
 import 'package:opencord/features/voice/voice_view.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
-import 'package:opencord/ui/widgets/measured_height.dart';
 
 /// Whether the open channel is a voice channel showing its chat (Phase 2
 /// §12). The chat then takes the member list's place on the right.
@@ -39,26 +39,14 @@ final voiceChatShownProvider = Provider<bool>((ref) {
 class ChatArea extends ConsumerStatefulWidget {
   const ChatArea({
     super.key,
-    required this.membersShown,
-    required this.onToggleMembers,
-    this.musicShown = false,
-    this.onSelectMusic,
     this.onOpenSidebar,
-    this.leadingControls = false,
-    this.trailingControls = false,
+    this.includeComposer = true,
+    this.voiceChatAlone,
   });
 
-  /// Window controls (§3.1), when this is the first or the rightmost header.
-  final bool leadingControls;
-  final bool trailingControls;
-
-  final bool membersShown;
-  final VoidCallback onToggleMembers;
-  final bool musicShown;
-  final VoidCallback? onSelectMusic;
-
-  /// Shown as a menu button when the sidebar is collapsed (§3).
+  final bool includeComposer;
   final VoidCallback? onOpenSidebar;
+  final bool? voiceChatAlone;
 
   @override
   ConsumerState<ChatArea> createState() => _ChatAreaState();
@@ -72,55 +60,56 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
   static const _voiceChatWidth = 380.0;
   static const _stageMinWidth = 600.0;
 
-  /// The composer's height, which the call's control bar beside it
-  /// matches.
-  final _composerHeight = ValueNotifier<double?>(null);
-
-  @override
-  void dispose() {
-    _composerHeight.dispose();
-    super.dispose();
-  }
-
   /// The channel's messages and composer.
   Widget _channelChat(
     ChannelRef open,
     bool unreachable, {
     required bool pins,
-  }) => AttachmentDropZone(
-    channel: open,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    bool? includeComposer,
+    bool fillsMain = true,
+  }) {
+    final composer = includeComposer ?? widget.includeComposer;
+    final hasPins = pins && ref.watch(pinsProvider(open)).isNotEmpty;
+    final list = MessageList(
+      key: ValueKey(open),
+      channel: open,
+      controller: _controller,
+      topInset: hasPins ? 68.0 : 0.0,
+    );
+    final messages = fillsMain ? MainInnerWidth(child: list) : list;
+    final body = Stack(
       children: [
-        if (pins)
-          PinnedBar(
-            key: ValueKey(('pins', open)),
-            channel: open,
-            onJumpTo: _controller.jumpToMessage,
-          ),
-        Expanded(
-          // The last cached state, greyed out while the server cannot be
-          // reached (§4.13).
-          child: Opacity(
-            opacity: unreachable ? 0.55 : 1,
-            child: MessageList(
-              key: ValueKey(open),
+        Positioned.fill(
+          child: Opacity(opacity: unreachable ? 0.55 : 1, child: messages),
+        ),
+        if (hasPins)
+          Positioned(
+            top: 8,
+            left: 12,
+            right: 12,
+            child: PinnedBar(
+              key: ValueKey(('pins', open)),
               channel: open,
-              controller: _controller,
+              onJumpTo: _controller.jumpToMessage,
             ),
           ),
-        ),
-        MeasuredHeight(
-          onChanged: (height) => _composerHeight.value = height,
-          child: Composer(
+      ],
+    );
+    final chat = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: body),
+        if (composer)
+          Composer(
             key: ValueKey(('composer', open)),
             channel: open,
             controller: _controller,
           ),
-        ),
       ],
-    ),
-  );
+    );
+    // Without its composer the shell's zone takes the drop, around both floats.
+    return composer ? AttachmentDropZone(channel: open, child: chat) : chat;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,25 +142,22 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
       color: colors.chat,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Too narrow for the tiles and the chat, the chat shows alone.
+          // Too narrow for the tiles and the chat, the chat shows alone. This
+          // goes by the width main ends at, so a pane on its way doesn't swap
+          // them back and forth.
+          final width =
+              ShellMetrics.maybeOf(context)?.mainInner ?? constraints.maxWidth;
           final chatAlone =
-              voiceChat &&
-              constraints.maxWidth - _voiceChatWidth - 1 < _stageMinWidth;
+              widget.voiceChatAlone ??
+              (voiceChat && width - _voiceChatWidth - 1 < _stageMinWidth);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ChatHeader(
                 voiceChatAlone: chatAlone,
                 channel: open,
-                memberToggle: !noServers,
-                membersShown: widget.membersShown,
-                onToggleMembers: widget.onToggleMembers,
-                musicShown: widget.musicShown,
-                onSelectMusic: widget.onSelectMusic,
                 onOpenSidebar: widget.onOpenSidebar,
                 onJumpTo: _controller.jumpToMessage,
-                leadingControls: widget.leadingControls,
-                trailingControls: widget.trailingControls,
               ),
               if (server != null && !noServers)
                 ConnectionBanner(serverKey: server),
@@ -182,34 +168,17 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                 Expanded(child: _channelChat(open, unreachable, pins: pins))
               else if (open != null && channel!.kind == ChannelKind.voice)
                 Expanded(
-                  child: switch ((voiceChat, chatAlone)) {
-                    (false, _) => VoiceView(
-                      key: ValueKey(('voice', open)),
-                      channel: open,
-                    ),
-                    (true, true) => _channelChat(
-                      open,
-                      unreachable,
-                      pins: false,
-                    ),
-                    (true, false) => Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: VoiceView(
-                            key: ValueKey(('voice', open)),
-                            channel: open,
-                            composerHeight: _composerHeight,
-                          ),
+                  child: (voiceChat && chatAlone)
+                      ? _channelChat(
+                          open,
+                          unreachable,
+                          pins: false,
+                          includeComposer: widget.includeComposer,
+                        )
+                      : VoiceView(
+                          key: ValueKey(('voice', open)),
+                          channel: open,
                         ),
-                        VerticalDivider(width: 1, color: colors.border),
-                        SizedBox(
-                          width: _voiceChatWidth,
-                          child: _channelChat(open, unreachable, pins: false),
-                        ),
-                      ],
-                    ),
-                  },
                 )
               else
                 const Expanded(child: SizedBox()),

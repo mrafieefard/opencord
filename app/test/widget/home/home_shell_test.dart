@@ -21,6 +21,10 @@ import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import '../../support/app.dart';
 import '../../support/fake_window.dart';
 
+final _privateOnRail = find.byWidgetPredicate(
+  (widget) => widget is RailItemView && widget.name == 'Private',
+);
+
 void main() {
   testWidgets('the_rail_button_opens_the_home_view_and_shows_its_badge', (
     tester,
@@ -28,7 +32,7 @@ void main() {
     final app = await MockApp.pump(tester);
 
     // Initial state: server view open, unread count badge present on rail home item
-    final homeButton = find.byTooltip('Private messages');
+    final homeButton = _privateOnRail;
     expect(homeButton, findsOneWidget);
 
     // Mentions badge corresponds to privateUnreadProvider
@@ -54,7 +58,7 @@ void main() {
     expect(app.container.read(homeShownProvider), isFalse);
 
     // Open home
-    await tester.tap(find.byTooltip('Private messages'));
+    await tester.tap(_privateOnRail);
     await tester.pumpAndSettle();
 
     expect(app.container.read(homeShownProvider), isTrue);
@@ -121,7 +125,7 @@ void main() {
     tester,
   ) async {
     final app = await MockApp.pump(tester);
-    await tester.tap(find.byTooltip('Private messages'));
+    await tester.tap(_privateOnRail);
     await tester.pumpAndSettle();
 
     expect(find.byType(HomeSidebar), findsOneWidget);
@@ -165,7 +169,7 @@ void main() {
     tester,
   ) async {
     final app = await MockApp.pump(tester);
-    await tester.tap(find.byTooltip('Private messages'));
+    await tester.tap(_privateOnRail);
     await tester.pumpAndSettle();
 
     final kaiKey = app.repository.privateWorld.contacts.values
@@ -234,7 +238,7 @@ void main() {
     final app1 = await MockApp.pump(tester, store: store);
 
     // Switch to Home
-    await tester.tap(find.byTooltip('Private messages'));
+    await tester.tap(_privateOnRail);
     await tester.pumpAndSettle();
     expect(app1.container.read(homeShownProvider), isTrue);
 
@@ -279,7 +283,7 @@ void main() {
     app.repository.debugSetPrivateStartedFresh(true);
 
     // Switch to Home
-    await tester.tap(find.byTooltip('Private messages'));
+    await tester.tap(_privateOnRail);
     await tester.pumpAndSettle();
 
     // Dialog appears explaining the fresh start
@@ -308,7 +312,7 @@ void main() {
     tester,
   ) async {
     final app = await MockApp.pump(tester);
-    await tester.tap(find.byTooltip('Private messages'));
+    await tester.tap(_privateOnRail);
     await tester.pumpAndSettle();
 
     final surface = tester.widget<ColoredBox>(
@@ -326,7 +330,7 @@ void main() {
 
   testWidgets('the_message_requests_row_opens_its_tab', (tester) async {
     final app = await MockApp.pump(tester);
-    await tester.tap(find.byTooltip('Private messages'));
+    await tester.tap(_privateOnRail);
     await tester.pumpAndSettle();
 
     await tester.tap(

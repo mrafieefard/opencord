@@ -22,6 +22,8 @@ Future<MockApp> _withoutServers(
     ],
   );
   app.repository.debugEmptyServerList();
+  // The second lets the right pane finish shutting, which the first started.
+  await tester.pump(const Duration(milliseconds: 300));
   await tester.pump(const Duration(milliseconds: 300));
   return app;
 }

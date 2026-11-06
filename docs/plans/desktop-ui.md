@@ -25,7 +25,7 @@
 4. **Inversion = emphasis.** The strongest state (selected server, unread badge, primary button, active toggle, own reaction) is shown by **inverting** foreground and background (white on black in dark, black on white in light).
 5. **Shape over color.** Presence, connection state, speaking, live streaming and mentions are all distinguishable without color (see §5.3).
 6. **Keyboard first.** Everything important has a shortcut (§9).
-7. **Fast and quiet.** Animations are short (100–160 ms), never bouncy, and never block input.
+7. **Fast and quiet.** Animations run on physical springs (`OcSpring`: `pane`, `paneOut`, `pop`, `tile`, `move`), never bouncy, and never block input. When reduced motion is enabled, all animations jump instantly (`Duration.zero`).
 
 ---
 
@@ -82,88 +82,73 @@ Rules:
 ### 2.3 Spacing, radius, sizes
 
 - Spacing scale: 2, 4, 6, 8, 10, 12, 16, 20, 24, 32.
-- Radius: rows 10, inputs 10, search pill 18, bubbles 16 (5 on grouped edges), dialogs 16, menus 10, badges fully round, server icons 23 → 14 on hover or selection.
-- Icon sizes: 16 (inline), 18 (rows), 20 (buttons).
-- Icon button hit area: 36 (default), 28 (compact), 48 (voice control bar).
+- Floating layout gaps: window padding 8, gaps between floats 8.
+- Radius: panels and floats 14, drawers 14, dialogs 16, menus 10 (items 6), voice reconnect bar 16, voice dock 31, search pill 18, bubbles 16 (5 on grouped edges), badges fully round, server icons 23 → 14 on hover or selection.
+- Heights: title bar 40, panel headers 52 (minHeight 52), composer at rest 62, user panel at rest 62, dock buttons 48, rail items 52.
+- Widths: rail 62, left column 240–380 (default 288), side slot 264 (People) or 340 (Music) / 380 (voice chat), voice stage max width 1040 (or 520 with fewer than 3 tiles).
+- Icon sizes: 16 (inline), 18 (rows, menus), 20 (buttons, dock), 24 (large glyphs).
+- Icon button hit area: 36 (default), 28 (compact), 48 (voice dock buttons).
 - Icons: Material Symbols **Rounded** set only. Never mix icon families.
 
 ### 2.4 Motion
 
-- Hover/press color changes: 120 ms ease-out.
-- Server icon morph, category collapse arrow, badge appear: 150 ms.
-- Dialog open: 120 ms fade + 0.98 → 1.0 scale. Menus: 90 ms fade.
-- No animation on message arrival other than a 100 ms fade (Telegram style). Respect the OS "reduce motion" setting by disabling all non-essential animations.
+Motion is modelled on critically damped and subtle springs (`OcSpring`) matching physical movement without bouncing:
+- `OcSpring.pane`: opening side pane and drawers (mass 1.0, stiffness 260.0, damping 26.0, settling ~297 ms).
+- `OcSpring.paneOut`: closing side pane and drawers (mass 1.0, stiffness 220.0, damping 28.0, settling ~267 ms).
+- `OcSpring.pop`: menus, popovers, dialogs, dock appearance (mass 1.0, stiffness 180.0, damping 22.0, settling ~177 ms).
+- `OcSpring.tile`: voice tiles arriving (mass 1.0, stiffness 200.0, damping 24.0, settling ~227 ms), staggered 16 ms up to 80 ms.
+- `OcSpring.move`: tile rearrangement and focus resizing (mass 1.0, stiffness 160.0, damping 24.0, settling ~263 ms).
+- Dialog close: 100 ms fade (`Curves.easeIn`). Menus and popovers close instantly (0 ms).
+- Color changes on hover/press: 120 ms ease-out; button press scale: 0.97.
+- **Reduced motion:** When the OS or user preference enables reduced motion, all animations complete instantly (`Duration.zero`) with no running tickers or frames.
 
 ---
 
 ## 3. Window layout
 
+> Since D-next the app's frame is floating: `docs/superpowers/specs/2026-11-04-floating-ui-design.md`.
+
 ```
-┌──────┬─────────────────────┬───────────────────────────────────────┬────────────────────┐
-│ RAIL │ CHANNEL SIDEBAR     │ CHAT HEADER                           │ MEMBER PANEL       │
-│ 76px │ 304px (264 narrow)  │───────────────────────────────────────│ 264px              │
-│      │ server header       │ pinned bar (optional)                 │ header             │
-│ [≡]  │ [ search  Ctrl K ]  │                                       │ [ search ]         │
-│ ──── │ ▾ CATEGORY          │      message list (centered column,   │ ROLE — 2           │
-│ (S1) │  #  channel  12:04  │      max width 880px)                 │  ● member          │
-│ (S2) │     Kai: preview (3)│                                       │ ONLINE — 5         │
-│ (S3) │ ▾ VOICE             │                                       │  ◐ member          │
-│      │  🔊 General       3 │                                       │ OFFLINE — 2        │
-│      │     ○ Kai           │                                       │  ○ member          │
-│      │     ○ Mira  LIVE    │───────────────────────────────────────│                    │
-│      │ voice connected pnl │ composer bar                          │                    │
-│ [+]  │ user panel          │                                       │                    │
-└──────┴─────────────────────┴───────────────────────────────────────┴────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ TITLE BAR (40px) [ < > ]    #general · Opencord Dev                                   [ — □ ✕ ] │
+├────┬─────────────────────┬───────────────────────────────────────────────┬───────────────────────┤
+│    │ HEAD (52px)         │ CHAT HEADER (52px)                    [Pane]  │ PANEL HEADER (52px)   │
+│ R  ├─────────────────────┼───────────────────────────────────────────────┤───────────────────────┤
+│ A  │                     │ Pinned bar (floating overlay)                 │                       │
+│ I  │ CHANNELS / DMs      │                                               │ MEMBER / MUSIC PANEL  │
+│ L  │                     │ Message list (centered max 880px)             │ 264px (People)        │
+│    │                     │                                               │ 340px (Music)         │
+│ 62 ├─────────────────────┤                                               │                       │
+│ px │ VOICE CARD          │                                               │                       │
+│    ├─────────────────────┼───────────────────────────────────────────────┤                       │
+│    │ USER PANEL (62px)   │ COMPOSER (62px at rest)                       │                       │
+└────┴─────────────────────┴───────────────────────────────────────────────┴───────────────────────┘
 ```
 
-- Columns are separated by 1 px `border` lines, never by shadows.
+- Layout is composed of floating panels with an 8 px outer window padding and 8 px gaps between floats, resting on a `chat` token background.
+- Columns and panels are separated by 8 px gaps and soft shadows (`OcShadow.float`), not border divider lines.
 - **Responsive rules (desktop window sizes):**
-  - ≥ 1180 px: all four columns.
-  - 980–1179 px: member panel hidden by default (toggle opens it as an overlay drawer from the right).
-  - < 980 px: sidebar narrows to 264 px; member panel only as overlay.
-  - < 760 px: sidebar collapses; a hamburger in the chat header opens it as an overlay. (Mobile gets its own plan; this is only for small desktop windows.)
-- The message list and composer content are centered with a **max width of 880 px** (Telegram adaptive layout), while their backgrounds span the full width.
-- The app draws its **own window chrome on every platform** and uses the whole window, with no separate title bar row. See §3.1.
+  - `wide-1440` (≥ 1440 px): all four columns; inline side slot (264 px for People, 340 px for Music, 380 px for voice chat).
+  - `wide-1280` (1280–1439 px): standard desktop layout; all columns inline.
+  - `wide-1180` (1180–1279 px): minimum breakpoint for inline side slot.
+  - `medium-1100` (1100–1179 px): side slot becomes an overlay drawer (sliding from right on `pane`); main expands.
+  - `medium-980` (980–1099 px): left column narrows to 240 px; side slot is an overlay drawer.
+  - `narrow-940` (940–979 px): minimum non-compact layout; left column at 240 px.
+  - `compact-759` (< 940 px): left column collapses to an overlay drawer (sliding from -24 px over scrim); hamburger menu opens it.
+- The message list and composer content are centered with a **max width of 880 px** (`MainInnerWidth`), while floating panels adapt to available space.
+- A dedicated 40 px **top title bar** (`AppTitleBar`) runs across the top of the window, hosting window controls, navigation arrows, and breadcrumb. See §3.1.
 
 ### 3.1 Window chrome and title bars
 
-**Principle: unified headers.** There is no extra title bar strip. The existing top row of the app (rail top, 60 px server header, 60 px chat header, 60 px member panel header) **is** the title bar. Empty space in that row is a drag region, and the window controls live inside it in the native style of each platform. This gives the content the full window height, the way GNOME apps with header bars, Discord on macOS and modern Windows apps (Teams, Windows Terminal) do it.
-
-Shared rules for all platforms:
-- **Drag regions:** every empty area of the top row (header backgrounds, the area around titles, the rail top). Interactive elements inside the row (buttons, the server header menu, search) are never drag regions.
-- **Double-click** on a drag region toggles maximize (on macOS it follows the system "double-click a window's title bar to" setting: zoom or minimize).
-- **Right-click** on a drag region opens the native window menu where the platform has one (Windows system menu, GNOME window menu).
-- **Window title** (shown in the taskbar, dock, alt-tab and window switchers) is always set: `(3) #general · Opencord Dev — Opencord`, with the unread count prefix only when there are unreads.
-- **States:** normal, maximized, tiled/snapped, fullscreen. Maximized and tiled windows have no rounded corners and no resize borders; fullscreen hides the window controls and the macOS traffic-light spacer.
-- **Minimum window size:** 940 × 560. Restore the last size, position, monitor and maximized state on launch (and fall back to centered 1280 × 800 on the primary monitor if the saved position is off-screen).
-- Window controls are drawn in **monochrome** using the app tokens (they follow the dark/light theme), except the macOS traffic lights, which stay native.
-- The app draws this title bar on **every platform and desktop**; it never uses the system title bar, and there is no setting to bring one back (D83).
-
-#### Windows (Windows 10/11 style)
-- Frameless window that keeps native behavior: Aero Snap, **Windows 11 snap layouts** on hovering the maximize button, native resize borders, DWM shadow and Windows 11 rounded corners. This needs custom handling in the Windows runner (`WM_NCCALCSIZE` to remove the frame, `WM_NCHITTEST` returning `HTCAPTION` for drag regions and `HTMAXBUTTON` over the maximize button so snap layouts appear). Use a window-management package only if it supports all of this; otherwise write it in the runner.
-- **Caption buttons** at the **top-right corner** of the window, flush with the top and right edges: Minimize, Maximize/Restore, Close. Each **46 × 32 px**, glyphs from *Segoe Fluent Icons* (fallback *Segoe MDL2 Assets*) at 10 px: `E921` minimize, `E922` maximize, `E923` restore, `E8BB` close.
-- They sit in the top 32 px of the rightmost header (member panel header when it's open, otherwise the chat header). That header reserves 138 px on the right; its own icon buttons stay vertically centered to the left of the caption buttons.
-- Colors: transparent at rest; hover `hover`, pressed `selected`. **Close hover is inverted** (`accent` background, `onAccent` glyph) instead of the usual Windows red, to keep the app monochrome. Glyphs use `textSecondary` when the window is inactive and `text` when active.
-- No Mica/Acrylic backdrop (they tint with wallpaper colors); use solid token backgrounds.
-- Top 1 px of the window stays a resize area when not maximized.
-
-#### Linux (GNOME / libadwaita header bar style)
-Every desktop, KDE Plasma and tiling compositors included, gets the **custom header bar** (client-side decorations, GNOME style). A tiled window has no rounded corners, shadow or resize handles, as for any tiled window below.
-
-Custom header bar details (GNOME style):
-- Window controls are **round 24 px buttons** with 18 px hit-padding, 6 px apart, vertically centered in the 60 px header row. Icons: GNOME-style minimize (line), maximize (square), restore (two squares), close (×), 16 px, `text` color.
-- Button background: `hover` at rest (like Adwaita's subtle circle), `selected` on hover, inverted on press. Close is the same as the others (no red).
-- **Respect the user's button layout** from `org.gnome.desktop.wm.preferences button-layout` (read via `gsettings` or the GTK setting `gtk-decoration-layout`). Default GNOME shows only Close on the right; show exactly the buttons the setting lists, on the side it lists them (left layouts put them at the top-left of the rail/server header; right layouts at the right end of the rightmost header).
-- When not maximized or tiled: **12 px rounded window corners**, 1 px `border` outline, and a soft shadow drawn by the app in a transparent margin (only if the compositor supports transparency; otherwise square corners without shadow). The Linux runner must create the window undecorated with an RGBA visual for this.
-- Resize handles: 6 px invisible edges and 12 px corners around the window that start a native resize (`gtk_window_begin_resize_drag` / xdg-toplevel resize), with the matching resize cursors.
-- Right-click on a drag region shows the compositor's window menu where supported.
-
-#### macOS (Discord style)
-- **Transparent, full-size content title bar**: hidden title text, content extends under the title bar area, native **traffic lights kept** and repositioned to sit at the top-left above the server rail (inset about 20 px from the left, centered in a 52 px top band).
-- The server rail gets a **52 px top spacer** under the traffic lights; the menu button moves below it. The rest of the top row (server, chat and member headers) stays 60 px and acts as the drag region, so no vertical space is lost.
-- Fullscreen: traffic lights hide automatically; remove the 52 px spacer.
-- Keep the native window shadow and rounded corners; no custom resize handling.
-- Respect the system "double-click title bar" action and native full-screen and tiling (green button menu).
+**Floating title bar row (`AppTitleBar`):**
+A single 40 px bar sits at the top of the window, leaving 8 px margins to surrounding floats. It serves as the primary drag region and window chrome:
+- **Left:** Navigation arrows (`<` and `>` buttons, 32 × 32 px, 2 px apart) for history traversal (Alt+←/→, ⌘[/], or mouse side buttons). On macOS, the arrows sit clear to the right of the traffic lights (`78` from window left).
+- **Center:** Breadcrumb trail (`BreadcrumbCrumb`), showing the current server and channel/view (`#general · Opencord Dev`).
+- **Drag region:** Empty space across the title bar is an interactive window drag region. Double-clicking toggles maximize/restore; right-clicking opens the system window menu where supported.
+- **Window controls:**
+  - **Windows:** Frameless window with native Minimize, Maximize/Restore, Close caption buttons (46 × 32 px) flush at top-right. Snap layouts appear when hovering Maximize (`WM_NCHITTEST` returning `HTMAXBUTTON`).
+  - **Linux:** Client-side decoration buttons following `org.gnome.desktop.wm.preferences button-layout` (left or right side). Fully undecorated on tiling window managers (no shadow margin or rounded corners).
+  - **macOS:** Native traffic lights centered vertically in the 40 px band inset from top-left, remaining clear of navigation arrows. Fullscreen hides traffic lights and reclaims space.
 
 ---
 
@@ -171,57 +156,50 @@ Custom header bar details (GNOME style):
 
 ### 4.1 Server rail (Telegram folder bar + Discord server list)
 
-- Top: the Private messages button (opens the home view). Settings open from the user panel's cog. Then a short divider.
-- One item per server: a **46 px rounded icon** with the server initials (or uploaded icon later), and the **server name as a small label underneath** (11 px, one line, ellipsis) — this is the Telegram folder style.
+- Float: 62 px wide floating bar on the left (radius 14), 8 px padding top and bottom.
+- Top: Private messages button (`RailItemView`, id: 'private', glyph: `OcIcons.chat`).
+- Items: 46 px rounded server icon (radius 23 → 14 on hover/selection), item height 52 px, 6 px gap between items.
+- No text labels are rendered under the icons. Instead, hovering or focusing an item displays the **Rail popover** (`RailPopover`):
+  - Sits 78 px from the left edge, vertically centered on the active item.
+  - Displays server name, connection status, and voice participant avatars (`VoiceFaces`: up to 4 avatars + count, e.g. "+6", "10 in voice").
+  - Appears on `OcSpring.pop` (scale 0.96 → 1.0, opacity fade), slides vertically between icons on `OcSpring.paneOut`, and disappears after 90 ms when leaving the rail.
+  - Transparent to clicks (pointer events pass through to underlying content).
 - States:
-  - Default: icon bg `hover`, circle (radius 23).
+  - Default: bg `hover`, circle (radius 23).
   - Hover: bg `selected`, radius morphs to 14, left indicator pill 18 px tall.
-  - Selected: **inverted** icon (bg `accent`, text `onAccent`), radius 14, left indicator pill 34 px tall, label in `text` color and weight 600.
-  - Has unread (not muted): left indicator pill 8 px tall.
-  - Has mentions: count badge (inverted) at the top-right of the icon, with a 2 px ring in `rail` color.
-  - Not connected: small status chip at bottom-right (sync icon for connecting/reconnecting, outlined error icon for failed).
-- Tooltip: server name and connection state.
-- Right-click menu: Mark as read · Mute / Unmute notifications · Invite people · Server settings (if permitted) · Copy address · — · Leave server.
+  - Selected: inverted icon (bg `accent`, text `onAccent`), radius 14, left indicator pill 34 px tall.
+  - Unread (not muted): left indicator pill 8 px tall.
+  - Mentions: count badge (inverted) at top-right of icon with 2 px ring.
+  - Disconnected: status chip at bottom-right.
 - Bottom: "+" button (Add server dialog).
-- Drag to reorder servers (persisted locally).
+- Drag to reorder servers.
 
-### 4.2 Channel sidebar
+### 4.2 Channel sidebar & Left column
 
-**Server header** (60 px): server name (`header`), below it a status line with a small connection dot and "128 online · 1,204 members" (or "Connecting…", "Reconnecting…", "Connection failed"). Chevron on the right. Click opens the server menu: Invite people · Server settings · Create channel · Create category · Notification settings · Copy server address · — · Leave server. Items only appear if the user has the permission.
+The left column consists of floating panels (width 240–380 px, default 288 px):
+- **Server head (`ServerHead`):** A separate 52 px tall floating panel at the top. Displays server name, online/member counts, and chevron. Clicking opens the server menu (sized to match the float's width). In private mode, it shows a static "Private messages" title.
+- **Search launcher:** Search pill (radius 18, bg `hover`) with `Ctrl K` / `⌘K` hint.
+- **Channel list:** Floating panel below the head holding categories, text channels, and voice channels.
+- **Channel rows:**
+  - Text channel: 44 px row, 32 px glyph, unread/mention badges, 10 px radius.
+  - Voice channel: speaker icon, name, participant count, indented participant list with speaking rings and live indicators.
+- **Voice connected card (`VoiceCard`):** Floating card above the user panel when connected to voice. Displays connection state, channel name, latency, Disconnect button, and Camera/Screen toggles.
+- **User panel (`UserPanel`):** Floating panel at the bottom of the left column (height 62 px at rest), perfectly level with the chat composer. Displays user avatar, presence, display name, and Mute, Deafen, and Settings buttons.
+- **Splitter (`LeftSplitter`):** An 8 px draggable region between the left column and main panel, with resize hover cursor.
 
-**Search launcher**: a pill (radius 18, bg `hover`) with a search icon, "Search" placeholder and a `Ctrl K` key hint. Clicking opens the quick switcher (§4.9).
+### 4.3 Chat header (`ChatHeader`)
 
-**Categories**: label row (`label` style) with a collapse chevron; on hover show a "+" (create channel) if permitted. Collapsed categories still show the selected channel and the voice channel the user is connected to.
+- Floating header panel: height 52 px (minHeight 52 px to accommodate text scaling), radius 14.
+- Left: Channel name (15/600), topic/subtitle, animated typing indicator when members type.
+- Right: Search button, Pinned messages button, right pane toggle (`PaneButton`), and More options menu.
+- **Notch connection:** When the right side panel is open inline, the header animates an outward notch (`NotchedFloat`) uniting the chat header with the side panel.
 
-**Text / announcement channel row — Telegram chat-list style, two lines, 56 px:**
-- Left: 40 px rounded-square glyph (`#` for text, megaphone for announcement, small lock overlay for read-only/private). Glyph bg `selected`; inverted when the row is selected.
-- Line 1: channel name (600 if unread or selected, otherwise 500 in `textSecondary`) and the time of the last message on the right (`HH:mm` today, weekday this week, `dd.MM.yy` older).
-- Line 2: last message preview "Author: text" in `textMuted`, one line, ellipsis. On the right: mention badge (inverted circle with "@") and unread count badge (inverted pill; grey `selected` pill if the server/channel is muted).
-- Row bg: `selected` when selected, `hover` on hover, radius 10, 8 px side margin.
-- Right-click: Mark as read · Mute channel · Copy link · Edit channel (permitted) · Delete channel (permitted).
+### 4.4 Pinned bar (`PinnedBar`)
 
-**Voice channel row — Discord style:**
-- One line: speaker icon, name, participant count on the right.
-- Under it, participants indented 44 px: 22 px avatar (with speaking ring, §5.3), name, and state icons: mic-off, headset-off, camera, and an inverted `LIVE` pill when screensharing.
-- Click: join the voice channel and open the voice view. Right-click: Join · Open in view · Copy link · Edit/Delete (permitted).
-
-**Voice connected panel** (only while in voice), above the user panel:
-- Line 1: waveform icon + "Voice connected" (600), line 2: "Channel / Server" muted. Clicking the text opens the voice view. Disconnect button on the right.
-- A row of two equal toggles: **Camera** and **Screen**. Inverted when active.
-
-**User panel** (58 px, top border):
-- Avatar with presence + display name + presence label. Click opens a presence menu: Online · Idle · Do not disturb · Invisible.
-- Buttons: Mute (mic), Deafen (headset), Settings. Muted/deafened buttons are shown **active** (bg `selected`, icon `text`) with the "off" icon variant.
-- The Mute and Deafen buttons are **split buttons**: a small chevron next to each opens the quick audio menu from §17.2 (device switching, volumes, input mode).
-
-### 4.3 Chat header (60 px, bg `sidebar`, bottom border)
-
-- Left: channel name (`header`) and a subtitle line: "1,204 members, 128 online · topic". **While someone is typing, the subtitle is replaced by "Kai is typing" with three animated dots** (Telegram behavior). Two people: "Kai and Mira are typing". More: "Several people are typing".
-- Right icon buttons: Search in channel · Pinned messages · Member list toggle (active state when shown) · More (Notification settings, Channel settings, Copy link, Mark as read).
-
-### 4.4 Pinned bar (Telegram)
-
-- 46 px bar under the header: 2 px vertical line in `text`, "Pinned message" (600, 12.5) above a one-line preview. Click scrolls to the message. Unpin button on the right (permitted users only). With several pins, the bar cycles through them on click and shows "Pinned message 2 of 4".
+- Floating overlay pill positioned in a Stack over the message list (rect at 1280: `387, 101, 600, *`), `surface` background, 2 × 30 px accent bar, and soft shadow.
+- The message list includes a `topInset` so that scrolling to the top leaves the first message fully visible below the pinned float.
+- Day separator pills tuck neatly under the pinned bar when it is visible.
+- Cycles through pinned messages on click, with an unpin button for permitted users.
 
 ### 4.5 Message list
 
@@ -256,30 +234,30 @@ Custom header bar details (GNOME style):
 - Text selection inside a single message is allowed (selectable text) without breaking the context menu.
 - Quick reaction popover: a horizontal pill with 8 frequent emoji plus "more" that opens the emoji picker.
 
-### 4.6 Composer (bg `sidebar`, top border, the full width of the chat)
+### 4.6 Composer (`ComposerBar`, `Composer`)
 
-- Telegram arrangement: the bar itself is the input. **attach** button (left) · multiline input with no box of its own, edge to edge (1–8 lines then scroll) · **emoji** button · **send** button, all inside the bar. Private chats have the same bar with emoji and send.
-- **Direction:** the input turns right-to-left as soon as its first letter is Persian, Arabic or Hebrew, and back with a first letter from a left-to-right script, as Telegram's does; digits and symbols before it don't count.
-- Send button is an inverted circle when there is text; when empty it shows a muted mic icon (voice messages are a later phase; clicking shows a "coming later" toast).
-- Placeholder: "Message #general".
-- **Reply / edit bar** above the input: reply or edit icon, 2 px vertical line, "Reply to Kai" / "Edit message" (600) with a one-line preview, and a close button.
-- Keys: `Enter` send · `Shift+Enter` newline · `Esc` cancel reply/edit · `↑` in an empty input edits your last message · `Ctrl+V` image paste (later phase, show toast for now). Respect IME composition (don't send while composing).
-- Autocomplete popups above the composer: `@` members, `#` channels, `:` emoji. Arrow keys + Enter/Tab to pick.
-- Drafts are kept per channel when switching.
-- No permission to send: the composer is replaced by a centered muted line "You do not have permission to send messages in this channel."
-- Slowmode or rate-limited: inline muted countdown next to the send button.
+- Floating composer panel at the bottom of the chat area, radius 14.
+- **Rest height 62 px:** Perfectly level with the user panel at rest (62 px).
+- Grows upward when typing multiline text (up to 8 lines) while the user panel stays level.
+- Attachments button, multiline text input, emoji picker button, and send button (centered vertically at rest with 12 px button insets and 20.5 px field padding).
+- Direction adapts to RTL (Persian, Arabic, Hebrew) based on first strong character.
+- Reply and edit bars display inside the floating container above the text input.
+- Voice recording overlay covers the entire composer float.
 
-### 4.7 Member panel (Telegram "group info" style)
+### 4.7 Member panel & Music panel (Side slot)
 
-- Header (60 px): "Members" + count, close button.
-- Search field (pill).
-- Sections, each with a `label`-style header "MAINTAINER — 2":
-  1. One section per **hoisted role** (highest position first), containing online members whose highest hoisted role is that role.
-  2. "ONLINE — n" for the remaining online members.
-  3. "OFFLINE — n" (names in `textMuted`, collapsed by default when large).
-- Member row (radius 10): 34 px avatar with presence shape, name (500), a small star icon for the owner, and an optional activity line in `textMuted` ("In voice · General", "Editing main.rs").
-- Click → profile popover/dialog. Right-click → Profile · Mention · Copy identity fingerprint · (permitted) Roles ▸ (checkbox list) · Kick · Ban.
-- Virtualized for large servers.
+The side slot (width 264 px for People, 340 px for Music, 380 px for voice chat) floats alongside the main area:
+- **Header:** 52 px floating header (minHeight 52 px) with a segmented toggle between **People** and **Music** (or "Members" with count when music is disabled) and a close button.
+- **People pane (`MemberPanel`):**
+  - Search pill (margin `0 0 4`).
+  - Hoisted role sections ("MAINTAINER — 2", "ONLINE — n", "OFFLINE — n" at 0.55 opacity).
+  - Member rows: height 44 px, avatar 34 px, gap 10 px, status line.
+- **Music pane (`MusicPanel`):**
+  - Album artwork: height 172 px, radius 14, 1 px border.
+  - Track title (15/600), artist, added-by info.
+  - Progress bar: height 4 px, radius 2.
+  - Transport controls: previous, play/pause (48 px inverted circle), next, mode toggles.
+  - Search / drop zone pill and "Up next" queue list.
 
 ### 4.8 Member profile dialog (380 px)
 
@@ -293,17 +271,18 @@ Custom header bar details (GNOME style):
 - Large input "Jump to a channel, server or member". Results: channels across **all** servers (with server name as subtitle), servers, and members of the current server. Ranking: prefix match > word match > contains; recently visited first when the query is empty.
 - `↑ ↓` navigate, `Enter` open, `Esc` close. Footer shows these key hints.
 
-### 4.10 Voice view (main area when a voice channel is opened)
+### 4.10 Voice view (`VoiceView`, `VoiceTileView`, `VoiceDock`)
 
-- Header as §4.3 with "3 connected" subtitle.
-- **Tile grid**: one tile per participant plus an extra tile per active screenshare. Tiles are 16:9, radius 14, bg `surface` (screenshare tiles `rail`), 1 px `border`. Grid columns: 1 tile → 1, ≤4 → 2, ≤9 → 3, else 4; tiles sized to fit without scrolling.
-- Tile content: camera video when on; otherwise the 72 px avatar. Bottom-left name pill (bg `elevated` 90%) with a mic-off icon when muted. Screenshare tiles show the stream and an inverted `LIVE` pill top-right.
-- **Speaking indicator**: 2 px `text`-colored tile border (no green).
-- **Focus mode** (Discord): click a tile (or its expand button on hover) to show it large with the other tiles in a horizontal strip underneath. Click again or press `Esc` to return to the grid.
-- **Control bar** centered at the bottom: Mute · Camera · Screenshare · Deafen · (gap) · Disconnect (wide inverted pill). Toggle buttons are 48 px circles; active state is inverted.
-- Screenshare button opens a source picker dialog (screens/windows; on Linux this is handed to the xdg-desktop-portal picker) with quality options: 720p30 / 1080p30 / 1080p60 / Source.
-- Not connected yet: centered prompt with the channel name, participant avatars and a "Join voice" primary button.
-- Voice logic is a later phase; in Phase 1 this view runs on mock data only (§11).
+- **Stage:** Main floating panel without composer, padding 12 px, participant tiles spaced 8 px apart. Sized up to 1040 px wide (520 px for <3 tiles), centered.
+- **Tiles:** 16:10 aspect ratio, radius 14, `surface` background, 1 px `border`. 72 px avatar (or camera stream / screenshare), name pill at bottom-left (8, 8), inverted `LIVE` pill for screenshares.
+- **Speaking indicator:** 2 px `text` border ring.
+- **Focus mode:** Clicking a tile expands it to fill the stage above a 76 px horizontal strip of remaining participants.
+- **Motion:** Tiles enter on `OcSpring.tile` (staggered 16 ms up to 80 ms); moves/resizes run on `OcSpring.move`.
+- **Floating voice dock (`VoiceDock`):**
+  - Pill-shaped floating bar (radius 31) centered 14 px above the bottom of the stage inside the page.
+  - Controls: Chat toggle, 28 px divider, mic, camera, screen share, soundboard, deafen, and Disconnect button (48 px tall).
+  - Auto-hiding: Pointer movement shows the dock; hides after 2.5 s of inactivity or pointer departure. Never hides while pointer is over the dock, during keyboard focus, or while a control popup is open.
+- **Voice chat:** When opened, chat floats in the side slot (width 380 px) if window width permits (≥ 1180 px); otherwise replaces the tiles in the main float.
 
 ### 4.11 Dialogs (shared shell)
 
@@ -362,6 +341,8 @@ Custom header bar details (GNOME style):
 
 ## 6. Chat behaviors
 
+### 6.1 Core behaviors
+
 - Optimistic send: message appears immediately with the clock icon, switches to double check on server ack.
 - Edits update in place with "edited". Deletes remove the bubble with a 100 ms fade (no "message deleted" placeholder).
 - New message while scrolled up: don't auto-scroll; increment the jump-to-bottom badge.
@@ -369,6 +350,13 @@ Custom header bar details (GNOME style):
 - Entering a channel: scroll to the unread separator if there is one, otherwise to the bottom.
 - Unread and mention counts update live in the channel list, server rail and window title ("(3) Opencord").
 - Typing indicator: send `StartTyping` at most every 8 s while typing; show others' typing for 10 s or until their message arrives.
+
+### 6.2 Floating layout behaviors
+
+- **Short chats bottom alignment:** Channels or private chats with only a few messages sit anchored to the bottom of the floating list area (12 px from bottom), rather than floating at the top.
+- **Centred message column:** Message list and composer content center at a maximum width of 880 px (`MainInnerWidth`).
+- **Pinned bar clearance:** When scrolled to the top, messages clear the bottom of the floating pinned bar; day pills move smoothly under the pinned bar.
+- **Jump to bottom button:** Floats bottom-right above the composer float.
 
 ---
 

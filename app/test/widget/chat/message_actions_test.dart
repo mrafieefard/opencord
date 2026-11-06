@@ -40,6 +40,15 @@ Future<ChannelRef> _openGeneral(WidgetTester tester, MockApp app) async {
       .id;
   app.read(navigationProvider.notifier).openChannel(_server, general);
   await _pumpFor(tester, const Duration(milliseconds: 300));
+  final scrollable = find.descendant(
+    of: find.byType(MessageList),
+    matching: find.byType(Scrollable),
+  );
+  if (scrollable.evaluate().isNotEmpty) {
+    // Scroll slightly so the message clears the floating pinned bar.
+    await tester.drag(scrollable, const Offset(0, 100));
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+  }
   return (server: _server, channel: general);
 }
 

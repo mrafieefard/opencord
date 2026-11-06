@@ -2,12 +2,12 @@
 
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/providers/voice_reconnect.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/voice/voice_reconnect_bar.dart';
 
 import '../../support/app.dart';
@@ -29,10 +29,12 @@ Future<MockApp> _startedAfterClosingIn(
   WidgetTester tester,
   String server,
   int channelId,
-) {
+) async {
   final store = MemoryKeyValueStore()
     ..write(lastCallKey, jsonEncode({'server': server, 'channel': channelId}));
-  return MockApp.pump(tester, store: store);
+  final app = await MockApp.pump(tester, store: store);
+  await tester.pumpAndSettle();
+  return app;
 }
 
 void main() {
@@ -51,14 +53,14 @@ void main() {
     await tester.pump();
 
     app.repository.debugVoiceElsewhere();
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(
       find.text('Your call in ${voice.name} moved to another device.'),
       findsOneWidget,
     );
     await tester.tap(find.text('Reconnect'));
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     final session = app.read(voiceSessionProvider);
     expect((session.serverKey, session.channelId), (server, voice.id));
@@ -90,7 +92,7 @@ void main() {
     await tester.pump();
 
     app.repository.debugRejoinRefused('missing permission: connect');
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(
       find.text(
@@ -108,10 +110,10 @@ void main() {
     await app.read(voiceSessionProvider.notifier).join(server, voice.id);
     await tester.pump();
     app.repository.debugVoiceElsewhere();
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Dismiss'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Reconnect'), findsNothing);
     expect(app.read(voiceSessionProvider).connected, isFalse);
@@ -154,13 +156,13 @@ void main() {
     await app.read(voiceSessionProvider.notifier).join(server, voice.id);
     await tester.pump();
     app.repository.debugVoiceElsewhere();
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     final bar = tester.getRect(find.byKey(VoiceReconnectBar.barKey));
-    expect(bar.width, 1440);
+    expect(bar.width, 1424);
     expect(
-      tester.getTopLeft(find.byKey(const Key('shell-rail'))).dy,
-      bar.bottom,
+      tester.getTopLeft(find.byKey(DesktopShell.railKey)).dy,
+      bar.bottom + 8,
     );
     await tester.pump(const Duration(seconds: 1));
     await app.dispose(tester);

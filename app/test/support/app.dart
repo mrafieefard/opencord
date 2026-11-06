@@ -27,7 +27,7 @@ class MockApp {
 
   final ProviderContainer container;
   final MockRepository repository;
-  final MemoryKeyValueStore store;
+  final KeyValueStore store;
 
   /// Wraps the whole app, for pixel checks.
   static final boundaryKey = GlobalKey();
@@ -36,7 +36,7 @@ class MockApp {
     WidgetTester tester, {
     Size size = const Size(1440, 900),
     double textScale = 1,
-    MemoryKeyValueStore? store,
+    KeyValueStore? store,
     AppSettings Function(AppSettings settings)? settings,
     NativeWindow? window,
     WindowInfo windowInfo = WindowInfo.none,

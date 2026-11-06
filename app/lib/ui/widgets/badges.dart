@@ -18,41 +18,51 @@ String formatCount(int count) {
 }
 
 final _badgeText = OcText.meta.copyWith(
-  fontSize: 11.5,
-  fontWeight: FontWeight.w700,
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
   height: 1,
 );
 
 /// Unread count: an inverted pill, or a grey one when muted (§5.3).
 class UnreadBadge extends StatelessWidget {
-  const UnreadBadge({super.key, required this.count, this.muted = false});
+  const UnreadBadge({
+    super.key,
+    required this.count,
+    this.muted = false,
+    this.inverted = false,
+  });
 
   final int count;
   final bool muted;
+  final bool inverted;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final color = inverted
+        ? colors.onAccent
+        : (muted ? colors.selected : colors.accent);
+    final textColor = inverted
+        ? colors.accent
+        : (muted ? colors.textSecondary : colors.onAccent);
     return Container(
-      constraints: const BoxConstraints(minWidth: 20),
-      height: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      constraints: const BoxConstraints(minWidth: 18),
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: muted ? colors.selected : colors.accent,
-        borderRadius: BorderRadius.circular(10),
+        color: color,
+        borderRadius: BorderRadius.circular(9),
       ),
       child: Text(
         formatCount(count),
-        style: _badgeText.copyWith(
-          color: muted ? colors.textSecondary : colors.onAccent,
-        ),
+        style: _badgeText.copyWith(color: textColor),
       ),
     );
   }
 }
 
-/// An inverted "@" circle: someone mentioned you (§5.3).
+/// An inverted "@" pill: someone mentioned you (§5.3).
 class MentionBadge extends StatelessWidget {
   const MentionBadge({super.key});
 
@@ -60,14 +70,15 @@ class MentionBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      width: 20,
-      height: 20,
+      constraints: const BoxConstraints(minWidth: 18),
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: colors.accent, shape: BoxShape.circle),
-      child: Text(
-        '@',
-        style: _badgeText.copyWith(color: colors.onAccent, fontSize: 12),
+      decoration: BoxDecoration(
+        color: colors.accent,
+        borderRadius: BorderRadius.circular(9),
       ),
+      child: Text('@', style: _badgeText.copyWith(color: colors.onAccent)),
     );
   }
 }
@@ -80,19 +91,19 @@ class LivePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      height: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colors.accent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
         'LIVE',
         style: _badgeText.copyWith(
           color: colors.onAccent,
-          fontSize: 9.5,
-          letterSpacing: 0.6,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
         ),
       ),
     );

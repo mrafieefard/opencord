@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:opencord/features/dialogs/invite_dialog.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/widgets/confirm_dialog.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
@@ -29,7 +31,12 @@ Future<void> _pumpFor(WidgetTester tester, Duration total) async {
 }
 
 Finder _iconButton(String tooltip) => find.byWidgetPredicate(
-  (widget) => widget is OcIconButton && widget.tooltip == tooltip,
+  (widget) =>
+      (widget is OcIconButton && widget.tooltip == tooltip) ||
+      (widget is Hoverable &&
+          (widget.semanticLabel == tooltip ||
+              (tooltip == 'Add server' &&
+                  widget.semanticLabel == 'Add a server'))),
 );
 
 Finder _button(String label) => find.widgetWithText(OcButton, label);
@@ -265,9 +272,17 @@ void main() {
           .values
           .firstWhere((channel) => channel.isCategory);
 
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(
+        tester.getCenter(find.text(category.name.toUpperCase())),
+      );
+      await tester.pump(const Duration(milliseconds: 120));
+
       await tester.tap(_iconButton('Create channel in ${category.name}'));
       await _pumpFor(tester, const Duration(milliseconds: 200));
       expect(find.text('Create channel in ${category.name}'), findsOneWidget);
+      await gesture.removePointer();
       await tester.tap(find.text('Voice'));
       await tester.enterText(_fields, 'Hangout Room');
       await tester.pump();

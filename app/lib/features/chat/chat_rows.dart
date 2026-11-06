@@ -20,16 +20,16 @@ class CenterPill extends StatelessWidget {
     final colors = context.oc;
     return Center(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
         decoration: BoxDecoration(
-          color: colors.selected,
+          color: colors.hover,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 14, color: colors.textSecondary),
+              Icon(icon, size: 16, color: colors.textSecondary),
               const SizedBox(width: 6),
             ],
             Flexible(
@@ -39,8 +39,7 @@ class CenterPill extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: OcText.small.copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
                   color: colors.textSecondary,
                 ),
               ),
@@ -76,18 +75,19 @@ class UnreadLine extends StatelessWidget {
       header: true,
       child: Row(
         children: [
-          Expanded(child: Divider(height: 1, color: colors.textMuted)),
+          Expanded(child: Divider(height: 1, color: colors.selected)),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s10),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
               'Unread messages',
               style: OcText.small.copyWith(
+                fontSize: 12.5,
                 fontWeight: FontWeight.w600,
                 color: colors.textSecondary,
               ),
             ),
           ),
-          Expanded(child: Divider(height: 1, color: colors.textMuted)),
+          Expanded(child: Divider(height: 1, color: colors.selected)),
         ],
       ),
     );

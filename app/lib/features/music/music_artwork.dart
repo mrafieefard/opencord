@@ -30,29 +30,39 @@ final musicArtworkPathProvider = FutureProvider.autoDispose
       return path;
     });
 
-/// A track's artwork, square, cropped to fill, decoded at the size the
-/// server made it: 128 px for lists, 512 for the cover (§0.1). Without one,
-/// a monochrome music note.
+/// A track's artwork, square or rectangular, cropped to fill, decoded at the
+/// size the server made it: 128 px for lists, 512 for the cover (§0.1). Without
+/// one, a monochrome music note.
 class MusicArtwork extends ConsumerWidget {
   const MusicArtwork({
     super.key,
     required this.serverKey,
     required this.artworkId,
-    required this.size,
+    this.size = 128,
+    this.width,
+    this.height,
     this.radius = 6,
+    this.placeholderColor,
+    this.placeholderIconSize,
   });
 
   final String serverKey;
   final String artworkId;
 
-  /// Logical pixels.
+  /// Logical pixels for square sizing when width/height are not set.
   final double size;
+  final double? width;
+  final double? height;
   final double radius;
+  final Color? placeholderColor;
+  final double? placeholderIconSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
-    final decode = size > 128 ? 512 : 128;
+    final w = width ?? size;
+    final h = height ?? size;
+    final decode = (w > 128 || h > 128) ? 512 : 128;
     final path = artworkId.isEmpty
         ? null
         : ref
@@ -64,39 +74,41 @@ class MusicArtwork extends ConsumerWidget {
                 )),
               )
               .value;
-    final placeholder = DecoratedBox(
+    return Container(
+      width: width ?? size,
+      height: height ?? size,
       decoration: BoxDecoration(
-        color: colors.hover,
+        color: placeholderColor ?? colors.hover,
         border: Border.all(color: colors.border),
         borderRadius: BorderRadius.circular(radius),
       ),
-      child: Center(
-        child: Icon(
-          OcIcons.musicNote,
-          size: size * 0.42,
-          color: colors.textMuted,
-        ),
-      ),
-    );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: SizedBox.square(
-        dimension: size,
-        child: path == null
-            ? placeholder
-            : Image(
-                image: ResizeImage(
-                  FileImage(File(path)),
-                  width: decode,
-                  height: decode,
-                  policy: ResizeImagePolicy.fit,
-                ),
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                excludeFromSemantics: true,
-                errorBuilder: (_, _, _) => placeholder,
+      clipBehavior: Clip.antiAlias,
+      child: path == null
+          ? Center(
+              child: Icon(
+                OcIcons.musicNote,
+                size: placeholderIconSize ?? (h * 0.42),
+                color: colors.textMuted,
               ),
-      ),
+            )
+          : Image(
+              image: ResizeImage(
+                FileImage(File(path)),
+                width: decode,
+                height: decode,
+                policy: ResizeImagePolicy.fit,
+              ),
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              excludeFromSemantics: true,
+              errorBuilder: (_, _, _) => Center(
+                child: Icon(
+                  OcIcons.musicNote,
+                  size: placeholderIconSize ?? (h * 0.42),
+                  color: colors.textMuted,
+                ),
+              ),
+            ),
     );
   }
 }

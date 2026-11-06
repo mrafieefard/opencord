@@ -97,7 +97,7 @@ class _RecordingBarState extends ConsumerState<RecordingBar>
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
       child: Container(
-        height: 40,
+        constraints: const BoxConstraints(minHeight: 40),
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: bgColor,

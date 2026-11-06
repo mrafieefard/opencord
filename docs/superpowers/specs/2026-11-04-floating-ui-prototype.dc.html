@@ -1,0 +1,1759 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Opencord floating UI</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.dark{--ground:#0A0A0B;--panel:#121214;--chat:#0E0E10;--surface:#18181B;--elevated:#1F1F23;--hover:#1C1C20;--selected:#27272C;--border:#222226;--text:#EDEDEF;--text2:#A1A1A8;--muted:#6E6E76;--accent:#EDEDEF;--on-accent:#0E0E10;--bub-in:#1A1A1E;--bub-out:#2A2A30;--mention:#26262B;--scrim:rgba(0,0,0,.42);--sh0:#2B2B30;--sh1:#34343A;--sh2:#3E3E45;--sh3:#494951;--sh4:#55555D;--soft:0 8px 24px rgba(0,0,0,.45);--menu:0 4px 16px rgba(0,0,0,.5)}
+.light{--ground:#E9E9EC;--panel:#FFFFFF;--chat:#F3F3F5;--surface:#FFFFFF;--elevated:#FFFFFF;--hover:#F2F2F4;--selected:#E7E7EA;--border:#E3E3E7;--text:#111114;--text2:#55555C;--muted:#8A8A92;--accent:#111114;--on-accent:#FFFFFF;--bub-in:#FFFFFF;--bub-out:#E4E4E8;--mention:#E2E2E6;--scrim:rgba(0,0,0,.24);--sh0:#D9D9DE;--sh1:#CDCDD3;--sh2:#C1C1C8;--sh3:#E3E3E7;--sh4:#B6B6BE;--soft:0 6px 20px rgba(17,17,20,.08);--menu:0 4px 16px rgba(17,17,20,.12)}
+.depth-shadow{--shadow:var(--soft)}
+.depth-border{--shadow:none}
+.tb-plain{--st:0px}
+.tb-bar{--st:var(--gap)}
+
+.app,.app *{box-sizing:border-box}
+.app{--rail:62px;position:relative;height:100vh;min-height:480px;display:flex;flex-direction:column;overflow:hidden;background:var(--ground);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.35}
+.app button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.app input{font:inherit;color:inherit}
+.app button:focus-visible,.app input:focus-visible{outline:2px solid var(--text);outline-offset:1px}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.i{display:block;width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.i18{width:18px;height:18px}
+.i16{width:16px;height:16px}
+.i10{width:10px;height:10px;stroke-width:2.6}
+.clip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+/* Title bar: the one thing that does not float */
+.tb{height:40px;flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;padding:0 var(--gap);position:relative}
+.tb-bar .tb{background:var(--panel);border-bottom:1px solid var(--border)}
+.tb-left{display:flex;align-items:center;gap:2px;justify-self:start}
+.tb-right{display:flex;align-items:center;gap:6px;justify-self:end}
+.crumb{display:flex;align-items:center;gap:7px;min-width:0;max-width:56vw;font-size:13px}
+.crumb-ico{width:20px;height:20px;border-radius:6px;background:var(--selected);color:var(--text);display:grid;place-items:center;flex:none;font-size:8.5px;font-weight:700}
+.crumb-ico .i{width:13px;height:13px}
+.crumb-srv{font-weight:500;color:var(--text2)}
+.crumb-sep{color:var(--muted);flex:none}
+.crumb-ch{font-weight:600}
+.crumb>.i{color:var(--text2)}
+.lights{display:flex;gap:8px;margin:0 12px 0 6px}
+.lights i{display:block;width:12px;height:12px;border-radius:50%}
+.l-r{background:#FF5F57}.l-y{background:#FEBC2E}.l-g{background:#28C840}
+.app .wl{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--hover);transition:background .12s}
+.app .wl:hover{background:var(--selected)}
+.caption{position:absolute;top:0;right:0;display:flex}
+.app .wc{width:46px;height:32px;display:grid;place-items:center;transition:background .12s}
+.app .wc:hover{background:var(--hover)}
+.app .wc.x:hover{background:var(--accent);color:var(--on-accent)}
+.wc .i{width:12px;height:12px;stroke-width:1.4}
+
+/* The floats */
+.shell{position:relative;flex:1;min-height:0;display:flex;gap:var(--gap);padding:var(--st) var(--gap) var(--gap)}
+.float{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;min-height:0}
+.col{display:flex;flex-direction:column;gap:var(--gap);min-height:0;min-width:0}
+.left{width:var(--left);flex:none;transition:width var(--pane-t) var(--pane)}
+.mid{flex:1;position:relative}
+.resizing,.resizing *{cursor:col-resize !important;user-select:none}
+.resizing .left{transition:none}
+.app .splitter{position:relative;flex:none;align-self:stretch;width:var(--gap);margin:0 calc(var(--gap)*-1);z-index:4;cursor:col-resize;touch-action:none}
+.app .splitter:focus-visible{outline:none}
+.splitter::before{content:"";position:absolute;inset:0 -4px}
+.splitter::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:40px;margin:-20px 0 0 -1.5px;border-radius:2px;background:var(--text2);opacity:0;scale:1 .5;transition:opacity .1s,scale .12s ease-out}
+.splitter:hover::after,.splitter:focus-visible::after,.resizing .splitter::after{opacity:1;scale:1}
+.app .srv-head{display:flex;align-items:center;gap:8px;width:100%;height:52px;flex:none;padding:0 10px 0 14px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);transition:background .12s}
+.app button.srv-head:hover{background:var(--hover)}
+.srv-head-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.srv-head-n{font-size:15px;font-weight:600;line-height:1.25}
+.srv-head-s{display:flex;align-items:center;gap:6px;font-size:12px;line-height:1.25;color:var(--muted);white-space:nowrap}
+.srv-head-s .i{width:12px;height:12px;stroke-width:2.2}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text);flex:none}
+.head-chev{color:var(--muted);transition:transform .14s ease-out}
+.head-chev.up{transform:rotate(180deg)}
+.fill{flex:1;display:flex;flex-direction:column}
+.scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--selected) transparent}
+.scrim{position:absolute;inset:0;z-index:10;display:block;width:100%;background:var(--scrim) !important;animation:fade .12s ease-out}
+
+/* Icon buttons */
+.app .ib{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--text2);transition:background .12s,color .12s}
+.app .ib.compact{width:28px;height:28px}
+.app .ib:hover{background:var(--selected);color:var(--text)}
+.app .ib.on{background:var(--selected);color:var(--text)}
+.app .ib[disabled]{color:var(--selected);background:none;cursor:default}
+.light .ib[disabled]{color:#C1C1C8}
+
+/* Server rail */
+.rail{width:var(--rail);flex:none;display:flex;flex-direction:column}
+.rail-list{flex:1;min-height:0;padding:8px 0;display:flex;flex-direction:column;gap:6px}
+.rail-rule{height:1px;margin:2px 18px;background:var(--border);flex:none}
+.app .srv{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:3px 3px;color:var(--text2);flex:none}
+.ico{position:relative;width:46px;height:46px;border-radius:23px;background:var(--hover);display:grid;place-items:center;color:var(--text);font-weight:600;font-size:15px;transition:border-radius .15s,background .12s}
+.app .srv:hover .ico{background:var(--selected);border-radius:14px}
+.app .srv.sel .ico{background:var(--accent);color:var(--on-accent);border-radius:14px}
+.rail-pop{position:absolute;z-index:15;top:0;left:calc(var(--gap) + var(--rail) + 8px);width:max-content;min-width:168px;max-width:280px;padding:10px 12px;background:var(--elevated);border:1px solid var(--border);border-radius:12px;box-shadow:var(--menu);pointer-events:none;opacity:0;scale:.96;transform:translateY(calc(var(--y) - 50%));transform-origin:left center;transition:opacity .08s ease-in,scale .08s ease-in}
+.rail-pop.on{opacity:1;scale:1;transition:opacity .08s ease-out,scale var(--pop-t) var(--pop)}
+.rail-pop.on.move{transition:opacity .08s ease-out,scale var(--pop-t) var(--pop),transform var(--out-t) var(--out)}
+.rail-pop::before{content:"";position:absolute;left:-5px;top:50%;width:8px;height:8px;margin-top:-4px;background:var(--elevated);border-left:1px solid var(--border);border-bottom:1px solid var(--border);transform:rotate(45deg)}
+.pop-n{font-size:13.5px;font-weight:600;white-space:nowrap}
+.pop-s{font-size:12px;color:var(--muted);white-space:nowrap}
+.pop-voice{display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.pop-stack{display:flex}
+.pop-stack .av{margin-left:-6px;box-shadow:0 0 0 2px var(--elevated)}
+.pop-stack .av:first-child{margin-left:0}
+.pop-more{background:var(--selected);font-size:10.5px}
+.pop-c{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);white-space:nowrap}
+.pip{position:absolute;left:0;top:26px;width:4px;height:0;margin-top:0;transform:translateY(-50%);background:var(--text);border-radius:0 4px 4px 0;transition:height .15s}
+.srv.unread .pip{height:8px}
+.app .srv:hover .pip{height:18px}
+.app .srv.sel .pip{height:34px}
+.bdg{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:11px;font-weight:600;display:inline-grid;place-items:center;flex:none;line-height:1}
+.ico .bdg{position:absolute;top:-4px;right:-4px;box-shadow:0 0 0 2px var(--panel)}
+.chip{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:50%;background:var(--panel);display:grid;place-items:center;color:var(--text2)}
+.chip .i{width:12px;height:12px;stroke-width:2.2}
+.app .rail-add{height:44px;margin:0 4px 4px;border-radius:10px;display:grid;place-items:center;color:var(--text2);flex:none;transition:background .12s}
+.app .rail-add:hover{background:var(--hover);color:var(--text)}
+
+/* Channels */
+.app .search{display:flex;align-items:center;gap:8px;flex:none;height:36px;margin:8px;padding:0 12px;border-radius:18px;background:var(--hover);color:var(--muted);transition:background .12s}
+.app .search:hover{background:var(--selected)}
+.search .sp{flex:1}
+.kbd{font-family:'JetBrains Mono',monospace;font-size:11px;padding:1px 5px;border:1px solid var(--border);border-radius:5px;color:var(--muted)}
+.cat-row{display:flex;align-items:center;padding:8px 12px 4px 10px}
+.app .cat{flex:1;display:flex;align-items:center;gap:4px;color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase}
+.cat .i{transition:transform .15s}
+.cat .i.rot{transform:rotate(-90deg)}
+.app .cat-add{width:20px;height:20px;display:grid;place-items:center;color:var(--muted);opacity:0;transition:opacity .12s}
+.cat-row:hover .cat-add,.app .cat-add:focus-visible{opacity:1}
+.app .ch{display:flex;align-items:center;gap:10px;width:calc(100% - 16px);height:56px;margin:0 8px 2px;padding:0 8px;border-radius:10px;transition:background .12s}
+.app .ch:hover{background:var(--hover)}
+.app .ch.sel{background:var(--selected)}
+.glyph{position:relative;width:40px;height:40px;border-radius:12px;background:var(--selected);color:var(--text2);display:grid;place-items:center;flex:none}
+.ch.sel .glyph{background:var(--accent);color:var(--on-accent)}
+.lockb{position:absolute;right:-3px;bottom:-3px;width:16px;height:16px;border-radius:50%;background:var(--panel);color:var(--text2);display:grid;place-items:center}
+.ch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ch-l1,.ch-l2{display:flex;align-items:center;gap:8px;min-width:0}
+.ch-name{flex:1;font-weight:500;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch.unread .ch-name,.ch.sel .ch-name{font-weight:600;color:var(--text)}
+.ch-time{font-size:11px;color:var(--muted);flex:none}
+.ch-prev{flex:1;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app .vc{display:flex;align-items:center;gap:10px;width:calc(100% - 16px);height:36px;margin:0 8px 2px;padding:0 10px;border-radius:10px;color:var(--text2);transition:background .12s}
+.app .vc:hover{background:var(--hover)}
+.app .vc.sel{background:var(--selected);color:var(--text);font-weight:600}
+.vc-n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-c{font-size:12.5px;color:var(--muted);font-weight:400}
+.vp{display:flex;align-items:center;gap:8px;height:30px;margin:0 16px 0 42px;color:var(--text2);font-size:13px}
+.vp-n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vp .i{color:var(--muted)}
+.live{font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:1px 6px;border-radius:5px;background:var(--accent);color:var(--on-accent);flex:none}
+.app .nav-row{display:flex;align-items:center;gap:12px;width:calc(100% - 16px);height:44px;margin:0 8px 2px;padding:0 12px;border-radius:10px;color:var(--text2);font-weight:500;transition:background .12s}
+.app .nav-row:hover{background:var(--hover)}
+.app .nav-row.sel{background:var(--selected);color:var(--text)}
+.nav-row .sp{flex:1}
+.sec{padding:10px 16px 4px;color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase}
+.home-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 8px 4px}
+.app .home-tile{display:flex;flex-direction:column;gap:2px;min-height:92px;padding:10px;border-radius:12px;background:var(--hover);border:1px solid var(--border);transition:background .12s,color .12s,border-color .12s,transform .08s ease-out}
+.app .home-tile:hover{background:var(--selected)}
+.app .home-tile.sel{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.ht-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.ht-ico{width:32px;height:32px;border-radius:10px;background:var(--selected);display:grid;place-items:center}
+.home-tile.sel .ht-ico{background:var(--on-accent);color:var(--accent)}
+.home-tile.sel .bdg{background:var(--on-accent);color:var(--accent)}
+.ht-name{font-size:13px;font-weight:600;line-height:1.2}
+.ht-sub{font-size:11.5px;color:var(--muted)}
+.home-tile.sel .ht-sub{color:inherit;opacity:.7}
+
+/* Avatars */
+.av{position:relative;display:grid;place-items:center;flex:none;border-radius:50%;color:var(--text);font-weight:600;background:var(--sh2)}
+.sh0{background:var(--sh0)}.sh1{background:var(--sh1)}.sh2{background:var(--sh2)}.sh3{background:var(--sh3)}.sh4{background:var(--sh4)}
+.av20{width:20px;height:20px;font-size:8px}
+.av22{width:22px;height:22px;font-size:8.5px}
+.av26{width:26px;height:26px;font-size:9.5px}
+.av40{width:40px;height:40px;font-size:13.5px}
+.av32{width:32px;height:32px;font-size:12px}
+.av34{width:34px;height:34px;font-size:12px}
+.av36{width:36px;height:36px;font-size:12.5px}
+.av72{width:72px;height:72px;font-size:24px}
+.av22.speak{box-shadow:0 0 0 2px var(--text)}
+.pres{position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;background:var(--text);box-shadow:0 0 0 2px var(--panel);overflow:hidden}
+.pres.idle::after{content:"";position:absolute;left:-2px;top:-2px;width:9px;height:9px;border-radius:50%;background:var(--panel)}
+.pres.dnd::after{content:"";position:absolute;left:2px;right:2px;top:5px;height:2px;border-radius:1px;background:var(--panel)}
+.pres.off{background:var(--panel);border:3px solid var(--muted)}
+
+/* Voice card and user panel */
+.vwrap{flex:none;display:grid;grid-template-rows:0fr;margin-top:calc(var(--gap)*-1);transition:grid-template-rows var(--out-t) var(--out),margin-top var(--out-t) var(--out)}
+.vwrap.on{grid-template-rows:1fr;margin-top:0;transition:grid-template-rows var(--pane-t) var(--pane),margin-top var(--pane-t) var(--pane)}
+.vwrap-in{min-height:0;overflow:hidden;border-radius:var(--r)}
+.vwrap:not(.on) .vwrap-in{visibility:hidden;transition:visibility 0s linear .2s}
+.vcard{padding:8px 8px 10px;display:flex;flex-direction:column;gap:8px}
+.vcard-top{display:flex;align-items:center;gap:6px}
+.app .vcard-link{flex:1;min-width:0;display:block;padding:2px 6px;border-radius:8px;transition:background .12s}
+.app .vcard-link:hover{background:var(--hover)}
+.vcard-st{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.vcard-sub{display:block;font-size:12.5px;color:var(--muted);margin-top:1px}
+.vcard-row{display:flex;gap:8px}
+.app .vt{flex:1;height:36px;border-radius:10px;background:var(--hover);color:var(--text2);display:grid;place-items:center;transition:background .12s,color .12s}
+.app .vt:hover{background:var(--selected);color:var(--text)}
+.app .vt.on{background:var(--accent);color:var(--on-accent)}
+.me{height:62px;flex:none;display:flex;align-items:center;gap:0;padding:0 6px 0 8px}
+.app .me-id{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:4px;border-radius:10px;transition:background .12s}
+.app .me-id:hover{background:var(--hover)}
+.me-tx{min-width:0;display:flex;flex-direction:column}
+.me-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me-st{font-size:11px;color:var(--muted)}
+.app .caret{width:14px;height:28px;border-radius:6px;display:grid;place-items:center;color:var(--muted);flex:none;transition:background .12s}
+.app .caret:hover{background:var(--selected);color:var(--text)}
+.caret .i{width:12px;height:12px;stroke-width:2.2}
+
+/* Main view */
+.main{background:var(--chat);position:relative}
+.hd{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 8px 0 16px;background:var(--panel);border-bottom:1px solid var(--border)}
+.hd-tx{flex:1;min-width:0}
+.hd-title{font-size:15px;font-weight:600;line-height:1.25}
+.hd-sub{font-size:12.5px;color:var(--text2);line-height:1.25}
+.hd-acts{display:flex;align-items:center;gap:2px;flex:none}
+/* The right pane button: a notch cut from the main page's corner. At size 0
+   the two curves meet exactly on the page's own corner, so it closes seamlessly. */
+.tab-wrap{flex:none;width:calc(var(--notch) - 8px);transition:width var(--pane-t) var(--pane),margin var(--pane-t) var(--pane)}
+.tab-wrap.off{width:0;margin-left:-10px;transition:width var(--out-t) var(--out) 50ms,margin var(--out-t) var(--out) 50ms}
+.notch{--curve:radial-gradient(circle at 0 100%,transparent calc(var(--r) - 1.5px),var(--border) calc(var(--r) - 1px),var(--border) calc(var(--r) - .5px),var(--ground) var(--r));position:absolute;top:0;right:0;z-index:3;width:var(--notch);height:var(--notch);background:var(--ground);border-bottom-left-radius:var(--r);transition:width var(--pane-t) var(--pane),height var(--pane-t) var(--pane)}
+.notch.off{width:0;height:0;visibility:hidden;transition:width var(--out-t) var(--out) 50ms,height var(--out-t) var(--out) 50ms,visibility 0s linear .3s}
+.notch::before,.notch::after{content:"";position:absolute;width:var(--r);height:var(--r);background:var(--curve);pointer-events:none}
+.notch::before{top:0;right:100%}
+.notch::after{top:100%;right:0}
+.notch-line{position:absolute;top:var(--r);right:var(--r);bottom:-1px;left:-1px;border-left:1px solid var(--border);border-bottom:1px solid var(--border);border-bottom-left-radius:calc(var(--r) + 1px);pointer-events:none;transition:opacity .1s ease-out}
+.notch.off .notch-line{opacity:0}
+.tuner{position:absolute;right:calc(var(--gap) + 12px);bottom:calc(var(--gap) + 74px);z-index:16;width:280px;max-width:calc(100vw - 32px);padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px;background:var(--elevated);border:1px solid var(--border);border-radius:12px;box-shadow:var(--menu)}
+.tuner-h{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.tuner-h .sp{flex:1}
+.app .tuner-reset{height:26px;padding:0 10px;border-radius:8px;background:var(--selected);font-size:12px;font-weight:500}
+.tuner-row{display:grid;grid-template-columns:82px minmax(0,1fr) 44px;align-items:center;gap:8px;font-size:12px;color:var(--text2)}
+.tuner-row input{width:100%;margin:0;accent-color:var(--text)}
+.tuner-row output{text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
+.tuner-note{font-size:12px;color:var(--text2)}
+.app .tuner-show{height:32px;border-radius:8px;background:var(--accent);color:var(--on-accent);font-size:12.5px;font-weight:600;text-align:center}
+.app .pane-tab{position:absolute;top:var(--tab-y);right:calc(var(--tab-x)*-1);width:var(--tab-s);height:var(--tab-s);display:grid;place-items:center;background:var(--panel);border:1px solid var(--border);border-radius:10px var(--r) 10px var(--r);box-shadow:var(--shadow);color:var(--text2);transform-origin:top right;transition:transform var(--pop-t) var(--pop),opacity .1s ease-out,background .12s,color .12s}
+.app .pane-tab:hover{background:var(--selected);color:var(--text)}
+.app .pane-tab:active{transform:scale(.97)}
+.app .pane-tab:focus-visible{outline-offset:-3px}
+.app .notch.off .pane-tab{transform:scale(.6);opacity:0;visibility:hidden;transition:transform .13s ease-in,opacity .13s ease-in,visibility 0s linear .13s}
+.via{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text2);white-space:nowrap}
+.pinf{position:absolute;left:12px;right:12px;top:60px;z-index:2;display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow)}
+.pinf-bar{width:2px;height:30px;background:var(--text);border-radius:1px;flex:none}
+.pinf-tx{flex:1;min-width:0}
+.pinf-a{font-size:12.5px;font-weight:600}
+.pinf-b{font-size:12.5px;color:var(--text2)}
+.msgs{flex:1;min-height:0;display:flex;flex-direction:column-reverse;overflow-x:hidden}
+.msgs-in{flex:none;width:min(var(--main-w),880px);margin:0 0 0 calc((var(--main-w) - min(var(--main-w),880px))/2);display:flex;flex-direction:column;gap:6px;padding:12px 16px}
+.msgs-in.pinned{padding-top:68px}
+.row{display:flex;align-items:flex-end;gap:10px}
+.row.own{justify-content:flex-end}
+.row.g-prev{margin-top:-4px}
+.av-gap{width:36px;flex:none}
+.bub{min-width:0;max-width:min(560px,100%);padding:7px 12px 8px;border-radius:16px;background:var(--bub-in);border:1px solid var(--border)}
+.bub.own{background:var(--bub-out)}
+.bub.ment{border-left:2px solid var(--text)}
+.bub.g-next{border-bottom-left-radius:5px}
+.bub.g-prev{border-top-left-radius:5px}
+.bub.own.g-next{border-bottom-left-radius:16px;border-bottom-right-radius:5px}
+.bub.own.g-prev{border-top-left-radius:16px;border-top-right-radius:5px}
+.who{font-size:13px;margin-bottom:1px;color:var(--muted)}
+.who b{color:var(--text);font-weight:600}
+.reply{margin:2px 0 4px;padding:3px 8px;border-left:2px solid var(--text2);border-radius:6px;background:var(--hover);font-size:12.5px}
+.reply b{display:block;font-weight:600}
+.reply span{display:block;color:var(--text2)}
+.quote{margin:2px 0 3px;padding-left:8px;border-left:2px solid var(--muted);color:var(--text2)}
+.body{display:flow-root;white-space:pre-wrap;overflow-wrap:anywhere}
+.meta{float:right;display:flex;align-items:center;gap:3px;margin:4px 0 0 10px;font-size:11px;line-height:1.2;color:var(--muted);white-space:nowrap}
+.meta .i{width:13px;height:13px}
+.p-ment{padding:0 3px;border-radius:4px;background:var(--mention);font-weight:600}
+.p-code{padding:1px 4px;border-radius:4px;background:var(--mention);font-family:'JetBrains Mono',monospace;font-size:12.5px}
+.p-link{text-decoration:underline}
+.p-b{font-weight:600}
+.reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.react{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:12px;background:var(--selected);font-size:12.5px;font-weight:500}
+.react.mine{background:var(--accent);color:var(--on-accent)}
+.unreadline{display:flex;align-items:center;gap:12px;margin:6px 0;font-size:12.5px;font-weight:600;color:var(--text2)}
+.unreadline::before,.unreadline::after{content:"";flex:1;height:1px;background:var(--selected)}
+.sys{display:flex;justify-content:center}
+.sys-pill{display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;background:var(--hover);font-size:12.5px;color:var(--text2)}
+.via-line{display:flex;align-items:center;gap:12px;margin:4px 0 8px;font-size:12.5px;color:var(--text2)}
+.via-line::before,.via-line::after{content:"";flex:1;border-top:1px dashed var(--selected)}
+
+/* Composer: lines up with the user panel beside it */
+.composer{height:62px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px}
+.composer input{flex:1;min-width:0;height:40px;padding:0 8px;background:none;border:0;outline:0}
+.composer input::placeholder{color:var(--muted)}
+
+/* Voice */
+.stage{flex:1;min-height:0;display:flex;padding:12px;overflow:hidden auto}
+.tiles{--tw:min(calc(var(--main-w) - 24px),1040px);flex:none;width:var(--tw);margin:auto 0 auto calc((var(--main-w) - 24px - var(--tw))/2);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:8px}
+.tiles.few{--tw:min(calc(var(--main-w) - 24px),520px)}
+.tile{position:relative;aspect-ratio:16/10;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;overflow:hidden}
+.tile.speak{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
+.tile.stream{background:var(--chat)}
+.tile.feat{border-color:var(--selected)}
+.app .tile-hit{position:absolute;inset:0;z-index:1;display:block;width:100%;border-radius:inherit}
+.tile-live{position:absolute;top:10px;right:10px;z-index:2;pointer-events:none}
+.tile-stream{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:0 8px;font-weight:600;pointer-events:none}
+.app .watch{height:32px;padding:0 16px;border-radius:10px;background:var(--accent);color:var(--on-accent);font-weight:600;pointer-events:auto;transition:transform .08s ease-out}
+.screen{position:absolute;inset:0;padding:48px 8%;display:flex;flex-direction:column;gap:12px;background:var(--panel);animation:fade .14s ease-out}
+.sl{display:block;height:10px;border-radius:5px;background:var(--selected)}
+.sl.h{height:18px;background:var(--sh2);margin-bottom:8px}
+.cam-head{position:absolute;top:22%;left:50%;width:22%;aspect-ratio:1;border-radius:50%;background:var(--sh1);transform:translateX(-50%);animation:cam-in var(--pop-t) var(--pop)}
+.cam-body{position:absolute;bottom:-4px;left:50%;width:44%;height:32%;border-radius:40% 40% 0 0;background:var(--sh1);transform:translateX(-50%);animation:cam-in var(--pop-t) var(--pop)}
+.stage.focus{padding:8px}
+.tiles.focus{--tw:calc(var(--main-w) - 16px);margin:0;min-height:0;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));grid-template-rows:minmax(0,1fr) 76px}
+.tiles.focus .tile{aspect-ratio:auto}
+.tiles.focus .tile.feat{grid-column:1/-1;order:-1}
+.tiles.focus .tile:not(.feat) .av72{width:36px;height:36px;font-size:12.5px}
+.tiles.focus .tile:not(.feat) .nm{left:4px;bottom:4px;padding:1px 6px;font-size:11px}
+.tiles.focus .tile:not(.feat) .tile-stream,.tiles.focus .tile:not(.feat) .tile-live{display:none}
+.tile .nm{z-index:2;pointer-events:none}
+.nm{position:absolute;left:8px;bottom:8px;max-width:calc(100% - 16px);display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:12px;background:var(--panel);font-size:12.5px;font-weight:600}
+.dock{position:absolute;left:50%;bottom:14px;z-index:3;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);padding:7px;border-radius:31px;overflow-x:auto;box-shadow:var(--menu);transform:translateX(-50%);transition:transform var(--pop-t) var(--pop),opacity .1s ease-out}
+.dock.hidden{transform:translate(-50%,16px);opacity:0;pointer-events:none;transition:transform .13s ease-in,opacity .13s ease-in}
+.app .rt{width:48px;height:48px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text);display:grid;place-items:center;flex:none;transition:background .12s,color .12s,border-color .12s}
+.app .rt:hover{background:var(--selected)}
+.app .rt.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.dock-rule{width:1px;height:28px;background:var(--border);flex:none}
+.app .disc{height:48px;padding:0 18px 0 14px;border-radius:24px;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;gap:8px;font-weight:600;flex:none;margin-left:6px;transition:opacity .12s}
+.app .disc:hover{opacity:.88}
+.join{margin:auto;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;animation:rise var(--pop-t) var(--pop)}
+.join .glyph{width:64px;height:64px;border-radius:20px;margin-bottom:6px}
+.join-t{font-size:17px;font-weight:600}
+.join-s{font-size:12.5px;color:var(--text2);margin-bottom:10px}
+.app .join-b{height:36px;padding:0 18px;border-radius:10px;background:var(--accent);color:var(--on-accent);font-weight:600}
+
+/* Member list */
+.side{flex:none;display:flex;min-height:0;width:0;margin-left:calc(var(--gap)*-1);transition:width var(--out-t) var(--out),margin-left var(--out-t) var(--out)}
+.side.open{width:264px;margin-left:0;transition:width var(--pane-t) var(--pane),margin-left var(--pane-t) var(--pane)}
+.side.open.music{width:340px}
+.panel{flex:1 0 auto;width:100%;min-width:264px;display:flex;flex-direction:column}
+.side.music .panel{min-width:340px}
+.side:not(.open) .panel{visibility:hidden;transition:visibility 0s linear .2s}
+.side.over{position:absolute;top:var(--st);right:var(--gap);bottom:var(--gap);z-index:11;width:264px;max-width:calc(100vw - 16px);margin:0;transform:translateX(calc(100% + var(--gap) + 24px));transition:transform var(--out-t) var(--out),width var(--out-t) var(--out)}
+.side.over.music{width:340px}
+.side.over.open{transform:none;transition:transform var(--pane-t) var(--pane),width var(--pane-t) var(--pane)}
+.side.over .panel{min-width:0}
+.pane{flex:1;min-height:0;display:flex;flex-direction:column;animation:fade .12s ease-out}
+.seg{display:flex;gap:2px;padding:2px;border-radius:10px;background:var(--hover)}
+.app .seg-b{height:28px;padding:0 12px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text2);transition:background .12s,color .12s}
+.app .seg-b.on{background:var(--accent);color:var(--on-accent)}
+.mu{flex:1;min-height:0;padding:12px}
+.mu-art{height:172px;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;color:var(--muted)}
+.mu-art .i{width:48px;height:48px;stroke-width:1.2}
+.mu-t{margin-top:12px;font-size:15px;font-weight:600}
+.mu-a{font-size:12.5px;color:var(--text2)}
+.mu-by{margin-top:2px;font-size:11px;color:var(--muted)}
+.mu-bar{height:4px;margin-top:12px;border-radius:2px;background:var(--selected);overflow:hidden}
+.mu-bar span{display:block;width:34%;height:100%;background:var(--text)}
+.mu-times{display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--muted)}
+.mu-ctl{display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0 12px}
+.q{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 8px;border-radius:10px;transition:background .12s}
+.q:hover{background:var(--hover)}
+.q-ico{width:32px;height:32px;border-radius:8px;background:var(--selected);color:var(--text2);display:grid;place-items:center;flex:none}
+.q-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.q-d{font-size:11px;color:var(--muted)}
+.mem-hd{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px 0 16px;border-bottom:1px solid var(--border)}
+.mem-hd .sp{flex:1}
+.mem-t{font-size:15px;font-weight:600}
+.mem-c{font-size:13px;color:var(--muted)}
+.mem-search{flex:none;margin:8px;height:36px;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:18px;background:var(--hover);color:var(--muted)}
+.mem-search input{flex:1;min-width:0;background:none;border:0;outline:0;font-size:13.5px}
+.mem-search input::placeholder{color:var(--muted)}
+.mem-list{flex:1;min-height:0;padding-bottom:8px}
+.mem{display:flex;align-items:center;gap:10px;min-height:44px;margin:0 8px;padding:4px 8px;border-radius:10px;transition:background .12s}
+.mem:hover{background:var(--hover)}
+.mem.off{opacity:.55}
+.mem-tx{min-width:0;display:flex;flex-direction:column}
+.mem-n{display:flex;align-items:center;gap:4px;font-weight:500;white-space:nowrap}
+.mem-a{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Friends and requests pages */
+.page{flex:1;min-height:0;padding:12px}
+.page-in{max-width:760px;margin:0 auto;animation:fade .1s ease-out}
+.page-in .sec{padding:12px 10px 6px}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.app .tab{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;color:var(--text2);font-size:13px;font-weight:500;transition:background .12s}
+.app .tab:hover{background:var(--hover)}
+.app .tab.on{background:var(--accent);color:var(--on-accent)}
+.tab-c{font-size:11.5px;opacity:.65}
+.person{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 10px;border-radius:12px;background:var(--panel);border:1px solid var(--border);margin-bottom:6px;transition:background .12s}
+.person:hover{background:var(--hover)}
+.person.off .av,.person.off .mem-tx{opacity:.55}
+.person .mem-tx{flex:1}
+.person .mem-n{font-weight:600}
+.acts{display:flex;align-items:center;gap:6px;flex:none}
+.app .act{height:32px;padding:0 14px;border-radius:10px;background:var(--selected);font-size:13px;font-weight:600;transition:background .12s,opacity .12s,transform .08s ease-out}
+.app .act:hover{opacity:.88}
+.app .act.pri{background:var(--accent);color:var(--on-accent)}
+.app .round-act{width:36px;height:36px;border-radius:50%;background:var(--selected);color:var(--text);display:grid;place-items:center;transition:opacity .12s,transform .08s ease-out}
+.app .round-act:hover{opacity:.8}
+.app .act:active,.app .round-act:active,.app .watch:active,.app .home-tile:active,.app .rt:active,.app .disc:active,.app .join-b:active{transform:scale(.97)}
+.req-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:8px}
+.req{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:14px;background:var(--panel);border:1px solid var(--border)}
+.req-top{display:flex;align-items:center;gap:10px}
+.req-who{flex:1;min-width:0;display:flex;flex-direction:column}
+.req-who b{font-weight:600}
+.req-who span{font-size:12px;color:var(--muted)}
+.req-time{font-size:11px;color:var(--muted);flex:none}
+.req-msg{margin:0;padding:8px 12px;border-radius:16px 16px 16px 5px;background:var(--bub-in);border:1px solid var(--border);flex:1}
+.req-acts{display:flex;gap:6px}
+.req-acts .act{flex:1;text-align:center}
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:64px 16px;color:var(--text2);text-align:center}
+.empty .i{width:32px;height:32px;stroke-width:1.4;color:var(--muted)}
+
+/* Menus */
+.catch{position:absolute;inset:0;z-index:20;display:block;width:100%}
+.menu{position:absolute;z-index:21;padding:4px;background:var(--elevated);border:1px solid var(--border);border-radius:10px;box-shadow:var(--menu);animation:menu-in var(--pop-t) var(--pop) both}
+.srv-menu{top:calc(40px + var(--st) + 52px + 6px);left:calc(var(--gap)*2 + var(--rail));width:min(var(--left),288px);transform-origin:top center}
+.me-menu{left:calc(var(--gap)*2 + var(--rail));bottom:calc(var(--gap)*2 + 62px);width:208px;transform-origin:bottom right}
+.app .mi{display:flex;align-items:center;justify-content:space-between;width:100%;height:32px;padding:0 10px;border-radius:6px;font-size:13.5px;transition:background .12s}
+.app .mi:hover{background:var(--selected)}
+.mi-rule{height:1px;margin:4px 6px;background:var(--border)}
+
+/* Window widths, as ShellLayout: the side floats become overlays that still float */
+.l-compact .left,.l-phone .left{position:absolute;top:var(--st);bottom:var(--gap);left:calc(var(--gap)*2 + var(--rail));width:min(var(--left),calc(100vw - var(--rail) - 32px));z-index:11;transform:translateX(-24px);opacity:0;visibility:hidden;transition:transform .12s ease-in,opacity .12s ease-in,visibility 0s linear .12s}
+.l-compact.sb-open .left,.l-phone.sb-open .left{transform:none;opacity:1;visibility:visible;transition:transform var(--pane-t) var(--pane),opacity .1s ease-out}
+.l-compact .splitter,.l-phone .splitter{display:none}
+.l-phone .rail{display:none;position:absolute;top:var(--st);bottom:var(--gap);left:var(--gap);z-index:11}
+.l-phone.sb-open .rail{display:flex}
+.l-phone .dock{gap:6px}
+.l-phone .rt{width:40px;height:40px}
+.l-phone .disc{height:40px;width:40px;padding:0;margin:0;justify-content:center}
+.l-phone .disc span{display:none}
+.l-phone .via{display:none}
+.l-phone .crumb-srv,.l-phone .crumb-sep{display:none}
+
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes cam-in{from{opacity:0;scale:.9}to{opacity:1;scale:1}}
+@keyframes menu-in{from{opacity:0;scale:.97;translate:0 -2px}to{opacity:1;scale:1;translate:0 0}}
+@media (prefers-reduced-motion:reduce){.app,.app *{transition:none !important;animation:none !important}}
+</style>
+</helmet>
+
+<div class="{{rootCls}}" style="--gap: {{gapPx}}; --r: {{radiusPx}}; --left: {{leftPx}}; --main-w: {{mainPx}}; --notch: {{tune.notch}}; --tab-s: {{tune.size}}; --tab-x: {{tune.x}}; --tab-y: {{tune.y}}; --pane: {{motion.pane.easing}}; --pane-t: {{motion.pane.ms}}; --out: {{motion.out.easing}}; --out-t: {{motion.out.ms}}; --pop: {{motion.pop.easing}}; --pop-t: {{motion.pop.ms}}; --tile: {{motion.tile.easing}}; --tile-t: {{motion.tile.ms}}; --move: {{motion.move.easing}}; --move-t: {{motion.move.ms}}">
+
+<svg class="sprite" aria-hidden="true">
+<symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"></path></symbol>
+<symbol id="i-fwd" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"></path></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"></path></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 20 20"></path></symbol>
+<symbol id="i-hash" viewBox="0 0 24 24"><path d="M9.5 4l-2 16M16.5 4l-2 16M4.5 9h16M3.5 15h16"></path></symbol>
+<symbol id="i-mega" viewBox="0 0 24 24"><path d="M4 10v4a1 1 0 0 0 1 1h3l8 4V5L8 9H5a1 1 0 0 0-1 1zM19 9.5a3.5 3.5 0 0 1 0 5M8 15l1 5h2.5l-1-4"></path></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 10v4h3.5L12 18V6l-4.5 4zM15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"></path></symbol>
+<symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></symbol>
+<symbol id="i-micoff" viewBox="0 0 24 24"><path d="M9 9v2a3 3 0 0 0 4.6 2.5M15 10.5V6a3 3 0 0 0-5.7-1.3M5.5 11.5a6.5 6.5 0 0 0 10.4 5.2M18.5 11.5a6.5 6.5 0 0 1-.7 3M12 18v3M4 4l16 16"></path></symbol>
+<symbol id="i-head" viewBox="0 0 24 24"><path d="M4 15v-2a8 8 0 0 1 16 0v2"></path><rect x="3" y="14" width="4.5" height="6.5" rx="1.5"></rect><rect x="16.5" y="14" width="4.5" height="6.5" rx="1.5"></rect></symbol>
+<symbol id="i-headoff" viewBox="0 0 24 24"><path d="M4 15v-2a8 8 0 0 1 1.6-4.8M8.5 5.8A8 8 0 0 1 20 13v2M3 14h3a1.5 1.5 0 0 1 1.5 1.5V19A1.5 1.5 0 0 1 6 20.500H4.500A1.500 1.500 0 0 1 3 19zM16.500 16.500V19a1.500 1.500 0 0 0 1.500 1.500h1.500M3 3l18 18"></path></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></symbol>
+<symbol id="i-end" viewBox="0 0 24 24"><path d="M3 15.500c5-4.700 13-4.700 18 0l-2.400 2.400a1 1 0 0 1-1.300.1l-1.900-1.400a1 1 0 0 1-.4-.8v-1.700a10 10 0 0 0-6 0v1.700a1 1 0 0 1-.4.8l-1.900 1.400a1 1 0 0 1-1.300-.1z"></path></symbol>
+<symbol id="i-cam" viewBox="0 0 24 24"><rect x="3" y="6.500" width="12.500" height="11" rx="2.500"></rect><path d="M15.500 11l5-3v8l-5-3"></path></symbol>
+<symbol id="i-camoff" viewBox="0 0 24 24"><path d="M9 6.500h4a2.500 2.500 0 0 1 2.500 2.500v2.500l5-3.500v8l-1.500-1M15.500 15.500a2.500 2.500 0 0 1-2.500 2H5.500A2.500 2.500 0 0 1 3 15V9a2.500 2.500 0 0 1 1.500-2.300M3 3l18 18"></path></symbol>
+<symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4.500" width="18" height="12.500" rx="2"></rect><path d="M8.500 20.500h7M12 13.500v-5M9.500 11L12 8.500l2.500 2.500"></path></symbol>
+<symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4.500" width="18" height="12.500" rx="2"></rect><path d="M9 20.500h6"></path></symbol>
+<symbol id="i-note" viewBox="0 0 24 24"><circle cx="8" cy="18" r="3"></circle><path d="M11 18V5.500L18.500 4v4L11 9.500"></path></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M5.500 4.500h13a2.500 2.500 0 0 1 2.500 2.500v8a2.500 2.500 0 0 1-2.500 2.500H9l-5.500 3.500V6.500a2 2 0 0 1 2-2zM8 9h8M8 13h5"></path></symbol>
+<symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8.500" r="3.500"></circle><path d="M3 19.500a6 6 0 0 1 12 0M16 5.300a3.500 3.500 0 0 1 0 6.400M17.500 14.300a6 6 0 0 1 3.500 5.200"></path></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6M10 4v6l-3 3.500h10L14 10V4M12 13.500V20"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5.500" r="1.500" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1.500" fill="currentColor" stroke="none"></circle><circle cx="12" cy="18.500" r="1.500" fill="currentColor" stroke="none"></circle></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"></path></symbol>
+<symbol id="i-clip" viewBox="0 0 24 24"><path d="M20 11.500l-8.200 8.200a5 5 0 0 1-7-7l8.500-8.500a3.300 3.300 0 0 1 4.700 4.700l-8.200 8.200a1.700 1.700 0 0 1-2.400-2.400l7.500-7.500"></path></symbol>
+<symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M8.500 14.500a4.500 4.500 0 0 0 7 0M9 9.500v.01M15 9.500v.01"></path></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M4 5l17 7-17 7 2.500-7zM6.500 12H12"></path></symbol>
+<symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 6.500v11M12 4v16M16 7.500v9M20 10.500v3"></path></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4.500l2.300 4.800 5.200.7-3.800 3.600.9 5.200L12 16.300l-4.600 2.500.9-5.200L4.500 10l5.200-.7z"></path></symbol>
+<symbol id="i-sync" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.700-5.600L20 8.500M20 4v4.500h-4.500M20 12a8 8 0 0 1-13.700 5.600L4 15.500M4 20v-4.500h4.500"></path></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.500" width="18" height="13" rx="2"></rect><path d="M3.500 7l8.500 6 8.500-6"></path></symbol>
+<symbol id="i-dcheck" viewBox="0 0 24 24"><path d="M3 12.500L6.500 16l7-8M10.500 15.500l1 1L20 7"></path></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.500L9.500 17 19 7.500"></path></symbol>
+<symbol id="i-wmin" viewBox="0 0 24 24"><path d="M5 12h14"></path></symbol>
+<symbol id="i-wmax" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"></rect></symbol>
+<symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="4.500" width="18" height="15" rx="3"></rect><path d="M15 4.500v15"></path></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.500v13l10.500-6.500z"></path></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5.500v13M15 5.500v13"></path></symbol>
+<symbol id="i-next" viewBox="0 0 24 24"><path d="M6 6v12l9-6zM18 6v12"></path></symbol>
+<symbol id="i-prev" viewBox="0 0 24 24"><path d="M18 6v12l-9-6zM6 6v12"></path></symbol>
+</svg>
+
+<header class="tb">
+  <div class="tb-left">
+    <sc-if value="{{isMac}}" hint-placeholder-val="{{false}}"><span class="lights" aria-hidden="true"><i class="l-r"></i><i class="l-y"></i><i class="l-g"></i></span></sc-if>
+    <button class="ib compact" aria-label="Back" title="{{backTip}}" disabled="{{backOff}}" onClick="{{back}}"><svg class="i i18" aria-hidden="true"><use href="#i-back"></use></svg></button>
+    <button class="ib compact" aria-label="Forward" title="{{fwdTip}}" disabled="{{fwdOff}}" onClick="{{fwd}}"><svg class="i i18" aria-hidden="true"><use href="#i-fwd"></use></svg></button>
+  </div>
+  <div class="crumb">
+    <sc-if value="{{isServer}}" hint-placeholder-val="{{true}}"><span class="crumb-ico">{{crumbIni}}</span></sc-if>
+    <sc-if value="{{isHome}}" hint-placeholder-val="{{false}}"><span class="crumb-ico"><svg class="i" aria-hidden="true"><use href="#i-chat"></use></svg></span></sc-if>
+    <span class="crumb-srv clip">{{crumbSrv}}</span>
+    <span class="crumb-sep">/</span>
+    <sc-if value="{{crumbAv}}" hint-placeholder-val="{{false}}"><span class="{{crumbAv.cls}}">{{crumbAv.ini}}</span></sc-if>
+    <sc-if value="{{crumbIcon}}" hint-placeholder-val="{{true}}"><svg class="i i16" aria-hidden="true"><use href="#{{crumbIcon}}"></use></svg></sc-if>
+    <span class="crumb-ch clip">{{crumbCh}}</span>
+  </div>
+  <div class="tb-right">
+    <sc-if value="{{isLinux}}" hint-placeholder-val="{{true}}">
+      <button class="wl" aria-label="Minimize"><svg class="i i16" aria-hidden="true"><use href="#i-wmin"></use></svg></button>
+      <button class="wl" aria-label="Maximize"><svg class="i i16" aria-hidden="true"><use href="#i-wmax"></use></svg></button>
+      <button class="wl" aria-label="Close"><svg class="i i16" aria-hidden="true"><use href="#i-close"></use></svg></button>
+    </sc-if>
+  </div>
+  <sc-if value="{{isWin}}" hint-placeholder-val="{{false}}">
+    <div class="caption">
+      <button class="wc" aria-label="Minimize"><svg class="i" aria-hidden="true"><use href="#i-wmin"></use></svg></button>
+      <button class="wc" aria-label="Maximize"><svg class="i" aria-hidden="true"><use href="#i-wmax"></use></svg></button>
+      <button class="wc x" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-close"></use></svg></button>
+    </div>
+  </sc-if>
+</header>
+
+<div class="shell">
+
+  <nav class="rail float" aria-label="Servers">
+    <div class="rail-list scroll">
+      <button class="{{privateCls}}" aria-label="Private messages" onClick="{{openPrivate}}" onMouseEnter="{{privateIn}}" onMouseLeave="{{railOut}}" onFocus="{{privateIn}}" onBlur="{{railOut}}"><span class="pip"></span><span class="ico"><svg class="i" aria-hidden="true"><use href="#i-chat"></use></svg><sc-if value="{{privateBadge}}" hint-placeholder-val="{{true}}"><span class="bdg">{{privateBadge}}</span></sc-if></span></button>
+      <div class="rail-rule"></div>
+      <sc-for list="{{servers}}" as="s" hint-placeholder-count="3">
+        <button class="{{s.cls}}" aria-label="{{s.name}}" onClick="{{s.pick}}" onMouseEnter="{{s.hoverIn}}" onMouseLeave="{{railOut}}" onFocus="{{s.hoverIn}}" onBlur="{{railOut}}"><span class="pip"></span><span class="ico">{{s.ini}}<sc-if value="{{s.badge}}" hint-placeholder-val="{{false}}"><span class="bdg">{{s.badge}}</span></sc-if><sc-if value="{{s.syncing}}" hint-placeholder-val="{{false}}"><span class="chip"><svg class="i" aria-hidden="true"><use href="#i-sync"></use></svg></span></sc-if></span></button>
+      </sc-for>
+    </div>
+    <button class="rail-add" aria-label="Add a server" onMouseEnter="{{addIn}}" onMouseLeave="{{railOut}}" onFocus="{{addIn}}" onBlur="{{railOut}}"><svg class="i" aria-hidden="true"><use href="#i-plus"></use></svg></button>
+  </nav>
+
+  <div class="left col">
+    <sc-if value="{{isServer}}" hint-placeholder-val="{{true}}">
+      <button class="srv-head" aria-haspopup="menu" onClick="{{toggleServerMenu}}"><span class="srv-head-tx"><span class="srv-head-n clip">{{headName}}</span><span class="srv-head-s"><sc-if value="{{headSyncing}}" hint-placeholder-val="{{false}}"><svg class="i" aria-hidden="true"><use href="#i-sync"></use></svg></sc-if><sc-if value="{{headLive}}" hint-placeholder-val="{{true}}"><span class="dot"></span></sc-if><span class="clip">{{headStatus}}</span></span></span><svg class="{{headChevCls}}" aria-hidden="true"><use href="#i-down"></use></svg></button>
+    </sc-if>
+    <sc-if value="{{isHome}}" hint-placeholder-val="{{false}}">
+      <div class="srv-head"><span class="srv-head-tx"><span class="srv-head-n clip">Private messages</span><span class="srv-head-s"><span class="dot"></span><span class="clip">{{friendsSub}}</span></span></span></div>
+    </sc-if>
+    <section class="float fill" aria-label="Channels">
+      <sc-if value="{{isServer}}" hint-placeholder-val="{{true}}">
+        <button class="search"><svg class="i i18" aria-hidden="true"><use href="#i-search"></use></svg><span class="sp">Search</span><span class="kbd">Ctrl K</span></button>
+        <div class="scroll" style="flex: 1; min-height: 0; padding-bottom: 8px">
+          <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+            <sc-if value="{{g.label}}" hint-placeholder-val="{{true}}">
+              <div class="cat-row"><button class="cat" onClick="{{g.toggle}}"><svg class="{{g.chevCls}}" aria-hidden="true"><use href="#i-down"></use></svg><span>{{g.label}}</span></button><button class="cat-add" aria-label="Create channel"><svg class="i i16" aria-hidden="true"><use href="#i-plus"></use></svg></button></div>
+            </sc-if>
+            <sc-for list="{{g.channels}}" as="c" hint-placeholder-count="4">
+              <button class="{{c.cls}}" onClick="{{c.pick}}">
+                <span class="glyph"><svg class="i" aria-hidden="true"><use href="#{{c.icon}}"></use></svg><sc-if value="{{c.lock}}" hint-placeholder-val="{{false}}"><span class="lockb"><svg class="i i10" aria-hidden="true"><use href="#i-lock"></use></svg></span></sc-if></span>
+                <span class="ch-tx">
+                  <span class="ch-l1"><span class="ch-name">{{c.id}}</span><span class="ch-time">{{c.time}}</span></span>
+                  <span class="ch-l2"><span class="ch-prev">{{c.preview}}</span><sc-if value="{{c.mention}}" hint-placeholder-val="{{false}}"><span class="bdg">@</span></sc-if><sc-if value="{{c.unread}}" hint-placeholder-val="{{false}}"><span class="bdg">{{c.unread}}</span></sc-if></span>
+                </span>
+              </button>
+            </sc-for>
+            <sc-for list="{{g.voice}}" as="v" hint-placeholder-count="2">
+              <button class="{{v.cls}}" onClick="{{v.pick}}"><svg class="i i18" aria-hidden="true"><use href="#i-speaker"></use></svg><span class="vc-n">{{v.id}}</span><sc-if value="{{v.count}}" hint-placeholder-val="{{false}}"><span class="vc-c">{{v.count}}</span></sc-if></button>
+              <sc-for list="{{v.people}}" as="p" hint-placeholder-count="3">
+                <div class="vp"><span class="{{p.avCls}}">{{p.ini}}</span><span class="vp-n">{{p.name}}</span><sc-if value="{{p.live}}" hint-placeholder-val="{{false}}"><span class="live">LIVE</span></sc-if><sc-if value="{{p.cam}}" hint-placeholder-val="{{false}}"><svg class="i i16" aria-label="Camera on" role="img"><use href="#i-cam"></use></svg></sc-if><sc-if value="{{p.micOff}}" hint-placeholder-val="{{false}}"><svg class="i i16" aria-label="Muted" role="img"><use href="#i-micoff"></use></svg></sc-if><sc-if value="{{p.headOff}}" hint-placeholder-val="{{false}}"><svg class="i i16" aria-label="Deafened" role="img"><use href="#i-headoff"></use></svg></sc-if></div>
+              </sc-for>
+            </sc-for>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{isHome}}" hint-placeholder-val="{{false}}">
+        <div class="scroll" style="flex: 1; min-height: 0; padding: 8px 0">
+          <div class="home-tiles">
+            <button class="{{friendsCls}}" onClick="{{openFriends}}"><span class="ht-top"><span class="ht-ico"><svg class="i" aria-hidden="true"><use href="#i-people"></use></svg></span><sc-if value="{{friendsBadge}}" hint-placeholder-val="{{true}}"><span class="bdg">{{friendsBadge}}</span></sc-if></span><span class="ht-name">Friends</span><span class="ht-sub">{{friendsSub}}</span></button>
+            <button class="{{requestsCls}}" onClick="{{openRequests}}"><span class="ht-top"><span class="ht-ico"><svg class="i" aria-hidden="true"><use href="#i-mail"></use></svg></span><sc-if value="{{requestsBadge}}" hint-placeholder-val="{{true}}"><span class="bdg">{{requestsBadge}}</span></sc-if></span><span class="ht-name">Message requests</span><span class="ht-sub">{{requestsSub}}</span></button>
+          </div>
+          <div class="sec">Direct messages</div>
+          <sc-for list="{{conversations}}" as="d" hint-placeholder-count="2">
+            <button class="{{d.cls}}" onClick="{{d.pick}}"><span class="{{d.avCls}}">{{d.ini}}<span class="{{d.presCls}}"></span></span><span class="clip">{{d.name}}</span></button>
+          </sc-for>
+        </div>
+      </sc-if>
+    </section>
+
+    <div class="{{vwrapCls}}"><div class="vwrap-in">
+      <section class="vcard float" aria-label="Voice connected">
+        <div class="vcard-top">
+          <button class="vcard-link" onClick="{{openVoice}}" title="Open the voice view"><span class="vcard-st"><svg class="i i16" aria-hidden="true"><use href="#i-wave"></use></svg>Voice connected</span><span class="vcard-sub clip">{{voiceWhere}}</span></button>
+          <button class="ib compact" aria-label="Disconnect" title="Disconnect" onClick="{{leaveVoice}}"><svg class="i" aria-hidden="true"><use href="#i-end"></use></svg></button>
+        </div>
+        <div class="vcard-row">
+          <button class="{{camCardCls}}" aria-label="Camera" title="Camera" onClick="{{toggleCam}}"><svg class="i" aria-hidden="true"><use href="#{{camIcon}}"></use></svg></button>
+          <button class="{{shareCardCls}}" aria-label="Screen" title="Screen" onClick="{{toggleShare}}"><svg class="i" aria-hidden="true"><use href="#i-screen"></use></svg></button>
+          <button class="vt" aria-label="Soundboard" title="Soundboard"><svg class="i" aria-hidden="true"><use href="#i-note"></use></svg></button>
+        </div>
+      </section>
+    </div></div>
+
+    <section class="me float" aria-label="You">
+      <button class="me-id" title="Change status"><span class="av av32 sh3">AR<span class="pres"></span></span><span class="me-tx"><span class="me-name">Alex Rivera</span><span class="me-st">Online</span></span></button>
+      <button class="{{micBtnCls}}" aria-label="{{micTip}}" title="{{micTip}}" onClick="{{toggleMute}}"><svg class="i i18" aria-hidden="true"><use href="#{{micIcon}}"></use></svg></button>
+      <button class="caret" aria-label="Input options" title="Input options"><svg class="i" aria-hidden="true"><use href="#i-down"></use></svg></button>
+      <button class="{{headBtnCls}}" aria-label="{{headTip}}" title="{{headTip}}" onClick="{{toggleDeaf}}"><svg class="i i18" aria-hidden="true"><use href="#{{headIcon}}"></use></svg></button>
+      <button class="caret" aria-label="Output options" title="Output options"><svg class="i" aria-hidden="true"><use href="#i-down"></use></svg></button>
+      <button class="ib compact" aria-label="User settings" title="User settings" onClick="{{toggleMeMenu}}"><svg class="i i18" aria-hidden="true"><use href="#i-gear"></use></svg></button>
+    </section>
+  </div>
+
+  <button class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize the channel list" aria-valuenow="{{leftNow}}" aria-valuemin="232" aria-valuemax="420" title="Drag to resize. Double-click to reset." onPointerDown="{{resizeStart}}" onPointerMove="{{resizeMove}}" onPointerUp="{{resizeEnd}}" onPointerCancel="{{resizeEnd}}" onDoubleClick="{{resizeReset}}" onKeyDown="{{resizeKey}}"></button>
+
+  <div class="mid col">
+    <sc-if value="{{isServer}}" hint-placeholder-val="{{true}}">
+      <div class="{{notchCls}}"><span class="notch-line"></span><button class="pane-tab" aria-label="Open the right pane" title="Open the right pane" aria-expanded="{{paneOpenTx}}" onClick="{{openPane}}"><svg class="i" aria-hidden="true"><use href="#i-side"></use></svg></button></div>
+    </sc-if>
+    <main class="main float fill" onMouseMove="{{voiceMove}}" onMouseLeave="{{voiceLeave}}">
+      <header class="hd">
+        <sc-if value="{{showHamburger}}" hint-placeholder-val="{{false}}"><button class="ib" aria-label="Open channels" onClick="{{openSidebar}}" style="margin-left: -8px"><svg class="i" aria-hidden="true"><use href="#i-menu"></use></svg></button></sc-if>
+        <sc-if value="{{dmPeer}}" hint-placeholder-val="{{false}}"><span class="{{dmPeer.avCls}}">{{dmPeer.ini}}<span class="{{dmPeer.presCls}}"></span></span></sc-if>
+        <div class="hd-tx"><div class="hd-title clip">{{headTitle}}</div><sc-if value="{{headSub}}" hint-placeholder-val="{{true}}"><div class="hd-sub clip">{{headSub}}</div></sc-if></div>
+        <div class="hd-acts">
+          <sc-if value="{{isChannel}}" hint-placeholder-val="{{true}}">
+            <button class="ib" aria-label="Search in channel" title="Search in channel"><svg class="i" aria-hidden="true"><use href="#i-search"></use></svg></button>
+            <button class="ib" aria-label="Pinned messages" title="Pinned messages"><svg class="i" aria-hidden="true"><use href="#i-pin"></use></svg></button>
+          </sc-if>
+          <sc-if value="{{isVoiceView}}" hint-placeholder-val="{{false}}">
+            <button class="ib" aria-label="Video layout" title="Video layout"><svg class="i" aria-hidden="true"><use href="#i-cam"></use></svg></button>
+          </sc-if>
+          <sc-if value="{{isServer}}" hint-placeholder-val="{{true}}">
+            <button class="ib" aria-label="More" title="More"><svg class="i" aria-hidden="true"><use href="#i-more"></use></svg></button>
+          </sc-if>
+          <sc-if value="{{dmPeer}}" hint-placeholder-val="{{false}}">
+            <button class="ib" aria-label="Chat key" title="Chat key"><svg class="i" aria-hidden="true"><use href="#i-lock"></use></svg></button>
+            <span class="via">via Opencord Dev<svg class="i i16" aria-hidden="true"><use href="#i-down"></use></svg></span>
+          </sc-if>
+          <sc-if value="{{isFriends}}" hint-placeholder-val="{{false}}">
+            <div class="tabs"><sc-for list="{{friendTabs}}" as="t" hint-placeholder-count="3"><button class="{{t.cls}}" onClick="{{t.pick}}">{{t.label}}<span class="tab-c">{{t.count}}</span></button></sc-for></div>
+          </sc-if>
+        </div>
+        <sc-if value="{{isServer}}" hint-placeholder-val="{{true}}">
+          <div class="{{paneTabCls}}"></div>
+        </sc-if>
+      </header>
+
+      <sc-if value="{{showPin}}" hint-placeholder-val="{{true}}">
+        <div class="pinf"><span class="pinf-bar"></span><div class="pinf-tx"><div class="pinf-a">Pinned message 2 of 2</div><div class="pinf-b clip">Release checklist for M5: 1. Tokens and theme 2. Widget gallery 3. Mock data 4. Shell and shortcuts</div></div><button class="ib compact" aria-label="Hide the pinned message" onClick="{{closePin}}"><svg class="i i18" aria-hidden="true"><use href="#i-close"></use></svg></button></div>
+      </sc-if>
+
+      <sc-if value="{{showMessages}}" hint-placeholder-val="{{true}}">
+        <div class="msgs scroll">
+          <div class="{{msgsCls}}">
+            <sc-if value="{{viaLine}}" hint-placeholder-val="{{false}}"><div class="via-line">{{viaLine}}</div></sc-if>
+            <sc-for list="{{messages}}" as="m" hint-placeholder-count="8">
+              <sc-if value="{{m.isUnread}}" hint-placeholder-val="{{false}}"><div class="unreadline">{{m.text}}</div></sc-if>
+              <sc-if value="{{m.isSys}}" hint-placeholder-val="{{false}}"><div class="sys"><span class="sys-pill"><svg class="i i16" aria-hidden="true"><use href="#i-pin"></use></svg>{{m.text}}</span></div></sc-if>
+              <sc-if value="{{m.isMsg}}" hint-placeholder-val="{{true}}">
+                <div class="{{m.rowCls}}">
+                  <sc-if value="{{m.showAv}}" hint-placeholder-val="{{true}}"><span class="{{m.avCls}}">{{m.ini}}</span></sc-if>
+                  <sc-if value="{{m.gapAv}}" hint-placeholder-val="{{false}}"><span class="av-gap"></span></sc-if>
+                  <div class="{{m.bubCls}}">
+                    <sc-if value="{{m.showName}}" hint-placeholder-val="{{true}}"><div class="who"><b>{{m.name}}</b>{{m.roleTx}}</div></sc-if>
+                    <sc-if value="{{m.reply}}" hint-placeholder-val="{{false}}"><div class="reply"><b>{{m.reply.name}}</b><span class="clip">{{m.reply.x}}</span></div></sc-if>
+                    <sc-if value="{{m.quote}}" hint-placeholder-val="{{false}}"><div class="quote">{{m.quote}}</div></sc-if>
+                    <div class="body"><sc-for list="{{m.parts}}" as="p" hint-placeholder-count="1"><span class="{{p.cls}}">{{p.s}}</span></sc-for><span class="meta">{{m.time}}<sc-if value="{{m.own}}" hint-placeholder-val="{{false}}"><svg class="i" aria-label="Read" role="img"><use href="#i-dcheck"></use></svg></sc-if></span></div>
+                    <sc-if value="{{m.reacts.length}}" hint-placeholder-val="{{false}}"><div class="reacts"><sc-for list="{{m.reacts}}" as="r" hint-placeholder-count="1"><span class="{{r.cls}}">{{r.e}} {{r.n}}</span></sc-for></div></sc-if>
+                  </div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{showStage}}" hint-placeholder-val="{{false}}">
+        <div class="{{stageCls}}">
+          <div class="{{tilesCls}}">
+            <sc-for list="{{tiles}}" as="t" hint-placeholder-count="6">
+              <div class="{{t.cls}}" data-id="{{t.id}}">
+                <button class="tile-hit" aria-label="{{t.tip}}" title="{{t.tip}}" onClick="{{t.focus}}"></button>
+                <sc-if value="{{t.showScreen}}" hint-placeholder-val="{{false}}"><span class="screen" aria-hidden="true"><span class="sl h" style="width: 42%"></span><span class="sl" style="width: 86%"></span><span class="sl" style="width: 74%"></span><span class="sl" style="width: 91%"></span><span class="sl" style="width: 58%"></span><span class="sl" style="width: 80%"></span></span></sc-if>
+                <sc-if value="{{t.isStream}}" hint-placeholder-val="{{false}}"><span class="live tile-live">LIVE</span></sc-if>
+                <sc-if value="{{t.showInvite}}" hint-placeholder-val="{{false}}"><div class="tile-stream"><span>{{t.streamTx}}</span><sc-if value="{{t.watchable}}" hint-placeholder-val="{{true}}"><button class="watch" onClick="{{t.focus}}">Watch</button></sc-if></div></sc-if>
+                <sc-if value="{{t.isCam}}" hint-placeholder-val="{{false}}"><span class="cam-head"></span><span class="cam-body"></span></sc-if>
+                <sc-if value="{{t.isAvatar}}" hint-placeholder-val="{{true}}"><span class="{{t.avCls}}">{{t.ini}}</span></sc-if>
+                <div class="nm"><sc-if value="{{t.isStream}}" hint-placeholder-val="{{false}}"><svg class="i i16" aria-hidden="true"><use href="#i-monitor"></use></svg></sc-if><sc-if value="{{t.micOff}}" hint-placeholder-val="{{false}}"><svg class="i i16" aria-label="Muted" role="img"><use href="#i-micoff"></use></svg></sc-if><span class="clip">{{t.name}}</span></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{showJoin}}" hint-placeholder-val="{{false}}">
+        <div class="stage">
+          <div class="join">
+            <span class="glyph"><svg class="i" aria-hidden="true"><use href="#i-speaker"></use></svg></span>
+            <div class="join-t">{{joinName}}</div>
+            <div class="join-s">{{joinSub}}</div>
+            <button class="join-b" onClick="{{joinVoice}}">Join voice</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isFriends}}" hint-placeholder-val="{{false}}">
+        <div class="page scroll"><div class="page-in">
+          <sc-for list="{{friendSections}}" as="sec" hint-placeholder-count="2">
+            <div class="sec">{{sec.title}}</div>
+            <sc-for list="{{sec.rows}}" as="p" hint-placeholder-count="3">
+              <div class="{{p.cls}}">
+                <span class="{{p.avCls}}">{{p.ini}}<span class="{{p.presCls}}"></span></span>
+                <span class="mem-tx"><span class="mem-n">{{p.name}}</span><span class="mem-a">{{p.note}}</span></span>
+                <div class="acts">
+                  <sc-if value="{{p.isFriend}}" hint-placeholder-val="{{true}}">
+                    <button class="round-act" aria-label="Message {{p.name}}" title="Message" onClick="{{p.message}}"><svg class="i i18" aria-hidden="true"><use href="#i-chat"></use></svg></button>
+                    <button class="round-act" aria-label="More options" title="More options"><svg class="i i18" aria-hidden="true"><use href="#i-more"></use></svg></button>
+                  </sc-if>
+                  <sc-if value="{{p.isIncoming}}" hint-placeholder-val="{{false}}">
+                    <button class="act pri" onClick="{{p.accept}}">Accept</button>
+                    <button class="act" onClick="{{p.decline}}">Decline</button>
+                  </sc-if>
+                  <sc-if value="{{p.isOutgoing}}" hint-placeholder-val="{{false}}"><button class="act" onClick="{{p.cancel}}">Cancel</button></sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </sc-for>
+          <sc-if value="{{friendsEmpty}}" hint-placeholder-val="{{false}}"><div class="empty"><svg class="i" aria-hidden="true"><use href="#i-people"></use></svg><span>{{friendsEmpty}}</span></div></sc-if>
+        </div></div>
+      </sc-if>
+
+      <sc-if value="{{isRequests}}" hint-placeholder-val="{{false}}">
+        <div class="page scroll"><div class="page-in">
+          <div class="req-grid">
+            <sc-for list="{{requestRows}}" as="r" hint-placeholder-count="2">
+              <article class="req">
+                <div class="req-top"><span class="{{r.avCls}}">{{r.ini}}<span class="{{r.presCls}}"></span></span><div class="req-who"><b>{{r.name}}</b><span>via {{r.via}}</span></div><span class="req-time">{{r.t}}</span></div>
+                <p class="req-msg">{{r.x}}</p>
+                <div class="req-acts"><button class="act pri" onClick="{{r.accept}}">Accept</button><button class="act" onClick="{{r.decline}}">Decline</button></div>
+              </article>
+            </sc-for>
+          </div>
+          <sc-if value="{{requestsEmpty}}" hint-placeholder-val="{{false}}"><div class="empty"><svg class="i" aria-hidden="true"><use href="#i-mail"></use></svg><span>No one is waiting for an answer</span></div></sc-if>
+        </div></div>
+      </sc-if>
+
+      <sc-if value="{{showDock}}" hint-placeholder-val="{{false}}">
+        <div class="{{dockCls}}" role="toolbar" aria-label="Voice controls" onMouseEnter="{{dockHold}}" onMouseLeave="{{dockFree}}" onFocus="{{dockHold}}" onBlur="{{dockFree}}">
+          <button class="rt" aria-label="Chat" title="Chat"><svg class="i" aria-hidden="true"><use href="#i-chat"></use></svg></button>
+          <span class="dock-rule"></span>
+          <button class="{{micRoundCls}}" aria-label="{{micTip}}" title="{{micTip}}" onClick="{{toggleMute}}"><svg class="i" aria-hidden="true"><use href="#{{micIcon}}"></use></svg></button>
+          <button class="{{camRoundCls}}" aria-label="Camera" title="Camera" onClick="{{toggleCam}}"><svg class="i" aria-hidden="true"><use href="#{{camIcon}}"></use></svg></button>
+          <button class="{{shareRoundCls}}" aria-label="Share your screen" title="Share your screen" onClick="{{toggleShare}}"><svg class="i" aria-hidden="true"><use href="#i-screen"></use></svg></button>
+          <button class="rt" aria-label="Soundboard" title="Soundboard"><svg class="i" aria-hidden="true"><use href="#i-note"></use></svg></button>
+          <button class="{{headRoundCls}}" aria-label="{{headTip}}" title="{{headTip}}" onClick="{{toggleDeaf}}"><svg class="i" aria-hidden="true"><use href="#{{headIcon}}"></use></svg></button>
+          <button class="disc" aria-label="Disconnect" onClick="{{leaveVoice}}"><svg class="i" aria-hidden="true"><use href="#i-end"></use></svg><span>Disconnect</span></button>
+        </div>
+      </sc-if>
+    </main>
+
+    <sc-if value="{{showComposer}}" hint-placeholder-val="{{true}}">
+      <div class="composer float">
+        <button class="ib" aria-label="Attach a file" title="Attach a file"><svg class="i" aria-hidden="true"><use href="#i-clip"></use></svg></button>
+        <input aria-label="Message" placeholder="Message {{composerTarget}}" value="{{draft}}" onChange="{{onDraft}}" onKeyDown="{{onDraftKey}}">
+        <button class="ib" aria-label="Emoji" title="Emoji"><svg class="i" aria-hidden="true"><use href="#i-smile"></use></svg></button>
+        <sc-if value="{{hasDraft}}" hint-placeholder-val="{{false}}"><button class="ib" aria-label="Send" title="Send" onClick="{{send}}"><svg class="i" aria-hidden="true"><use href="#i-send"></use></svg></button></sc-if>
+        <sc-if value="{{noDraft}}" hint-placeholder-val="{{true}}"><button class="ib" aria-label="Record a voice message" title="Record a voice message"><svg class="i" aria-hidden="true"><use href="#i-mic"></use></svg></button></sc-if>
+      </div>
+    </sc-if>
+
+  </div>
+
+  <sc-if value="{{scrimOn}}" hint-placeholder-val="{{false}}"><button class="scrim" aria-label="Close the panel" onClick="{{closeOverlays}}"></button></sc-if>
+
+  <aside class="{{sideCls}}" aria-label="Side panel">
+    <div class="panel float">
+      <div class="mem-hd">
+        <sc-if value="{{musicOffered}}" hint-placeholder-val="{{false}}"><div class="seg"><button class="{{segPeopleCls}}" onClick="{{selectPeople}}">People</button><button class="{{segMusicCls}}" onClick="{{selectMusic}}">Music</button></div></sc-if>
+        <sc-if value="{{noMusicOffered}}" hint-placeholder-val="{{true}}"><span class="mem-t">Members</span><span class="mem-c">{{memberCount}}</span></sc-if>
+        <span class="sp"></span>
+        <button class="ib compact" aria-label="Close the panel" title="Close" onClick="{{closePanel}}"><svg class="i i18" aria-hidden="true"><use href="#i-close"></use></svg></button>
+      </div>
+      <sc-if value="{{peoplePane}}" hint-placeholder-val="{{true}}">
+        <div class="pane">
+          <label class="mem-search"><svg class="i i18" aria-hidden="true"><use href="#i-search"></use></svg><input aria-label="Search members" placeholder="Search members"></label>
+          <div class="mem-list scroll">
+            <sc-for list="{{memberSections}}" as="sec" hint-placeholder-count="3">
+              <div class="sec">{{sec.title}}</div>
+              <sc-for list="{{sec.rows}}" as="p" hint-placeholder-count="4">
+                <div class="{{p.cls}}"><span class="{{p.avCls}}">{{p.ini}}<span class="{{p.presCls}}"></span></span><span class="mem-tx"><span class="mem-n">{{p.name}}<sc-if value="{{p.owner}}" hint-placeholder-val="{{false}}"><svg class="i i16" aria-label="Owner" role="img" style="color: var(--muted)"><use href="#i-star"></use></svg></sc-if></span><sc-if value="{{p.note}}" hint-placeholder-val="{{false}}"><span class="mem-a">{{p.note}}</span></sc-if></span></div>
+              </sc-for>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{musicPane}}" hint-placeholder-val="{{false}}">
+        <div class="pane">
+          <div class="mu scroll">
+            <div class="mu-art"><svg class="i" aria-hidden="true"><use href="#i-note"></use></svg></div>
+            <div class="mu-t">Track 12</div>
+            <div class="mu-a">Mock Artist</div>
+            <div class="mu-by">Added by Mira Okafor</div>
+            <div class="mu-bar"><span></span></div>
+            <div class="mu-times"><span>1:12</span><span>3:32</span></div>
+            <div class="mu-ctl">
+              <button class="ib" aria-label="Previous" title="Previous"><svg class="i" aria-hidden="true"><use href="#i-prev"></use></svg></button>
+              <button class="{{playCls}}" aria-label="{{playTip}}" title="{{playTip}}" onClick="{{togglePlay}}"><svg class="i" aria-hidden="true"><use href="#{{playIcon}}"></use></svg></button>
+              <button class="ib" aria-label="Next" title="Next"><svg class="i" aria-hidden="true"><use href="#i-next"></use></svg></button>
+            </div>
+            <label class="mem-search" style="margin: 0 0 4px"><svg class="i i18" aria-hidden="true"><use href="#i-search"></use></svg><input aria-label="Search for a song" placeholder="Search, or drop song files here"></label>
+            <div class="sec" style="padding-left: 8px">Up next</div>
+            <sc-for list="{{queue}}" as="q" hint-placeholder-count="4">
+              <div class="q"><span class="q-ico"><svg class="i i16" aria-hidden="true"><use href="#i-note"></use></svg></span><span class="q-tx"><span class="clip">{{q.title}}</span><span class="mem-a">Mock Artist</span></span><span class="q-d">{{q.d}}</span></div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </aside>
+</div>
+
+<div class="{{popCls}}" style="--y: {{popY}}" aria-hidden="true">
+  <div class="pop-n">{{popName}}</div>
+  <sc-if value="{{popSub}}" hint-placeholder-val="{{false}}"><div class="pop-s">{{popSub}}</div></sc-if>
+  <sc-if value="{{popCount}}" hint-placeholder-val="{{false}}">
+    <div class="pop-voice">
+      <div class="pop-stack"><sc-for list="{{popStack}}" as="p" hint-placeholder-count="4"><span class="{{p.avCls}}">{{p.ini}}</span></sc-for><sc-if value="{{popMore}}" hint-placeholder-val="{{false}}"><span class="av av26 pop-more">{{popMore}}</span></sc-if></div>
+      <span class="pop-c"><svg class="i i16" aria-hidden="true"><use href="#i-speaker"></use></svg>{{popCount}}</span>
+    </div>
+  </sc-if>
+</div>
+
+<sc-if value="{{tunerOn}}" hint-placeholder-val="{{true}}">
+  <section class="tuner" aria-label="Pane button controls">
+    <div class="tuner-h"><span>Pane button</span><span class="sp"></span><button class="tuner-reset" onClick="{{tuneReset}}">Reset</button><button class="ib compact" aria-label="Close the controls" title="Close. Reopen from the settings cog." onClick="{{tunerClose}}"><svg class="i i16" aria-hidden="true"><use href="#i-close"></use></svg></button></div>
+    <sc-if value="{{tunerHidden}}" hint-placeholder-val="{{false}}"><button class="tuner-show" onClick="{{closePanel}}">Close the right pane to show the button</button></sc-if>
+    <sc-for list="{{tuneRows}}" as="t" hint-placeholder-count="4">
+      <label class="tuner-row"><span>{{t.label}}</span><input type="range" min="{{t.min}}" max="{{t.max}}" step="1" value="{{t.value}}" onChange="{{t.set}}"><output>{{t.text}}</output></label>
+    </sc-for>
+    <div class="tuner-note">{{tuneNote}}</div>
+  </section>
+</sc-if>
+
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{false}}"><button class="catch" aria-label="Close the menu" onClick="{{closeMenu}}"></button></sc-if>
+
+<sc-if value="{{serverMenuOn}}" hint-placeholder-val="{{false}}">
+  <div class="menu srv-menu" role="menu">
+    <button class="mi" role="menuitem" onClick="{{closeMenu}}">Invite people</button>
+    <button class="mi" role="menuitem" onClick="{{closeMenu}}">Server settings</button>
+    <button class="mi" role="menuitem" onClick="{{closeMenu}}">Create channel</button>
+    <button class="mi" role="menuitem" onClick="{{closeMenu}}">Create category</button>
+    <button class="mi" role="menuitem" onClick="{{closeMenu}}">Notification settings</button>
+    <button class="mi" role="menuitem" onClick="{{closeMenu}}">Copy server address</button>
+    <div class="mi-rule"></div>
+    <button class="mi" role="menuitem" onClick="{{closeMenu}}">Leave server</button>
+  </div>
+</sc-if>
+
+<sc-if value="{{meMenuOn}}" hint-placeholder-val="{{false}}">
+  <div class="menu me-menu" role="menu">
+    <button class="mi" role="menuitem" onClick="{{tunerOpen}}">Pane button controls</button>
+    <div class="mi-rule"></div>
+    <button class="mi" role="menuitemradio" onClick="{{pickDark}}">Dark theme<sc-if value="{{isDark}}" hint-placeholder-val="{{true}}"><svg class="i i16" aria-hidden="true"><use href="#i-check"></use></svg></sc-if></button>
+    <button class="mi" role="menuitemradio" onClick="{{pickLight}}">Light theme<sc-if value="{{isLight}}" hint-placeholder-val="{{false}}"><svg class="i i16" aria-hidden="true"><use href="#i-check"></use></svg></sc-if></button>
+  </div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Look"},"gap":{"editor":"range","min":4,"max":16,"step":2,"unit":"px","default":8,"section":"Float"},"radius":{"editor":"range","min":8,"max":24,"step":2,"unit":"px","default":16,"section":"Float"},"depth":{"editor":"enum","options":["shadow","border"],"default":"shadow","section":"Float"},"speed":{"editor":"range","min":0.6,"max":1.6,"step":0.1,"default":1,"section":"Motion"},"bounce":{"editor":"range","min":0,"max":0.3,"step":0.02,"default":0.1,"section":"Motion"},"titleBar":{"editor":"enum","options":["plain","bar"],"default":"plain","section":"Title bar"},"platform":{"editor":"enum","options":["linux","windows","macos"],"default":"linux","section":"Title bar"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    this.world = this.buildWorld();
+    const start = { k: 'ch', s: 'dev', c: 'general' };
+    this.state = {
+      hist: [start], at: 0, last: { dev: start },
+      voice: { s: 'dev', c: 'General' },
+      muted: false, deaf: false, cam: false, share: false,
+      members: true, drawer: false, sidebar: false, menu: null, mode: 'people',
+      collapsed: {}, pinClosed: false, draft: '', sent: {}, tab: 'online',
+      w: 1280, themePick: null, leftW: null, resizing: false,
+      pop: { id: null, on: false, y: 0, move: false },
+      dockShown: false, focus: null, playing: true,
+      tune: { x: -4, y: 4, size: null, notch: 52 }, tunerOn: false,
+      friends: ['KN', 'MO', 'NK'], incoming: ['JW', 'LF'], outgoing: ['TR'],
+      requests: ['PS', 'GH'], dms: ['KN', 'MO'],
+    };
+    this.onResize = () => this.setState({ w: window.innerWidth });
+    this.panelCache = { memberCount: 0, memberSections: [] };
+    this.voiceWhereCache = '';
+    this.leftNow = 288;
+    this.leftMax = 420;
+  }
+
+  componentDidMount() {
+    window.addEventListener('resize', this.onResize);
+    this.onResize();
+    this.playTiles();
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.onResize);
+    clearTimeout(this.dockTimer);
+    clearTimeout(this.popTimer);
+  }
+
+  componentDidUpdate(prev) {
+    if (prev.theme !== this.props.theme && this.state.themePick) {
+      this.setState({ themePick: null });
+    }
+    this.playTiles();
+    const S = this.state, cur = S.hist[S.at];
+    const here = cur.k === 'vc' && !!S.voice && S.voice.s === cur.s && S.voice.c === cur.c;
+    if (here !== this.wasHere) {
+      this.wasHere = here;
+      if (here) {
+        this.wakeDock();
+      } else {
+        clearTimeout(this.dockTimer);
+        this.dockHeld = false;
+        if (S.dockShown) this.setState({ dockShown: false });
+      }
+    }
+  }
+
+  // The voice controls: up while the cursor moves over the voice page, gone
+  // once it leaves or rests, unless it rests on the controls themselves.
+  wakeDock() {
+    if (!this.state.dockShown) this.setState({ dockShown: true });
+    clearTimeout(this.dockTimer);
+    this.dockTimer = setTimeout(() => {
+      if (!this.dockHeld) this.setState({ dockShown: false });
+    }, 2500);
+  }
+
+  sleepDock() {
+    clearTimeout(this.dockTimer);
+    this.dockHeld = false;
+    if (this.state.dockShown) this.setState({ dockShown: false });
+  }
+
+  railIn(e, id) {
+    clearTimeout(this.popTimer);
+    const root = e.currentTarget.closest('.app').getBoundingClientRect();
+    const r = e.currentTarget.getBoundingClientRect();
+    const was = this.state.pop;
+    this.setState({ pop: { id, on: true, y: Math.round(r.top - root.top + r.height / 2), move: was.on } });
+  }
+
+  railOut() {
+    clearTimeout(this.popTimer);
+    this.popTimer = setTimeout(() => {
+      this.setState({ pop: { ...this.state.pop, on: false, move: false } });
+    }, 90);
+  }
+
+  popVals() {
+    const S = this.state, W = this.world, id = S.pop.id;
+    const base = { popSub: null, popCount: null, popStack: [], popMore: null };
+    if (id === 'add') return { ...base, popName: 'Add a server' };
+    if (id === 'private') {
+      const n = S.incoming.length, m = S.requests.length;
+      return { ...base, popName: 'Private messages', popSub: n + ' friend requests · ' + m + ' message requests' };
+    }
+    const srv = W.servers[id];
+    if (!srv) return { ...base, popName: '' };
+    const people = srv.groups.flatMap((g) => g.voice || []).flatMap((v) => this.peopleIn(id, v.id));
+    return {
+      popName: srv.name,
+      popSub: this.statusOf(srv),
+      popCount: people.length ? people.length + ' in voice' : null,
+      popStack: people.slice(0, 4).map((p) => ({ ini: p.ini, avCls: 'av av26 ' + this.shade(p.ini) })),
+      popMore: people.length > 4 ? '+' + (people.length - 4) : null,
+    };
+  }
+
+  statusOf(srv) {
+    if (srv.status) return srv.status;
+    const total = srv.sections.reduce((n, sec) => n + sec[1].length, 0);
+    const online = srv.sections.reduce((n, sec) => n + sec[1].filter((m) => m[1] !== 'off').length, 0);
+    return online + ' online · ' + total + ' members';
+  }
+
+  setLeft(width) {
+    this.setState({ leftW: Math.max(232, Math.min(this.leftMax, width)) });
+  }
+
+  // A spring by duration and bounce, as SwiftUI and Flutter's
+  // SpringDescription.withDurationAndBounce define it, as a CSS easing.
+  spring(duration, bounce) {
+    const w = (2 * Math.PI) / duration, z = 1 - bounce;
+    const wd = w * Math.sqrt(Math.max(1 - z * z, 0));
+    const at = (t) => (wd < 0.01
+      ? 1 - Math.exp(-w * t) * (1 + w * t)
+      : 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + ((z * w) / wd) * Math.sin(wd * t)));
+    let settle = 0;
+    for (let t = 0; t < 2; t += 0.004) {
+      if (Math.abs(at(t) - 1) > 0.004) settle = t;
+    }
+    const stops = [];
+    for (let i = 0; i < 24; i++) stops.push(+at((settle * i) / 24).toFixed(3));
+    return { easing: 'linear(' + [...stops, 1].join(',') + ')', ms: Math.round(settle * 1000) + 'ms' };
+  }
+
+  // Bounce only on things that arrive; layout moves never overshoot.
+  motionVars(speed, bounce) {
+    const key = speed + '/' + bounce;
+    if (this.motionKey !== key) {
+      this.motionKey = key;
+      this.motionCache = {
+        pane: this.spring(0.28 * speed, 0),
+        out: this.spring(0.2 * speed, 0),
+        pop: this.spring(0.2 * speed, bounce),
+        tile: this.spring(0.3 * speed, bounce * 0.7),
+        move: this.spring(0.3 * speed, 0),
+      };
+    }
+    return this.motionCache;
+  }
+
+  // Tiles spring from where they were to where they are now; a new one
+  // springs in, and a whole stage staggers in when it opens.
+  measureTiles() {
+    const rects = {};
+    document.querySelectorAll('.tile[data-id]').forEach((el) => {
+      rects[el.dataset.id] = el.getBoundingClientRect();
+    });
+    return rects;
+  }
+
+  flip(patch) {
+    this.tileRects = this.measureTiles();
+    this.setState(patch);
+  }
+
+  playTiles() {
+    const els = [...document.querySelectorAll('.tile[data-id]')];
+    const sig = els.map((el) => el.dataset.id + (el.classList.contains('feat') ? '*' : '')).join(',');
+    if (sig === this.tileSig) return;
+    this.tileSig = sig;
+    const before = this.tileRects || {};
+    this.tileRects = null;
+    if (!els.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const style = getComputedStyle(els[0]);
+    const read = (name) => style.getPropertyValue(name).trim();
+    const arrive = { duration: parseFloat(read('--tile-t')), easing: read('--tile') };
+    const timing = { duration: parseFloat(read('--move-t')), easing: read('--move') };
+    els.forEach((el, index) => {
+      const old = before[el.dataset.id];
+      if (!old) {
+        const delay = Math.min(index * 16, 80);
+        el.animate(
+          [{ transform: 'translateY(6px) scale(.97)' }, { transform: 'none' }],
+          { ...arrive, delay, fill: 'backwards' },
+        );
+        el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, delay, easing: 'ease-out', fill: 'backwards' });
+        return;
+      }
+      const now = el.getBoundingClientRect();
+      const dx = old.left - now.left, dy = old.top - now.top;
+      const sx = old.width / now.width, sy = old.height / now.height;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) return;
+      el.animate(
+        [
+          { transformOrigin: '0 0', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ',' + sy + ')' },
+          { transformOrigin: '0 0', transform: 'none' },
+        ],
+        timing,
+      );
+      // A big resize would stretch what is inside: it fades back in instead.
+      if (Math.abs(sx - 1) > 0.05 || Math.abs(sy - 1) > 0.05) {
+        [...el.children].filter((child) => !child.classList.contains('tile-hit')).forEach((child) => {
+          child.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140, delay: 70, easing: 'ease-out', fill: 'backwards' });
+        });
+      }
+    });
+  }
+
+  openDm(ini) {
+    const S = this.state;
+    if (!S.dms.includes(ini)) this.setState({ dms: [...S.dms, ini] });
+    this.go({ k: 'dm', p: ini });
+  }
+
+  buildWorld() {
+    const people = {
+      AR: ['Alex Rivera', 'Maintainer'], KN: ['Kai Nakamura', 'Maintainer'], MO: ['Mira Okafor', 'Maintainer'],
+      JW: ['Jonas Weber', 'Contributor'], LF: ['Lena Fischer', 'Contributor'], PS: ['Priya Shah', 'Contributor'], YT: ['Yuki Tanaka', 'Contributor'],
+      AL: ['Ava Lindqvist', ''], EB: ['Ethan Brooks', ''], TR: ['Tomás Ruiz', ''], NK: ['Noah Kim', ''], OH: ['Omar Haddad', ''], SR: ['Sofia Rossi', ''],
+      GH: ['Greta Hoffmann', 'Organizer'], LB: ['Lukas Braun', 'Organizer'], MN: ['Marta Nowak', 'Speaker'], FS: ['Felix Schulz', ''], ED: ['Elif Demir', ''],
+      PB: ['Paul Becker', ''], HV: ['Hannah Vogel', ''], QQ: ['Quiet Quinn', ''], DM: ['Dan Moreau', ''], IC: ['Inês Costa', ''], UB: ['uptime-bot', ''],
+    };
+    const inGeneral = 'In voice · General', inLate = 'In voice · Late night';
+    const servers = {
+      dev: {
+        name: 'Opencord Dev', ini: 'OD', badge: 1, unread: true,
+        topics: {
+          announcements: 'Releases and milestones', welcome: 'Start here', general: 'Everything Opencord, one message at a time',
+          'dev-core': 'Rust core, protocol and server', 'design-review': 'Mockups, tokens and the widget gallery',
+          help: 'Ask anything about running a server', maintainers: 'Release planning',
+        },
+        groups: [
+          { id: 'info', label: 'Information', channels: [
+            { id: 'announcements', icon: 'i-mega', lock: true, time: '09:19', preview: 'Kai Nakamura: M5 starts today: the desktop app.' },
+            { id: 'welcome', icon: 'i-hash', lock: true, time: '25.09.26', preview: 'Kai Nakamura: Welcome to Opencord Dev!' },
+          ] },
+          { id: 'text', label: 'Text channels', channels: [
+            { id: 'general', icon: 'i-hash', time: '14:23', preview: 'Priya Shah: Thanks @Alex Rivera! Shorter is better.' },
+            { id: 'dev-core', icon: 'i-hash', time: '12:00', preview: 'Kai Nakamura: Yes, and it shows the fingerprint mismatch dialog.', unread: 3 },
+            { id: 'design-review', icon: 'i-hash', time: '11:42', preview: 'Kai Nakamura: Yes, 11 px and one line.', mention: true, unread: 4 },
+            { id: 'help', icon: 'i-hash', time: 'Fri', preview: 'Kai Nakamura: From source for now.' },
+            { id: 'off-topic', icon: 'i-hash', time: 'Fri', preview: 'Tomás Ruiz: Water and regret.' },
+            { id: 'maintainers', icon: 'i-hash', lock: true, time: 'Sat', preview: 'You: Yes, once the settings pages are in.' },
+          ] },
+          { id: 'voice', label: 'Voice', voice: [
+            { id: 'General', people: [
+              { ini: 'MO', speak: true }, { ini: 'TR', live: true }, { ini: 'PS', cam: true }, { ini: 'JW', micOff: true },
+            ] },
+            { id: 'Pairing', people: [] },
+            { id: 'Late night', people: [{ ini: 'KN' }, { ini: 'LF' }, { ini: 'YT' }, { ini: 'AL' }, { ini: 'EB' }] },
+          ] },
+        ],
+        sections: [
+          ['Maintainer', [['AR', 'on', '', true], ['KN', 'on', inLate], ['MO', 'on', inGeneral]]],
+          ['Contributor', [['JW', 'idle', inGeneral], ['LF', 'dnd', inLate], ['PS', 'on', inGeneral], ['YT', 'dnd', inLate]]],
+          ['Online', [['AL', 'idle', inLate], ['EB', 'on', inLate], ['TR', 'on', inGeneral]]],
+          ['Offline', [['NK', 'off', ''], ['OH', 'off', ''], ['SR', 'off', '']]],
+        ],
+      },
+      rust: {
+        name: 'Rust Berlin', ini: 'RB', unread: true,
+        topics: { general: 'Say hi, ask anything' },
+        groups: [
+          { id: 'meetups', label: 'Meetups', channels: [
+            { id: 'announcements', icon: 'i-mega', lock: true, time: 'Tue', preview: 'Greta Hoffmann: Doors open at 18:30 on Thursday.' },
+            { id: 'general', icon: 'i-hash', time: '10:31', preview: 'Lukas Braun: Slides for the async talk are almost done.', unread: 2 },
+            { id: 'jobs', icon: 'i-hash', time: 'Mon', preview: 'Marta Nowak: We are hiring a Rust backend engineer.' },
+            { id: 'show-and-tell', icon: 'i-hash', time: 'Sun', preview: 'Felix Schulz: Wrote a tiny TOTP crate this weekend.' },
+          ] },
+          { id: 'voice', label: 'Voice', voice: [{ id: 'Lounge', people: [{ ini: 'FS' }, { ini: 'ED' }] }] },
+        ],
+        sections: [
+          ['Organizer', [['GH', 'on', ''], ['LB', 'idle', '']]],
+          ['Speaker', [['KN', 'on', ''], ['MN', 'off', '']]],
+          ['Online', [['AR', 'on', ''], ['FS', 'on', 'In voice · Lounge'], ['ED', 'on', 'In voice · Lounge'], ['HV', 'dnd', '']]],
+          ['Offline', [['PB', 'off', ''], ['QQ', 'off', '']]],
+        ],
+      },
+      home: {
+        name: 'Homelab', ini: 'H', syncing: true, status: 'Reconnecting…',
+        topics: {},
+        groups: [
+          { id: 'loose', channels: [
+            { id: 'general', icon: 'i-hash', time: 'Mon', preview: 'Dan Moreau: Router firmware updated.' },
+            { id: 'monitoring', icon: 'i-hash', time: 'Tue', preview: 'uptime-bot: nas-01 is up again' },
+          ], voice: [{ id: 'Garage', people: [] }] },
+        ],
+        sections: [
+          ['Online', [['AR', 'on', '']]],
+          ['Offline', [['DM', 'off', ''], ['IC', 'off', ''], ['UB', 'off', '']]],
+        ],
+      },
+    };
+    const messages = {
+      'dev/announcements': [
+        { w: 'KN', t: 'Yesterday', x: '**Opencord 0.1** is tagged: server, client core and the bridge. Thanks everyone 🎉', react: [['🎉', 4, true]] },
+        { w: 'KN', t: '09:19', x: 'M5 starts today: the desktop app. Follow along in #design-review.' },
+      ],
+      'dev/welcome': [
+        { w: 'KN', t: '25.09.26', x: 'Welcome to **Opencord Dev**! Read #general for the day-to-day, #dev-core for the Rust side and #design-review for the UI.\n\nBe kind, keep it on topic, and ask in #help when you are stuck.' },
+      ],
+      'dev/general': [
+        { w: 'KN', t: '09:01', x: 'Release checklist for M5:\n1. Tokens and theme\n2. Widget gallery\n3. Mock data\n4. Shell and shortcuts' },
+        { sys: 'Kai Nakamura pinned a message' },
+        { w: 'PS', t: '09:55', x: '@Alex Rivera could you look at the invite dialog copy when you have a minute?', ment: true, react: [['👀', 1]] },
+        { w: 'AR', t: '10:13', x: 'On it. The fingerprint note needs to be shorter.', reply: { name: 'Priya Shah', x: '@Alex Rivera could you look at the invite dialog copy when you have a minute?' }, react: [['👍', 2]] },
+        { w: 'MO', t: 'edited 11:06', x: 'Has anyone tried the quick switcher yet? Ctrl K jumps between servers now.' },
+        { w: 'KN', t: '11:24', quote: 'Ctrl K jumps between servers now', x: 'And to members too, with prefix matches first.' },
+        { unread: 'Unread messages' },
+        { w: 'JW', t: '12:18', x: 'Pushed the reconnect fix. `cargo test` is green.', react: [['🎉', 3, true]] },
+        { w: 'YT', t: '12:54', x: 'Could someone look at #design-review later?' },
+        { w: 'EB', t: '13:29', x: 'Meetup details: https://meetup.example/rust-berlin' },
+        { w: 'PS', t: '14:23', x: 'Thanks @Alex Rivera! Shorter is better.', ment: true },
+      ],
+      'dev/dev-core': [
+        { w: 'KN', t: '09:40', x: 'Morning! I pushed the gateway handshake to `pre`. Reviews welcome.' },
+        { w: 'KN', t: '09:41', x: 'It binds the Identify signature to the TLS certificate now, so a relayed login fails.' },
+        { w: 'JW', t: '10:02', x: 'Nice, reading it now. Does resume keep a replay buffer per session?' },
+        { w: 'KN', t: '10:05', x: 'Yes: 1 000 events or 60 seconds, whichever comes first.' },
+        { unread: 'Unread messages' },
+        { w: 'KN', t: '11:30', x: 'The core now reconnects with exponential backoff and tries Resume first.' },
+        { w: 'JW', t: '11:42', x: 'Kicks close with 4010 and stop retrying, right?' },
+        { w: 'PS', t: '11:58', x: 'Should a changed certificate stop retries too?' },
+        { w: 'KN', t: '12:00', x: 'Yes, and it shows the fingerprint mismatch dialog.' },
+      ],
+      'dev/design-review': [
+        { w: 'MO', t: '10:10', x: '**Design review** at 15:00: the new rail and the two-line channel rows.' },
+        { w: 'PS', t: '10:30', x: 'Tokens are final: rail, sidebar, chat, surface, elevated.' },
+        { unread: 'Unread messages' },
+        { w: 'MO', t: '11:02', x: '@Alex Rivera the theme cards need a miniature of each theme. Can you take that?', ment: true },
+        { w: 'KN', t: '11:20', x: 'Mockups are up. Rows have two lines now, with the last message under the name.' },
+        { w: 'KN', t: '11:21', x: 'And everything stays monochrome: presence is a shape, not a color.' },
+        { w: 'YT', t: '11:35', x: 'Love it. Can we keep the server names under the rail icons?' },
+        { w: 'KN', t: '11:42', x: 'Yes, 11 px and one line.' },
+      ],
+      'dev/help': [
+        { w: 'NK', t: 'Fri', x: 'Is there a Docker image yet, or should I build from source?' },
+        { w: 'KN', t: 'Fri', x: 'From source for now. A compose file lands with M7.' },
+      ],
+      'dev/off-topic': [{ w: 'TR', t: 'Fri', x: 'Water and regret.' }],
+      'dev/maintainers': [{ w: 'AR', t: 'Sat', x: 'Yes, once the settings pages are in.' }],
+      'rust/announcements': [
+        { w: 'GH', t: 'Tue', x: 'October meetup: talks on async traits and embedded Rust.' },
+        { w: 'GH', t: 'Tue', x: 'Doors open at 18:30 on Thursday. See you there!' },
+      ],
+      'rust/general': [
+        { w: 'FS', t: '10:12', x: 'Who is bringing the projector cable?' },
+        { unread: 'Unread messages' },
+        { w: 'LB', t: '10:31', x: 'Slides for the async talk are almost done.' },
+      ],
+      'rust/jobs': [{ w: 'MN', t: 'Mon', x: 'We are hiring a Rust backend engineer (hybrid, Kreuzberg).' }],
+      'rust/show-and-tell': [{ w: 'FS', t: 'Sun', x: 'Wrote a tiny TOTP crate this weekend: no_std and 300 lines.' }],
+      'home/general': [{ w: 'DM', t: 'Mon', x: 'Router firmware updated, reboot at midnight.' }],
+      'home/monitoring': [
+        { w: 'UB', t: 'Tue', x: 'nas-01 is down (no reply for 5 minutes)' },
+        { w: 'UB', t: 'Tue', x: 'nas-01 is up again' },
+      ],
+      'dm/MO': [
+        { w: 'MO', t: '14:03', x: 'Did you see the new audio changes?' },
+        { w: 'AR', t: '14:08', x: 'Yes, the new pipeline sounds great.' },
+        { w: 'MO', t: '14:13', x: 'Agreed. Noise suppression is much cleaner now.' },
+        { w: 'AR', t: '14:23', x: 'Going to test screen share next.' },
+        { w: 'MO', t: '14:28', x: 'Sounds good!' },
+      ],
+      'dm/KN': [
+        { w: 'KN', t: '13:45', x: 'Hey Alex, are you working on private messages?' },
+      ],
+      'dm/PS': [
+        { w: 'PS', t: '11:30', x: 'Hi! Do you have a moment to chat about the docs?' },
+      ],
+      'dm/GH': [
+        { w: 'GH', t: '09:30', x: 'Hello! We would love to have you speak at the next Berlin meetup.' },
+      ],
+    };
+    const presence = { KN: 'on', MO: 'on', NK: 'off', JW: 'idle', LF: 'dnd', TR: 'on', PS: 'on', GH: 'on' };
+    const requests = {
+      PS: { via: 'Opencord Dev', t: '11:30', x: 'Hi! Do you have a moment to chat about the docs?' },
+      GH: { via: 'Rust Berlin', t: '09:30', x: 'Hello! We would love to have you speak at the next Berlin meetup.' },
+    };
+    const queue = [
+      { title: 'Track 13', d: '2:41' }, { title: 'Track 14', d: '4:05' },
+      { title: 'Track 15', d: '3:18' }, { title: 'Track 16', d: '2:57' },
+    ];
+    return { people, servers, messages, presence, requests, queue };
+  }
+
+  shade(ini) {
+    let hash = 0;
+    for (const ch of ini) hash = (hash * 31 + ch.charCodeAt(0)) % 997;
+    return 'sh' + (hash % 5);
+  }
+
+  go(entry) {
+    const S = this.state;
+    const close = { menu: null, sidebar: false, drawer: false };
+    if (JSON.stringify(S.hist[S.at]) === JSON.stringify(entry)) {
+      this.setState(close);
+      return;
+    }
+    const hist = [...S.hist.slice(0, S.at + 1), entry];
+    this.setState({ ...close, hist, at: hist.length - 1, draft: '', ...this.remember(entry) });
+  }
+
+  step(delta) {
+    const at = this.state.at + delta;
+    const entry = this.state.hist[at];
+    if (!entry) return;
+    this.setState({ at, menu: null, sidebar: false, draft: '', ...this.remember(entry) });
+  }
+
+  remember(entry) {
+    return entry.s ? { last: { ...this.state.last, [entry.s]: entry } } : { lastHome: entry };
+  }
+
+  label(entry) {
+    if (!entry) return '';
+    const W = this.world;
+    if (entry.k === 'ch') return '#' + entry.c + ' · ' + W.servers[entry.s].name;
+    if (entry.k === 'vc') return entry.c + ' · ' + W.servers[entry.s].name;
+    if (entry.k === 'dm') return W.people[entry.p][0];
+    return entry.k === 'friends' ? 'Friends' : 'Message requests';
+  }
+
+  firstChannel(s) {
+    const group = this.world.servers[s].groups.find((g) => g.channels);
+    return { k: 'ch', s, c: group.channels[0].id === 'announcements' && group.channels[1] ? group.channels[1].id : group.channels[0].id };
+  }
+
+  peopleIn(s, c) {
+    const S = this.state, W = this.world;
+    const channel = W.servers[s].groups.flatMap((g) => g.voice || []).find((v) => v.id === c);
+    const base = channel ? channel.people : [];
+    const joined = S.voice && S.voice.s === s && S.voice.c === c;
+    const me = { ini: 'AR', micOff: S.muted || S.deaf, headOff: S.deaf, cam: S.cam, live: S.share };
+    return (joined ? [...base, me] : base).map((p) => ({ ...p, name: W.people[p.ini][0] }));
+  }
+
+  parts(text) {
+    const re = /(`[^`]+`|\*\*[^*]+\*\*|@[A-Z][^\s@]* [A-Z][^\s!,.]*|#[a-z][a-z-]+|https?:\/\/\S+)/g;
+    return text.split(re).filter(Boolean).map((t) => {
+      if (t[0] === '`') return { s: t.slice(1, -1), cls: 'p-code' };
+      if (t.startsWith('**')) return { s: t.slice(2, -2), cls: 'p-b' };
+      if (t[0] === '@' || t[0] === '#') return { s: t, cls: 'p-ment' };
+      if (t.startsWith('http')) return { s: t, cls: 'p-link' };
+      return { s: t, cls: '' };
+    });
+  }
+
+  messageRows(key, showRoles) {
+    const W = this.world;
+    const raw = [...(W.messages[key] || []), ...(this.state.sent[key] || [])];
+    const same = (a, b) => a && b && a.w && a.w === b.w;
+    return raw.map((m, i) => {
+      if (m.unread) return { isUnread: true, text: m.unread, reacts: [], parts: [] };
+      if (m.sys) return { isSys: true, text: m.sys, reacts: [], parts: [] };
+      const samePrev = same(raw[i - 1], m), sameNext = same(raw[i + 1], m);
+      const own = m.w === 'AR';
+      const [name, role] = W.people[m.w];
+      const groupCls = (samePrev ? ' g-prev' : '') + (sameNext ? ' g-next' : '');
+      return {
+        isMsg: true, own, name, ini: m.w,
+        roleTx: showRoles && role ? ' · ' + role : '',
+        time: m.t, reply: m.reply || null, quote: m.quote || null,
+        rowCls: 'row' + (own ? ' own' : '') + (samePrev ? ' g-prev' : ''),
+        bubCls: 'bub' + (own ? ' own' : '') + (m.ment ? ' ment' : '') + groupCls,
+        avCls: 'av av36 ' + this.shade(m.w),
+        showAv: !own && !sameNext, gapAv: !own && sameNext, showName: !own && !samePrev,
+        parts: this.parts(m.x),
+        reacts: (m.react || []).map(([e, n, mine]) => ({ e, n, cls: 'react' + (mine ? ' mine' : '') })),
+      };
+    });
+  }
+
+  channelGroups(cur, srv) {
+    const S = this.state;
+    return srv.groups.map((g) => {
+      const key = cur.s + '/' + g.id;
+      const open = !S.collapsed[key];
+      const channels = (g.channels || []).filter((c) => open || (cur.k === 'ch' && cur.c === c.id));
+      const voice = (g.voice || []).filter((v) => open || (S.voice && S.voice.s === cur.s && S.voice.c === v.id));
+      return {
+        label: g.label || null,
+        chevCls: 'i i16' + (open ? '' : ' rot'),
+        toggle: () => this.setState({ collapsed: { ...S.collapsed, [key]: open } }),
+        channels: channels.map((c) => {
+          const sel = cur.k === 'ch' && cur.c === c.id;
+          const unread = sel ? 0 : c.unread || 0;
+          return {
+            ...c, unread, mention: !sel && c.mention,
+            cls: 'ch' + (sel ? ' sel' : '') + (unread ? ' unread' : ''),
+            pick: () => this.go({ k: 'ch', s: cur.s, c: c.id }),
+          };
+        }),
+        voice: voice.map((v) => {
+          const people = this.peopleIn(cur.s, v.id);
+          return {
+            id: v.id, count: people.length || null,
+            cls: 'vc' + (cur.k === 'vc' && cur.c === v.id ? ' sel' : ''),
+            pick: () => {
+              this.setState({ voice: { s: cur.s, c: v.id } });
+              this.go({ k: 'vc', s: cur.s, c: v.id });
+            },
+            people: people.map((p) => ({
+              ...p, headOff: !!p.headOff,
+              avCls: 'av av22 ' + this.shade(p.ini) + (p.speak ? ' speak' : ''),
+            })),
+          };
+        }),
+      };
+    });
+  }
+
+  presCls(presence) {
+    return 'pres' + (presence === 'on' ? '' : ' ' + presence);
+  }
+
+  memberRow([ini, presence, note, owner]) {
+    return {
+      ini, note, owner: !!owner, name: this.world.people[ini][0],
+      cls: 'mem' + (presence === 'off' ? ' off' : ''),
+      avCls: 'av av34 ' + this.shade(ini),
+      presCls: this.presCls(presence),
+    };
+  }
+
+  tileRows(people) {
+    const ids = people.flatMap((p) => (p.live ? [p.ini, 'stream:' + p.ini] : [p.ini]));
+    const focus = ids.includes(this.state.focus) ? this.state.focus : null;
+    const act = (id, name) => ({
+      focus: () => this.flip({ focus: focus === id ? null : id }),
+      tip: focus === id ? 'Back to the grid' : 'Focus on ' + name,
+    });
+    const tiles = people.flatMap((p) => {
+      const own = p.ini === 'AR';
+      const streamId = 'stream:' + p.ini;
+      const tile = {
+        ...p, ...act(p.ini, p.name), id: p.ini,
+        isCam: !!p.cam, isAvatar: !p.cam, isStream: false, showInvite: false, showScreen: false, micOff: !!p.micOff,
+        cls: 'tile' + (p.speak ? ' speak' : '') + (focus === p.ini ? ' feat' : ''),
+        avCls: 'av av72 ' + this.shade(p.ini),
+      };
+      const stream = {
+        ...act(streamId, p.name), id: streamId,
+        name: p.name, isStream: true, watchable: !own, isCam: false, isAvatar: false, micOff: false,
+        showScreen: focus === streamId, showInvite: focus !== streamId,
+        streamTx: own ? 'You are live' : p.name + ' is live',
+        cls: 'tile stream' + (focus === streamId ? ' feat' : ''),
+      };
+      return p.live ? [tile, stream] : [tile];
+    });
+    return { tiles, focus };
+  }
+
+  renderVals() {
+    const S = this.state, W = this.world, P = this.props;
+    const cur = S.hist[S.at];
+    const isServer = cur.k === 'ch' || cur.k === 'vc';
+    const isDm = cur.k === 'dm';
+    const srv = isServer ? W.servers[cur.s] : null;
+    const w = S.w;
+    const layout = w >= 1180 ? 'wide' : w >= 980 ? 'medium' : w >= 760 ? 'narrow' : w >= 560 ? 'compact' : 'phone';
+    const membersInline = w >= 1180, sidebarInline = w >= 760;
+    const panelOpen = isServer && (membersInline ? S.members : S.drawer);
+    const musicOffered = isServer && !!S.voice && S.voice.s === cur.s;
+    const musicPane = musicOffered && S.mode === 'music';
+    const theme = S.themePick || P.theme || 'dark';
+    const platform = P.platform || 'linux';
+    const titleBar = P.titleBar || 'plain';
+    const depth = P.depth || 'shadow';
+    const closeMenu = () => this.setState({ menu: null });
+    const voiceHere = cur.k === 'vc' && S.voice && S.voice.s === cur.s && S.voice.c === cur.c;
+    const round = (on) => 'rt' + (on ? ' on' : '');
+
+    const closePanel = () => this.setState(membersInline ? { members: false } : { drawer: false });
+    const showPanel = (mode) => this.setState({ mode, ...(membersInline ? { members: true } : { drawer: true }) });
+    const send = () => {
+      const text = S.draft.trim();
+      if (!text) return;
+      const now = new Date().toTimeString().slice(0, 5);
+      const key = cur.k === 'dm' ? 'dm/' + cur.p : cur.s + '/' + cur.c;
+      const list = [...(S.sent[key] || []), { w: 'AR', t: now, x: text }];
+      this.setState({ draft: '', sent: { ...S.sent, [key]: list } });
+    };
+
+    const presLabel = { on: 'Online', idle: 'Idle', dnd: 'Do not disturb', off: 'Offline' };
+    let headTitle = '', headSub = null, dmPeer = null, msgKey = null, composerTarget = '', showRoles = false;
+    let crumbIcon = null, crumbAv = null;
+    if (cur.k === 'ch') {
+      const sections = srv.sections;
+      const total = sections.reduce((n, sec) => n + sec[1].length, 0);
+      const online = sections.reduce((n, sec) => n + sec[1].filter((m) => m[1] !== 'off').length, 0);
+      const topic = srv.topics[cur.c];
+      headTitle = '#' + cur.c;
+      headSub = total + ' members, ' + online + ' online' + (topic ? ' · ' + topic : '');
+      msgKey = cur.s + '/' + cur.c;
+      composerTarget = '#' + cur.c;
+      showRoles = true;
+      crumbIcon = srv.groups.flatMap((g) => g.channels || []).find((c) => c.id === cur.c).icon;
+    } else if (cur.k === 'vc') {
+      const n = this.peopleIn(cur.s, cur.c).length;
+      headTitle = cur.c;
+      headSub = n + ' connected';
+      crumbIcon = 'i-speaker';
+    } else if (isDm) {
+      const ini = cur.p;
+      headTitle = W.people[ini][0];
+      headSub = presLabel[W.presence[ini]];
+      dmPeer = { ini, avCls: 'av av36 ' + this.shade(ini), presCls: this.presCls(W.presence[ini]) };
+      msgKey = 'dm/' + ini;
+      composerTarget = headTitle;
+      crumbAv = { ini, cls: 'av av20 ' + this.shade(ini) };
+    } else if (cur.k === 'friends') {
+      headTitle = 'Friends';
+      crumbIcon = 'i-people';
+    } else {
+      headTitle = 'Message requests';
+      headSub = S.requests.length ? 'They wrote first. Nothing reaches your chats until you accept.' : null;
+      crumbIcon = 'i-mail';
+    }
+
+    const friendRow = (ini) => {
+      const presence = W.presence[ini];
+      return {
+        ini, name: W.people[ini][0], note: presLabel[presence],
+        cls: 'person' + (presence === 'off' ? ' off' : ''),
+        avCls: 'av av40 ' + this.shade(ini),
+        presCls: this.presCls(presence),
+        isFriend: true, isIncoming: false, isOutgoing: false,
+        message: () => this.openDm(ini),
+      };
+    };
+    const onlineFriends = S.friends.filter((ini) => W.presence[ini] !== 'off');
+    const offlineFriends = S.friends.filter((ini) => W.presence[ini] === 'off');
+    const without = (list, ini) => list.filter((other) => other !== ini);
+    const incomingRows = S.incoming.map((ini) => ({
+      ...friendRow(ini), note: 'Wants to be your friend', isFriend: false, isIncoming: true,
+      accept: () => this.setState({ incoming: without(S.incoming, ini), friends: [...S.friends, ini] }),
+      decline: () => this.setState({ incoming: without(S.incoming, ini) }),
+    }));
+    const outgoingRows = S.outgoing.map((ini) => ({
+      ...friendRow(ini), note: 'Friend request sent', isFriend: false, isOutgoing: true,
+      cancel: () => this.setState({ outgoing: without(S.outgoing, ini) }),
+    }));
+    const section = (title, rows) => (rows.length ? [{ title: title + ' — ' + rows.length, rows }] : []);
+    const friendSections = S.tab === 'pending'
+      ? [...section('Incoming', incomingRows), ...section('Sent', outgoingRows)]
+      : [
+          ...section('Online', onlineFriends.map(friendRow)),
+          ...(S.tab === 'all' ? section('Offline', offlineFriends.map(friendRow)) : []),
+        ];
+    const friendsEmpty = friendSections.length
+      ? null
+      : S.tab === 'pending' ? 'No friend requests waiting' : 'None of your friends are online';
+    const requestRows = S.requests.map((ini) => ({
+      ...W.requests[ini], ini, name: W.people[ini][0],
+      avCls: 'av av40 ' + this.shade(ini), presCls: this.presCls(W.presence[ini]),
+      accept: () => {
+        this.setState({ requests: without(S.requests, ini) });
+        this.openDm(ini);
+      },
+      decline: () => this.setState({ requests: without(S.requests, ini) }),
+    }));
+    const pendingCount = S.incoming.length + S.outgoing.length;
+
+    const voicePeople = cur.k === 'vc' ? this.peopleIn(cur.s, cur.c) : [];
+    const stage = voiceHere ? this.tileRows(voicePeople) : { tiles: [], focus: null };
+    if (srv) {
+      this.panelCache = {
+        memberCount: srv.sections.reduce((n, sec) => n + sec[1].length, 0),
+        memberSections: [
+          ...(voicePeople.length ? [{ title: 'In this voice channel — ' + voicePeople.length, rows: voicePeople.map((p) => this.memberRow([p.ini, 'on', '', p.ini === 'AR' && cur.s === 'dev'])) }] : []),
+          ...srv.sections.map(([title, rows]) => ({ title: title + ' — ' + rows.length, rows: rows.map((r) => this.memberRow(r)) })),
+        ],
+      };
+    }
+    if (S.voice) this.voiceWhereCache = S.voice.c + ' / ' + W.servers[S.voice.s].name;
+    const sidebarOpen = !sidebarInline && S.sidebar;
+    const showPin = cur.k === 'ch' && cur.s === 'dev' && cur.c === 'general' && !S.pinClosed;
+
+    const gap = P.gap ?? 8;
+    const sideW = panelOpen && membersInline ? (musicPane ? 340 : 264) : 0;
+    this.leftMax = Math.max(232, Math.min(420, w - 62 - gap * 4 - sideW - 380));
+    this.leftNow = Math.min(this.leftMax, Math.max(232, S.leftW ?? (layout === 'narrow' ? 264 : 288)));
+    // Chat and tiles take the width they will end at, once, so only the
+    // panel's frame moves and text never rewraps during a pane's animation.
+    const railPart = layout === 'phone' ? 0 : 62 + gap;
+    const leftPart = sidebarInline ? this.leftNow + gap : 0;
+    const sidePart = sideW ? sideW + gap : 0;
+    const mainInner = Math.max(240, w - gap * 2 - railPart - leftPart - sidePart - 2);
+    const tabSize = S.tune.size ?? 52 - gap;
+    const setTune = (key) => (e) => this.setState({ tune: { ...S.tune, [key]: Number(e.target.value) } });
+    const signed = (n) => (n > 0 ? '+' : '') + n + ' px';
+    const tabOffset = S.tune.y + tabSize / 2 - 26.5;
+
+    return {
+      ...this.popVals(),
+      popCls: 'rail-pop' + (S.pop.on ? ' on' : '') + (S.pop.move ? ' move' : ''),
+      popY: S.pop.y + 'px',
+      privateIn: (e) => this.railIn(e, 'private'),
+      addIn: (e) => this.railIn(e, 'add'),
+      railOut: () => this.railOut(),
+
+      rootCls: ['app', theme, 'depth-' + depth, 'tb-' + titleBar, 'l-' + layout, sidebarOpen ? 'sb-open' : '', S.resizing ? 'resizing' : ''].join(' '),
+      motion: this.motionVars(P.speed ?? 1, P.bounce ?? 0.1),
+      tune: { x: S.tune.x + 'px', y: S.tune.y + 'px', size: tabSize + 'px', notch: S.tune.notch + 'px' },
+      tunerOn: isServer && S.tunerOn,
+      tunerHidden: panelOpen,
+      tunerClose: () => this.setState({ tunerOn: false }),
+      tunerOpen: () => this.setState({ tunerOn: true, menu: null }),
+      tuneReset: () => this.setState({ tune: { x: -4, y: 4, size: null, notch: 52 } }),
+      tuneRows: [
+        { label: 'Left / right', min: -16, max: 16, value: S.tune.x, text: signed(S.tune.x), set: setTune('x') },
+        { label: 'Up / down', min: -16, max: 16, value: S.tune.y, text: signed(S.tune.y), set: setTune('y') },
+        { label: 'Button size', min: 28, max: 60, value: tabSize, text: tabSize + ' px', set: setTune('size') },
+        { label: 'Notch size', min: 40, max: 72, value: S.tune.notch, text: S.tune.notch + ' px', set: setTune('notch') },
+      ],
+      tuneNote: tabOffset === 0
+        ? 'Icon is level with the header icons'
+        : 'Icon is ' + Math.abs(tabOffset) + ' px ' + (tabOffset < 0 ? 'above' : 'below') + ' the header icons',
+      mainPx: mainInner + 'px',
+      gapPx: gap + 'px',
+      radiusPx: (P.radius ?? 16) + 'px',
+      leftPx: this.leftNow + 'px',
+      leftNow: this.leftNow,
+      resizeStart: (e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        this.drag = { x: e.clientX, w: this.leftNow };
+        this.setState({ resizing: true });
+      },
+      resizeMove: (e) => {
+        if (this.drag) this.setLeft(this.drag.w + e.clientX - this.drag.x);
+      },
+      resizeEnd: () => {
+        this.drag = null;
+        this.setState({ resizing: false });
+      },
+      resizeReset: () => this.setState({ leftW: null }),
+      resizeKey: (e) => {
+        if (e.key === 'ArrowLeft') this.setLeft(this.leftNow - 16);
+        else if (e.key === 'ArrowRight') this.setLeft(this.leftNow + 16);
+        else if (e.key === 'Home') this.setState({ leftW: null });
+      },
+
+      isMac: platform === 'macos', isWin: platform === 'windows', isLinux: platform === 'linux',
+      backOff: S.at === 0, fwdOff: S.at === S.hist.length - 1,
+      backTip: S.at > 0 ? 'Back to ' + this.label(S.hist[S.at - 1]) : 'Back',
+      fwdTip: S.at < S.hist.length - 1 ? 'Forward to ' + this.label(S.hist[S.at + 1]) : 'Forward',
+      back: () => this.step(-1), fwd: () => this.step(1),
+      crumbIni: srv ? srv.ini : '',
+      crumbSrv: srv ? srv.name : 'Private messages',
+      crumbCh: headTitle.replace(/^#/, ''),
+      crumbIcon, crumbAv,
+      headName: srv ? srv.name : '',
+      headStatus: srv ? this.statusOf(srv) : '',
+      headSyncing: !!(srv && srv.syncing), headLive: !(srv && srv.syncing),
+      headChevCls: 'i i18 head-chev' + (S.menu === 'server' ? ' up' : ''),
+      toggleServerMenu: () => this.setState({ menu: S.menu === 'server' ? null : 'server' }),
+
+      privateCls: 'srv' + (isServer ? '' : ' sel'),
+      privateBadge: S.incoming.length + S.requests.length || null,
+      openPrivate: () => this.go(S.lastHome || { k: 'dm', p: 'MO' }),
+      servers: Object.entries(W.servers).map(([id, s]) => ({
+        name: s.name, ini: s.ini, syncing: !!s.syncing, badge: s.badge || null,
+        cls: 'srv' + (cur.s === id ? ' sel' : '') + (s.unread ? ' unread' : ''),
+        pick: () => this.go(S.last[id] || this.firstChannel(id)),
+        hoverIn: (e) => this.railIn(e, id),
+      })),
+
+      isServer, isHome: !isServer,
+      groups: srv ? this.channelGroups(cur, srv) : [],
+      friendsCls: 'home-tile' + (cur.k === 'friends' ? ' sel' : ''),
+      requestsCls: 'home-tile' + (cur.k === 'requests' ? ' sel' : ''),
+      friendsBadge: S.incoming.length || null,
+      friendsSub: onlineFriends.length + ' online',
+      requestsBadge: S.requests.length || null,
+      requestsSub: S.requests.length ? S.requests.length + ' waiting' : 'All answered',
+      openFriends: () => this.go({ k: 'friends' }),
+      openRequests: () => this.go({ k: 'requests' }),
+      conversations: S.dms.map((ini) => ({
+        name: W.people[ini][0], ini,
+        cls: 'nav-row' + (isDm && cur.p === ini ? ' sel' : ''),
+        avCls: 'av av32 ' + this.shade(ini),
+        presCls: this.presCls(W.presence[ini]),
+        pick: () => this.go({ k: 'dm', p: ini }),
+      })),
+
+      vwrapCls: 'vwrap' + (S.voice ? ' on' : ''),
+      voiceWhere: this.voiceWhereCache,
+      openVoice: () => {
+        if (S.voice) this.go({ k: 'vc', s: S.voice.s, c: S.voice.c });
+      },
+      leaveVoice: () => this.setState({ voice: null, cam: false, share: false, focus: null }),
+      joinVoice: () => this.setState({ voice: { s: cur.s, c: cur.c } }),
+      camIcon: S.cam ? 'i-cam' : 'i-camoff',
+      camCardCls: 'vt' + (S.cam ? ' on' : ''), shareCardCls: 'vt' + (S.share ? ' on' : ''),
+      camRoundCls: round(S.cam), shareRoundCls: round(S.share),
+      toggleCam: () => this.flip({ cam: !S.cam }),
+      toggleShare: () => this.flip({ share: !S.share }),
+
+      micIcon: S.muted || S.deaf ? 'i-micoff' : 'i-mic',
+      headIcon: S.deaf ? 'i-headoff' : 'i-head',
+      micTip: S.muted ? 'Unmute' : 'Mute', headTip: S.deaf ? 'Undeafen' : 'Deafen',
+      micBtnCls: 'ib compact' + (S.muted || S.deaf ? ' on' : ''),
+      headBtnCls: 'ib compact' + (S.deaf ? ' on' : ''),
+      micRoundCls: round(S.muted || S.deaf), headRoundCls: round(S.deaf),
+      toggleMute: () => this.setState({ muted: !S.muted }),
+      toggleDeaf: () => this.setState({ deaf: !S.deaf }),
+      toggleMeMenu: () => this.setState({ menu: S.menu === 'me' ? null : 'me' }),
+
+      showHamburger: !sidebarInline,
+      openSidebar: () => this.setState({ sidebar: true }),
+      dmPeer, headTitle, headSub,
+      isChannel: cur.k === 'ch', isVoiceView: cur.k === 'vc',
+      paneTabCls: 'tab-wrap' + (panelOpen ? ' off' : ''),
+      notchCls: 'notch' + (panelOpen ? ' off' : ''),
+      paneOpenTx: panelOpen ? 'true' : 'false',
+      openPane: () => showPanel(S.mode),
+
+      showPin, closePin: () => this.setState({ pinClosed: true }),
+      showMessages: !!msgKey,
+      msgsCls: 'msgs-in' + (showPin ? ' pinned' : ''),
+      viaLine: isDm ? 'Opencord Dev' : null,
+      messages: msgKey ? this.messageRows(msgKey, showRoles) : [],
+
+      showStage: voiceHere,
+      stageCls: 'stage scroll' + (stage.focus ? ' focus' : ''),
+      tilesCls: 'tiles' + (stage.tiles.length < 3 ? ' few' : '') + (stage.focus ? ' focus' : ''),
+      tiles: stage.tiles,
+      voiceMove: voiceHere ? () => this.wakeDock() : undefined,
+      voiceLeave: voiceHere ? () => this.sleepDock() : undefined,
+      dockCls: 'dock float' + (S.dockShown ? '' : ' hidden'),
+      dockHold: () => {
+        this.dockHeld = true;
+        this.wakeDock();
+      },
+      dockFree: () => {
+        this.dockHeld = false;
+        this.wakeDock();
+      },
+      showJoin: cur.k === 'vc' && !voiceHere,
+      joinName: cur.k === 'vc' ? cur.c : '',
+      joinSub: voicePeople.length ? voicePeople.length + ' connected' : 'No one is here yet',
+
+      isFriends: cur.k === 'friends',
+      isRequests: cur.k === 'requests',
+      friendSections, friendsEmpty,
+      requestRows,
+      requestsEmpty: S.requests.length === 0,
+      friendTabs: [['online', 'Online', onlineFriends.length], ['all', 'All', S.friends.length], ['pending', 'Pending', pendingCount]].map(([id, label, count]) => ({
+        label, count,
+        cls: 'tab' + (S.tab === id ? ' on' : ''),
+        pick: () => this.setState({ tab: id }),
+      })),
+
+      showComposer: !!msgKey,
+      composerTarget,
+      draft: S.draft,
+      hasDraft: S.draft.trim().length > 0, noDraft: S.draft.trim().length === 0,
+      onDraft: (e) => this.setState({ draft: e.target.value }),
+      send,
+      onDraftKey: (e) => {
+        if (e.key === 'Enter') send();
+      },
+
+      showDock: voiceHere,
+
+      sideCls: 'side' + (panelOpen ? ' open' : '') + (musicPane ? ' music' : '') + (membersInline ? '' : ' over'),
+      closePanel,
+      musicOffered, noMusicOffered: !musicOffered,
+      segPeopleCls: 'seg-b' + (musicPane ? '' : ' on'),
+      segMusicCls: 'seg-b' + (musicPane ? ' on' : ''),
+      selectPeople: () => showPanel('people'),
+      selectMusic: () => showPanel('music'),
+      peoplePane: !musicPane, musicPane,
+      memberCount: this.panelCache.memberCount,
+      memberSections: this.panelCache.memberSections,
+      playCls: 'rt' + (S.playing ? ' on' : ''),
+      playIcon: S.playing ? 'i-pause' : 'i-play',
+      playTip: S.playing ? 'Pause' : 'Play',
+      togglePlay: () => this.setState({ playing: !S.playing }),
+      queue: W.queue,
+
+      scrimOn: sidebarOpen || (isServer && !membersInline && S.drawer),
+      closeOverlays: () => this.setState({ sidebar: false, drawer: false }),
+
+      menuOpen: !!S.menu, closeMenu,
+      serverMenuOn: S.menu === 'server' && isServer,
+      meMenuOn: S.menu === 'me',
+      isDark: theme === 'dark', isLight: theme === 'light',
+      pickDark: () => this.setState({ themePick: 'dark', menu: null }),
+      pickLight: () => this.setState({ themePick: 'light', menu: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

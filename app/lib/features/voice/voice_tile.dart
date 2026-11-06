@@ -1,22 +1,25 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:opencord/core/model/sound.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/features/soundboard/soundboard_ring.dart';
 
+import 'package:opencord/ui/motion/flip_box.dart';
+import 'package:opencord/ui/motion/oc_spring.dart';
+import 'package:opencord/ui/motion/spring_value.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
-import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
-/// One tile of the voice view (§4.10): someone, or the screen they share.
-/// It fills the size its parent gives it, which is 16:9.
+/// One tile of the voice view (§5.14): someone, or the screen they share.
+/// It fills the size its parent gives it, which is 16:10 in the grid.
 class VoiceTileView extends StatelessWidget {
   const VoiceTileView({
     super.key,
@@ -89,6 +92,12 @@ class VoiceTileView extends StatelessWidget {
   final int? viewers;
   final VoidCallback? onViewers;
 
+  static const double _avatar = 72, _smallAvatar = 36, _liveInset = 10;
+
+  /// The prototype's 72 stands on its shortest tile, 119.7 inside its border
+  /// at 1280; only a tile shorter than that gets a smaller one.
+  static const double _avatarOfHeight = 0.61;
+
   String get _semanticLabel => [
     screen ? "$name's screen, live" : name,
     if (screen && mutedHere) 'sound muted by you',
@@ -115,7 +124,7 @@ class VoiceTileView extends StatelessWidget {
         child: Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: screen ? colors.rail : colors.surface,
+            color: screen ? colors.chat : colors.surface,
             borderRadius: radius,
             border: Border.all(color: colors.border),
           ),
@@ -126,103 +135,96 @@ class VoiceTileView extends StatelessWidget {
                   border: Border.all(color: colors.text, width: 2),
                 )
               : null,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (screen)
-                if (video case final feed? when feed.textureId != null)
-                  // Shared text stays whole: fitted, never cropped.
-                  VideoFeedView(feed: feed, fit: BoxFit.contain)
-                else if (onWatch case final watch?)
-                  _WatchPrompt(name: name, small: small, onWatch: watch)
+          // The tile's frame scales on the way; this comes back after.
+          child: FlipBoxContents(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (screen)
+                  if (video case final feed? when feed.textureId != null)
+                    // Shared text stays whole: fitted, never cropped.
+                    VideoFeedView(feed: feed, fit: BoxFit.contain)
+                  else if (onWatch case final watch?)
+                    _WatchPrompt(name: name, small: small, onWatch: watch)
+                  else if (!small)
+                    const ScreenFeed()
+                  else
+                    const SizedBox.shrink()
+                else if (video case final feed? when feed.textureId != null)
+                  VideoFeedView(
+                    feed: feed,
+                    fit: focused ? BoxFit.contain : BoxFit.cover,
+                  )
+                else if (camera)
+                  const _CameraSilhouette()
                 else
-                  const ScreenFeed()
-              else if (video case final feed? when feed.textureId != null)
-                VideoFeedView(feed: feed)
-              else if (camera)
-                CustomPaint(painter: _CameraFeed(colors))
-              else
-                // At most 72 px, and never into the name pill on small tiles.
-                LayoutBuilder(
-                  builder: (context, constraints) => Center(
-                    child: OcAvatar(
-                      id: '$userId',
-                      name: name,
-                      image: picture,
-                      size: small
-                          ? 36
-                          : math.min(72, constraints.maxHeight * 0.5),
-                    ),
-                  ),
-                ),
-              Positioned(
-                left: small ? OcSpace.s4 : OcSpace.s8,
-                right: small ? OcSpace.s4 : 56,
-                bottom: small ? OcSpace.s4 : OcSpace.s8,
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: _NamePill(
-                    name: name,
-                    icon: screen
-                        ? (mutedHere ? OcIcons.volumeOff : OcIcons.monitor)
-                        : deafened
-                        ? OcIcons.headsetOff
-                        : muted
-                        ? OcIcons.micOff
-                        : mutedHere
-                        ? OcIcons.volumeOff
-                        : null,
-                    small: small,
-                  ),
-                ),
-              ),
-              Positioned(
-                top: small ? OcSpace.s4 : OcSpace.s8,
-                right: small ? OcSpace.s4 : OcSpace.s8,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!small)
-                      AnimatedOpacity(
-                        opacity: state.active ? 1 : 0,
-                        duration: OcMotion.of(context).hover,
-                        child: _CornerIcon(
-                          icon: focused
-                              ? OcIcons.closeFullscreen
-                              : OcIcons.openInFull,
-                        ),
+                  LayoutBuilder(
+                    builder: (context, constraints) => Center(
+                      child: OcAvatar(
+                        id: '$userId',
+                        name: name,
+                        image: picture,
+                        size: small
+                            ? _smallAvatar
+                            : math.min(
+                                _avatar,
+                                constraints.maxHeight * _avatarOfHeight,
+                              ),
                       ),
-                    if (screen) ...[
-                      const SizedBox(width: OcSpace.s6),
-                      _LivePill(small: small),
-                    ],
-                  ],
-                ),
-              ),
-              if (viewers case final count? when !small)
+                    ),
+                  ),
                 Positioned(
-                  top: OcSpace.s8,
-                  left: OcSpace.s8,
-                  child: _ViewersPill(count: count, onTap: onViewers),
-                ),
-              if (playing?.emoji case final emoji?)
-                Positioned(
-                  top: small ? OcSpace.s4 : OcSpace.s8,
                   left: small ? OcSpace.s4 : OcSpace.s8,
-                  child: ExcludeSemantics(
-                    child: Text(
-                      emoji,
-                      style: TextStyle(fontSize: small ? 14 : 20),
+                  right: small ? OcSpace.s4 : OcSpace.s8,
+                  bottom: small ? OcSpace.s4 : OcSpace.s8,
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: _NamePill(
+                      name: name,
+                      icon: screen
+                          ? (mutedHere ? OcIcons.volumeOff : OcIcons.monitor)
+                          : deafened
+                          ? OcIcons.headsetOff
+                          : muted
+                          ? OcIcons.micOff
+                          : mutedHere
+                          ? OcIcons.volumeOff
+                          : null,
+                      small: small,
                     ),
                   ),
                 ),
-              if (onStopWatching case final stop? when focused)
-                Positioned(
-                  right: OcSpace.s8,
-                  bottom: OcSpace.s8,
-                  child: OcButton(label: 'Stop watching', onPressed: stop),
-                ),
-            ],
+                if (screen && !small)
+                  const Positioned(
+                    top: _liveInset,
+                    right: _liveInset,
+                    child: _LivePill(),
+                  ),
+                if (viewers case final count? when !small)
+                  Positioned(
+                    top: OcSpace.s8,
+                    left: OcSpace.s8,
+                    child: _ViewersPill(count: count, onTap: onViewers),
+                  ),
+                if (playing?.emoji case final emoji?)
+                  Positioned(
+                    top: small ? OcSpace.s4 : OcSpace.s8,
+                    left: small ? OcSpace.s4 : OcSpace.s8,
+                    child: ExcludeSemantics(
+                      child: Text(
+                        emoji,
+                        style: TextStyle(fontSize: small ? 14 : 20),
+                      ),
+                    ),
+                  ),
+                if (onStopWatching case final stop? when focused)
+                  Positioned(
+                    right: OcSpace.s8,
+                    bottom: OcSpace.s8,
+                    child: OcButton(label: 'Stop watching', onPressed: stop),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -270,31 +272,38 @@ class _NamePill extends StatelessWidget {
   final IconData? icon;
   final bool small;
 
+  static const double _fontSize = 12.5, _padding = 3, _icon = 16;
+
+  /// How tall it is at the user's text size, when not [small].
+  static double heightFor(TextScaler scaler) =>
+      2 * _padding +
+      math.max(_icon, scaler.scale(_fontSize) * OcText.small.height!);
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: small ? OcSpace.s6 : OcSpace.s8,
-        vertical: small ? 2 : OcSpace.s4,
+        horizontal: small ? 6 : 9,
+        vertical: small ? 1 : _padding,
       ),
       decoration: BoxDecoration(
-        color: colors.elevated.withValues(alpha: 0.9),
+        color: colors.sidebar,
         borderRadius: BorderRadius.circular(OcRadius.reaction),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: 5,
         children: [
-          if (icon case final icon?) ...[
-            Icon(icon, size: small ? 12 : 14, color: colors.text),
-            const SizedBox(width: OcSpace.s4),
-          ],
+          if (icon case final icon?)
+            Icon(icon, size: _icon, color: colors.text),
           Flexible(
             child: Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: (small ? OcText.meta : OcText.small).copyWith(
+              style: OcText.small.copyWith(
+                fontSize: small ? 11 : _fontSize,
                 fontWeight: FontWeight.w600,
                 color: colors.text,
               ),
@@ -318,24 +327,61 @@ class _WatchPrompt extends StatelessWidget {
   final bool small;
   final VoidCallback onWatch;
 
+  /// The words, the gap and the button. A tile shorter than this says nothing:
+  /// a click on it opens it large, with the prompt.
+  static const double _needs = 58, _button = 32;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    if (small) {
-      return Center(child: Icon(OcIcons.monitor, color: colors.textMuted));
-    }
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$name is live',
-            style: OcText.bodyStrong.copyWith(color: colors.text),
+    final scaler = MediaQuery.textScalerOf(context);
+    final words = OcText.bodyStrong;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight;
+        if (small || height < _needs) return const SizedBox.shrink();
+        // Centred on the tile, but kept between the LIVE mark and the name
+        // pill: with large text, the words go before anything overlaps.
+        final top = VoiceTileView._liveInset + _LivePill.heightFor(scaler);
+        final bottom = height - OcSpace.s8 - _NamePill.heightFor(scaler);
+        final full =
+            scaler.scale(words.fontSize!) * words.height! +
+            OcSpace.s8 +
+            _button;
+        final withWords = full <= bottom - top;
+        final used = withWords ? full : _button;
+        final y = math.min((height - used) / 2, bottom - used);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            OcSpace.s8,
+            math.max(0, y),
+            OcSpace.s8,
+            0,
           ),
-          const SizedBox(height: OcSpace.s8),
-          OcButton.primary(label: 'Watch', onPressed: onWatch),
-        ],
-      ),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: OcSpace.s8,
+              children: [
+                if (withWords)
+                  Text(
+                    '$name is live',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: words.copyWith(color: colors.text),
+                  ),
+                OcButton.primary(
+                  label: 'Watch',
+                  height: _button,
+                  pressedScale: 0.97,
+                  onPressed: onWatch,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -386,26 +432,31 @@ class _ViewersPill extends StatelessWidget {
 
 /// The inverted LIVE mark of a screenshare tile.
 class _LivePill extends StatelessWidget {
-  const _LivePill({this.small = false});
+  const _LivePill();
 
-  final bool small;
+  static const double _fontSize = 10.5, _padding = 1;
+
+  /// How tall it is at the user's text size.
+  static double heightFor(TextScaler scaler) =>
+      2 * _padding + scaler.scale(_fontSize) * OcText.label.height!;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: small ? OcSpace.s4 : OcSpace.s6,
-        vertical: 2,
+      padding: const EdgeInsets.symmetric(
+        horizontal: OcSpace.s6,
+        vertical: _padding,
       ),
       decoration: BoxDecoration(
         color: colors.accent,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
         'LIVE',
         style: OcText.label.copyWith(
-          fontSize: small ? 9 : 10.5,
+          fontSize: _fontSize,
+          letterSpacing: 0.4,
           color: colors.onAccent,
         ),
       ),
@@ -413,66 +464,97 @@ class _LivePill extends StatelessWidget {
   }
 }
 
-class _CornerIcon extends StatelessWidget {
-  const _CornerIcon({required this.icon});
-
-  final IconData icon;
+/// A camera on with no video to draw yet: a head and shoulders, which pop in
+/// (§4.2).
+class _CameraSilhouette extends StatefulWidget {
+  const _CameraSilhouette();
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.oc;
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        color: colors.elevated.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(icon, size: 16, color: colors.text),
-    );
-  }
+  State<_CameraSilhouette> createState() => _CameraSilhouetteState();
 }
 
-/// A stand-in for camera video until Phase 2: a head and shoulders.
-class _CameraFeed extends CustomPainter {
-  _CameraFeed(this.colors);
+class _CameraSilhouetteState extends State<_CameraSilhouette> {
+  bool _shown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _shown = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => SpringValue.listenable(
+    target: _shown ? 1 : 0,
+    spring: OcSpring.pop,
+    builder: (context, shown, _) =>
+        CustomPaint(painter: _SilhouettePainter(context.oc, shown)),
+  );
+}
+
+class _SilhouettePainter extends CustomPainter {
+  _SilhouettePainter(this.colors, this.shown) : super(repaint: shown);
+
+  /// From the prototype's `cam-in`.
+  static const _startScale = 0.9;
 
   final OcColors colors;
+  final ValueListenable<double> shown;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [colors.hover, colors.rail],
-        ).createShader(rect),
+    final value = shown.value;
+    final paint = Paint()
+      ..color = colors.avatarShades[1].withValues(
+        alpha: value.clamp(0, 1).toDouble(),
+      );
+    final scale = _startScale + (1 - _startScale) * value;
+    final head = size.width * 0.22;
+    final bodyWidth = size.width * 0.44;
+    final bodyHeight = size.height * 0.32;
+    final corner = Radius.elliptical(bodyWidth * 0.4, bodyHeight * 0.4);
+    final body = Rect.fromLTWH(
+      (size.width - bodyWidth) / 2,
+      size.height + 4 - bodyHeight,
+      bodyWidth,
+      bodyHeight,
     );
-    final figure = Paint()..color = colors.textMuted.withValues(alpha: 0.35);
-    final unit = size.height;
-    canvas.drawCircle(Offset(size.width / 2, unit * 0.42), unit * 0.16, figure);
-    canvas.drawRRect(
-      RRect.fromRectAndCorners(
-        Rect.fromCenter(
-          center: Offset(size.width / 2, unit * 0.92),
-          width: unit * 0.78,
-          height: unit * 0.5,
+    canvas
+      ..drawOval(
+        _scaled(
+          Rect.fromLTWH(
+            (size.width - head) / 2,
+            size.height * 0.22,
+            head,
+            head,
+          ),
+          scale,
         ),
-        topLeft: Radius.circular(unit * 0.22),
-        topRight: Radius.circular(unit * 0.22),
-      ),
-      figure,
-    );
+        paint,
+      )
+      ..drawRRect(
+        RRect.fromRectAndCorners(
+          _scaled(body, scale),
+          topLeft: corner,
+          topRight: corner,
+        ),
+        paint,
+      );
   }
 
+  static Rect _scaled(Rect rect, double scale) => Rect.fromCenter(
+    center: rect.center,
+    width: rect.width * scale,
+    height: rect.height * scale,
+  );
+
   @override
-  bool shouldRepaint(_CameraFeed oldDelegate) => oldDelegate.colors != colors;
+  bool shouldRepaint(_SilhouettePainter oldDelegate) =>
+      oldDelegate.colors != colors || oldDelegate.shown != shown;
 }
 
-/// A stand-in for a shared screen until Phase 2: a window with lines.
+/// A stand-in for a shared screen with no video to draw: lines of text.
 class ScreenFeed extends StatelessWidget {
   const ScreenFeed({super.key});
 
@@ -484,46 +566,37 @@ class ScreenFeed extends StatelessWidget {
 class _ScreenPainter extends CustomPainter {
   _ScreenPainter(this.colors);
 
+  // From the prototype's `.screen` and `.sl`.
+  static const _top = 48.0, _side = 0.08, _gap = 12.0;
+  static const _titleHeight = 18.0, _titleWidth = 0.42, _titleBelow = 8.0;
+  static const _lineHeight = 10.0, _radius = Radius.circular(5);
+  static const _lines = [0.86, 0.74, 0.91, 0.58, 0.8];
+
   final OcColors colors;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final window = Rect.fromLTWH(
-      size.width * 0.1,
-      size.height * 0.12,
-      size.width * 0.8,
-      size.height * 0.76,
-    );
-    final corner = Radius.circular(size.height * 0.03);
+    canvas.drawRect(Offset.zero & size, Paint()..color = colors.sidebar);
+    final left = size.width * _side;
+    final width = size.width - 2 * left;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(window, corner),
-      Paint()..color = colors.surface,
-    );
-    final bar = window.height * 0.1;
-    canvas.drawRRect(
-      RRect.fromRectAndCorners(
-        Rect.fromLTWH(window.left, window.top, window.width, bar),
-        topLeft: corner,
-        topRight: corner,
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, _top, width * _titleWidth, _titleHeight),
+        _radius,
       ),
-      Paint()..color = colors.hover,
+      Paint()..color = colors.avatarShades[2],
     );
     final line = Paint()..color = colors.selected;
-    final lineHeight = window.height * 0.05;
-    for (final (index, width) in [0.62, 0.48, 0.7, 0.36, 0.55].indexed) {
-      final top = window.top + bar * 1.8 + index * lineHeight * 2.1;
+    var top = _top + _titleHeight + _titleBelow + _gap;
+    for (final share in _lines) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            window.left + window.width * 0.06,
-            top,
-            window.width * width,
-            lineHeight,
-          ),
-          Radius.circular(lineHeight / 2),
+          Rect.fromLTWH(left, top, width * share, _lineHeight),
+          _radius,
         ),
         line,
       );
+      top += _lineHeight + _gap;
     }
   }
 

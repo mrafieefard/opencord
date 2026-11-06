@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
@@ -260,5 +261,110 @@ void main() {
       lessThan(120),
     );
     expect(tester.getSize(find.byKey(const Key('wide'))).width, 500);
+  });
+
+  testWidgets('badge_is_18_tall', (tester) async {
+    await pumpThemed(
+      tester,
+      const Column(children: [UnreadBadge(count: 1), MentionBadge()]),
+    );
+
+    final unread = tester.widget<Container>(
+      find.descendant(
+        of: find.byType(UnreadBadge),
+        matching: find.byType(Container),
+      ),
+    );
+    expect(tester.getSize(find.byType(UnreadBadge)).height, 18);
+    expect(unread.constraints?.minWidth, 18);
+    expect(unread.padding, const EdgeInsets.symmetric(horizontal: 5));
+
+    final unreadText = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(UnreadBadge),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(unreadText.style?.fontSize, 11);
+    expect(unreadText.style?.fontWeight, FontWeight.w600);
+
+    final mention = tester.widget<Container>(
+      find.descendant(
+        of: find.byType(MentionBadge),
+        matching: find.byType(Container),
+      ),
+    );
+    expect(tester.getSize(find.byType(MentionBadge)).height, 18);
+    expect(mention.constraints?.minWidth, 18);
+    expect(mention.padding, const EdgeInsets.symmetric(horizontal: 5));
+    expect(
+      (mention.decoration! as BoxDecoration).borderRadius,
+      BorderRadius.circular(9),
+    );
+
+    // In a row, as everywhere it's used: the "@" and its padding, not a circle.
+    await pumpThemed(tester, const Row(children: [MentionBadge()]));
+    expect(tester.getSize(find.byType(MentionBadge)).width, closeTo(21, 1));
+    final mentionText = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(MentionBadge),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(mentionText.style?.fontSize, 11);
+    expect(mentionText.style?.fontWeight, FontWeight.w600);
+  });
+
+  testWidgets('initials_follow_the_spec', (tester) async {
+    final sizes = <double, double>{
+      20.0: 8.0,
+      22.0: 8.5,
+      26.0: 9.5,
+      32.0: 12.0,
+      34.0: 12.0,
+      36.0: 12.5,
+      40.0: 13.5,
+      72.0: 24.0,
+      // Not one of the design's: the line through them.
+      28.0: 0.31 * 28 + 1.7,
+    };
+    for (final MapEntry(key: size, value: fontSize) in sizes.entries) {
+      await pumpThemed(tester, OcAvatar(id: 'u1', name: 'Kai', size: size));
+      final text = tester.widget<Text>(
+        find.descendant(of: find.byType(OcAvatar), matching: find.byType(Text)),
+      );
+      expect(text.style?.fontSize, fontSize);
+      expect(text.style?.fontWeight, FontWeight.w600);
+    }
+  });
+
+  testWidgets('presence_ring_is_two', (tester) async {
+    expect(PresenceBadge.ring, 2.0);
+    await pumpThemed(
+      tester,
+      const OcAvatar(id: 'u1', name: 'Kai', presence: Presence.online),
+    );
+    final avatar = tester.getRect(find.byType(OcAvatar));
+    final badge = tester.getRect(find.byType(PresenceBadge));
+    // The disc, inside its ring, reaches 2 past the avatar (`.pres`).
+    final disc = badge.deflate(PresenceBadge.ring);
+    expect(disc.width, 12);
+    expect(disc.right, avatar.right + 2);
+    expect(disc.bottom, avatar.bottom + 2);
+  });
+
+  testWidgets('disabled_button_uses_the_given_colour', (tester) async {
+    const disabled = Color(0xFF556677);
+    await pumpThemed(
+      tester,
+      const OcIconButton(
+        icon: Icons.star,
+        tooltip: 'Star',
+        onPressed: null,
+        disabledColor: disabled,
+      ),
+    );
+    final icon = tester.widget<Icon>(find.byType(Icon));
+    expect(icon.color, disabled);
   });
 }

@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
-import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/key_hint.dart';
@@ -61,21 +60,33 @@ Future<void> showOcMenu({
   required BuildContext context,
   required Offset position,
   required List<OcMenuEntry> entries,
+  double? width,
+  Key? key,
 }) async {
-  final action = await _openMenu(context, entries, _MenuLayout.at(position));
+  final action = await _openMenu(
+    context,
+    entries,
+    _MenuLayout.at(position),
+    trigger: position,
+    width: width,
+    key: key,
+  );
   action?.call();
 }
 
 Future<VoidCallback?> _openMenu(
   BuildContext context,
   List<OcMenuEntry> entries,
-  _MenuLayout layout,
-) {
+  _MenuLayout layout, {
+  required Offset trigger,
+  double? width,
+  Key? key,
+}) {
   return pushPopup<VoidCallback>(
     context,
-    duration: OcMotion.of(context).menu,
     layout: layout,
-    builder: (context) => OcMenuPanel(entries: entries),
+    trigger: trigger,
+    builder: (context) => OcMenuPanel(key: key, entries: entries, width: width),
   );
 }
 
@@ -129,13 +140,32 @@ class _MenuLayout extends SingleChildLayoutDelegate {
 /// The menu surface. Arrow keys move between items; Enter chooses; Escape
 /// or Left (in a submenu) closes.
 class OcMenuPanel extends StatelessWidget {
-  const OcMenuPanel({super.key, required this.entries});
+  const OcMenuPanel({super.key, required this.entries, this.width});
 
   final List<OcMenuEntry> entries;
+  final double? width;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final entry in entries)
+          switch (entry) {
+            OcMenuItem() => _MenuItemTile(item: entry),
+            OcMenuDivider() => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: SizedBox(
+                height: 1,
+                child: ColoredBox(color: colors.border),
+              ),
+            ),
+            OcMenuCustom(:final builder) => Builder(builder: builder),
+          },
+      ],
+    );
     return Shortcuts(
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.arrowDown): NextFocusIntent(),
@@ -145,26 +175,12 @@ class OcMenuPanel extends StatelessWidget {
       child: FocusScope(
         autofocus: true,
         child: Container(
-          constraints: const BoxConstraints(minWidth: 190, maxWidth: 300),
+          constraints: width != null
+              ? BoxConstraints.tightFor(width: width!)
+              : const BoxConstraints(minWidth: 190, maxWidth: 300),
           padding: const EdgeInsets.all(_MenuItemTile.panelPadding),
           decoration: popupDecoration(colors),
-          child: IntrinsicWidth(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final entry in entries)
-                  switch (entry) {
-                    OcMenuItem() => _MenuItemTile(item: entry),
-                    OcMenuDivider() => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Divider(height: 1, color: colors.border),
-                    ),
-                    OcMenuCustom(:final builder) => Builder(builder: builder),
-                  },
-              ],
-            ),
-          ),
+          child: width != null ? content : IntrinsicWidth(child: content),
         ),
       ),
     );
@@ -184,10 +200,12 @@ class _MenuItemTile extends StatelessWidget {
       Navigator.pop(context, item.onSelected);
       return;
     }
+    final rect = globalRectOf(context);
     final chosen = await _openMenu(
       context,
       submenu,
-      _MenuLayout.beside(globalRectOf(context)),
+      _MenuLayout.beside(rect),
+      trigger: rect.center,
     );
     if (chosen != null && context.mounted) Navigator.pop(context, chosen);
   }
@@ -232,7 +250,7 @@ class _MenuItemTile extends StatelessWidget {
                 item.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: OcText.body.copyWith(color: foreground),
+                style: OcText.body.copyWith(fontSize: 13.5, color: foreground),
               ),
             ),
             if (item.shortcut != null) ...[

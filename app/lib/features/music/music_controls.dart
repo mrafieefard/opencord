@@ -10,7 +10,6 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/music/music_access.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
-import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
@@ -83,6 +82,7 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
         ? 'This track can’t be seeked'
         : access.why(Permissions.musicControl);
     final style = OcText.meta.copyWith(
+      fontSize: 11,
       color: colors.textMuted,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
@@ -92,13 +92,21 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
     final slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
         trackHeight: 4,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+        trackShape: const _MusicSliderTrackShape(),
+        thumbShape: _dragging == null
+            ? const RoundSliderThumbShape(
+                enabledThumbRadius: 0,
+                disabledThumbRadius: 0,
+              )
+            : const RoundSliderThumbShape(enabledThumbRadius: 6),
+        overlayShape: _dragging == null
+            ? SliderComponentShape.noOverlay
+            : const RoundSliderOverlayShape(overlayRadius: 12),
         activeTrackColor: colors.text,
-        inactiveTrackColor: colors.border,
+        inactiveTrackColor: colors.selected,
         thumbColor: colors.text,
         disabledActiveTrackColor: colors.textSecondary,
-        disabledInactiveTrackColor: colors.border,
+        disabledInactiveTrackColor: colors.selected,
         disabledThumbColor: Colors.transparent,
       ),
       child: Slider(
@@ -130,16 +138,13 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
             : null,
       ),
     );
+    // The bar is 4 tall, but the pointer gets 20 around it: 8 over the gap
+    // above and 8 over the 4 below and the top of the times.
     return RepaintBoundary(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
         children: [
-          SizedBox(
-            height: 24,
-            child: why == null ? slider : Tooltip(message: why, child: slider),
-          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),
+            padding: const EdgeInsets.only(top: 16),
             child: Row(
               children: [
                 Text(formatTrackTime(shown), style: style),
@@ -155,8 +160,60 @@ class _MusicProgressState extends ConsumerState<MusicProgress> {
               ],
             ),
           ),
+          SizedBox(
+            height: 20,
+            child: why == null ? slider : Tooltip(message: why, child: slider),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _MusicSliderTrackShape extends RoundedRectSliderTrackShape {
+  const _MusicSliderTrackShape();
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final trackHeight = sliderTheme.trackHeight ?? 4.0;
+    final trackLeft = offset.dx;
+    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 0,
+  }) {
+    super.paint(
+      context,
+      offset,
+      parentBox: parentBox,
+      sliderTheme: sliderTheme,
+      enableAnimation: enableAnimation,
+      textDirection: textDirection,
+      thumbCenter: thumbCenter,
+      secondaryOffset: secondaryOffset,
+      isDiscrete: isDiscrete,
+      isEnabled: isEnabled,
+      additionalActiveTrackHeight: 0,
     );
   }
 }
@@ -205,7 +262,7 @@ class MusicTransport extends ConsumerWidget {
                 )
               : null,
         ),
-        const SizedBox(width: OcSpace.s8),
+        const SizedBox(width: 10),
         _TransportButton(
           icon: OcIcons.skipPrevious,
           tooltip: why ?? 'Previous',
@@ -220,7 +277,7 @@ class MusicTransport extends ConsumerWidget {
                 )
               : null,
         ),
-        const SizedBox(width: OcSpace.s12),
+        const SizedBox(width: 10),
         _PlayButton(
           playing: playing,
           tooltip: why ?? (playing ? 'Pause' : 'Play'),
@@ -231,7 +288,7 @@ class MusicTransport extends ConsumerWidget {
                 )
               : null,
         ),
-        const SizedBox(width: OcSpace.s12),
+        const SizedBox(width: 10),
         () {
           final canDirectSkip =
               item != null && access.canSkip(item.requesterId);
@@ -281,7 +338,7 @@ class MusicTransport extends ConsumerWidget {
             onPressed: nextOnPressed,
           );
         }(),
-        const SizedBox(width: OcSpace.s8),
+        const SizedBox(width: 10),
         _ModeButton(
           icon: repeat == MusicRepeat.track
               ? OcIcons.repeatOne
@@ -309,7 +366,7 @@ class MusicTransport extends ConsumerWidget {
   }
 }
 
-/// 44 px, inverted (§19.4).
+/// 48 px, inverted while playing (§5.13).
 class _PlayButton extends StatelessWidget {
   const _PlayButton({
     required this.playing,
@@ -331,23 +388,26 @@ class _PlayButton extends StatelessWidget {
       child: Hoverable(
         onTap: onPressed,
         semanticLabel: playing ? 'Pause' : 'Play',
-        focusRadius: BorderRadius.circular(22),
+        focusRadius: BorderRadius.circular(24),
         builder: (context, state) => AnimatedContainer(
           duration: OcMotion.of(context).hover,
-          width: 44,
-          height: 44,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: enabled
-                ? state.active
-                      ? colors.textSecondary
-                      : colors.accent
-                : colors.hover,
+                ? playing
+                      ? (state.active ? colors.textSecondary : colors.accent)
+                      : (state.active ? colors.hover : colors.surface)
+                : colors.surface,
+            border: playing ? null : Border.all(color: colors.border),
           ),
           child: Icon(
             playing ? OcIcons.pause : OcIcons.playArrow,
             size: 26,
-            color: enabled ? colors.onAccent : colors.textMuted,
+            color: enabled
+                ? (playing ? colors.onAccent : colors.text)
+                : colors.textMuted,
           ),
         ),
       ),

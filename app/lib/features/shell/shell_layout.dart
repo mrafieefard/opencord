@@ -1,6 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:opencord/ui/theme/oc_metrics.dart';
 
-/// The responsive rules of §3 for desktop window widths.
+/// The responsive rules of §2.2 for desktop window widths.
 enum ShellLayout {
   /// ≥ 1180 px: all four columns.
   wide,
@@ -25,6 +27,15 @@ enum ShellLayout {
   double get sidebarWidth => this == wide || this == medium
       ? OcSize.sidebarWidth
       : OcSize.sidebarNarrowWidth;
+
+  /// Width of the left column drawer when in compact mode (§5.18).
+  double leftDrawerWidth(double windowWidth) => math.min(
+    OcSize.sidebarWidth,
+    math.max(
+      OcFloats.leftMin,
+      windowWidth - OcFloats.rail - OcFloats.gap * 4 - 380,
+    ),
+  );
 
   bool get sidebarInline => this != compact;
 

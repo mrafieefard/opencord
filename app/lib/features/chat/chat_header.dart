@@ -11,9 +11,10 @@ import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
-import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
-import 'package:opencord/features/window/header_bar.dart';
+import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/features/shell/side_slot.dart';
+import 'package:opencord/ui/widgets/panel_header.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -31,15 +32,8 @@ class ChatHeader extends ConsumerWidget {
   const ChatHeader({
     super.key,
     required this.channel,
-    this.memberToggle = true,
-    required this.membersShown,
-    required this.onToggleMembers,
-    this.musicShown = false,
-    this.onSelectMusic,
     required this.onJumpTo,
     this.onOpenSidebar,
-    this.leadingControls = false,
-    this.trailingControls = false,
     this.voiceChatAlone = false,
   });
 
@@ -49,17 +43,12 @@ class ChatHeader extends ConsumerWidget {
   /// A voice channel's chat shows without its tiles, the window being too
   /// narrow for both (Phase 2 §12).
   final bool voiceChatAlone;
-
-  /// Off when there is no server, and so no members.
-  final bool memberToggle;
-  final bool membersShown;
-  final VoidCallback onToggleMembers;
-  final bool musicShown;
-  final VoidCallback? onSelectMusic;
   final ValueChanged<int> onJumpTo;
   final VoidCallback? onOpenSidebar;
-  final bool leadingControls;
-  final bool trailingControls;
+
+  /// How far the notch at its full size pushes the buttons from the header's
+  /// usual right padding (§5.8).
+  static const _notchClearance = 54.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -72,18 +61,28 @@ class ChatHeader extends ConsumerWidget {
             ).select((state) => state.data?.channels[open.channel]),
           );
     final pins = ref.read(repositoryProvider).capabilities.pins;
-    return HeaderBar(
-      leadingControls: leadingControls,
-      trailingControls: trailingControls,
+    return ValueListenableBuilder<double>(
+      valueListenable:
+          ShellMetrics.maybeOf(context)?.notch ??
+          const AlwaysStoppedAnimation(0.0),
+      builder: (context, notch, row) => PanelHeader(
+        key: ShellKeys.hd,
+        padding: EdgeInsets.only(
+          left: onOpenSidebar != null ? OcFloats.gap : OcSpace.s16,
+          right: OcFloats.gap + _notchClearance * notch / OcFloats.notch,
+        ),
+        child: row!,
+      ),
       child: Row(
         children: [
-          if (onOpenSidebar != null)
+          if (onOpenSidebar != null) ...[
             OcIconButton(
               icon: OcIcons.menu,
               tooltip: 'Channels',
               onPressed: onOpenSidebar,
             ),
-          const SizedBox(width: OcSpace.s4),
+            const SizedBox(width: OcSpace.s10),
+          ],
           Expanded(
             child: IgnorePointer(
               child: open == null || target == null
@@ -91,68 +90,60 @@ class ChatHeader extends ConsumerWidget {
                   : _Title(channel: open, target: target),
             ),
           ),
-          if (open != null && target != null && target.kind.isTextLike) ...[
-            OcIconButton(
-              icon: OcIcons.search,
-              tooltip: 'Search in channel',
-              onPressed: () =>
-                  showOcToast(context, 'Search is coming in a later version.'),
-            ),
-            if (pins)
-              Builder(
-                builder: (context) => OcIconButton(
-                  icon: OcIcons.pushPin,
-                  tooltip: 'Pinned messages',
-                  onPressed: () => showPopover<void>(
-                    context: context,
-                    anchor: globalRectOf(context),
-                    alignEnd: true,
-                    padding: const EdgeInsets.all(OcSpace.s8),
-                    builder: (popover) => PinnedList(
-                      channel: open,
-                      onJumpTo: (id) {
-                        Navigator.pop(popover);
-                        onJumpTo(id);
-                      },
-                    ),
+          Row(
+            key: ShellKeys.acts,
+            mainAxisSize: MainAxisSize.min,
+            spacing: 2,
+            children: [
+              if (open != null && target != null && target.kind.isTextLike) ...[
+                OcIconButton(
+                  icon: OcIcons.search,
+                  tooltip: 'Search in channel',
+                  onPressed: () => showOcToast(
+                    context,
+                    'Search is coming in a later version.',
                   ),
                 ),
-              ),
-          ],
-          if (open != null &&
-              target != null &&
-              target.kind == ChannelKind.voice &&
-              ref.read(repositoryProvider).capabilities.voice)
-            _VoiceViewButtons(
-              channel: open,
-              chat: target.textInVoice,
-              chatAlone: voiceChatAlone,
-            ),
-          if (memberToggle)
-            OcIconButton(
-              icon: OcIcons.group,
-              tooltip: 'Members',
-              active: membersShown,
-              onPressed: onToggleMembers,
-            ),
-          if (open != null &&
-              target != null &&
-              target.kind == ChannelKind.voice &&
-              ref.watch(musicOfferedProvider(open)))
-            OcIconButton(
-              icon: OcIcons.libraryMusic,
-              tooltip: 'Music',
-              active: musicShown,
-              onPressed: onSelectMusic,
-            ),
-          if (open != null && target != null)
-            Builder(
-              builder: (context) => OcIconButton(
-                icon: OcIcons.moreVert,
-                tooltip: 'More',
-                onPressed: () => _showMore(context, ref, open),
-              ),
-            ),
+                if (pins)
+                  Builder(
+                    builder: (context) => OcIconButton(
+                      icon: OcIcons.pushPin,
+                      tooltip: 'Pinned messages',
+                      onPressed: () => showPopover<void>(
+                        context: context,
+                        anchor: globalRectOf(context),
+                        alignEnd: true,
+                        padding: const EdgeInsets.all(OcSpace.s8),
+                        builder: (popover) => PinnedList(
+                          channel: open,
+                          onJumpTo: (id) {
+                            Navigator.pop(popover);
+                            onJumpTo(id);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+              if (open != null &&
+                  target != null &&
+                  target.kind == ChannelKind.voice &&
+                  ref.read(repositoryProvider).capabilities.voice)
+                _VoiceViewButtons(
+                  channel: open,
+                  chat: target.textInVoice,
+                  chatAlone: voiceChatAlone,
+                ),
+              if (open != null && target != null)
+                Builder(
+                  builder: (context) => OcIconButton(
+                    icon: OcIcons.moreVert,
+                    tooltip: 'More',
+                    onPressed: () => _showMore(context, ref, open),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -226,44 +217,61 @@ class _Title extends ConsumerWidget {
           )
         : null;
     final topic = target.topic;
-    final style = OcText.small.copyWith(color: colors.textSecondary);
+    final style = OcText.small.copyWith(
+      fontSize: 12.5,
+      fontWeight: FontWeight.w400,
+      height: 1.25,
+      color: colors.textSecondary,
+    );
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        EllipsisText(
-          target.kind.isTextLike ? '#${target.name}' : target.name,
-          style: OcText.header.copyWith(color: colors.text),
+        Flexible(
+          child: EllipsisText(
+            target.kind.isTextLike ? '#${target.name}' : target.name,
+            style: OcText.header.copyWith(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
+              color: colors.text,
+            ),
+          ),
         ),
         if (names.isNotEmpty)
-          Row(
-            children: [
-              Flexible(
-                child: Text(
-                  typingLabel(names),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: style,
+          Flexible(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    typingLabel(names),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: style,
+                  ),
                 ),
-              ),
-              TypingDots(color: colors.textSecondary),
-            ],
+                TypingDots(color: colors.textSecondary),
+              ],
+            ),
           )
         else
-          Text(
-            switch (connected) {
-              0 => 'No one connected',
-              final count? => '${countLabel(count)} connected',
-              null => [
-                '${countLabel(audience.members)} member'
-                    '${audience.members == 1 ? '' : 's'}, '
-                    '${countLabel(audience.online)} online',
-                if (topic != null && topic.isNotEmpty) topic,
-              ].join(' · '),
-            },
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: style,
+          Flexible(
+            child: Text(
+              switch (connected) {
+                0 => 'No one connected',
+                final count? => '${countLabel(count)} connected',
+                null => [
+                  '${countLabel(audience.members)} member'
+                      '${audience.members == 1 ? '' : 's'}, '
+                      '${countLabel(audience.online)} online',
+                  if (topic != null && topic.isNotEmpty) topic,
+                ].join(' · '),
+              },
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
           ),
       ],
     );
