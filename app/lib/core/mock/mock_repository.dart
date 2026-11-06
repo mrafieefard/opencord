@@ -3900,8 +3900,15 @@ class MockRepository implements OpencordRepository {
   void debugNoiseSuppressionFellBack() =>
       _emit(const NoiseSuppressionFellBack());
 
+  /// Set to make the next microphone tests fail to start, as when the
+  /// microphone can't open.
+  RepoException? micTestError;
+
   @override
-  Future<void> setMicTest(bool on) async => micTest = on;
+  Future<void> setMicTest(bool on) async {
+    if (micTestError case final error? when on) throw error;
+    micTest = on;
+  }
 
   /// The mock is a fast computer.
   @override

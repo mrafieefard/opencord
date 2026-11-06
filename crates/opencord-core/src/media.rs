@@ -226,9 +226,9 @@ impl Media {
         let Some(target) = target else {
             state.session = None;
             state.pending = None;
-            if state.mic_test {
-                state.mic_test_engine = self.start_mic_test(&state);
-            }
+            // Leaving a call ends the mic test (spec §8.4): no engine of
+            // its own starts.
+            state.mic_test = false;
             return;
         };
         if state
@@ -449,6 +449,9 @@ impl Media {
         );
         match engine {
             Ok(engine) => {
+                // It sends nowhere. Muted, the test opens the microphone as
+                // if push to talk were held (spec §8.4).
+                engine.set_muted(true);
                 engine.set_mic_test(true);
                 engine.set_level_meter(state.level_meter);
                 Some(engine)
