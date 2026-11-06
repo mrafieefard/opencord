@@ -111,6 +111,12 @@ const floatingScenes = [
     widths: [wide1280, medium980],
     light: [wide1280],
   ),
+  FloatingScene(
+    'code-block',
+    playCodeBlock,
+    widths: [wide1280, medium980, narrow940],
+    light: [wide1280, medium980, narrow940],
+  ),
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
   FloatingScene('voice-join', playVoiceJoin),
@@ -459,6 +465,22 @@ Future<void> playSettingsKeybindsRecording(SceneDriver scene) async {
       matching: find.text('Add a keybind'),
     ),
   );
+  await scene.settle(300);
+}
+
+/// The Rust code block in #general.
+Future<void> playCodeBlock(SceneDriver scene) async {
+  await playText(scene);
+  final scroll = find.descendant(
+    of: find.byKey(ShellKeys.main),
+    matching: find.byType(CustomScrollView),
+  );
+  for (var i = 0; i < 20; i++) {
+    if (find.text('rust').evaluate().isNotEmpty) break;
+    await scene.tester.drag(scroll, const Offset(0, 300));
+    await scene.settle(100);
+  }
+  await scene.tester.drag(scroll, const Offset(0, 150));
   await scene.settle(300);
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:opencord/features/chat/code_highlight.dart';
 import 'package:opencord/features/chat/markdown.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -338,7 +339,12 @@ class CodeBlock extends StatelessWidget {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
-            child: Text(code, style: OcText.mono.copyWith(color: colors.text)),
+            child: () {
+              final span = highlightedCode(code, language, colors);
+              return span != null
+                  ? Text.rich(span)
+                  : Text(code, style: OcText.mono.copyWith(color: colors.text));
+            }(),
           ),
         ],
       ),
