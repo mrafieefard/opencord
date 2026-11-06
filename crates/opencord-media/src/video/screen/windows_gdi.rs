@@ -27,8 +27,8 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, EnumWindows, GWL_EXSTYLE, GetClassNameW, GetWindowLongPtrW, GetWindowRect,
-    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsWindow, IsWindowVisible,
-    WS_EX_TOOLWINDOW,
+    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow,
+    IsWindowVisible, WS_EX_TOOLWINDOW,
 };
 use windows::core::PCWSTR;
 
@@ -182,6 +182,14 @@ fn worth_offering(window: HWND) -> Option<Window> {
         let mut pid = 0;
         GetWindowThreadProcessId(window, Some(&mut pid));
         if pid == GetCurrentProcessId() {
+            return None;
+        }
+        // A minimised window has nothing to show either, and no size: it
+        // is "visible", but `GetWindowRect` answers with the 160x28 the
+        // taskbar leaves it, and the capture API with the same — a share
+        // of it would be that shape until it came back. Windows shares
+        // what is on the screen.
+        if IsIconic(window).as_bool() {
             return None;
         }
         // A zero-sized window has nothing to show.
@@ -554,6 +562,14 @@ mod tests {
                 let mut pid = 0;
                 GetWindowThreadProcessId(window.handle, Some(&mut pid));
                 assert_ne!(pid, us, "never Opencord's own windows");
+                assert!(
+                    !IsIconic(window.handle).as_bool(),
+                    "a minimised window shows nothing and has no size to share"
+                );
+                // So every window offered has a size worth sharing.
+                let mut rect = RECT::default();
+                GetWindowRect(window.handle, &mut rect).expect("a rectangle");
+                assert!(rect.right - rect.left >= 2 && rect.bottom - rect.top >= 2);
             }
         }
     }

@@ -98,6 +98,11 @@ const FIRST_FRAME: Duration = Duration::from_secs(3);
 /// How long to wait for Windows to answer whether the border may go.
 const BORDERLESS_ANSWER: Duration = Duration::from_secs(2);
 
+/// How long a session waits for the first frame before announcing the
+/// size the source says it has. A working session sends one at once; a
+/// minimised window sends none, and keeps the size it says.
+const FIRST_SIZE: Duration = Duration::from_millis(250);
+
 /// Whether Windows lets captures go without the yellow border, asked once
 /// per run. It has to be asked before the border can be turned off; an app
 /// that is not packaged is answered at once, without a prompt. Windows 10
@@ -441,9 +446,12 @@ fn run(
     // A window without the yellow border: GDI draws none, and on Windows
     // 10 the capture API cannot be asked to leave it off.
     if let Chosen::Window(window) = what
-        && prefers_gdi(SourceKind::Window, capture_api, borderless_allowed(), || {
-            gdi_can_draw(window)
-        })
+        && prefers_gdi(
+            SourceKind::Window,
+            capture_api,
+            borderless_allowed(),
+            || gdi_can_draw(window),
+        )
     {
         tracing::info!(
             method = "gdi",
@@ -637,7 +645,11 @@ struct Session {
     session: GraphicsCaptureSession,
     closed: i64,
     gone: Arc<AtomicBool>,
+    /// The size the share was announced at: what the frames hold.
     size: (u32, u32),
+    /// The size the pool was made with, which is what its textures are
+    /// until it is recreated, and need not be what a frame draws.
+    pool_size: SizeInt32,
     /// Whether Windows holds the frame rate down itself.
     paced: bool,
     fps: u32,
@@ -693,7 +705,35 @@ impl Session {
             .is_ok();
         session.StartCapture().map_err(failed)?;
 
-        let size = (size.Width.max(0) as u32, size.Height.max(0) as u32);
+        // What `GraphicsCaptureItem::Size` says is the source's rectangle,
+        // which for a window is not what the frames hold: measured on
+        // Windows 10, a 1936x1056 window captures 1920x1040, the rest
+        // being its invisible resize border. The share is announced at the
+        // size it is drawn, so the first frame decides it; `read` pulls
+        // that frame again from the pool it recreates.
+        let pool_size = size;
+        let mut size = (size.Width.max(0) as u32, size.Height.max(0) as u32);
+        let waiting = Instant::now();
+        while waiting.elapsed() < FIRST_SIZE {
+            match pool.TryGetNextFrame().ok().map(|frame| frame.ContentSize()) {
+                Some(Ok(content)) if content.Width > 0 && content.Height > 0 => {
+                    let content = (content.Width as u32, content.Height as u32);
+                    if content != size {
+                        tracing::debug!(
+                            announced = ?size,
+                            drawn = ?content,
+                            "the source's rectangle is not what it draws"
+                        );
+                        size = content;
+                    }
+                    break;
+                }
+                Some(_) => break,
+                // A window that draws nothing yet (minimised) keeps the
+                // size it says it has until it draws.
+                None => std::thread::sleep(POLL),
+            }
+        }
         tracing::info!(?size, fps, paced, "sharing a screen");
         Ok(Self {
             what,
@@ -704,6 +744,7 @@ impl Session {
             closed,
             gone,
             size,
+            pool_size,
             paced,
             fps,
         })
@@ -718,10 +759,7 @@ impl Session {
         let opened = Instant::now();
         let mut any = false;
         let mut staging: Option<(ID3D11Texture2D, (u32, u32))> = None;
-        let mut pool_size = SizeInt32 {
-            Width: self.size.0 as i32,
-            Height: self.size.1 as i32,
-        };
+        let mut pool_size = self.pool_size;
         let gap = Duration::from_secs_f64(1.0 / f64::from(self.fps));
         let mut next = Instant::now();
         let mut looked = Instant::now();
@@ -763,28 +801,33 @@ impl Session {
             };
             any = true;
 
-            // The content can be resized under us, and the pool has to
-            // follow or every frame after it comes out the old size.
-            match frame.ContentSize() {
-                Ok(content)
-                    if (content.Width, content.Height) != (pool_size.Width, pool_size.Height)
-                        && content.Width > 0
-                        && content.Height > 0 =>
-                {
-                    pool_size = content;
-                    staging = None;
-                    let _ = self.pool.Recreate(
-                        &self.graphics.winrt,
-                        DirectXPixelFormat::B8G8R8A8UIntNormalized,
-                        2,
-                        content,
-                    );
-                    continue;
-                }
-                _ => {}
+            // What a frame draws, which is not the source's rectangle: a
+            // window's is smaller by its invisible resize border, and it
+            // changes under us when the window is resized.
+            let Ok(drawn) = frame.ContentSize() else {
+                counts.empty();
+                continue;
+            };
+            if drawn.Width <= 0 || drawn.Height <= 0 {
+                counts.empty();
+                continue;
             }
 
-            if let Some(raw) = copy_out(&self.graphics, &frame, &mut staging) {
+            // The pool has to follow, or its textures stay the old size
+            // and every frame costs a copy of more than it holds.
+            if (drawn.Width, drawn.Height) != (pool_size.Width, pool_size.Height) {
+                pool_size = drawn;
+                staging = None;
+                let _ = self.pool.Recreate(
+                    &self.graphics.winrt,
+                    DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                    2,
+                    drawn,
+                );
+            }
+
+            let drawn = (drawn.Width as u32, drawn.Height as u32);
+            if let Some(raw) = copy_out(&self.graphics, &frame, &mut staging, drawn) {
                 // Dropped while the encoder is behind.
                 counts.grabbed(frames.try_send(raw).is_ok());
             }
@@ -820,10 +863,17 @@ impl Drop for Session {
 /// One captured frame's pixels, in memory. The texture the capture API
 /// hands over lives on the GPU and cannot be read directly, so it is copied
 /// into a staging texture, which can be.
+///
+/// Only the `drawn` pixels in its top left are a picture: the texture is
+/// the frame pool's size, which is the source's rectangle, and the pool
+/// takes a frame or two to follow a `Recreate`, so what is around them is
+/// a window's invisible border or the last size's leftovers. Sending the
+/// whole texture would hand the encoder a picture of the wrong shape.
 fn copy_out(
     graphics: &Graphics,
     frame: &Direct3D11CaptureFrame,
     staging: &mut Option<(ID3D11Texture2D, (u32, u32))>,
+    drawn: (u32, u32),
 ) -> Option<RawFrame> {
     let captured = Instant::now();
     let surface = frame.Surface().ok()?;
@@ -859,6 +909,14 @@ fn copy_out(
     }
     let (into, _) = staging.as_ref()?;
 
+    // Never more than the texture holds: a frame drawn larger than the
+    // pool is one the pool has not followed yet, and its extra rows are
+    // not there to read.
+    let picture = (drawn.0.min(size.0), drawn.1.min(size.1));
+    if picture.0 == 0 || picture.1 == 0 {
+        return None;
+    }
+
     // SAFETY: both textures have the same size and format, so the copy is
     // valid; the map is released before this returns, on every path.
     unsafe {
@@ -868,12 +926,13 @@ fn copy_out(
             .context
             .Map(into, 0, D3D11_MAP_READ, 0, Some(&mut mapped))
             .ok()?;
-        let rows = size.1 as usize;
+        let rows = picture.1 as usize;
         let stride = mapped.RowPitch as usize;
-        let row = size.0 as usize * 4;
+        let row = picture.0 as usize * 4;
         let mut data = Vec::with_capacity(row * rows);
-        if stride >= row {
-            let bytes = std::slice::from_raw_parts(mapped.pData.cast::<u8>(), stride * rows);
+        if stride >= size.0 as usize * 4 {
+            let bytes =
+                std::slice::from_raw_parts(mapped.pData.cast::<u8>(), stride * size.1 as usize);
             for line in 0..rows {
                 let from = line * stride;
                 data.extend_from_slice(&bytes[from..from + row]);
@@ -882,8 +941,8 @@ fn copy_out(
         graphics.context.Unmap(into, 0);
         (data.len() == row * rows).then_some(RawFrame {
             format: RawFormat::Bgrx,
-            width: size.0,
-            height: size.1,
+            width: picture.0,
+            height: picture.1,
             data,
             captured,
         })

@@ -135,6 +135,50 @@ void main() {
     });
   });
 
+  /// A shared window is announced at its source's rectangle, which is not
+  /// what it draws: a minimised window says 160x28 on Windows. The tile
+  /// stretches the texture into the shape it was given, so it has to
+  /// follow what is actually drawn.
+  testWidgets('a_tile_follows_the_shape_the_video_is_drawn_at', (tester) async {
+    final app = await _onStage(tester);
+    const feed = VideoFeed(
+      trackId: 'camera-mira',
+      textureId: 11,
+      width: 160,
+      height: 28,
+    );
+    app
+        .read(videoFeedsProvider.notifier)
+        .apply(VideoTrackAdded(_dev, _voiceChannel(app), _mira, feed));
+    await _settle(tester);
+    final texture = find.descendant(
+      of: _tile(_mira),
+      matching: find.byType(Texture),
+    );
+    expect(
+      tester.getSize(texture),
+      const Size(160, 28),
+      reason: 'the shape it was announced at',
+    );
+
+    app.read(videoFeedsProvider.notifier).resized('camera-mira', 1920, 1040);
+    await _settle(tester);
+    expect(
+      tester.getSize(texture),
+      const Size(1920, 1040),
+      reason: 'and the shape it draws, once it draws',
+    );
+
+    // Another track's size leaves this one alone, and so does the same
+    // size again.
+    app.read(videoFeedsProvider.notifier).resized('camera-someone', 640, 480);
+    app.read(videoFeedsProvider.notifier).resized('camera-mira', 1920, 1040);
+    app.read(videoFeedsProvider.notifier).resized('camera-mira', 0, 1040);
+    await _settle(tester);
+    expect(tester.getSize(texture), const Size(1920, 1040));
+    await app.dispose(tester);
+  });
+
   testWidgets('tile_numbers', (tester) async {
     final app = await _onStage(tester);
     final mira = _tile(_mira);

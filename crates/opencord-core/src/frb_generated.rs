@@ -11605,18 +11605,28 @@ impl SseDecode for crate::api::types::MediaEvent {
                 };
             }
             11 => {
+                let mut var_trackId = <String>::sse_decode(deserializer);
+                let mut var_width = <u32>::sse_decode(deserializer);
+                let mut var_height = <u32>::sse_decode(deserializer);
+                return crate::api::types::MediaEvent::VideoSizeChanged {
+                    track_id: var_trackId,
+                    width: var_width,
+                    height: var_height,
+                };
+            }
+            12 => {
                 let mut var_message = <String>::sse_decode(deserializer);
                 return crate::api::types::MediaEvent::CameraStopped {
                     message: var_message,
                 };
             }
-            12 => {
+            13 => {
                 let mut var_message = <String>::sse_decode(deserializer);
                 return crate::api::types::MediaEvent::ScreenShareStopped {
                     message: var_message,
                 };
             }
-            13 => {
+            14 => {
                 let mut var_serverKey = <String>::sse_decode(deserializer);
                 let mut var_channelId = <i64>::sse_decode(deserializer);
                 let mut var_stats = <crate::api::types::VoiceStats>::sse_decode(deserializer);
@@ -11626,15 +11636,15 @@ impl SseDecode for crate::api::types::MediaEvent {
                     stats: var_stats,
                 };
             }
-            14 => {
+            15 => {
                 let mut var_level = <f32>::sse_decode(deserializer);
                 return crate::api::types::MediaEvent::VoiceRecordLevel { level: var_level };
             }
-            15 => {
+            16 => {
                 let mut var_reason = <crate::api::types::VoiceStopReason>::sse_decode(deserializer);
                 return crate::api::types::MediaEvent::VoiceRecordStopped { reason: var_reason };
             }
-            16 => {
+            17 => {
                 let mut var_item = <crate::api::types::PlaybackItem>::sse_decode(deserializer);
                 let mut var_positionMs = <u32>::sse_decode(deserializer);
                 let mut var_durationMs = <u32>::sse_decode(deserializer);
@@ -11648,11 +11658,11 @@ impl SseDecode for crate::api::types::MediaEvent {
                     buffering: var_buffering,
                 };
             }
-            17 => {
+            18 => {
                 let mut var_item = <crate::api::types::PlaybackItem>::sse_decode(deserializer);
                 return crate::api::types::MediaEvent::PlaybackEnded { item: var_item };
             }
-            18 => {
+            19 => {
                 let mut var_item = <crate::api::types::PlaybackItem>::sse_decode(deserializer);
                 let mut var_message = <String>::sse_decode(deserializer);
                 return crate::api::types::MediaEvent::PlaybackFailed {
@@ -16492,28 +16502,39 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::MediaEvent {
                 track_id.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::api::types::MediaEvent::VideoSizeChanged {
+                track_id,
+                width,
+                height,
+            } => [
+                11.into_dart(),
+                track_id.into_into_dart().into_dart(),
+                width.into_into_dart().into_dart(),
+                height.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::api::types::MediaEvent::CameraStopped { message } => {
-                [11.into_dart(), message.into_into_dart().into_dart()].into_dart()
+                [12.into_dart(), message.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::MediaEvent::ScreenShareStopped { message } => {
-                [12.into_dart(), message.into_into_dart().into_dart()].into_dart()
+                [13.into_dart(), message.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::MediaEvent::ConnectionStats {
                 server_key,
                 channel_id,
                 stats,
             } => [
-                13.into_dart(),
+                14.into_dart(),
                 server_key.into_into_dart().into_dart(),
                 channel_id.into_into_dart().into_dart(),
                 stats.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::MediaEvent::VoiceRecordLevel { level } => {
-                [14.into_dart(), level.into_into_dart().into_dart()].into_dart()
+                [15.into_dart(), level.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::MediaEvent::VoiceRecordStopped { reason } => {
-                [15.into_dart(), reason.into_into_dart().into_dart()].into_dart()
+                [16.into_dart(), reason.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::MediaEvent::PlaybackUpdate {
                 item,
@@ -16522,7 +16543,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::MediaEvent {
                 playing,
                 buffering,
             } => [
-                16.into_dart(),
+                17.into_dart(),
                 item.into_into_dart().into_dart(),
                 position_ms.into_into_dart().into_dart(),
                 duration_ms.into_into_dart().into_dart(),
@@ -16531,10 +16552,10 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::MediaEvent {
             ]
             .into_dart(),
             crate::api::types::MediaEvent::PlaybackEnded { item } => {
-                [17.into_dart(), item.into_into_dart().into_dart()].into_dart()
+                [18.into_dart(), item.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::MediaEvent::PlaybackFailed { item, message } => [
-                18.into_dart(),
+                19.into_dart(),
                 item.into_into_dart().into_dart(),
                 message.into_into_dart().into_dart(),
             ]
@@ -21021,12 +21042,22 @@ impl SseEncode for crate::api::types::MediaEvent {
                 <i64>::sse_encode(user_id, serializer);
                 <String>::sse_encode(track_id, serializer);
             }
-            crate::api::types::MediaEvent::CameraStopped { message } => {
+            crate::api::types::MediaEvent::VideoSizeChanged {
+                track_id,
+                width,
+                height,
+            } => {
                 <i32>::sse_encode(11, serializer);
+                <String>::sse_encode(track_id, serializer);
+                <u32>::sse_encode(width, serializer);
+                <u32>::sse_encode(height, serializer);
+            }
+            crate::api::types::MediaEvent::CameraStopped { message } => {
+                <i32>::sse_encode(12, serializer);
                 <String>::sse_encode(message, serializer);
             }
             crate::api::types::MediaEvent::ScreenShareStopped { message } => {
-                <i32>::sse_encode(12, serializer);
+                <i32>::sse_encode(13, serializer);
                 <String>::sse_encode(message, serializer);
             }
             crate::api::types::MediaEvent::ConnectionStats {
@@ -21034,17 +21065,17 @@ impl SseEncode for crate::api::types::MediaEvent {
                 channel_id,
                 stats,
             } => {
-                <i32>::sse_encode(13, serializer);
+                <i32>::sse_encode(14, serializer);
                 <String>::sse_encode(server_key, serializer);
                 <i64>::sse_encode(channel_id, serializer);
                 <crate::api::types::VoiceStats>::sse_encode(stats, serializer);
             }
             crate::api::types::MediaEvent::VoiceRecordLevel { level } => {
-                <i32>::sse_encode(14, serializer);
+                <i32>::sse_encode(15, serializer);
                 <f32>::sse_encode(level, serializer);
             }
             crate::api::types::MediaEvent::VoiceRecordStopped { reason } => {
-                <i32>::sse_encode(15, serializer);
+                <i32>::sse_encode(16, serializer);
                 <crate::api::types::VoiceStopReason>::sse_encode(reason, serializer);
             }
             crate::api::types::MediaEvent::PlaybackUpdate {
@@ -21054,7 +21085,7 @@ impl SseEncode for crate::api::types::MediaEvent {
                 playing,
                 buffering,
             } => {
-                <i32>::sse_encode(16, serializer);
+                <i32>::sse_encode(17, serializer);
                 <crate::api::types::PlaybackItem>::sse_encode(item, serializer);
                 <u32>::sse_encode(position_ms, serializer);
                 <u32>::sse_encode(duration_ms, serializer);
@@ -21062,11 +21093,11 @@ impl SseEncode for crate::api::types::MediaEvent {
                 <bool>::sse_encode(buffering, serializer);
             }
             crate::api::types::MediaEvent::PlaybackEnded { item } => {
-                <i32>::sse_encode(17, serializer);
+                <i32>::sse_encode(18, serializer);
                 <crate::api::types::PlaybackItem>::sse_encode(item, serializer);
             }
             crate::api::types::MediaEvent::PlaybackFailed { item, message } => {
-                <i32>::sse_encode(18, serializer);
+                <i32>::sse_encode(19, serializer);
                 <crate::api::types::PlaybackItem>::sse_encode(item, serializer);
                 <String>::sse_encode(message, serializer);
             }

@@ -148,7 +148,10 @@ impl Grabber {
             width: shown_size.0,
             height: shown_size.1,
             data: canvas.pixels_in(
-                ((shown.left - rect.left) as u32, (shown.top - rect.top) as u32),
+                (
+                    (shown.left - rect.left) as u32,
+                    (shown.top - rect.top) as u32,
+                ),
                 shown_size,
             ),
             captured,
@@ -253,10 +256,6 @@ impl Canvas {
     }
 
     /// The pixels drawn so far.
-    fn pixels(&self) -> Vec<u8> {
-        self.pixels_in((0, 0), self.size)
-    }
-
     /// The `size` pixels at `offset`, packed, with the rows around them
     /// left out. `offset` and `size` are inside the bitmap.
     fn pixels_in(&self, offset: (u32, u32), size: (u32, u32)) -> Vec<u8> {
@@ -455,7 +454,7 @@ mod tests {
     #[test]
     fn a_region_of_the_canvas_comes_out_packed() {
         let canvas = Canvas::new((8, 4)).expect("a canvas");
-        let whole = canvas.pixels();
+        let whole = canvas.pixels_in((0, 0), canvas.size);
         assert_eq!(whole.len(), 8 * 4 * 4);
         let part = canvas.pixels_in((2, 1), (4, 2));
         assert_eq!(part.len(), 4 * 2 * 4, "the rows around it are left out");
