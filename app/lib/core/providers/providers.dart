@@ -383,6 +383,9 @@ void _route(Ref ref, RepoEvent event) {
     case VideoTrackAdded() || VideoTrackRemoved():
       ref.read(videoFeedsProvider.notifier).apply(event);
       return;
+    case VideoSizeChanged(:final trackId, :final width, :final height):
+      ref.read(videoFeedsProvider.notifier).resized(trackId, width, height);
+      return;
     case OwnCameraChanged(:final feed):
       ref.read(videoFeedsProvider.notifier).setOwn(feed);
       ref.read(voiceSessionProvider.notifier).cameraChanged(on: feed != null);
@@ -1022,6 +1025,37 @@ class VideoFeedsNotifier extends Notifier<VideoFeeds> {
       default:
         break;
     }
+  }
+
+  /// What a track draws has changed shape: the tile keeps the video's
+  /// shape, not the one the track was added with (§7.11).
+  void resized(String trackId, int width, int height) {
+    if (width <= 0 || height <= 0) return;
+    var changed = false;
+    VideoFeed? sized(VideoFeed? feed) {
+      if (feed == null || feed.trackId != trackId) return feed;
+      if (feed.width == width && feed.height == height) return feed;
+      changed = true;
+      return VideoFeed(
+        trackId: feed.trackId,
+        textureId: feed.textureId,
+        width: width,
+        height: height,
+        mirrored: feed.mirrored,
+      );
+    }
+
+    final cameras = {
+      for (final MapEntry(:key, :value) in state.cameras.entries)
+        key: sized(value)!,
+    };
+    final screens = {
+      for (final MapEntry(:key, :value) in state.screens.entries)
+        key: sized(value)!,
+    };
+    final own = sized(state.own);
+    if (!changed) return;
+    state = VideoFeeds(cameras: cameras, screens: screens, own: own);
   }
 
   void setOwn(VideoFeed? feed) => state = VideoFeeds(

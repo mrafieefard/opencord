@@ -7,12 +7,19 @@
 //! desktop with `BitBlt`, and the cursor drawn on it; a window draws itself
 //! with `PrintWindow`, which, with full content asked for, also covers
 //! windows that render through Direct3D. It costs more than the capture
-//! API, so it is the fallback and never the first choice.
+//! API, so a screen takes it only as a fallback.
+//!
+//! A window is the exception: `windows.rs` shares one with GDI first
+//! wherever the capture API would draw Windows' yellow border around it
+//! and cannot be asked not to, which is every Windows 10. Paying for the
+//! redraw is better than framing the shared window in yellow for as long
+//! as the share lasts.
 
 use std::ffi::c_void;
 use std::time::Instant;
 
 use windows::Win32::Foundation::{HWND, POINT, RECT};
+use windows::Win32::Graphics::Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute};
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CAPTUREBLT, CreateCompatibleDC, CreateDIBSection,
     DIB_RGB_COLORS, DeleteDC, DeleteObject, GdiFlush, GetDC, GetMonitorInfoW, GetWindowDC, HBITMAP,
@@ -82,11 +89,20 @@ impl Grabber {
         (width > 0 && height > 0).then_some(rect)
     }
 
-    /// The source's size now; a minimised window's is the size it will
-    /// have again when restored.
+    /// The part of [`Self::rect`] a frame holds: a window's visible
+    /// bounds, a screen's whole rectangle.
+    fn shown(&self, rect: RECT) -> RECT {
+        match self.target {
+            Target::Screen(_) => rect,
+            Target::Window(window) => visible_bounds(window, rect),
+        }
+    }
+
+    /// The source's size now, as its frames come out; a minimised
+    /// window's is the size it will have again when restored.
     pub(super) fn size(&self) -> Option<(u32, u32)> {
         if let Some(rect) = self.rect() {
-            return Some(size_of_rect(rect));
+            return Some(size_of_rect(self.shown(rect)));
         }
         let Target::Window(window) = self.target else {
             return None;
@@ -123,14 +139,59 @@ impl Grabber {
             return None;
         }
         draw_cursor(canvas, rect);
+        // `PrintWindow` fills the whole window rectangle, so the canvas is
+        // that size; only the visible part of it is sent.
+        let shown = self.shown(rect);
+        let shown_size = size_of_rect(shown);
         Some(RawFrame {
             format: RawFormat::Bgrx,
-            width: size.0,
-            height: size.1,
-            data: canvas.pixels(),
+            width: shown_size.0,
+            height: shown_size.1,
+            data: canvas.pixels_in(
+                (
+                    (shown.left - rect.left) as u32,
+                    (shown.top - rect.top) as u32,
+                ),
+                shown_size,
+            ),
             captured,
         })
     }
+}
+
+/// The part of a window's rectangle that is actually on screen. Windows
+/// pads `GetWindowRect` with an invisible resize border — measured on
+/// Windows 10: eight pixels left, right and below — which `PrintWindow`
+/// leaves black, so a share framed by the window rectangle carries a
+/// black band around it. DWM knows the visible bounds; a window it knows
+/// nothing about keeps its whole rectangle.
+fn visible_bounds(window: HWND, rect: RECT) -> RECT {
+    let mut bounds = RECT::default();
+    // SAFETY: a live handle, and a rectangle the call fills in, sized as
+    // it is told.
+    let known = unsafe {
+        DwmGetWindowAttribute(
+            window,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            std::ptr::from_mut(&mut bounds).cast(),
+            size_of::<RECT>() as u32,
+        )
+    }
+    .is_ok();
+    if known { inside(rect, bounds) } else { rect }
+}
+
+/// `bounds` cut down to `rect`, which is the only part a frame can hold;
+/// `rect` itself when that leaves nothing worth sending.
+fn inside(rect: RECT, bounds: RECT) -> RECT {
+    let cut = RECT {
+        left: bounds.left.max(rect.left),
+        top: bounds.top.max(rect.top),
+        right: bounds.right.min(rect.right),
+        bottom: bounds.bottom.min(rect.bottom),
+    };
+    let (width, height) = size_of_rect(cut);
+    if width < 2 || height < 2 { rect } else { cut }
 }
 
 fn size_of_rect(rect: RECT) -> (u32, u32) {
@@ -195,13 +256,28 @@ impl Canvas {
     }
 
     /// The pixels drawn so far.
-    fn pixels(&self) -> Vec<u8> {
-        let length = self.size.0 as usize * self.size.1 as usize * 4;
+    /// The `size` pixels at `offset`, packed, with the rows around them
+    /// left out. `offset` and `size` are inside the bitmap.
+    fn pixels_in(&self, offset: (u32, u32), size: (u32, u32)) -> Vec<u8> {
+        let stride = self.size.0 as usize * 4;
+        let row = size.0 as usize * 4;
+        let rows = size.1 as usize;
+        let from = offset.1 as usize * stride + offset.0 as usize * 4;
         // SAFETY: GDI has finished drawing once flushed, and the bitmap is
-        // `length` bytes: 32 bits a pixel, with no padding at that depth.
+        // `stride * height` bytes: 32 bits a pixel, with no padding at
+        // that depth. The region asked for is inside it.
         unsafe {
             let _ = GdiFlush();
-            std::slice::from_raw_parts(self.bits, length).to_vec()
+            let bitmap = std::slice::from_raw_parts(self.bits, stride * self.size.1 as usize);
+            if from + (rows - 1) * stride + row > bitmap.len() {
+                return Vec::new();
+            }
+            let mut pixels = Vec::with_capacity(row * rows);
+            for line in 0..rows {
+                let start = from + line * stride;
+                pixels.extend_from_slice(&bitmap[start..start + row]);
+            }
+            pixels
         }
     }
 }
@@ -331,6 +407,65 @@ mod tests {
         assert_eq!(frame.data.len(), size.0 as usize * size.1 as usize * 4);
         // The canvas is kept for the next frame of the same size.
         assert!(grabber.grab().is_some(), "and the next one");
+    }
+
+    #[test]
+    fn the_visible_bounds_never_leave_the_rectangle_the_frame_holds() {
+        let rect = RECT {
+            left: 100,
+            top: 200,
+            right: 1100,
+            bottom: 800,
+        };
+        // Windows 10's invisible resize border: eight pixels left, right
+        // and below, nothing above.
+        let bounds = RECT {
+            left: 108,
+            top: 200,
+            right: 1092,
+            bottom: 792,
+        };
+        assert_eq!(inside(rect, bounds), bounds, "a window's visible part");
+
+        let wider = RECT {
+            left: 0,
+            top: 0,
+            right: 2000,
+            bottom: 2000,
+        };
+        assert_eq!(
+            inside(rect, wider),
+            rect,
+            "never outside what PrintWindow filled"
+        );
+        let nothing = RECT {
+            left: 500,
+            top: 500,
+            right: 500,
+            bottom: 500,
+        };
+        assert_eq!(
+            inside(rect, nothing),
+            rect,
+            "an empty answer leaves the whole window"
+        );
+    }
+
+    #[test]
+    fn a_region_of_the_canvas_comes_out_packed() {
+        let canvas = Canvas::new((8, 4)).expect("a canvas");
+        let whole = canvas.pixels_in((0, 0), canvas.size);
+        assert_eq!(whole.len(), 8 * 4 * 4);
+        let part = canvas.pixels_in((2, 1), (4, 2));
+        assert_eq!(part.len(), 4 * 2 * 4, "the rows around it are left out");
+        for line in 0..2usize {
+            let from = (1 + line) * 8 * 4 + 2 * 4;
+            assert_eq!(
+                &part[line * 4 * 4..(line + 1) * 4 * 4],
+                &whole[from..from + 4 * 4],
+                "row {line} is the canvas's own"
+            );
+        }
     }
 
     #[test]

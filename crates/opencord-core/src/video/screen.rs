@@ -153,7 +153,8 @@ pub(super) async fn publish(
     let preview = lock(&video.hub)
         .textures
         .as_ref()
-        .and_then(|textures| textures.create());
+        .and_then(|textures| textures.create())
+        .map(|sink| video.measured(&track_id, sink));
     let texture_id = preview.as_ref().map(|preview| preview.id());
     let preview_size = Arc::new(Mutex::new(PREVIEW));
     let outlet = Arc::clone(&video.outlet);

@@ -369,6 +369,18 @@ final class VideoTrackAdded extends RepoEvent {
   final bool screen;
 }
 
+/// What a camera or a shared screen draws has changed shape, so its tile
+/// can follow (Phase 2 V5, V6). A track arrives at the size its source
+/// said its rectangle was, which for a shared window is more than the
+/// window draws, and which stops being true the moment it is resized.
+final class VideoSizeChanged extends RepoEvent {
+  const VideoSizeChanged(this.trackId, this.width, this.height) : super('');
+
+  final String trackId;
+  final int width;
+  final int height;
+}
+
 final class VideoTrackRemoved extends RepoEvent {
   const VideoTrackRemoved(
     super.serverKey,

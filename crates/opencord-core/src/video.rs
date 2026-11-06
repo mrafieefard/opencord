@@ -39,6 +39,77 @@ pub trait FrameSink: Send + Sync {
     }
 }
 
+/// A sink that says when what is drawn into it changes size, so the tile
+/// showing it keeps the video's shape. It wraps one of the app's textures
+/// and passes every picture straight on.
+///
+/// The size a track is announced at is whatever its source said its
+/// rectangle was: for a shared window that is more than the window draws
+/// (its invisible resize border), and it stops being true the moment the
+/// window is resized. What is drawn is the truth, and only this knows it.
+/// Pictures arrive fitted to the tile, their shape kept, so the shape is
+/// right even where the size is the tile's.
+struct Measured {
+    inner: Arc<dyn FrameSink>,
+    drawn: Mutex<(u32, u32)>,
+    changed: Box<dyn Fn(u32, u32) + Send + Sync>,
+}
+
+impl Measured {
+    /// `inner` with `changed` called for each new size it is given,
+    /// including the first.
+    fn wrapping(
+        inner: Arc<dyn FrameSink>,
+        changed: impl Fn(u32, u32) + Send + Sync + 'static,
+    ) -> Arc<dyn FrameSink> {
+        Arc::new(Self {
+            inner,
+            drawn: Mutex::new((0, 0)),
+            changed: Box::new(changed),
+        })
+    }
+
+    fn note(&self, width: u32, height: u32) {
+        if width == 0 || height == 0 {
+            return;
+        }
+        {
+            let mut drawn = lock(&self.drawn);
+            if *drawn == (width, height) {
+                return;
+            }
+            *drawn = (width, height);
+        }
+        (self.changed)(width, height);
+    }
+}
+
+impl FrameSink for Measured {
+    fn id(&self) -> i64 {
+        self.inner.id()
+    }
+
+    fn present(&self, width: u32, height: u32, rgba: Vec<u8>) {
+        self.note(width, height);
+        self.inner.present(width, height, rgba);
+    }
+
+    #[cfg(target_os = "linux")]
+    fn takes_gpu(&self) -> bool {
+        self.inner.takes_gpu()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn present_gpu(
+        &self,
+        picture: opencord_media::video::codec::dmabuf::DmaBufPicture,
+        size: (u32, u32),
+    ) -> bool {
+        self.note(size.0, size.1);
+        self.inner.present_gpu(picture, size)
+    }
+}
+
 /// Makes sinks for the app's engine.
 pub trait Textures: Send + Sync {
     fn create(&self) -> Option<Arc<dyn FrameSink>>;
@@ -167,6 +238,21 @@ impl Video {
             .and_then(|textures| textures.create())
     }
 
+    /// `sink` reporting what it draws, so the tile showing `track_id`
+    /// keeps the video's shape rather than the one its track was added
+    /// with ([`MediaEvent::VideoSizeChanged`]).
+    fn measured(&self, track_id: &str, sink: Arc<dyn FrameSink>) -> Arc<dyn FrameSink> {
+        let events = self.events.clone();
+        let track_id = track_id.to_owned();
+        Measured::wrapping(sink, move |width, height| {
+            let _ = events.send(MediaEvent::VideoSizeChanged {
+                track_id: track_id.clone(),
+                width,
+                height,
+            });
+        })
+    }
+
     /// A voice connection is live, in this server's channel. The camera, if
     /// on, is published on it.
     pub fn connected(&self, server_key: &str, channel_id: i64, connection: Arc<VoiceConnection>) {
@@ -273,7 +359,11 @@ impl Video {
         if hub.tracks.contains_key(&track.track_id) {
             return;
         }
-        let texture = hub.textures.as_ref().and_then(|textures| textures.create());
+        let texture = hub
+            .textures
+            .as_ref()
+            .and_then(|textures| textures.create())
+            .map(|sink| self.measured(&track.track_id, sink));
         let texture_id = texture.as_ref().map(|texture| texture.id());
         hub.tracks.insert(
             track.track_id.clone(),
@@ -627,7 +717,8 @@ mod camera {
         let preview = lock(&video.hub)
             .textures
             .as_ref()
-            .and_then(|textures| textures.create());
+            .and_then(|textures| textures.create())
+            .map(|sink| video.measured(&track_id, sink));
         let texture_id = preview.as_ref().map(|preview| preview.id());
         let preview_size = Arc::new(Mutex::new(PREVIEW));
         let outlet = Arc::clone(&video.outlet);
@@ -701,5 +792,47 @@ mod camera {
         let mut bytes = [0u8; 8];
         let _ = getrandom::fill(&mut bytes);
         u64::from_ne_bytes(bytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A texture that only remembers what it was given.
+    struct Drawn(Mutex<Vec<(u32, u32)>>);
+
+    impl FrameSink for Drawn {
+        fn id(&self) -> i64 {
+            7
+        }
+
+        fn present(&self, width: u32, height: u32, _rgba: Vec<u8>) {
+            lock(&self.0).push((width, height));
+        }
+    }
+
+    #[test]
+    fn a_measured_texture_says_each_new_size_once_and_draws_them_all() {
+        let inner = Arc::new(Drawn(Mutex::new(Vec::new())));
+        let said = Arc::new(Mutex::new(Vec::new()));
+        let sink = Measured::wrapping(Arc::clone(&inner) as Arc<dyn FrameSink>, {
+            let said = Arc::clone(&said);
+            move |width, height| lock(&said).push((width, height))
+        });
+
+        assert_eq!(sink.id(), 7, "the app's texture, not the wrapper");
+        for size in [(1920, 1040), (1920, 1040), (1280, 720), (1280, 720)] {
+            sink.present(size.0, size.1, Vec::new());
+        }
+        // A size nobody can draw says nothing and is passed on all the same.
+        sink.present(0, 720, Vec::new());
+
+        assert_eq!(
+            *lock(&said),
+            vec![(1920, 1040), (1280, 720)],
+            "only the changes, and the first size among them"
+        );
+        assert_eq!(lock(&inner.0).len(), 5, "every picture reaches the texture");
     }
 }

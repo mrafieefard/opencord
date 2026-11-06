@@ -1371,6 +1371,17 @@ pub enum MediaEvent {
         user_id: i64,
         track_id: String,
     },
+    /// What a camera or screen draws has changed shape, so the tile
+    /// showing it can follow. A track is added at the size its source
+    /// said it had, which a window's is not: its rectangle holds an
+    /// invisible resize border, and it stops being true the moment the
+    /// window is resized. This says what is actually being drawn, for
+    /// this device's own camera and screen as well as everyone else's.
+    VideoSizeChanged {
+        track_id: String,
+        width: u32,
+        height: u32,
+    },
     /// This device's camera stopped by itself: unplugged, failed, or the
     /// server no longer allows it.
     CameraStopped { message: String },

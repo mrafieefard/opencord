@@ -123,11 +123,12 @@ class OwnScreenShare {
     ScreenShareQuality? quality,
     bool? audio,
     String? Function()? audioFrom,
+    VideoFeed? preview,
   }) => OwnScreenShare(
     key: key,
     source: source,
     quality: quality ?? this.quality,
-    preview: preview,
+    preview: preview ?? this.preview,
     audio: audio ?? this.audio,
     audioFrom: audioFrom == null ? this.audioFrom : audioFrom(),
   );

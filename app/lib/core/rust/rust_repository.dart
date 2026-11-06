@@ -1887,6 +1887,27 @@ class RustRepository implements OpencordRepository {
       _emit(ScreenShareStopped(event.message));
       return;
     }
+    // The share's own preview is held here, so its shape is corrected
+    // here too; every other feed is the providers' to follow.
+    if (event is core.MediaEvent_VideoSizeChanged) {
+      if (_screen case final share?
+          when share.preview.trackId == event.trackId) {
+        final preview = share.preview;
+        if (preview.width != event.width || preview.height != event.height) {
+          _screen = share.copyWith(
+            preview: VideoFeed(
+              trackId: preview.trackId,
+              textureId: preview.textureId,
+              width: event.width,
+              height: event.height,
+              mirrored: preview.mirrored,
+            ),
+          );
+          _emit(OwnScreenShareChanged(_screen));
+        }
+        return;
+      }
+    }
     if (_mediaEvent(event) case final repoEvent?) _emit(repoEvent);
   }
 
@@ -2213,6 +2234,12 @@ class RustRepository implements OpencordRepository {
       :final trackId,
     ) =>
       VideoTrackRemoved(serverKey, channelId, userId, trackId),
+    core.MediaEvent_VideoSizeChanged(
+      :final trackId,
+      :final width,
+      :final height,
+    ) =>
+      VideoSizeChanged(trackId, width, height),
     core.MediaEvent_CameraStopped() => null,
     core.MediaEvent_ScreenShareStopped() => null,
     core.MediaEvent_ConnectionStats(

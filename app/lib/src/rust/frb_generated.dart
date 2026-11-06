@@ -11042,24 +11042,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           trackId: dco_decode_String(raw[4]),
         );
       case 11:
-        return MediaEvent_CameraStopped(message: dco_decode_String(raw[1]));
+        return MediaEvent_VideoSizeChanged(
+          trackId: dco_decode_String(raw[1]),
+          width: dco_decode_u_32(raw[2]),
+          height: dco_decode_u_32(raw[3]),
+        );
       case 12:
+        return MediaEvent_CameraStopped(message: dco_decode_String(raw[1]));
+      case 13:
         return MediaEvent_ScreenShareStopped(
           message: dco_decode_String(raw[1]),
         );
-      case 13:
+      case 14:
         return MediaEvent_ConnectionStats(
           serverKey: dco_decode_String(raw[1]),
           channelId: dco_decode_i_64(raw[2]),
           stats: dco_decode_box_autoadd_voice_stats(raw[3]),
         );
-      case 14:
-        return MediaEvent_VoiceRecordLevel(level: dco_decode_f_32(raw[1]));
       case 15:
+        return MediaEvent_VoiceRecordLevel(level: dco_decode_f_32(raw[1]));
+      case 16:
         return MediaEvent_VoiceRecordStopped(
           reason: dco_decode_voice_stop_reason(raw[1]),
         );
-      case 16:
+      case 17:
         return MediaEvent_PlaybackUpdate(
           item: dco_decode_box_autoadd_playback_item(raw[1]),
           positionMs: dco_decode_u_32(raw[2]),
@@ -11067,11 +11073,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           playing: dco_decode_bool(raw[4]),
           buffering: dco_decode_bool(raw[5]),
         );
-      case 17:
+      case 18:
         return MediaEvent_PlaybackEnded(
           item: dco_decode_box_autoadd_playback_item(raw[1]),
         );
-      case 18:
+      case 19:
         return MediaEvent_PlaybackFailed(
           item: dco_decode_box_autoadd_playback_item(raw[1]),
           message: dco_decode_String(raw[2]),
@@ -15274,12 +15280,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           trackId: var_trackId,
         );
       case 11:
-        var var_message = sse_decode_String(deserializer);
-        return MediaEvent_CameraStopped(message: var_message);
+        var var_trackId = sse_decode_String(deserializer);
+        var var_width = sse_decode_u_32(deserializer);
+        var var_height = sse_decode_u_32(deserializer);
+        return MediaEvent_VideoSizeChanged(
+          trackId: var_trackId,
+          width: var_width,
+          height: var_height,
+        );
       case 12:
         var var_message = sse_decode_String(deserializer);
-        return MediaEvent_ScreenShareStopped(message: var_message);
+        return MediaEvent_CameraStopped(message: var_message);
       case 13:
+        var var_message = sse_decode_String(deserializer);
+        return MediaEvent_ScreenShareStopped(message: var_message);
+      case 14:
         var var_serverKey = sse_decode_String(deserializer);
         var var_channelId = sse_decode_i_64(deserializer);
         var var_stats = sse_decode_box_autoadd_voice_stats(deserializer);
@@ -15288,13 +15303,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           channelId: var_channelId,
           stats: var_stats,
         );
-      case 14:
+      case 15:
         var var_level = sse_decode_f_32(deserializer);
         return MediaEvent_VoiceRecordLevel(level: var_level);
-      case 15:
+      case 16:
         var var_reason = sse_decode_voice_stop_reason(deserializer);
         return MediaEvent_VoiceRecordStopped(reason: var_reason);
-      case 16:
+      case 17:
         var var_item = sse_decode_box_autoadd_playback_item(deserializer);
         var var_positionMs = sse_decode_u_32(deserializer);
         var var_durationMs = sse_decode_u_32(deserializer);
@@ -15307,10 +15322,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           playing: var_playing,
           buffering: var_buffering,
         );
-      case 17:
+      case 18:
         var var_item = sse_decode_box_autoadd_playback_item(deserializer);
         return MediaEvent_PlaybackEnded(item: var_item);
-      case 18:
+      case 19:
         var var_item = sse_decode_box_autoadd_playback_item(deserializer);
         var var_message = sse_decode_String(deserializer);
         return MediaEvent_PlaybackFailed(item: var_item, message: var_message);
@@ -19673,26 +19688,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_64(channelId, serializer);
         sse_encode_i_64(userId, serializer);
         sse_encode_String(trackId, serializer);
-      case MediaEvent_CameraStopped(message: final message):
+      case MediaEvent_VideoSizeChanged(
+        trackId: final trackId,
+        width: final width,
+        height: final height,
+      ):
         sse_encode_i_32(11, serializer);
+        sse_encode_String(trackId, serializer);
+        sse_encode_u_32(width, serializer);
+        sse_encode_u_32(height, serializer);
+      case MediaEvent_CameraStopped(message: final message):
+        sse_encode_i_32(12, serializer);
         sse_encode_String(message, serializer);
       case MediaEvent_ScreenShareStopped(message: final message):
-        sse_encode_i_32(12, serializer);
+        sse_encode_i_32(13, serializer);
         sse_encode_String(message, serializer);
       case MediaEvent_ConnectionStats(
         serverKey: final serverKey,
         channelId: final channelId,
         stats: final stats,
       ):
-        sse_encode_i_32(13, serializer);
+        sse_encode_i_32(14, serializer);
         sse_encode_String(serverKey, serializer);
         sse_encode_i_64(channelId, serializer);
         sse_encode_box_autoadd_voice_stats(stats, serializer);
       case MediaEvent_VoiceRecordLevel(level: final level):
-        sse_encode_i_32(14, serializer);
+        sse_encode_i_32(15, serializer);
         sse_encode_f_32(level, serializer);
       case MediaEvent_VoiceRecordStopped(reason: final reason):
-        sse_encode_i_32(15, serializer);
+        sse_encode_i_32(16, serializer);
         sse_encode_voice_stop_reason(reason, serializer);
       case MediaEvent_PlaybackUpdate(
         item: final item,
@@ -19701,17 +19725,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         playing: final playing,
         buffering: final buffering,
       ):
-        sse_encode_i_32(16, serializer);
+        sse_encode_i_32(17, serializer);
         sse_encode_box_autoadd_playback_item(item, serializer);
         sse_encode_u_32(positionMs, serializer);
         sse_encode_u_32(durationMs, serializer);
         sse_encode_bool(playing, serializer);
         sse_encode_bool(buffering, serializer);
       case MediaEvent_PlaybackEnded(item: final item):
-        sse_encode_i_32(17, serializer);
+        sse_encode_i_32(18, serializer);
         sse_encode_box_autoadd_playback_item(item, serializer);
       case MediaEvent_PlaybackFailed(item: final item, message: final message):
-        sse_encode_i_32(18, serializer);
+        sse_encode_i_32(19, serializer);
         sse_encode_box_autoadd_playback_item(item, serializer);
         sse_encode_String(message, serializer);
     }

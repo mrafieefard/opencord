@@ -541,6 +541,7 @@ pub(crate) fn media_event(event: MediaEvent) -> Option<MobileEvent> {
         | MediaEvent::HotkeyPressed { .. }
         | MediaEvent::VideoTrackAdded { .. }
         | MediaEvent::VideoTrackRemoved { .. }
+        | MediaEvent::VideoSizeChanged { .. }
         | MediaEvent::CameraStopped { .. }
         | MediaEvent::ScreenShareStopped { .. }
         | MediaEvent::ConnectionStats { .. } => return None,
