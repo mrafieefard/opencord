@@ -399,7 +399,7 @@ One dialog shell for both user and server settings, styled like Telegram's setti
 - **Windows & behavior** (desktop only): close button minimizes to tray (on by default on Windows and Linux, off on macOS), start minimized, launch at login, restore last window position.
 - **Voice & audio**, **Video**, **Screen share**, **Sounds** and **Voice diagnostics:** full specification in §17. Voice & audio includes the Microphone test section with note, live level meter, and Test button.
 - **Notifications:** desktop notifications, mentions only, message sound, flash taskbar.
-- **Keybinds:** rebindable global and in-app shortcuts with keyboard keys and mouse buttons (Mouse 3, Mouse 4, Mouse 5) for Push to talk, Priority speaker, Toggle mute, Toggle deafen, Toggle push-to-talk, Toggle music mute.
+- **Keybinds:** rebindable global and in-app shortcuts with keyboard keys and mouse buttons (Middle Mouse, Mouse 4, Mouse 5) for Push to talk, Priority speaker, Toggle mute, Toggle deafen, Toggle push-to-talk, Toggle music mute.
 - **Trusted servers:** list of servers with address and pinned fingerprint, "Forget" action.
 - **About:** version, license, links. On desktop, **Logs** (D82, docs/logs.md): export this session's log, export the last session's when it ended unexpectedly, open the logs folder.
 

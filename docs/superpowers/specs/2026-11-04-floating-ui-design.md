@@ -302,7 +302,7 @@ Each part names the widget that becomes it. A number here replaces the widget's 
 
 ### 5.7 Splitter (`ShellSplitter`, new)
 
-> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §2): a second splitter was added for the right pane, resizing live between 240 and 480.
+> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §2): a second splitter was added for the right pane, resizing live from each content's minimum (`232` People, `300` Music and a voice channel's chat) up to `480`.
 
 - In the `8` gap between the left column and main, inline layouts only. Hit area: the gap plus `4` on each side. Cursor: resize column.
 - **Drag** changes the left column's width live, with no animation: minimum `232`, maximum `min(420, window − 62 − 4·gap − side − 380)`. If the window or the pane shrinks past the maximum, the column follows on `pane`, and returns to the chosen width when there's room.
@@ -372,7 +372,7 @@ Each part names the widget that becomes it. A number here replaces the widget's 
 
 ### 5.13 Side slot (`SideSlot`, new; `MemberPanel`, `MusicPanel`)
 
-> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §2): right pane width can be resized live between 240 and 480, default 264 (People) / 340 (Music).
+> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §2): the right pane can be resized live up to `480`, each content keeping its own width: People `264` (minimum `232`), Music `340` (minimum `300`), a voice channel's chat `380` (minimum `300`).
 
 - A float, `264` or `340` wide, full height. The width changes on `pane` when opening or growing, on `paneOut` when closing.
 - **Content keeps its width while the slot opens**, so it slides in from behind the window's edge rather than being squeezed.

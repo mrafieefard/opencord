@@ -1778,3 +1778,21 @@ The owner asked for the custom title bar on every platform, with the system or c
 
 - **Why.** On Windows `arboard` brings `clipboard-win` and `error-code`, both BSL-1.0, which the plan's licence list doesn't allow. The owner chose this over widening the list. It adds no crate and no licence.
 - **Formats.** Reading prefers the registered `PNG` format, then `CF_DIBV5`, then `CF_DIB`. Writing offers both a `CF_DIBV5` and a `PNG`.
+
+## D91: What followed the floating UI (2026-11-06)
+
+(The plan `docs/superpowers/plans/2026-11-05-floating-ui-followups.md` and its spec; pull request #43, branch `feat/floating-ui-followups`.)
+
+**Decision:** nine changes the owner asked for once the floating UI was built.
+
+- **The right pane resizes.** A second `ShellSplitter` between main and the side slot, with everything the left one does. Each content keeps its own width, remembered under `ui.sideWidth.people`, `ui.sideWidth.music` and `ui.sideWidth.voiceChat`: defaults `264`, `340`, `380`, minimums `232`, `300`, `300`, maximum `480` or less to leave main its minimum. The pane gives way before the left column when the window shrinks. Inline layouts only.
+- **Music volume** is a row of its own under the transport: the speaker toggles mute, the slider runs 0–200 and unmutes when dragged. `MusicVolumeButton` and its popover are gone.
+- **Bubble mode is gone.** `MessageDensity` and every bubble path went; the saved `density` key is ignored. Messages are compact only, and both chats load with `ChatSkeleton`.
+- **Invisible is gone.** `SelfPresence` keeps online, idle and do not disturb; a saved Invisible opens as Online. Others can still show offline.
+- **Mouse keybinds:** the middle button, Mouse 4 and Mouse 5, with modifiers. X11 reads raw button presses; Windows installs `WH_MOUSE_LL` only while a binding uses a button (`uses_mouse`) and always passes the event on; macOS adds the other-mouse events to its tap only then. The Wayland portal can't bind buttons, so there they work only while Opencord is focused, and the Keybinds page says so. A side button bound to something no longer steps the app back or forward.
+- **Code fences.** `findFences` (`app/lib/core/fences.dart`) is the one place that knows the rules, used by the message parser and both composers' Enter (a newline inside an open fence); the phone's parser follows the same rules. Blocks are highlighted in greys by `re_highlight` 0.0.3 (MIT); an unknown language, none, or more than 20000 characters stays plain.
+- **The noise chip.** Left of Disconnect on the voice card, `Standard`, `High` or `Off`. Its popover has an on/off switch, the Standard/High switch, the line from Settings, and `MicTestPanel`.
+- **The microphone test** plays back what Opencord would send, after noise suppression, input volume and the voice gate. In a call it deafens the person until it stops (the processor sends nothing while muted or deafened, and push to talk counts as held), then restores them. Out of a call it runs on an engine of its own. It ends when its popover or the Voice settings page closes, on leaving or joining a call, or on undeafening any other way, and is never remembered. Voice settings has it too, under `Microphone test`, hearing the page's unsaved audio settings while it runs.
+- **Ping** shows in a tooltip on the voice card's signal bars, with no wait, and in the row's label for screen readers.
+- **Checks:** Rust tests for the processor and the hotkey matchers; widget tests for every part, and the review scenes in `test/support/floating_scenes.dart` scored at each breakpoint at four checkpoints.
+- **Owed by hand** (`docs/plans/check-windows-by-hand.md`, `docs/plans/check-macos.md`): mouse keybinds in another app on X11, Windows and macOS, the Wayland footer, and the test on headphones and speakers with a second person listening.
