@@ -1779,7 +1779,18 @@ The owner asked for the custom title bar on every platform, with the system or c
 - **Why.** On Windows `arboard` brings `clipboard-win` and `error-code`, both BSL-1.0, which the plan's licence list doesn't allow. The owner chose this over widening the list. It adds no crate and no licence.
 - **Formats.** Reading prefers the registered `PNG` format, then `CF_DIBV5`, then `CF_DIB`. Writing offers both a `CF_DIBV5` and a `PNG`.
 
-## D91: What followed the floating UI (2026-11-06)
+## D91: Each update track takes only its own builds (2026-11-04)
+
+The owner's beta install kept downloading `0.0.1-canary.4` from October 26 after `0.0.1-beta.5` came out on November 4. The owner decided the launcher takes the track the user picked, not the highest version.
+
+- **Cause.** The beta track also took canary and stable builds, and the highest version won. SemVer sorts pre-release names alphabetically, so `canary` beats `beta`, and every release so far is 0.0.1 because there's no stable tag to count from. So one canary hid every later beta. Worse, the launcher then replaced itself with the copy inside canary.4.
+- **Now.** `release::newest` looks only at the track's own releases, and `Track::follows` is gone. A build of another track gives way to the track's newest even when it sorts higher, which moves anyone the old launcher left on canary. Within a track, updates still never go backwards.
+- **What this gives up.** A beta user no longer moves to a stable release by themselves; the next beta reaches them instead. A track with no release yet stays on what's installed, or keeps retrying on a first install.
+- **The list is now 100 releases (was 30).** A track has to find its own newest build there, so a quiet track could otherwise fall off the page behind a busy one. A track with no release in the last 100 finds nothing.
+- **Reaching existing installs.** Installed launchers still pick the highest version, so they'd take canary.4 forever and never see this fix. This commit carries `Release-As: 0.0.2`, so the next beta is `0.0.2-beta.1`, which they do take. They install it, then replace themselves with its launcher. It also means the first stable release will be 0.0.2, not 0.0.1.
+- **Checks.** Launcher unit tests cover each track picking only its own builds, a higher-sorting canary not winning for beta, a canary installed for a beta user giving way, and older builds of the same track staying. Owed by hand: an install stuck on canary.4 moving to `0.0.2-beta.1` and then staying on beta.
+
+## D92: What followed the floating UI (2026-11-06)
 
 (The plan `docs/superpowers/plans/2026-11-05-floating-ui-followups.md` and its spec; pull request #43, branch `feat/floating-ui-followups`.)
 

@@ -111,19 +111,16 @@ pub struct Listed {
     pub draft: bool,
 }
 
-/// The newest release `track` takes from a releases listing, by version:
-/// SemVer orders `0.0.2-beta.3 < 0.0.2-canary.1 < 0.0.2`, the order the
-/// channels release in.
+/// The newest of `track`'s own releases in a releases listing. Only its
+/// own: SemVer sorts `0.0.2-canary.1` above every `0.0.2-beta.N`, however
+/// much later the beta was built, so versions say nothing across tracks.
 pub fn newest(listing: &[Listed], track: Track) -> Option<(Version, String)> {
     listing
         .iter()
         .filter(|release| !release.draft)
         .filter_map(|release| {
             let version = Version::parse(release.tag_name.strip_prefix('v')?).ok()?;
-            let channel = Track::of(&version)?;
-            track
-                .follows(channel)
-                .then(|| (version, release.tag_name.clone()))
+            (Track::of(&version)? == track).then(|| (version, release.tag_name.clone()))
         })
         .max_by(|(a, _), (b, _)| a.cmp(b))
 }
@@ -213,7 +210,7 @@ mod tests {
     }
 
     #[test]
-    fn each_track_picks_the_newest_build_it_takes() {
+    fn each_track_picks_the_newest_of_its_own_builds() {
         let listing = listed(&[
             "v0.0.2-beta.1",
             "v0.0.1",
@@ -221,16 +218,34 @@ mod tests {
             "v0.0.2-canary.1",
         ]);
         let tag = |track| newest(&listing, track).map(|(_, tag)| tag);
-        assert_eq!(tag(Track::Beta).as_deref(), Some("v0.0.2-canary.1"));
+        assert_eq!(tag(Track::Beta).as_deref(), Some("v0.0.2-beta.1"));
         assert_eq!(tag(Track::Canary).as_deref(), Some("v0.0.2-canary.1"));
         assert_eq!(tag(Track::Stable).as_deref(), Some("v0.0.1"));
     }
 
+    /// By version alone `canary` sorts after `beta`, so a canary hid every
+    /// later beta of the same version from beta users.
     #[test]
-    fn a_stable_release_newer_than_the_betas_wins_for_beta() {
+    fn a_canary_that_sorts_higher_does_not_win_for_beta() {
+        let listing = listed(&["v0.0.1-beta.5", "v0.0.1-canary.4", "v0.0.1-beta.4"]);
+        let (_, tag) = newest(&listing, Track::Beta).unwrap();
+        assert_eq!(tag, "v0.0.1-beta.5");
+    }
+
+    #[test]
+    fn a_stable_release_does_not_win_for_beta() {
         let listing = listed(&["v0.0.2-beta.4", "v0.0.2"]);
         let (_, tag) = newest(&listing, Track::Beta).unwrap();
-        assert_eq!(tag, "v0.0.2");
+        assert_eq!(tag, "v0.0.2-beta.4");
+    }
+
+    #[test]
+    fn a_track_without_a_build_of_its_own_gets_none() {
+        let listing = listed(&["v0.0.2-canary.1", "v0.0.1"]);
+        assert!(newest(&listing, Track::Beta).is_none());
+        let listing = listed(&["v0.0.2-beta.1"]);
+        assert!(newest(&listing, Track::Canary).is_none());
+        assert!(newest(&listing, Track::Stable).is_none());
     }
 
     #[test]
@@ -240,7 +255,7 @@ mod tests {
             tag_name: "v0.0.2".to_owned(),
             draft: true,
         });
-        let (_, tag) = newest(&listing, Track::Beta).unwrap();
+        let (_, tag) = newest(&listing, Track::Stable).unwrap();
         assert_eq!(tag, "v0.0.1");
         assert!(newest(&[], Track::Beta).is_none());
     }

@@ -88,7 +88,7 @@ impl<H: Http> Source for Github<H> {
             )?
         } else {
             let listing = self.http.get(&format!(
-                "https://api.github.com/repos/{repo}/releases?per_page=30"
+                "https://api.github.com/repos/{repo}/releases?per_page=100"
             ))?;
             let listing: Vec<Listed> = serde_json::from_slice(&listing).map_err(|error| {
                 Error::Network(format!("the releases list can't be read: {error}"))
@@ -99,11 +99,12 @@ impl<H: Http> Source for Github<H> {
                 Some(&tag),
             )?
         };
-        // A manifest of a track this one doesn't take (`latest` is always
-        // stable, but a manifest is only as good as its checks).
-        match Track::of(&manifest.version) {
-            Some(channel) if track.follows(channel) => Ok(manifest),
-            _ => Err(Error::NoRelease),
+        // A manifest of another track (`latest` is always stable, but a
+        // manifest is only as good as its checks).
+        if Track::of(&manifest.version) == Some(track) {
+            Ok(manifest)
+        } else {
+            Err(Error::NoRelease)
         }
     }
 
@@ -241,7 +242,7 @@ mod tests {
     }
 
     const LATEST: &str = "https://github.com/o/r/releases/latest/download/release.json";
-    const LIST: &str = "https://api.github.com/repos/o/r/releases?per_page=30";
+    const LIST: &str = "https://api.github.com/repos/o/r/releases?per_page=100";
 
     #[test]
     fn stable_reads_the_latest_release_without_the_api() {
@@ -256,11 +257,11 @@ mod tests {
     }
 
     #[test]
-    fn beta_lists_releases_and_reads_the_newest_it_takes() {
+    fn beta_lists_releases_and_reads_the_newest_of_its_own() {
         let mut fake = Fake::default();
         fake.bodies.insert(
             LIST.into(),
-            br#"[{"tag_name":"v0.0.2-beta.2"},{"tag_name":"v0.0.2-beta.1"},{"tag_name":"v0.0.1"}]"#
+            br#"[{"tag_name":"v0.0.2-beta.2"},{"tag_name":"v0.0.2-canary.1"},{"tag_name":"v0.0.2-beta.1"},{"tag_name":"v0.0.1"}]"#
                 .to_vec(),
         );
         fake.bodies.insert(
