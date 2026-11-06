@@ -813,8 +813,16 @@ impl Session {
                 continue;
             }
 
-            // The pool has to follow, or its textures stay the old size
-            // and every frame costs a copy of more than it holds.
+            let picture = (drawn.Width as u32, drawn.Height as u32);
+            if let Some(raw) = copy_out(&self.graphics, &frame, &mut staging, picture) {
+                // Dropped while the encoder is behind.
+                counts.grabbed(frames.try_send(raw).is_ok());
+            }
+
+            // Then the pool follows, or its textures stay the old size and
+            // every frame costs a copy of more than it holds. After the
+            // copy, never before: recreating the pool lets go of the
+            // buffers its frames are drawn in, this frame's among them.
             if (drawn.Width, drawn.Height) != (pool_size.Width, pool_size.Height) {
                 pool_size = drawn;
                 staging = None;
@@ -824,12 +832,6 @@ impl Session {
                     2,
                     drawn,
                 );
-            }
-
-            let drawn = (drawn.Width as u32, drawn.Height as u32);
-            if let Some(raw) = copy_out(&self.graphics, &frame, &mut staging, drawn) {
-                // Dropped while the encoder is behind.
-                counts.grabbed(frames.try_send(raw).is_ok());
             }
 
             if !self.paced {
