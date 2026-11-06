@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/settings/app_settings.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/chat_row_view.dart';
 import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/list_overlays.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 
 import '../../support/app.dart';
+import '../../support/pump.dart';
 
 const _server = 'opencord.example:7710';
 
@@ -53,19 +54,19 @@ bool _inView(WidgetTester tester, String text) {
   return rect.top >= list.top - 1 && rect.bottom <= list.bottom + 1;
 }
 
-/// The first bubble entirely in view, as a finder that keeps finding it.
-Finder _firstVisibleBubble(WidgetTester tester) {
+/// The first row entirely in view, as a finder that keeps finding it.
+Finder _firstVisibleRow(WidgetTester tester) {
   final list = _listRect(tester);
-  for (final element in find.byType(MessageBubble).evaluate()) {
-    final bubble = element.widget as MessageBubble;
+  for (final element in find.byType(CompactMessage).evaluate()) {
+    final row = element.widget as CompactMessage;
     final finder = find.byWidgetPredicate(
       (widget) =>
-          widget is MessageBubble && widget.message.id == bubble.message.id,
+          widget is CompactMessage && widget.message.id == row.message.id,
     );
     final rect = tester.getRect(finder);
     if (rect.top >= list.top && rect.bottom <= list.bottom) return finder;
   }
-  throw StateError('no bubble in view');
+  throw StateError('no row in view');
 }
 
 Future<void> _scrollUp(WidgetTester tester, double by) async {
@@ -78,6 +79,84 @@ Future<void> _scrollUp(WidgetTester tester, double by) async {
 }
 
 void main() {
+  testWidgets('skeleton_draws_compact_rows', (tester) async {
+    await pumpThemed(
+      tester,
+      surface: const Size(1280, 800),
+      const Align(alignment: Alignment.bottomCenter, child: ChatSkeleton()),
+    );
+
+    final colors = tester.element(find.byType(ChatSkeleton)).oc;
+    final avatars = find.byWidgetPredicate(
+      (w) =>
+          w is DecoratedBox &&
+          w.decoration is BoxDecoration &&
+          (w.decoration as BoxDecoration).shape == BoxShape.circle &&
+          (w.decoration as BoxDecoration).color == colors.hover,
+    );
+    // Six rows in groups of three: an avatar on each group's first row.
+    expect(avatars, findsNWidgets(2));
+    final skeleton = tester.getRect(find.byType(ChatSkeleton));
+    final avatarRects = [
+      for (var i = 0; i < 2; i++) tester.getRect(avatars.at(i)),
+    ];
+    for (final rect in avatarRects) {
+      expect(rect.size, const Size.square(OcSize.messageAvatar));
+      expect(rect.left, skeleton.left + OcSpace.s16);
+    }
+
+    final lines = find.byWidgetPredicate(
+      (w) =>
+          w is Container &&
+          w.decoration is BoxDecoration &&
+          (w.decoration as BoxDecoration).color == colors.hover,
+    );
+    // An author line on each group, and a text line on every row.
+    expect(lines, findsNWidgets(8));
+    final textLeft = avatarRects.first.right + OcSpace.s12;
+    for (var i = 0; i < 8; i++) {
+      final rect = tester.getRect(lines.at(i));
+      expect(rect.left, textLeft);
+      // Text lines are 14; an author line is 12, with 6 below it.
+      expect(rect.height, anyOf(14.0, 12.0 + 6));
+      final decoration =
+          tester.widget<Container>(lines.at(i)).decoration! as BoxDecoration;
+      expect(decoration.borderRadius, BorderRadius.circular(4));
+    }
+  });
+
+  testWidgets('channels_load_with_the_skeleton', (tester) async {
+    final app = await MockApp.pump(tester);
+    app.repository.debugHistoryDelay = const Duration(milliseconds: 300);
+    app
+        .read(navigationProvider.notifier)
+        .openChannel(_server, _channelId(app, 'general'));
+    await tester.pump();
+    expect(find.byType(ChatSkeleton), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatSkeleton), findsNothing);
+    expect(find.byType(CompactMessage), findsWidgets);
+    await app.dispose(tester);
+  });
+
+  testWidgets('private_chats_load_with_the_skeleton', (tester) async {
+    final app = await MockApp.pump(tester);
+    app.repository.debugHistoryDelay = const Duration(milliseconds: 300);
+    final contacts = app.read(privateContactsProvider);
+    final priya = contacts.all.firstWhere((c) => c.name == 'Priya Shah');
+    app.read(navigationProvider.notifier).openConversation(priya.peer);
+    await tester.pump();
+    expect(find.byType(ChatSkeleton), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatSkeleton), findsNothing);
+    expect(find.byType(CompactMessage), findsWidgets);
+    await app.dispose(tester);
+  });
+
   testWidgets('a channel with unread messages opens at the unread line', (
     tester,
   ) async {
@@ -88,28 +167,10 @@ void main() {
     await app.dispose(tester);
   });
 
-  testWidgets('compact density draws lines instead of bubbles', (tester) async {
-    final app = await MockApp.pump(
-      tester,
-      settings: (settings) =>
-          settings.copyWith(density: MessageDensity.compact),
-    );
-    await _open(tester, app, 'general');
-
-    expect(find.byType(CompactMessage), findsWidgets);
-    expect(find.byType(MessageBubble), findsNothing);
-    await app.dispose(tester);
-  });
-
   testWidgets('compact lines use the whole width, as in private chats', (
     tester,
   ) async {
-    final app = await MockApp.pump(
-      tester,
-      size: const Size(1800, 900),
-      settings: (settings) =>
-          settings.copyWith(density: MessageDensity.compact),
-    );
+    final app = await MockApp.pump(tester, size: const Size(1800, 900));
     await _open(tester, app, 'general');
 
     final list = _listRect(tester);
@@ -117,22 +178,6 @@ void main() {
     final line = tester.getRect(find.byType(CompactMessage).first);
     expect(line.left, closeTo(list.left + OcSpace.s16, 1));
     expect(line.right, closeTo(list.right - OcSpace.s16, 1));
-    await app.dispose(tester);
-  });
-
-  testWidgets('bubbles keep to a readable column on a wide window', (
-    tester,
-  ) async {
-    final app = await MockApp.pump(tester, size: const Size(1800, 900));
-    await _open(tester, app, 'general');
-
-    final list = _listRect(tester);
-    final side = (list.width - OcSize.messageColumn) / 2;
-    for (final bubble in find.byType(MessageBubble).evaluate().take(5)) {
-      final rect = tester.getRect(find.byWidget(bubble.widget));
-      expect(rect.left, greaterThanOrEqualTo(list.left + side - 1));
-      expect(rect.right, lessThanOrEqualTo(list.right - side + 1));
-    }
     await app.dispose(tester);
   });
 
@@ -165,7 +210,7 @@ void main() {
     final app = await MockApp.pump(tester);
     final channel = await _openStress(tester, app);
     await _scrollUp(tester, 1500);
-    final reading = _firstVisibleBubble(tester);
+    final reading = _firstVisibleRow(tester);
     final before = tester.getTopLeft(reading).dy;
 
     app.repository.debugPostAs(_server, channel, 'While you were away');
@@ -207,7 +252,7 @@ void main() {
     final channel = await _openStress(tester, app);
     final ref = (server: _server, channel: channel);
     await _scrollUp(tester, 600);
-    final reading = _firstVisibleBubble(tester);
+    final reading = _firstVisibleRow(tester);
     final before = tester.getTopLeft(reading).dy;
     final count = app.read(channelMessagesProvider(ref)).messages.length;
 
@@ -240,7 +285,7 @@ void main() {
     final app = await MockApp.pump(tester);
     await _openStress(tester, app);
     await _scrollUp(tester, 1500);
-    final reading = _firstVisibleBubble(tester);
+    final reading = _firstVisibleRow(tester);
     final before = tester.getTopLeft(reading).dy;
 
     await _open(tester, app, 'general');
@@ -261,8 +306,8 @@ void main() {
     semantics.dispose();
 
     final highlighted = tester
-        .widgetList<MessageBubble>(find.byType(MessageBubble))
-        .where((bubble) => bubble.highlighted);
+        .widgetList<CompactMessage>(find.byType(CompactMessage))
+        .where((row) => row.highlighted);
     expect(highlighted, hasLength(1));
     expect(
       highlighted.single.message.content,
@@ -270,7 +315,7 @@ void main() {
     );
     final original = tester.getRect(
       find.byWidgetPredicate(
-        (widget) => widget is MessageBubble && widget.highlighted,
+        (widget) => widget is CompactMessage && widget.highlighted,
       ),
     );
     final list = _listRect(tester);

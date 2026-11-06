@@ -218,7 +218,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     (SelfPresence.online, 'Shown as online'),
                     (SelfPresence.idle, 'Away for now'),
                     (SelfPresence.doNotDisturb, 'No notifications'),
-                    (SelfPresence.invisible, 'Shown as offline'),
                   ])
                     ChoiceCardOption(
                       value: option,

@@ -1,7 +1,9 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/chat/links.dart';
@@ -68,7 +70,7 @@ void main() {
 
     await _addKeybind(tester);
     // A new keybind listens at once, like Discord's.
-    expect(_inPage(find.text('Press keys…')), findsOneWidget);
+    expect(_inPage(find.text('Press keys or a mouse button…')), findsOneWidget);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
     await tester.pump();
@@ -267,4 +269,208 @@ void main() {
       await app.dispose(tester);
     },
   );
+
+  testWidgets('the_empty_row_mentions_the_mouse', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openPage(tester, 'Keybinds');
+    expect(
+      _inPage(
+        find.text(
+          'Add one to push to talk, mute or deafen with a key or mouse button, '
+          'even from another app.',
+        ),
+      ),
+      findsOneWidget,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_recorder_asks_for_either', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openPage(tester, 'Keybinds');
+    await _addKeybind(tester);
+    expect(_inPage(find.text('Press keys or a mouse button…')), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('recording_takes_a_mouse_button', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openPage(tester, 'Keybinds');
+
+    for (final (buttonMask, text, label) in [
+      (kMiddleMouseButton, 'Mouse3', 'Middle Mouse'),
+      (kBackMouseButton, 'Mouse4', 'Mouse 4'),
+      (kForwardMouseButton, 'Mouse5', 'Mouse 5'),
+    ]) {
+      await _addKeybind(tester);
+      expect(
+        _inPage(find.text('Press keys or a mouse button…')),
+        findsOneWidget,
+      );
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: buttonMask,
+      );
+      await gesture.down(const Offset(100, 100));
+      await tester.pump();
+      await gesture.up();
+      await gesture.removePointer();
+      await _pumpFor(tester, const Duration(milliseconds: 100));
+
+      expect(_inPage(find.text(label)), findsOneWidget);
+      expect(_saved(app), isEmpty); // Draft holds it, not saved yet
+      final draftRow = app.read(shownKeybindsProvider).list.last;
+      expect(draftRow.keys, text);
+
+      // Remove row before next iteration
+      await tester.tap(
+        _inPage(find.byTooltip('Remove keybind')).last,
+        warnIfMissed: false,
+      );
+      await _pumpFor(tester, const Duration(milliseconds: 100));
+    }
+    await app.dispose(tester);
+  });
+
+  testWidgets('modifiers_go_with_the_button', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openPage(tester, 'Keybinds');
+    await _addKeybind(tester);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(_inPage(find.text('Left Ctrl + …')), findsOneWidget);
+
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(150, 150));
+    await tester.pump();
+    await gesture.up();
+    await gesture.removePointer();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+
+    expect(_inPage(find.text('Ctrl + Mouse 4')), findsOneWidget);
+    final draftRow = app.read(shownKeybindsProvider).list.last;
+    expect(draftRow.keys, 'CTRL+Mouse4');
+    await app.dispose(tester);
+  });
+
+  testWidgets('left_click_on_the_recorder_stops_it_once', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openPage(tester, 'Keybinds');
+    await _addKeybind(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+    final keys = app.read(shownKeybindsProvider).list.last.keys;
+    expect(keys, isNotEmpty);
+    final recorder = _inPage(find.byType(KeybindRecorder));
+
+    Future<void> click(Offset at, int buttons) async {
+      final mouse = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: buttons,
+      );
+      await mouse.down(at);
+      await tester.pump();
+      await mouse.up();
+      await mouse.removePointer();
+      await _pumpFor(tester, const Duration(milliseconds: 100));
+    }
+
+    // Each stop is followed by a single click that starts it again: a
+    // stopping click must not leave the next one swallowed.
+    final elsewhere = tester.getCenter(_inPage(find.text('Keybinds')).first);
+    for (final (at, buttons) in [
+      (tester.getCenter(recorder), kPrimaryMouseButton),
+      (elsewhere, kPrimaryMouseButton),
+      (elsewhere, kSecondaryMouseButton),
+      (tester.getCenter(recorder), kSecondaryMouseButton),
+    ]) {
+      await click(tester.getCenter(recorder), kPrimaryMouseButton);
+      expect(app.read(recordingKeybindProvider), isTrue);
+      await click(at, buttons);
+      expect(app.read(recordingKeybindProvider), isFalse, reason: '$at');
+      expect(app.read(shownKeybindsProvider).list.last.keys, keys);
+    }
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_footer_says_where_mouse_works', (tester) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    app.repository.hotkeySupport = const HotkeySupport.global(
+      'the portal',
+      mouse: false,
+    );
+    app
+        .read(hotkeySupportProvider.notifier)
+        .set(const HotkeySupport.global('the portal', mouse: false));
+    await _openPage(tester, 'Keybinds');
+
+    // Without a mouse keybind: no sentence about mouse buttons
+    expect(
+      _inPage(
+        find.text('Keybinds work in other apps too, through the portal.'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      _inPage(
+        find.textContaining(
+          'Mouse buttons work only while Opencord is focused on this desktop.',
+        ),
+      ),
+      findsNothing,
+    );
+
+    // Add a mouse keybind: sentence appears
+    await _addKeybind(tester);
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(100, 100));
+    await tester.pump();
+    await gesture.up();
+    await gesture.removePointer();
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+
+    expect(
+      _inPage(
+        find.text(
+          'Keybinds work in other apps too, through the portal. '
+          'Mouse buttons work only while Opencord is focused on this desktop.',
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    // If global supports mouse (mouse: true), the sentence is absent even with mouse keybind
+    app.repository.hotkeySupport = const HotkeySupport.global(
+      'XInput',
+      mouse: true,
+    );
+    app
+        .read(hotkeySupportProvider.notifier)
+        .set(const HotkeySupport.global('XInput', mouse: true));
+    await tester.pump();
+
+    expect(
+      _inPage(find.text('Keybinds work in other apps too, through XInput.')),
+      findsOneWidget,
+    );
+    expect(
+      _inPage(
+        find.textContaining(
+          'Mouse buttons work only while Opencord is focused on this desktop.',
+        ),
+      ),
+      findsNothing,
+    );
+
+    await app.dispose(tester);
+  });
 }

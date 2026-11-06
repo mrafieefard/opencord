@@ -15,6 +15,12 @@ describe('previewText strips the markdown subset and resolves mentions and chann
     ['see <#10>', 'see #general'],
     ['<@42> in <#99>', '@unknown in #unknown'],
     ['two\nlines', 'two lines'],
+    ['```py\n\nCODE```', 'CODE'],
+    ['```js\nCode\n```', 'Code'],
+    ['```one line```', 'one line'],
+    ['```py code```', 'py code'],
+    ['```\nb``` after', 'b after'],
+    ['```\nno end', '``` no end'],
   ])('%s', (input, expected) => {
     expect(previewText(input, lookup)).toBe(expected);
   });

@@ -1437,8 +1437,11 @@ class MockRepository implements OpencordRepository {
   Future<String> avatarPath(String serverKey, String hash) async =>
       'mock-avatars/$hash.png';
 
+  SelfPresence lastPresence = SelfPresence.online;
+
   @override
   Future<void> updatePresence(SelfPresence presence) async {
+    lastPresence = presence;
     for (final server in _world.servers) {
       server.presences[server.selfId] = presence.shown;
       _emit(
@@ -3897,8 +3900,15 @@ class MockRepository implements OpencordRepository {
   void debugNoiseSuppressionFellBack() =>
       _emit(const NoiseSuppressionFellBack());
 
+  /// Set to make the next microphone tests fail to start, as when the
+  /// microphone can't open.
+  RepoException? micTestError;
+
   @override
-  Future<void> setMicTest(bool on) async => micTest = on;
+  Future<void> setMicTest(bool on) async {
+    if (micTestError case final error? when on) throw error;
+    micTest = on;
+  }
 
   /// The mock is a fast computer.
   @override
@@ -5118,7 +5128,12 @@ class MockRepository implements OpencordRepository {
     String peer, {
     String? before,
     int limit = 50,
-  }) => _privateWorld.privateMessages(peer, before: before, limit: limit);
+  }) async {
+    if (debugHistoryDelay > Duration.zero) {
+      await Future<void>.delayed(debugHistoryDelay);
+    }
+    return _privateWorld.privateMessages(peer, before: before, limit: limit);
+  }
 
   @override
   Future<PrivateMessage> sendPrivateMessage(String peer, String content) =>

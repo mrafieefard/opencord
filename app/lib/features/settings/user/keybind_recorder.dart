@@ -1,8 +1,10 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/hotkeys.dart';
+import 'package:opencord/core/settings/keybinds.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
@@ -37,6 +39,10 @@ class KeybindRecorder extends ConsumerStatefulWidget {
 class _KeybindRecorderState extends ConsumerState<KeybindRecorder> {
   final _focus = FocusNode(debugLabel: 'keybind recorder');
   var _recording = false;
+  var _listeningPointer = false;
+  var _stoppedByPointer = false;
+  final _pointerButtons = <int, int>{};
+  RecordingKeybindNotifier? _recordingNotifier;
 
   /// Modifier keys down since recording started, in the order pressed.
   final _modifiers = <LogicalKeyboardKey>[];
@@ -57,34 +63,123 @@ class _KeybindRecorderState extends ConsumerState<KeybindRecorder> {
 
   @override
   void dispose() {
+    _removePointerRoute();
     if (_recording) {
-      // The provider outlives this page.
-      final recording = ref.read(recordingKeybindProvider.notifier);
-      WidgetsBinding.instance.addPostFrameCallback((_) => recording.set(false));
+      final recording = _recordingNotifier;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => recording?.set(false),
+      );
     }
     _focus.dispose();
     super.dispose();
   }
 
+  void _addPointerRoute() {
+    if (!_listeningPointer) {
+      GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointerEvent);
+      _listeningPointer = true;
+    }
+  }
+
+  void _removePointerRoute() {
+    if (_listeningPointer) {
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointerEvent);
+      _listeningPointer = false;
+    }
+  }
+
   void _start() {
+    if (_recording) return;
     setState(() {
       _recording = true;
       _modifiers.clear();
       _problem = null;
     });
-    ref.read(recordingKeybindProvider.notifier).set(true);
+    _addPointerRoute();
+    final recording = ref.read(recordingKeybindProvider.notifier);
+    _recordingNotifier = recording;
+    recording.set(true);
     _focus.requestFocus();
   }
 
   void _stop() {
+    if (!_recording) return;
     setState(() => _recording = false);
-    ref.read(recordingKeybindProvider.notifier).set(false);
+    if (_pointerButtons.isEmpty) {
+      _removePointerRoute();
+    }
+    _recordingNotifier?.set(false);
   }
 
   void _finish(Accelerator accelerator) {
     _stop();
     _focus.unfocus();
     widget.onRecorded(accelerator.toString());
+  }
+
+  void _onPointerEvent(PointerEvent event) {
+    if (event is PointerCancelEvent) {
+      _pointerButtons.remove(event.pointer);
+      _stoppedByPointer = false;
+      if (!_recording) {
+        _removePointerRoute();
+      }
+      return;
+    }
+
+    if (event is PointerUpEvent) {
+      _pointerButtons.remove(event.pointer);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _stoppedByPointer = false;
+      });
+      if (!_recording) {
+        _removePointerRoute();
+      }
+      return;
+    }
+
+    if (!_recording) return;
+
+    final last = _pointerButtons[event.pointer] ?? 0;
+    final current = event.buttons;
+    _pointerButtons[event.pointer] = current;
+
+    if (current == 0) {
+      _pointerButtons.remove(event.pointer);
+      return;
+    }
+
+    final down = (current ^ last) & current;
+    if (down == 0) return;
+
+    if (down & kPrimaryMouseButton != 0 || down & kSecondaryMouseButton != 0) {
+      _stoppedByPointer = true;
+      _stop();
+      _focus.unfocus();
+      return;
+    }
+
+    final button = switch (down) {
+      _ when down & kMiddleMouseButton != 0 => MouseButton.middle,
+      _ when down & kBackMouseButton != 0 => MouseButton.back,
+      _ when down & kForwardMouseButton != 0 => MouseButton.forward,
+      _ => null,
+    };
+
+    if (button != null) {
+      final hw = HardwareKeyboard.instance;
+      bool isHeld(Set<LogicalKeyboardKey> kind, bool hwHeld) =>
+          hwHeld || _modifiers.any(kind.contains);
+
+      final accelerator = Accelerator(
+        button: button,
+        ctrl: isHeld(_ctrl, hw.isControlPressed),
+        alt: isHeld(_alt, hw.isAltPressed),
+        shift: isHeld(_shift, hw.isShiftPressed),
+        logo: isHeld(_logo, hw.isMetaPressed),
+      );
+      _finish(accelerator);
+    }
   }
 
   /// [key] with the modifiers held now, other than [key] itself.
@@ -134,14 +229,24 @@ class _KeybindRecorderState extends ConsumerState<KeybindRecorder> {
         for (final key in _modifiers) keyLabel(key, mac: mac),
         '…',
       ].join(' + '),
-      true => _problem ?? 'Press keys…',
+      true => _problem ?? 'Press keys or a mouse button…',
       false => current ?? 'No keybind',
     };
     return Focus(
       focusNode: _focus,
       onKeyEvent: _onKey,
       child: Hoverable(
-        onTap: _recording ? _stop : _start,
+        onTap: () {
+          if (_stoppedByPointer) {
+            _stoppedByPointer = false;
+            return;
+          }
+          if (_recording) {
+            _stop();
+          } else {
+            _start();
+          }
+        },
         semanticLabel: widget.semanticLabel,
         focusRadius: BorderRadius.circular(8),
         builder: (context, state) => AnimatedContainer(

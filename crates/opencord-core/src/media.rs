@@ -226,9 +226,9 @@ impl Media {
         let Some(target) = target else {
             state.session = None;
             state.pending = None;
-            if state.mic_test {
-                state.mic_test_engine = self.start_mic_test(&state);
-            }
+            // Leaving a call ends the mic test (spec §8.4): no engine of
+            // its own starts.
+            state.mic_test = false;
             return;
         };
         if state
@@ -449,6 +449,9 @@ impl Media {
         );
         match engine {
             Ok(engine) => {
+                // It sends nowhere. Muted, the test opens the microphone as
+                // if push to talk were held (spec §8.4).
+                engine.set_muted(true);
                 engine.set_mic_test(true);
                 engine.set_level_meter(state.level_meter);
                 Some(engine)
@@ -747,7 +750,7 @@ fn hotkey_action_from(action: hotkeys::HotkeyAction) -> HotkeyAction {
 
 pub(crate) fn hotkey_support_from(support: hotkeys::HotkeySupport) -> HotkeySupport {
     match support {
-        hotkeys::HotkeySupport::Global { method } => HotkeySupport::Global { method },
+        hotkeys::HotkeySupport::Global { method, mouse } => HotkeySupport::Global { method, mouse },
         hotkeys::HotkeySupport::FocusedOnly {
             reason,
             settings_url,
@@ -1468,6 +1471,39 @@ mod tests {
             .unwrap()
             .len(),
             1
+        );
+    }
+
+    #[test]
+    fn a_hotkey_can_be_a_mouse_button() {
+        let bound = hotkey_bindings(&[HotkeyBinding {
+            action: HotkeyAction::PushToTalk,
+            accelerator: "CTRL+Mouse4".to_owned(),
+        }])
+        .unwrap();
+
+        assert_eq!(
+            bound[0].accelerator.button,
+            Some(hotkeys::MouseButton::Back)
+        );
+        assert!(bound[0].accelerator.ctrl);
+        assert!(
+            hotkey_bindings(&[HotkeyBinding {
+                action: HotkeyAction::PushToTalk,
+                accelerator: "Mouse1".to_owned(),
+            }])
+            .is_err(),
+            "the left button would fire on every click"
+        );
+        assert_eq!(
+            hotkey_support_from(hotkeys::HotkeySupport::Global {
+                method: "the portal".to_owned(),
+                mouse: false,
+            }),
+            HotkeySupport::Global {
+                method: "the portal".to_owned(),
+                mouse: false,
+            }
         );
     }
 }

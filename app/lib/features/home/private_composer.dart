@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/bidi.dart';
+import 'package:opencord/core/fences.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/chat/composer_bar.dart';
@@ -133,6 +134,22 @@ class PrivateComposerState extends ConsumerState<PrivateComposer> {
         !shift) {
       if (_controller.value.isComposingRangeValid) {
         return KeyEventResult.ignored;
+      }
+      final sel = _controller.selection;
+      final textBefore = sel.isValid && sel.start >= 0
+          ? _controller.text.substring(0, sel.start)
+          : _controller.text;
+      if (endsInsideFence(textBefore)) {
+        final start = sel.isValid && sel.start >= 0
+            ? sel.start
+            : _controller.text.length;
+        final end = sel.isValid && sel.end >= 0 ? sel.end : start;
+        final newText = _controller.text.replaceRange(start, end, '\n');
+        _controller.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: start + 1),
+        );
+        return KeyEventResult.handled;
       }
       unawaited(_submit());
       return KeyEventResult.handled;

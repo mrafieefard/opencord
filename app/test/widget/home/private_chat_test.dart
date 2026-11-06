@@ -17,6 +17,7 @@ import 'package:opencord/features/home/request_bar.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/features/shell/navigation.dart';
 
@@ -380,6 +381,138 @@ void main() {
     expect(
       find.textContaining('Testing enter key', findRichText: true),
       findsOneWidget,
+    );
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('enter_inside_an_open_fence_adds_a_line in private composer', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final kaiKey = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Kai Nakamura')
+        .peer;
+
+    await _pumpChat(tester, app, kaiKey);
+
+    final input = find.byType(TextField);
+    await tester.enterText(input, '```py ');
+    await tester.pump();
+
+    final initialCount =
+        (app.repository.privateWorld.messages[kaiKey] ?? []).length;
+
+    // Enter inside open fence inserts a line and sends nothing
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    final controller = tester.widget<TextField>(input).controller!;
+    expect(controller.text, '```py \n');
+    expect(
+      (app.repository.privateWorld.messages[kaiKey] ?? []).length,
+      initialCount,
+    );
+
+    // Close the fence and send
+    await tester.enterText(input, '${controller.text}x = 1\n```');
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    final msgs = app.repository.privateWorld.messages[kaiKey] ?? [];
+    expect(msgs.length, initialCount + 1);
+    expect(msgs.last.content, '```py \nx = 1\n```');
+
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_cursor_decides in private composer', (tester) async {
+    final app = await MockApp.pump(tester);
+    final kaiKey = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Kai Nakamura')
+        .peer;
+
+    await _pumpChat(tester, app, kaiKey);
+
+    final input = find.byType(TextField);
+    await tester.enterText(input, 'temp');
+    final controller = tester.widget<TextField>(input).controller!;
+    controller.value = const TextEditingValue(
+      text: '```py\ncode\n```',
+      selection: TextSelection.collapsed(offset: 0),
+    );
+    await tester.pump();
+
+    // Cursor before opening fence -> Enter sends
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('code', findRichText: true), findsOneWidget);
+
+    await app.dispose(tester);
+  });
+
+  testWidgets(
+    'the_send_button_sends_an_open_fence_as_it_is in private composer',
+    (tester) async {
+      final app = await MockApp.pump(tester);
+      final kaiKey = app.repository.privateWorld.contacts.values
+          .firstWhere((c) => c.name == 'Kai Nakamura')
+          .peer;
+
+      await _pumpChat(tester, app, kaiKey);
+
+      final input = find.byType(TextField);
+      await tester.enterText(input, '```py\nunclosed');
+      await tester.pump();
+
+      final sendBtn = find.byWidgetPredicate(
+        (w) => w is OcIconButton && w.tooltip == 'Send',
+      );
+      expect(sendBtn, findsOneWidget);
+      await tester.tap(sendBtn);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('```py\nunclosed', findRichText: true),
+        findsOneWidget,
+      );
+
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets('an_input_method_keeps_its_enter in the private composer', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final kaiKey = app.repository.privateWorld.contacts.values
+        .firstWhere((c) => c.name == 'Kai Nakamura')
+        .peer;
+
+    await _pumpChat(tester, app, kaiKey);
+
+    final initialCount =
+        (app.repository.privateWorld.messages[kaiKey] ?? []).length;
+
+    final input = find.byType(TextField);
+    await tester.enterText(input, 'temp');
+    final controller = tester.widget<TextField>(input).controller!;
+    controller.value = const TextEditingValue(
+      text: 'composing',
+      composing: TextRange(start: 0, end: 9),
+    );
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    // Composing range keeps enter: message is not sent
+    expect(
+      (app.repository.privateWorld.messages[kaiKey] ?? []).length,
+      initialCount,
     );
 
     await app.dispose(tester);

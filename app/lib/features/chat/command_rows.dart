@@ -10,8 +10,7 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
-/// A command's public result (Phase 3 plan §17.3), compact in every
-/// density: "**Kai** used `/play` · Added *Song* — Artist to the queue".
+/// A command's public result (Phase 3 plan §17.3): "**Kai** used `/play` · Added *Song* — Artist to the queue".
 class CommandResultLine extends StatelessWidget {
   const CommandResultLine({
     super.key,

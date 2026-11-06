@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/channel_row.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/shell/navigation.dart';
 
 import '../../support/app.dart';
@@ -33,7 +33,7 @@ void main() {
     await tester.tapOnText(
       find.textRange.ofSubstring(
         link,
-        descendentOf: find.byType(MessageBubble),
+        descendentOf: find.byType(CompactMessage),
       ),
     );
     await tester.pumpAndSettle();

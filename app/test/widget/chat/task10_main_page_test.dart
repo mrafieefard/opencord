@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/chat/chat_rows.dart';
 import 'package:opencord/features/chat/list_overlays.dart';
@@ -9,12 +10,12 @@ import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/voice/mic_button.dart';
 import 'package:opencord/features/chat/voice/recording_bar.dart';
 import 'package:opencord/features/home/private_message_list.dart';
-import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
+import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import '../../support/app.dart';
@@ -153,12 +154,10 @@ void main() {
     await _settle(tester);
 
     // First message top >= float's bottom
-    final bubbles = tester.widgetList<MessageBubble>(
-      find.byType(MessageBubble),
-    );
-    expect(bubbles, isNotEmpty);
-    final firstBubbleRect = tester.getRect(find.byWidget(bubbles.first));
-    expect(firstBubbleRect.top, greaterThanOrEqualTo(pinRect.bottom - 1.0));
+    final rows = tester.widgetList<CompactMessage>(find.byType(CompactMessage));
+    expect(rows, isNotEmpty);
+    final firstRowRect = tester.getRect(find.byWidget(rows.first));
+    expect(firstRowRect.top, greaterThanOrEqualTo(pinRect.bottom - 1.0));
 
     await app.dispose(tester);
   });
@@ -216,10 +215,10 @@ void main() {
 
     final msgListFinder = find.byType(MessageList);
     expect(msgListFinder, findsOneWidget);
-    final listWidth = tester.getSize(msgListFinder).width;
+    final listLeft = tester.getRect(msgListFinder).left;
 
-    // Side padding is 16 + max(0, (w - 880) / 2)
-    final expectedPadding = 16.0 + (listWidth - 880.0) / 2.0;
+    // In compact mode, lines use the standard side padding of 16
+    const expectedPadding = 16.0;
     final sliverPadding = tester.widget<SliverPadding>(
       find
           .descendant(of: msgListFinder, matching: find.byType(SliverPadding))
@@ -234,14 +233,14 @@ void main() {
       closeTo(expectedPadding, 0.5),
     );
 
-    // Avatar left edge is at msgsIn.x (463) + 16 = 479
+    // Avatar left edge is at listLeft + 16 (list padding) + 16 (message padding) = 407
     final avatarFinder = find.descendant(
       of: msgListFinder,
-      matching: find.byType(MemberAvatar),
+      matching: find.byType(OcAvatar),
     );
     expect(avatarFinder, findsWidgets);
     final avatarLeft = tester.getRect(avatarFinder.first).left;
-    expect(avatarLeft, closeTo(479.0, 1.5));
+    expect(avatarLeft, closeTo(listLeft + 32.0, 1.5));
 
     await app.dispose(tester);
   });
@@ -266,15 +265,13 @@ void main() {
     expect(serverListFinder, findsOneWidget);
     final serverListRect = tester.getRect(serverListFinder);
 
-    final serverBubbles = tester
-        .widgetList<MessageBubble>(find.byType(MessageBubble))
+    final serverRows = tester
+        .widgetList<CompactMessage>(find.byType(CompactMessage))
         .toList();
-    expect(serverBubbles.length, 1);
-    final serverBubbleRect = tester.getRect(
-      find.byWidget(serverBubbles.single),
-    );
+    expect(serverRows.length, 1);
+    final serverRowRect = tester.getRect(find.byWidget(serverRows.single));
     // The message sits at the bottom of the list (12 px bottom inset)
-    expect(serverListRect.bottom - serverBubbleRect.bottom, closeTo(12.0, 1.0));
+    expect(serverListRect.bottom - serverRowRect.bottom, closeTo(12.0, 1.0));
 
     // 2. Private chat with one message (Priya Shah)
     final contacts = app.read(privateContactsProvider);
@@ -286,104 +283,17 @@ void main() {
     expect(dmListFinder, findsOneWidget);
     final dmListRect = tester.getRect(dmListFinder);
 
-    final dmBubbles = tester
-        .widgetList<MessageBubble>(
+    final dmRows = tester
+        .widgetList<CompactMessage>(
           find.descendant(
             of: dmListFinder,
-            matching: find.byType(MessageBubble),
+            matching: find.byType(CompactMessage),
           ),
         )
         .toList();
-    expect(dmBubbles.length, 1);
-    final dmBubbleRect = tester.getRect(find.byWidget(dmBubbles.single));
-    expect(dmListRect.bottom - dmBubbleRect.bottom, closeTo(12.0, 1.0));
-
-    await app.dispose(tester);
-  });
-
-  testWidgets('bubble_numbers', (tester) async {
-    final app = await MockApp.pump(tester, size: const Size(1280, 800));
-    await tester.tap(_inSidebar('general'));
-    await _settle(tester);
-
-    final colors = tester.element(find.byType(DesktopShell)).oc;
-    final bubbles = tester
-        .widgetList<MessageBubble>(find.byType(MessageBubble))
-        .toList();
-    expect(bubbles, isNotEmpty);
-
-    // Verify incoming bubble: padding 7 12 8 (12, 7, 12, 8), border 1px, corners
-    final incoming = bubbles.firstWhere((b) => !b.own && !b.mentionsMe);
-    final incomingBox = tester.widget<AnimatedContainer>(
-      find
-          .descendant(
-            of: find.byWidget(incoming),
-            matching: find.byType(AnimatedContainer),
-          )
-          .first,
-    );
-    final incomingDeco = incomingBox.decoration as BoxDecoration;
-    expect(incomingDeco.color, colors.bubbleIn);
-    expect(incomingDeco.border?.top.width, 1.0);
-    expect(incomingDeco.border?.top.color, colors.border);
-    final incomingRadius = incomingDeco.borderRadius as BorderRadius;
-    expect(incomingRadius.topRight.x, 16.0);
-    expect(incomingRadius.bottomRight.x, 16.0);
-
-    final incomingPadding = tester.widget<Padding>(
-      find
-          .descendant(
-            of: find.byWidget(incoming),
-            matching: find.byWidgetPredicate(
-              (w) =>
-                  w is Padding &&
-                  w.padding == const EdgeInsets.fromLTRB(12, 7, 12, 8),
-            ),
-          )
-          .first,
-    );
-    expect(incomingPadding.padding, const EdgeInsets.fromLTRB(12, 7, 12, 8));
-
-    // Verify own bubble: bubbleOut color, 1px border
-    final ownBubble = bubbles.firstWhere((b) => b.own);
-    final ownBox = tester.widget<AnimatedContainer>(
-      find
-          .descendant(
-            of: find.byWidget(ownBubble),
-            matching: find.byType(AnimatedContainer),
-          )
-          .first,
-    );
-    final ownDeco = ownBox.decoration as BoxDecoration;
-    expect(ownDeco.color, colors.bubbleOut);
-    expect(ownDeco.border?.top.width, 1.0);
-    final ownRadius = ownDeco.borderRadius as BorderRadius;
-    expect(ownRadius.topLeft.x, 16.0);
-    expect(ownRadius.bottomLeft.x, 16.0);
-
-    // Verify mention bubble: CustomPaint with _MentionBorderPainter, left padding 13
-    final mentionBubble = bubbles.firstWhere((b) => b.mentionsMe);
-    final mentionCustomPaint = find.descendant(
-      of: find.byWidget(mentionBubble),
-      matching: find.byWidgetPredicate(
-        (w) => w is CustomPaint && w.foregroundPainter is CustomPainter,
-      ),
-    );
-    expect(mentionCustomPaint, findsOneWidget);
-
-    final mentionPadding = tester.widget<Padding>(
-      find
-          .descendant(
-            of: find.byWidget(mentionBubble),
-            matching: find.byWidgetPredicate(
-              (w) =>
-                  w is Padding &&
-                  w.padding == const EdgeInsets.fromLTRB(13, 7, 12, 8),
-            ),
-          )
-          .first,
-    );
-    expect(mentionPadding.padding, const EdgeInsets.fromLTRB(13, 7, 12, 8));
+    expect(dmRows.length, 1);
+    final dmRowRect = tester.getRect(find.byWidget(dmRows.single));
+    expect(dmListRect.bottom - dmRowRect.bottom, closeTo(12.0, 1.0));
 
     await app.dispose(tester);
   });

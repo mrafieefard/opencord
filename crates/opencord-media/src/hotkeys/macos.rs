@@ -16,6 +16,10 @@
 //!
 //! While any app has Secure Event Input on (a password field is focused),
 //! no event tap gets keys, so hotkeys don't work then.
+//!
+//! Mouse buttons (`Mouse3`, `Mouse4`, `Mouse5`, macOS's button numbers 2, 3
+//! and 4) come through the same tap, which asks for `otherMouseDown` and
+//! `otherMouseUp` only while a binding uses one.
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
@@ -37,7 +41,9 @@ use objc2_core_graphics::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-use super::{Held, HotkeyAction, HotkeyBinding, HotkeyEvent, HotkeySupport};
+use super::{
+    Held, HotkeyAction, HotkeyBinding, HotkeyEvent, HotkeySupport, MouseButton, uses_mouse,
+};
 
 /// What the Keybinds page says while Input Monitoring is missing.
 const NOT_ALLOWED: &str =
@@ -314,7 +320,41 @@ impl Layout {
     }
 }
 
-/// One binding, in keycodes.
+/// macOS's number for each button a hotkey can use: 0 and 1 are left and
+/// right.
+fn button_number(button: MouseButton) -> i64 {
+    match button {
+        MouseButton::Middle => 2,
+        MouseButton::Back => 3,
+        MouseButton::Forward => 4,
+    }
+}
+
+/// A button as the matcher counts it: a pseudo-keycode past every key's,
+/// which stay below 0x80. `None` for a button a hotkey can't use.
+fn button_key(number: i64) -> Option<u16> {
+    (2..=4).contains(&number).then(|| 0x100 + number as u16)
+}
+
+/// The events the tap asks for: the keys', and the buttons' only when a
+/// binding uses one, so a tap without them never sees a click.
+fn event_mask(bindings: &[HotkeyBinding]) -> u64 {
+    let mouse: &[CGEventType] = if uses_mouse(bindings) {
+        &[CGEventType::OtherMouseDown, CGEventType::OtherMouseUp]
+    } else {
+        &[]
+    };
+    [
+        CGEventType::KeyDown,
+        CGEventType::KeyUp,
+        CGEventType::FlagsChanged,
+    ]
+    .iter()
+    .chain(mouse)
+    .fold(0u64, |mask, kind| mask | 1 << kind.0)
+}
+
+/// One binding, in keycodes, or a button's pseudo-keycode.
 struct Watched {
     action: HotkeyAction,
     keys: Vec<u16>,
@@ -337,7 +377,10 @@ impl Matcher {
                 let accelerator = &binding.accelerator;
                 Watched {
                     action: binding.action,
-                    keys: layout.keycodes(accelerator.keysym),
+                    keys: match accelerator.button {
+                        Some(button) => button_key(button_number(button)).into_iter().collect(),
+                        None => layout.keycodes(accelerator.keysym),
+                    },
                     modifiers: Modifiers {
                         ctrl: accelerator.ctrl,
                         alt: accelerator.alt,
@@ -354,13 +397,18 @@ impl Matcher {
         }
     }
 
-    /// An event from the tap: a key down or up, or a modifier key's change.
-    fn event(&mut self, kind: CGEventType, keycode: u16, flags: u64) -> Vec<HotkeyEvent> {
-        let down = match kind {
-            CGEventType::KeyDown => true,
-            CGEventType::KeyUp => false,
-            CGEventType::FlagsChanged => match modifier_down(keycode, flags) {
-                Some(down) => down,
+    /// An event from the tap: a key down or up, a modifier key's change, or
+    /// a button down or up, `code` being its keycode or its button number.
+    fn event(&mut self, kind: CGEventType, code: i64, flags: u64) -> Vec<HotkeyEvent> {
+        let (down, keycode) = match kind {
+            CGEventType::KeyDown => (true, code as u16),
+            CGEventType::KeyUp => (false, code as u16),
+            CGEventType::FlagsChanged => match modifier_down(code as u16, flags) {
+                Some(down) => (down, code as u16),
+                None => return Vec::new(),
+            },
+            CGEventType::OtherMouseDown | CGEventType::OtherMouseUp => match button_key(code) {
+                Some(key) => (kind == CGEventType::OtherMouseDown, key),
                 None => return Vec::new(),
             },
             _ => return Vec::new(),
@@ -545,9 +593,15 @@ unsafe extern "C-unwind" fn on_event(
     }
     // SAFETY: the event is valid for the call.
     let event_ref = unsafe { event.as_ref() };
-    let keycode = CGEvent::integer_value_field(Some(event_ref), CGEventField::KeyboardEventKeycode);
+    let field = match kind {
+        CGEventType::OtherMouseDown | CGEventType::OtherMouseUp => {
+            CGEventField::MouseEventButtonNumber
+        }
+        _ => CGEventField::KeyboardEventKeycode,
+    };
+    let code = CGEvent::integer_value_field(Some(event_ref), field);
     let flags = CGEvent::flags(Some(event_ref)).0;
-    found.extend(tap.matcher.event(kind, keycode as u16, flags));
+    found.extend(tap.matcher.event(kind, code, flags));
     for found in found {
         let _ = tap.events.send(found);
     }
@@ -650,6 +704,7 @@ fn run_tap(
     started: oneshot::Sender<Result<RunLoop, String>>,
 ) {
     let next_layout = Arc::new(NextLayout::default());
+    let mask = event_mask(&bindings);
     let tap = Box::into_raw(Box::new(Tap {
         matcher: Matcher::new(&bindings, layout),
         bindings,
@@ -657,13 +712,6 @@ fn run_tap(
         port: None,
         next_layout: Arc::clone(&next_layout),
     }));
-    let keys = [
-        CGEventType::KeyDown,
-        CGEventType::KeyUp,
-        CGEventType::FlagsChanged,
-    ]
-    .into_iter()
-    .fold(0u64, |mask, kind| mask | 1 << kind.0);
     // SAFETY: `on_event` takes the `Tap` that `tap` points to, which lives
     // until the tap is invalidated below.
     let port = unsafe {
@@ -671,7 +719,7 @@ fn run_tap(
             CGEventTapLocation::SessionEventTap,
             CGEventTapPlacement::HeadInsertEventTap,
             CGEventTapOptions::ListenOnly,
-            keys,
+            mask,
             Some(on_event),
             tap.cast(),
         )
@@ -743,6 +791,7 @@ pub(super) async fn bind(
         let support = if allowed {
             HotkeySupport::Global {
                 method: "Input Monitoring".to_owned(),
+                mouse: true,
             }
         } else {
             HotkeySupport::FocusedOnly {
@@ -771,6 +820,7 @@ pub(super) async fn bind(
             Some(keys),
             HotkeySupport::Global {
                 method: "Input Monitoring".to_owned(),
+                mouse: true,
             },
         ),
         Err(reason) => (
@@ -814,11 +864,123 @@ mod tests {
         } else {
             CGEventType::KeyUp
         };
-        matcher.event(kind, keycode, flags)
+        matcher.event(kind, i64::from(keycode), flags)
     }
 
     fn flags_changed(matcher: &mut Matcher, keycode: u16, flags: u64) -> Vec<HotkeyEvent> {
-        matcher.event(CGEventType::FlagsChanged, keycode, flags)
+        matcher.event(CGEventType::FlagsChanged, i64::from(keycode), flags)
+    }
+
+    /// Button `number` down or up, as the tap reports it.
+    fn click(matcher: &mut Matcher, number: i64, down: bool, flags: u64) -> Vec<HotkeyEvent> {
+        let kind = if down {
+            CGEventType::OtherMouseDown
+        } else {
+            CGEventType::OtherMouseUp
+        };
+        matcher.event(kind, number, flags)
+    }
+
+    const BACK: i64 = 3;
+
+    #[test]
+    fn a_button_with_its_modifiers_presses_and_releases() {
+        let mut keys = matcher(&[(HotkeyAction::PushToTalk, "CTRL+Mouse4")]);
+        let ctrl = CONTROL | LEFT_CONTROL;
+
+        flags_changed(&mut keys, LEFT_CTRL, ctrl);
+        let down = click(&mut keys, BACK, true, ctrl);
+        let again = click(&mut keys, BACK, true, ctrl);
+        let up = click(&mut keys, BACK, false, ctrl);
+
+        assert_eq!(down, vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]);
+        assert!(again.is_empty(), "a held button does not press again");
+        assert_eq!(up, vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]);
+    }
+
+    #[test]
+    fn a_button_without_its_modifiers_does_nothing() {
+        let mut keys = matcher(&[(HotkeyAction::ToggleMute, "CTRL+Mouse4")]);
+
+        let down = click(&mut keys, BACK, true, 0);
+        let up = click(&mut keys, BACK, false, 0);
+        click(&mut keys, BACK, true, 0);
+        let ctrl_after = flags_changed(&mut keys, LEFT_CTRL, CONTROL | LEFT_CONTROL);
+
+        assert!(down.is_empty() && up.is_empty());
+        assert!(ctrl_after.is_empty());
+    }
+
+    #[test]
+    fn a_key_and_a_button_on_one_action_press_once() {
+        let mut keys = matcher(&[
+            (HotkeyAction::PushToTalk, "F12"),
+            (HotkeyAction::PushToTalk, "Mouse5"),
+        ]);
+
+        let key_down = key(&mut keys, F12, true, 0);
+        let button = click(&mut keys, 4, true, 0);
+        let key_up = key(&mut keys, F12, false, 0);
+        let button_up = click(&mut keys, 4, false, 0);
+
+        assert_eq!(
+            key_down,
+            vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]
+        );
+        assert!(button.is_empty(), "already down");
+        assert!(key_up.is_empty(), "the button still holds it");
+        assert_eq!(
+            button_up,
+            vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]
+        );
+    }
+
+    #[test]
+    fn button_numbers_map_to_the_three_buttons() {
+        let mut keys = matcher(&[
+            (HotkeyAction::ToggleMute, "Mouse3"),
+            (HotkeyAction::ToggleDeafen, "Mouse4"),
+            (HotkeyAction::PushToTalk, "Mouse5"),
+        ]);
+
+        let unbindable: Vec<_> = [0, 1, 5, 6, 31]
+            .into_iter()
+            .flat_map(|number| click(&mut keys, number, true, 0))
+            .collect();
+
+        assert!(unbindable.is_empty());
+        assert_eq!(
+            click(&mut keys, 2, true, 0),
+            vec![HotkeyEvent::Pressed(HotkeyAction::ToggleMute)]
+        );
+        assert_eq!(
+            click(&mut keys, 3, true, 0),
+            vec![HotkeyEvent::Pressed(HotkeyAction::ToggleDeafen)]
+        );
+        assert_eq!(
+            click(&mut keys, 4, true, 0),
+            vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]
+        );
+        // A button's pseudo-keycode is no key's.
+        assert!(key(&mut keys, 0x02, true, 0).is_empty());
+    }
+
+    #[test]
+    fn the_tap_only_asks_for_the_mouse_with_a_mouse_binding() {
+        let mouse = 1u64 << CGEventType::OtherMouseDown.0 | 1 << CGEventType::OtherMouseUp.0;
+        let keys = 1u64 << CGEventType::KeyDown.0
+            | 1 << CGEventType::KeyUp.0
+            | 1 << CGEventType::FlagsChanged.0;
+
+        let keys_only = event_mask(&bindings(&[(HotkeyAction::PushToTalk, "F12")]));
+        let with_a_button = event_mask(&bindings(&[
+            (HotkeyAction::PushToTalk, "F12"),
+            (HotkeyAction::ToggleMute, "CTRL+Mouse4"),
+        ]));
+
+        assert_eq!(keys_only, keys);
+        assert_eq!(with_a_button, keys | mouse);
+        assert_eq!(event_mask(&[]) & mouse, 0);
     }
 
     #[test]

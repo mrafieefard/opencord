@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/hotkeys.dart';
 import 'package:opencord/features/settings/user/settings_draft.dart';
 import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
@@ -41,14 +42,20 @@ class _KeybindsPageState extends ConsumerState<KeybindsPage> {
     final keybinds = ref.watch(shownKeybindsProvider);
     final support = ref.watch(hotkeySupportProvider);
     final draft = ref.read(clientSettingsDraftProvider.notifier);
+    final hasMouseKeybind = keybinds.list.any(
+      (b) => Accelerator.parse(b.keys)?.button != null,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SettingsSection(
           title: 'Keybinds',
           footer: switch (support) {
-            HotkeysGlobal(:final method) =>
+            HotkeysGlobal(:final method, :final mouse) => [
               'Keybinds work in other apps too, through $method.',
+              if (!mouse && hasMouseKeybind)
+                'Mouse buttons work only while Opencord is focused on this desktop.',
+            ].join(' '),
             HotkeysFocusedOnly(:final reason) =>
               'Keybinds work only while Opencord is focused: $reason.',
             null => null,
@@ -69,7 +76,7 @@ class _KeybindsPageState extends ConsumerState<KeybindsPage> {
               const SettingsRow(
                 title: 'No keybinds yet',
                 subtitle:
-                    'Add one to push to talk, mute or deafen with a key, '
+                    'Add one to push to talk, mute or deafen with a key or mouse button, '
                     'even from another app.',
               ),
             for (final keybind in keybinds.list)

@@ -240,22 +240,20 @@ class RepoException implements Exception {
   String toString() => message;
 }
 
-/// Self presence choices; [invisible] shows as offline to everyone else.
-enum SelfPresence { online, idle, doNotDisturb, invisible }
+/// Self presence choices.
+enum SelfPresence { online, idle, doNotDisturb }
 
 extension SelfPresenceShape on SelfPresence {
   Presence get shown => switch (this) {
     SelfPresence.online => Presence.online,
     SelfPresence.idle => Presence.idle,
     SelfPresence.doNotDisturb => Presence.doNotDisturb,
-    SelfPresence.invisible => Presence.offline,
   };
 
   String get label => switch (this) {
     SelfPresence.online => 'Online',
     SelfPresence.idle => 'Idle',
     SelfPresence.doNotDisturb => 'Do not disturb',
-    SelfPresence.invisible => 'Invisible',
   };
 }
 

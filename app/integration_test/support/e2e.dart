@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/app.dart';
 import 'package:opencord/app_start.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -98,8 +98,8 @@ Finder inSidebar(String text) => find.descendant(
   matching: find.text(text),
 );
 
-Finder messageBubble(String text) => find.byWidgetPredicate(
-  (widget) => widget is MessageBubble && widget.message.content == text,
+Finder messageRow(String text) => find.byWidgetPredicate(
+  (widget) => widget is CompactMessage && widget.message.content == text,
 );
 
 /// Types [text] into the open channel's composer and sends it.
@@ -113,5 +113,5 @@ Future<void> send(WidgetTester tester, String text) async {
   await tester.pump();
   await tester.sendKeyEvent(LogicalKeyboardKey.enter);
   await tester.pump();
-  await waitFor(tester, messageBubble(text));
+  await waitFor(tester, messageRow(text));
 }

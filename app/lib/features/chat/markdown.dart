@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/fences.dart';
 import 'package:opencord/core/mention_tokens.dart';
 
 /// The markdown subset of §4.5, parsed by our own small parser: paragraphs,
@@ -156,41 +157,69 @@ bool endsWithCode(List<MdBlock> blocks) =>
     blocks.isNotEmpty && blocks.last is MdCode;
 
 List<MdBlock> parseMarkdown(String source) {
-  final lines = source.split('\n');
+  final fences = findFences(source);
+  if (fences.isEmpty) {
+    return _parseNonCodeBlocks(source);
+  }
+
+  final blocks = <MdBlock>[];
+  var cursor = 0;
+
+  for (final fence in fences) {
+    if (fence.start > cursor) {
+      final textBefore = source.substring(cursor, fence.start);
+      blocks.addAll(_parseNonCodeBlocks(textBefore));
+    }
+    blocks.add(MdCode(fence.code, language: fence.language));
+    cursor = fence.end;
+  }
+
+  if (cursor < source.length) {
+    final textAfter = source.substring(cursor);
+    blocks.addAll(_parseNonCodeBlocks(textAfter));
+  }
+
+  return blocks;
+}
+
+List<MdBlock> _parseNonCodeBlocks(String source) {
+  var text = source;
+  while (text.startsWith('\n') || text.startsWith('\r')) {
+    text = text.substring(1);
+  }
+  while (text.endsWith('\n') || text.endsWith('\r')) {
+    text = text.substring(0, text.length - 1);
+  }
+  if (text.trim().isEmpty) return const [];
+
+  final lines = text.split('\n');
   final blocks = <MdBlock>[];
   final paragraph = <String>[];
   final quote = <String>[];
+
   void flushParagraph() {
     if (paragraph.isEmpty) return;
-    blocks.add(MdParagraph(parseInline(paragraph.join('\n'))));
+    final joined = paragraph.join('\n');
+    if (joined.trim().isNotEmpty) {
+      var content = joined;
+      if (content.startsWith(' ') && !content.startsWith('    ')) {
+        content = content.trimLeft();
+      }
+      blocks.add(MdParagraph(parseInline(content)));
+    }
     paragraph.clear();
   }
 
   void flushQuote() {
     if (quote.isEmpty) return;
-    blocks.add(MdQuote(parseInline(quote.join('\n'))));
+    final joined = quote.join('\n');
+    if (joined.trim().isNotEmpty) {
+      blocks.add(MdQuote(parseInline(joined)));
+    }
     quote.clear();
   }
 
-  var i = 0;
-  while (i < lines.length) {
-    final line = lines[i];
-    if (line.trimLeft().startsWith('```')) {
-      final end = _closingFence(lines, i + 1);
-      if (end != -1) {
-        flushParagraph();
-        flushQuote();
-        final language = line.trim().substring(3).trim();
-        blocks.add(
-          MdCode(
-            lines.sublist(i + 1, end).join('\n'),
-            language: language.isEmpty ? null : language,
-          ),
-        );
-        i = end + 1;
-        continue;
-      }
-    }
+  for (final line in lines) {
     if (line.startsWith('>')) {
       flushParagraph();
       final rest = line.substring(1);
@@ -199,18 +228,10 @@ List<MdBlock> parseMarkdown(String source) {
       flushQuote();
       paragraph.add(line);
     }
-    i++;
   }
   flushParagraph();
   flushQuote();
   return blocks;
-}
-
-int _closingFence(List<String> lines, int from) {
-  for (var j = from; j < lines.length; j++) {
-    if (lines[j].trim() == '```') return j;
-  }
-  return -1;
 }
 
 /// Web links, and the app's own (§15: channel, message and invite links).

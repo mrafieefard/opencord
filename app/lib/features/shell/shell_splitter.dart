@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/settings/key_value_store.dart';
-import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
@@ -15,17 +14,15 @@ import 'package:opencord/ui/theme/oc_motion.dart';
 /// The key under which the user's custom channel list width is persisted.
 const sidebarWidthKey = 'ui.sidebarWidth';
 
-/// Holds the saved or active width of the left column (§5.7).
-///
-/// `null` means the layout class's default (288 px for wide/medium, 264 px for
-/// narrow).
-class SidebarWidthNotifier extends Notifier<double?> {
-  static const key = sidebarWidthKey;
+/// A width the user dragged a column to, persisted under [storageKey].
+/// `null` means the column's default.
+abstract class StoredWidthNotifier extends Notifier<double?> {
+  String get storageKey;
 
   @override
   double? build() {
     final store = ref.watch(keyValueStoreProvider);
-    final raw = store.read(key);
+    final raw = store.read(storageKey);
     if (raw == null) return null;
     return double.tryParse(raw);
   }
@@ -40,9 +37,9 @@ class SidebarWidthNotifier extends Notifier<double?> {
     state = width;
     final store = ref.read(keyValueStoreProvider);
     if (width == null) {
-      store.write(key, null);
+      store.write(storageKey, null);
     } else {
-      store.write(key, width.toString());
+      store.write(storageKey, width.toString());
     }
   }
 
@@ -50,19 +47,78 @@ class SidebarWidthNotifier extends Notifier<double?> {
   void reset() => save(null);
 }
 
+/// Holds the saved or active width of the left column (§5.7).
+///
+/// `null` means the layout class's default (288 px for wide/medium, 264 px for
+/// narrow).
+class SidebarWidthNotifier extends StoredWidthNotifier {
+  static const key = sidebarWidthKey;
+
+  @override
+  String get storageKey => key;
+}
+
 /// The provider for the user's channel list width.
 final sidebarWidthProvider = NotifierProvider<SidebarWidthNotifier, double?>(
   SidebarWidthNotifier.new,
 );
 
-/// A draggable splitter between the left column and main float (§5.7).
+/// What the right pane holds while it's inline (follow-ups §2): each keeps
+/// its own width.
+enum SideContent {
+  people(OcFloats.side, OcFloats.sideMin, 'ui.sideWidth.people'),
+  music(OcFloats.sideMusic, OcFloats.sideMusicMin, 'ui.sideWidth.music'),
+  voiceChat(
+    OcFloats.voiceChat,
+    OcFloats.voiceChatMin,
+    'ui.sideWidth.voiceChat',
+  );
+
+  const SideContent(this.defaultWidth, this.minWidth, this.key);
+
+  final double defaultWidth;
+  final double minWidth;
+
+  /// Where its width is persisted.
+  final String key;
+
+  /// The room main keeps beside it: a voice channel's chat leaves the stage
+  /// its minimum.
+  double get mainMin =>
+      this == voiceChat ? OcFloats.voiceStageMin : OcFloats.mainMin;
+}
+
+/// Holds the saved or active width of the right pane for one [content].
+class SideWidthNotifier extends StoredWidthNotifier {
+  SideWidthNotifier(this.content);
+
+  final SideContent content;
+
+  @override
+  String get storageKey => content.key;
+}
+
+/// The right pane's width for each content, `null` for its default.
+final sideWidthProvider =
+    NotifierProvider.family<SideWidthNotifier, double?, SideContent>(
+      SideWidthNotifier.new,
+    );
+
+/// A draggable splitter beside a column (§5.7): the left column's, or the
+/// right pane's (follow-ups §2).
 ///
 /// Sits over the 8 px gap, on top of the floats either side, so its hit area
-/// is the gap and 4 on each side: [hitWidth]. [ShellKeys.splitter] is the gap.
-/// Shows a 3 × 40 pill while hovered, focused or dragging.
+/// is the gap and 4 on each side: [hitWidth]. [gapKey] is the gap. Shows a
+/// 3 × 40 pill while hovered, focused or dragging.
+///
+/// Its callbacks speak in the column's width: with [growsLeft], moving the
+/// edge left (by pointer or ←) widens it.
 class ShellSplitter extends StatefulWidget {
   const ShellSplitter({
     super.key,
+    required this.label,
+    this.gapKey,
+    this.growsLeft = false,
     required this.currentWidth,
     required this.minWidth,
     required this.maxWidth,
@@ -75,6 +131,10 @@ class ShellSplitter extends StatefulWidget {
     this.focusNode,
   });
 
+  /// What a screen reader calls the slider.
+  final String label;
+  final Key? gapKey;
+  final bool growsLeft;
   final double currentWidth;
   final double minWidth;
   final double maxWidth;
@@ -108,11 +168,15 @@ class _ShellSplitterState extends State<ShellSplitter> {
     super.dispose();
   }
 
+  /// The width's change for the edge moving [dx] to the right.
+  double _widthChange(double dx) => widget.growsLeft ? -dx : dx;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final motion = OcMotion.of(context);
     final active = _isHovered || _isFocused || widget.isDragging;
+    final step = _widthChange(16);
 
     return SizedBox(
       width: ShellSplitter.hitWidth,
@@ -141,7 +205,7 @@ class _ShellSplitterState extends State<ShellSplitter> {
             if (_dragStarted) {
               // A drag isn't half of a double click.
               _lastTapTime = null;
-              widget.onDragDelta(event.delta.dx);
+              widget.onDragDelta(_widthChange(event.delta.dx));
             }
           },
           onPointerUp: (event) {
@@ -158,7 +222,7 @@ class _ShellSplitterState extends State<ShellSplitter> {
           },
           child: Center(
             child: SizedBox(
-              key: ShellKeys.splitter,
+              key: widget.gapKey,
               width: OcFloats.gap,
               height: double.infinity,
               child: Focus(
@@ -168,11 +232,11 @@ class _ShellSplitterState extends State<ShellSplitter> {
                     return KeyEventResult.ignored;
                   }
                   if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                    widget.onStep(-16);
+                    widget.onStep(-step);
                     return KeyEventResult.handled;
                   }
                   if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                    widget.onStep(16);
+                    widget.onStep(step);
                     return KeyEventResult.handled;
                   }
                   if (event.logicalKey == LogicalKeyboardKey.home) {
@@ -188,7 +252,7 @@ class _ShellSplitterState extends State<ShellSplitter> {
                 },
                 child: Semantics(
                   slider: true,
-                  label: 'Resize the channel list',
+                  label: widget.label,
                   value: '${widget.currentWidth.round()}',
                   increasedValue:
                       '${math.min(widget.maxWidth, widget.currentWidth + 16).round()}',

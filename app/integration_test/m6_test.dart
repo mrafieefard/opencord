@@ -62,7 +62,7 @@ void main() {
 
         // The owner answers while #general is open: it can only arrive live.
         await send(tester, _hello);
-        await waitFor(tester, messageBubble(_answer));
+        await waitFor(tester, messageRow(_answer));
 
         // Then a role that may not send here: the composer says so, and the
         // member list has the role's section.

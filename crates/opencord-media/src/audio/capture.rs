@@ -94,6 +94,13 @@ impl Gate {
         self.held = held;
     }
 
+    /// Forgets the hangover and release delays: the gate stays open only
+    /// for a new reason.
+    pub fn close(&mut self) {
+        self.open_for = 0;
+        self.priority_for = 0;
+    }
+
     /// The priority speaker key: it opens the gate like push-to-talk, in
     /// either mode.
     pub fn set_priority_held(&mut self, held: bool) {
@@ -232,6 +239,15 @@ impl Capture {
     /// Self mute and deafen: nothing is sent.
     pub fn set_muted(&mut self, muted: bool) {
         self.muted = muted;
+    }
+
+    /// Ends a talk spurt without its last frame, and closes the gate:
+    /// what comes next starts a new one. For when where the frames go
+    /// changes, so none of one spurt goes to the other place.
+    pub fn interrupt(&mut self) {
+        self.talking = false;
+        self.frame_len = 0;
+        self.gate.close();
     }
 
     pub fn set_bitrate(&mut self, bitrate: u32) -> Result<(), CodecError> {

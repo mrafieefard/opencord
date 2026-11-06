@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/window_title.dart';
@@ -166,41 +165,31 @@ void main() {
 
   for (final size in const [Size(1440, 900), Size(1180, 800), Size(900, 700)]) {
     for (final scale in const [1.0, 1.5]) {
-      for (final density in MessageDensity.values) {
-        testWidgets(
-          'no overflow at ${size.width.toInt()}×${size.height.toInt()}, '
-          'text ×$scale, ${density.name}',
-          (tester) async {
-            final app = await MockApp.pump(
-              tester,
-              size: size,
-              textScale: scale,
-              settings: (settings) => settings.copyWith(density: density),
-            );
-            final err1 = tester.takeException();
-            expect(err1, isNull);
-            // #general has the pinned bar, replies, reactions and code.
-            final server = app.read(currentServerProvider)!;
-            final general = app
-                .read(serverProvider(server))
-                .data!
-                .channels
-                .values
-                .firstWhere((channel) => channel.name == 'general');
-            app
-                .read(navigationProvider.notifier)
-                .openChannel(server, general.id);
-            for (var i = 0; i < 4; i++) {
-              await tester.pump(const Duration(milliseconds: 100));
-            }
+      testWidgets(
+        'no overflow at ${size.width.toInt()}×${size.height.toInt()}, text ×$scale',
+        (tester) async {
+          final app = await MockApp.pump(tester, size: size, textScale: scale);
+          final err1 = tester.takeException();
+          expect(err1, isNull);
+          // #general has the pinned bar, replies, reactions and code.
+          final server = app.read(currentServerProvider)!;
+          final general = app
+              .read(serverProvider(server))
+              .data!
+              .channels
+              .values
+              .firstWhere((channel) => channel.name == 'general');
+          app.read(navigationProvider.notifier).openChannel(server, general.id);
+          for (var i = 0; i < 4; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
 
-            final err2 = tester.takeException();
-            if (err2 != null) debugPrint('EXCEPTION AFTER PUMP: $err2');
-            expect(err2, isNull);
-            await app.dispose(tester);
-          },
-        );
-      }
+          final err2 = tester.takeException();
+          if (err2 != null) debugPrint('EXCEPTION AFTER PUMP: $err2');
+          expect(err2, isNull);
+          await app.dispose(tester);
+        },
+      );
     }
   }
 }

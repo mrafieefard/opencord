@@ -168,18 +168,59 @@ impl Held {
     }
 }
 
-/// A key and the modifiers held with it, written as the XDG shortcuts
-/// specification writes them: `CTRL+SHIFT+m`, `LOGO+F12`, `grave`. The key
-/// is an xkb keysym name.
+/// A mouse button a hotkey can use. Left and right would fire on every
+/// click, and Windows has no messages for the buttons above 5.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MouseButton {
+    /// `Mouse3`.
+    Middle,
+    /// `Mouse4`, which steps back in a browser.
+    Back,
+    /// `Mouse5`.
+    Forward,
+}
+
+impl MouseButton {
+    const ALL: [Self; 3] = [Self::Middle, Self::Back, Self::Forward];
+
+    /// As an accelerator writes it.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Middle => "Mouse3",
+            Self::Back => "Mouse4",
+            Self::Forward => "Mouse5",
+        }
+    }
+
+    fn named(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|button| button.name() == name)
+    }
+}
+
+/// A key or a mouse button and the modifiers held with it, written as the
+/// XDG shortcuts specification writes them: `CTRL+SHIFT+m`, `LOGO+F12`,
+/// `grave`, `CTRL+Mouse4`. The key is an xkb keysym name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Accelerator {
     pub ctrl: bool,
     pub alt: bool,
     pub shift: bool,
     pub logo: bool,
-    /// The keysym name, as written.
+    /// The keysym name or the button's (`Mouse4`), as written.
     pub key: String,
+    /// 0, xkb's `NoSymbol`, for a mouse button.
     pub keysym: u32,
+    /// The mouse button, when it is one rather than a key.
+    pub button: Option<MouseButton>,
+}
+
+/// Whether any of `bindings` is a mouse button, which only then makes a
+/// backend watch the mouse.
+#[cfg_attr(not(any(target_os = "windows", target_os = "macos")), allow(dead_code))]
+fn uses_mouse(bindings: &[HotkeyBinding]) -> bool {
+    bindings
+        .iter()
+        .any(|binding| binding.accelerator.button.is_some())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -199,7 +240,11 @@ impl std::str::FromStr for Accelerator {
         let mut parts: Vec<&str> = text.split('+').map(str::trim).collect();
         let key = parts.pop().filter(|key| !key.is_empty());
         let key = key.ok_or_else(|| AcceleratorError::NoKey(text.to_owned()))?;
-        let keysym = keysym(key).ok_or_else(|| AcceleratorError::UnknownKey(key.to_owned()))?;
+        let button = MouseButton::named(key);
+        let keysym = match button {
+            Some(_) => 0,
+            None => keysym(key).ok_or_else(|| AcceleratorError::UnknownKey(key.to_owned()))?,
+        };
         let mut accelerator = Self {
             ctrl: false,
             alt: false,
@@ -207,6 +252,7 @@ impl std::str::FromStr for Accelerator {
             logo: false,
             key: key.to_owned(),
             keysym,
+            button,
         };
         for modifier in parts {
             match modifier.to_ascii_uppercase().as_str() {
@@ -325,8 +371,10 @@ pub enum HotkeyEvent {
 /// Whether the hotkeys work while Opencord is in the background.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HotkeySupport {
-    /// System-wide, through `method`.
-    Global { method: String },
+    /// System-wide, through `method`; mouse buttons too when `mouse`.
+    /// Wayland's portal takes keys only, so the app handles mouse buttons
+    /// itself while focused.
+    Global { method: String, mouse: bool },
     /// Only while Opencord is focused, because of `reason`. `settings_url`
     /// opens the system settings where the user can allow them, when that
     /// is what's missing (macOS's Input Monitoring).
@@ -408,6 +456,33 @@ mod tests {
             "M".parse::<Accelerator>().is_err(),
             "keysym names are lower case"
         );
+    }
+
+    #[test]
+    fn parses_mouse_buttons() {
+        for (text, button) in [
+            ("Mouse3", MouseButton::Middle),
+            ("Mouse4", MouseButton::Back),
+            ("CTRL+Mouse4", MouseButton::Back),
+            ("CTRL+SHIFT+Mouse5", MouseButton::Forward),
+        ] {
+            let accelerator: Accelerator = text.parse().unwrap();
+
+            assert_eq!(accelerator.button, Some(button), "{text}");
+            assert_eq!(accelerator.keysym, 0, "{text} is no key");
+            assert_eq!(accelerator.to_string(), text);
+        }
+        let held: Accelerator = "CTRL+SHIFT+Mouse5".parse().unwrap();
+        assert!(held.ctrl && held.shift && !held.alt && !held.logo);
+        assert_eq!("m".parse::<Accelerator>().unwrap().button, None);
+        for refused in ["Mouse1", "Mouse2", "Mouse6", "mouse4", "CTRL+Mouse1"] {
+            let name = refused.rsplit('+').next().unwrap().to_owned();
+            assert_eq!(
+                refused.parse::<Accelerator>(),
+                Err(AcceleratorError::UnknownKey(name)),
+                "{refused}"
+            );
+        }
     }
 
     #[test]

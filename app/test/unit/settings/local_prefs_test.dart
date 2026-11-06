@@ -83,6 +83,13 @@ void main() {
     expect(later.read(audioSettingsProvider).inputMode, InputMode.pushToTalk);
   });
 
+  test('a_saved_invisible_opens_as_online', () {
+    final store = MemoryKeyValueStore()..write(selfPresenceKey, 'invisible');
+    final container = app(store);
+
+    expect(container.read(selfPresenceProvider), SelfPresence.online);
+  });
+
   test('devices are kept by id, with a name for while they are unplugged', () {
     const usb = AudioDevice(id: 'pipewire:usb-mic', name: 'USB mic');
 

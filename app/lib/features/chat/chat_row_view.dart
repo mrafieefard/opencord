@@ -14,7 +14,6 @@ import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_actions.dart';
 import 'package:opencord/features/chat/message_item.dart';
-import 'package:opencord/features/chat/message_line.dart';
 import 'package:opencord/features/chat/message_rows.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -123,7 +122,6 @@ class ChatRowView extends StatelessWidget {
     required this.now,
     this.highlighted = false,
     this.reactions = true,
-    this.compact = false,
   });
 
   final ChatRow row;
@@ -136,9 +134,6 @@ class ChatRowView extends StatelessWidget {
   /// Whether reactions can be toggled (the repository may not support
   /// them).
   final bool reactions;
-
-  /// Compact density (§8.1): lines instead of bubbles.
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -196,47 +191,18 @@ class ChatRowView extends StatelessWidget {
         name: author,
       ),
     );
-    if (compact) {
-      return MessageItem(
-        message: message,
-        own: row.own,
-        first: row.first,
-        actions: actions.message,
-        compact: true,
-        builder: (onSelectionChanged) => CompactMessage(
-          message: message,
-          serverKey: actions.message.channel.server,
-          first: row.first,
-          author: author,
-          avatar: row.first ? avatar() : null,
-          role: row.first ? lookups.role(message.authorId) : null,
-          reply: lookups.reply(message),
-          mentionsMe: row.mentionsMe,
-          highlighted: highlighted,
-          links: actions.links,
-          reactionNames: lookups.reactors,
-          onReaction: onReaction,
-          onReplyTap: onReplyTap,
-          onRetry: () => actions.onRetry(message),
-          onSelectionChanged: onSelectionChanged,
-          onAuthorTap: () => actions.onProfile(message.authorId),
-        ),
-      );
-    }
     return MessageItem(
       message: message,
       own: row.own,
       first: row.first,
       actions: actions.message,
-      avatar: row.showAvatar ? avatar() : null,
-      builder: (onSelectionChanged) => MessageBubble(
+      builder: (onSelectionChanged) => CompactMessage(
         message: message,
         serverKey: actions.message.channel.server,
-        own: row.own,
         first: row.first,
-        last: row.last,
         author: author,
-        role: row.showAuthor ? lookups.role(message.authorId) : null,
+        avatar: row.first ? avatar() : null,
+        role: row.first ? lookups.role(message.authorId) : null,
         reply: lookups.reply(message),
         mentionsMe: row.mentionsMe,
         highlighted: highlighted,
@@ -271,34 +237,68 @@ class ChatSkeleton extends StatelessWidget {
       child: SingleChildScrollView(
         physics: const NeverScrollableScrollPhysics(),
         reverse: true,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < rows; i++)
-              MessageLine(
-                own: i % 3 == 2,
-                first: true,
-                avatar: i % 3 == 2
-                    ? null
-                    : DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: colors.hover,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const SizedBox.square(
-                          dimension: OcSize.messageAvatar,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: OcSpace.s16,
+            vertical: OcSpace.s8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < rows; i++) ...[
+                if (i > 0 && i % 3 == 0) const SizedBox(height: OcSpace.s12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: OcSize.messageAvatar,
+                        child: i % 3 == 0
+                            ? DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: colors.hover,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const SizedBox.square(
+                                  dimension: OcSize.messageAvatar,
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: OcSpace.s12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (i % 3 == 0) ...[
+                              Container(
+                                width: 80,
+                                height: 12,
+                                margin: const EdgeInsets.only(bottom: 6),
+                                decoration: BoxDecoration(
+                                  color: colors.hover,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ],
+                            Container(
+                              width: _widths[i % _widths.length],
+                              height: 14,
+                              decoration: BoxDecoration(
+                                color: colors.hover,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                bubble: Container(
-                  width: _widths[i % _widths.length],
-                  height: i.isEven ? 40 : 58,
-                  decoration: BoxDecoration(
-                    color: colors.hover,
-                    borderRadius: BorderRadius.circular(OcRadius.bubble),
+                    ],
                   ),
                 ),
-              ),
-          ],
+              ],
+            ],
+          ),
         ),
       ),
     );

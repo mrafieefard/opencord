@@ -10390,7 +10390,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return HotkeySupport_Global(method: dco_decode_String(raw[1]));
+        return HotkeySupport_Global(
+          method: dco_decode_String(raw[1]),
+          mouse: dco_decode_bool(raw[2]),
+        );
       case 1:
         return HotkeySupport_FocusedOnly(
           reason: dco_decode_String(raw[1]),
@@ -14187,7 +14190,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (tag_) {
       case 0:
         var var_method = sse_decode_String(deserializer);
-        return HotkeySupport_Global(method: var_method);
+        var var_mouse = sse_decode_bool(deserializer);
+        return HotkeySupport_Global(method: var_method, mouse: var_mouse);
       case 1:
         var var_reason = sse_decode_String(deserializer);
         var var_settingsUrl = sse_decode_opt_String(deserializer);
@@ -18747,9 +18751,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_hotkey_support(HotkeySupport self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case HotkeySupport_Global(method: final method):
+      case HotkeySupport_Global(method: final method, mouse: final mouse):
         sse_encode_i_32(0, serializer);
         sse_encode_String(method, serializer);
+        sse_encode_bool(mouse, serializer);
       case HotkeySupport_FocusedOnly(
         reason: final reason,
         settingsUrl: final settingsUrl,

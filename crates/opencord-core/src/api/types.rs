@@ -1098,9 +1098,11 @@ pub enum HotkeyAction {
     ToggleMusicMute,
 }
 
-/// A hotkey: a key and the modifiers held with it, as the XDG shortcuts
-/// specification writes them, such as `CTRL+SHIFT+m` or `F12`. An action
-/// may have several; it is down while any of its keys is.
+/// A hotkey: a key or a mouse button and the modifiers held with it, as
+/// the XDG shortcuts specification writes them, such as `CTRL+SHIFT+m`,
+/// `F12` or `CTRL+Mouse4` (`Mouse3`, `Mouse4` and `Mouse5` are the middle,
+/// back and forward buttons). An action may have several; it is down while
+/// any of its keys is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HotkeyBinding {
     pub action: HotkeyAction,
@@ -1110,8 +1112,10 @@ pub struct HotkeyBinding {
 /// Whether hotkeys work while Opencord is in the background.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HotkeySupport {
-    /// System-wide, through `method`.
-    Global { method: String },
+    /// System-wide, through `method`; mouse buttons too when `mouse`.
+    /// Otherwise (Wayland's portal takes keys only) the app handles the
+    /// mouse keybinds itself while focused.
+    Global { method: String, mouse: bool },
     /// Only while Opencord is focused, because of `reason`. `settings_url`
     /// opens the system settings where the user can allow them, when that
     /// is what's missing; the app binds again when its window is focused.

@@ -1,7 +1,8 @@
 //! The audio processing tick (plan §7.1): device samples in, Opus frames
 //! out; Opus packets in, device samples out. The engine's thread runs it;
 //! nothing here touches a device, so tests drive it directly. The mic test
-//! plays what would be sent back through the speaker, Opus and all.
+//! plays what would be sent back through the speaker, Opus and all; muted or
+//! deafened, it still plays, and nothing is sent (spec §8.4).
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -12,12 +13,10 @@ use rtrb::{Consumer, Producer};
 use super::capture::{Capture, EncodedFrame, InputMode};
 use super::codec::CodecError;
 use super::convert::{ConvertError, FromDevice, ToDevice};
-use super::playback::{MAX_VOLUME, Playback};
+use super::playback::{MAX_VOLUME, MIC_TEST_USER, Playback};
 use super::processing::{ProcessingSettings, VoiceProcessing};
 use super::{TICK, dbfs};
 
-/// Who the mic test plays as; never a real user (ids are positive).
-const MIC_TEST_USER: i64 = -1;
 /// The shared sound kept for the echo canceller, at most: 300 ms.
 const SHARED_KEPT: usize = 30 * TICK;
 
@@ -54,6 +53,8 @@ pub struct Processor {
     input_volume: f32,
     muted: bool,
     deafened: bool,
+    /// The real push-to-talk key, apart from the mic test holding it.
+    push_to_talk_held: bool,
     tick: [f32; TICK],
     /// What plays, both sides.
     stereo: [f32; 2 * TICK],
@@ -92,6 +93,7 @@ impl Processor {
             input_volume: settings.input_volume.clamp(0.0, MAX_VOLUME),
             muted: false,
             deafened: false,
+            push_to_talk_held: false,
             tick: [0.0; TICK],
             stereo: [0.0; 2 * TICK],
             shared: VecDeque::with_capacity(SHARED_KEPT),
@@ -158,7 +160,9 @@ impl Processor {
                 if self.mic_test {
                     self.mic_test_frames.push(frame.clone());
                 }
-                send(frame);
+                if self.sends() {
+                    send(frame);
+                }
             }
         }
     }
@@ -291,15 +295,42 @@ impl Processor {
     }
 
     pub fn set_muted(&mut self, muted: bool) {
+        let before = self.test_only();
         self.muted = muted;
-        self.capture.set_muted(self.muted || self.deafened);
+        self.gate_changed(before);
     }
 
-    /// Deafened hears nothing and sends nothing.
+    /// Deafened hears nothing but the mic test and sends nothing.
     pub fn set_deafened(&mut self, deafened: bool) {
+        let before = self.test_only();
         self.deafened = deafened;
         self.playback.set_deafened(deafened);
-        self.capture.set_muted(self.muted || self.deafened);
+        self.gate_changed(before);
+    }
+
+    /// Whether what the microphone sends goes out.
+    fn sends(&self) -> bool {
+        !self.muted && !self.deafened
+    }
+
+    /// Whether the microphone is open for the mic test alone: muted or
+    /// deafened, it plays back and nothing is sent.
+    fn test_only(&self) -> bool {
+        self.mic_test && !self.sends()
+    }
+
+    /// Muted, deafened or the mic test changed, from `test_only_before`:
+    /// the gate opens for the mic test, push to talk counts as held for
+    /// it, and a talk spurt never runs from the test into the call, or
+    /// from the call into the test.
+    fn gate_changed(&mut self, test_only_before: bool) {
+        let test_only = self.test_only();
+        self.capture.set_muted(!self.sends() && !test_only);
+        self.capture
+            .set_push_to_talk(self.push_to_talk_held || test_only);
+        if test_only != test_only_before {
+            self.capture.interrupt();
+        }
     }
 
     pub fn set_mode(&mut self, mode: InputMode) {
@@ -313,7 +344,8 @@ impl Processor {
     }
 
     pub fn set_push_to_talk(&mut self, held: bool) {
-        self.capture.set_push_to_talk(held);
+        self.push_to_talk_held = held;
+        self.capture.set_push_to_talk(held || self.test_only());
     }
 
     pub fn set_input_volume(&mut self, volume: f32) {
@@ -340,9 +372,10 @@ impl Processor {
         Ok(self.capture.set_expected_loss(percent)?)
     }
 
-    /// Whether the microphone is sending a talk spurt.
+    /// Whether the microphone is sending a talk spurt; the mic test alone
+    /// is not.
     pub fn is_talking(&self) -> bool {
-        self.capture.is_talking()
+        self.capture.is_talking() && self.sends()
     }
 
     /// The priority speaker key.
@@ -352,7 +385,7 @@ impl Processor {
 
     /// Whether this talk spurt is the priority speaker's.
     pub fn is_priority(&self) -> bool {
-        self.capture.is_priority()
+        self.capture.is_priority() && self.sends()
     }
 
     /// Whether `user_id` speaks with priority (the node relays it).
@@ -362,7 +395,9 @@ impl Processor {
 
     /// Hear what would be sent.
     pub fn set_mic_test(&mut self, on: bool) {
+        let before = self.test_only();
         self.mic_test = on;
+        self.gate_changed(before);
         if !on {
             self.mic_test_frames.clear();
             self.playback.remove(MIC_TEST_USER);
@@ -823,15 +858,206 @@ mod tests {
     /// Captures `ticks` ticks of a tone and plays as much, 10 ms apart;
     /// returns each played tick's level.
     fn test_microphone(processor: &mut Processor, ticks: usize) -> Vec<f32> {
+        test_microphone_at(processor, ticks, 0.3).0
+    }
+
+    /// The same at `amplitude`; also returns how many frames were sent.
+    fn test_microphone_at(
+        processor: &mut Processor,
+        ticks: usize,
+        amplitude: f32,
+    ) -> (Vec<f32>, usize) {
         let start = Instant::now();
-        (0..ticks)
+        let mut sent = 0;
+        let levels = (0..ticks)
             .map(|index| {
-                processor.capture(&microphone_tick(index, 0.3), |_| {});
+                processor.capture(&microphone_tick(index, amplitude), |_| sent += 1);
                 let mut out = vec![0.0; 2 * TICK];
                 processor.play(start + Duration::from_millis(index as u64 * 10), &mut out);
                 dbfs(&out)
             })
-            .collect()
+            .collect();
+        (levels, sent)
+    }
+
+    /// The mean level of the second half of `levels`.
+    fn settled(levels: &[f32]) -> f32 {
+        let half = &levels[levels.len() / 2..];
+        half.iter().sum::<f32>() / half.len() as f32
+    }
+
+    #[test]
+    fn a_test_in_a_deafened_call_sends_nothing() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_deafened(true);
+        processor.set_mic_test(true);
+
+        let (levels, sent) = test_microphone_at(&mut processor, 100, 0.3);
+
+        let heard = settled(&levels);
+        let spoken = dbfs(&microphone_tick(0, 0.3));
+        assert_eq!(sent, 0);
+        assert!((heard - spoken).abs() < 3.0, "{heard} against {spoken}");
+    }
+
+    #[test]
+    fn a_test_while_muted_sends_nothing() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_muted(true);
+        processor.set_mic_test(true);
+
+        let (levels, sent) = test_microphone_at(&mut processor, 100, 0.3);
+
+        let heard = settled(&levels);
+        let spoken = dbfs(&microphone_tick(0, 0.3));
+        assert_eq!(sent, 0);
+        assert!((heard - spoken).abs() < 3.0, "{heard} against {spoken}");
+    }
+
+    #[test]
+    fn deafened_hears_only_the_test() {
+        let mut alice = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        let others = speak(&mut alice, 100, 0.2);
+        let sound: Arc<[f32]> = vec![0.25; SAMPLE_RATE as usize].into();
+        // Every sample played, with or without someone talking and a
+        // soundboard sound playing.
+        let played = |with_others: bool| -> Vec<f32> {
+            let mut processor =
+                Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+            processor.set_deafened(true);
+            processor.set_mic_test(true);
+            if with_others {
+                processor.play_sound(Arc::clone(&sound), 1.0);
+            }
+            let start = Instant::now();
+            let mut played = Vec::new();
+            for index in 0..100 {
+                let now = start + Duration::from_millis(index * 10);
+                for frame in others
+                    .iter()
+                    .filter(|frame| with_others && frame.position / TICK as u64 == index)
+                {
+                    processor.receive(
+                        1,
+                        frame.position as u32,
+                        frame.marker,
+                        Arc::from(&frame.payload[..]),
+                        now,
+                    );
+                }
+                processor.capture(&microphone_tick(index as usize, 0.3), |_| {});
+                let mut out = vec![0.0; 2 * TICK];
+                processor.play(now, &mut out);
+                played.extend_from_slice(&out);
+            }
+            played
+        };
+
+        let alone = played(false);
+        let with_others = played(true);
+
+        let heard = dbfs(&alone[alone.len() / 2..]);
+        let spoken = dbfs(&microphone_tick(0, 0.3));
+        assert!((heard - spoken).abs() < 3.0, "{heard} against {spoken}");
+        assert!(alone == with_others, "others were heard while deafened");
+    }
+
+    #[test]
+    fn the_test_is_not_talking() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_deafened(true);
+        processor.set_mic_test(true);
+        processor.set_priority_held(true);
+
+        let start = Instant::now();
+        let mut talking = Vec::new();
+        let mut levels = Vec::new();
+        for index in 0..100 {
+            processor.capture(&microphone_tick(index, 0.3), |_| {});
+            talking.push(processor.is_talking() || processor.is_priority());
+            let mut out = vec![0.0; 2 * TICK];
+            processor.play(start + Duration::from_millis(index as u64 * 10), &mut out);
+            levels.push(dbfs(&out));
+        }
+
+        assert!(settled(&levels) > -30.0, "the test played nothing");
+        assert!(talking.iter().all(|talking| !talking), "{talking:?}");
+    }
+
+    #[test]
+    fn no_muted_reminder_during_a_test() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_muted(true);
+        processor.set_deafened(true);
+        processor.set_mic_test(true);
+
+        test_microphone_at(&mut processor, 200, 0.3);
+        let during = processor.take_speaking_while_muted();
+        processor.set_mic_test(false);
+        test_microphone_at(&mut processor, 100, 0.3);
+        let after = processor.take_speaking_while_muted();
+
+        assert!(!during);
+        assert!(
+            after,
+            "the reminder never comes, so this test proves nothing"
+        );
+    }
+
+    #[test]
+    fn push_to_talk_counts_as_held_during_a_test() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_mode(InputMode::PushToTalk {
+            release_delay: Duration::ZERO,
+        });
+        processor.set_deafened(true);
+        processor.set_mic_test(true);
+
+        let (testing, sent_testing) = test_microphone_at(&mut processor, 100, 0.3);
+        processor.set_mic_test(false);
+        processor.set_deafened(false);
+        let (_, sent_unheld) = test_microphone_at(&mut processor, 50, 0.3);
+        processor.set_push_to_talk(true);
+        let (_, sent_held) = test_microphone_at(&mut processor, 50, 0.3);
+
+        let spoken = dbfs(&microphone_tick(0, 0.3));
+        assert!(
+            (settled(&testing) - spoken).abs() < 3.0,
+            "{} against {spoken}",
+            settled(&testing)
+        );
+        assert_eq!(sent_testing, 0);
+        assert_eq!(sent_unheld, 0);
+        assert!(sent_held >= 20, "{sent_held} frames with the key held");
+    }
+
+    #[test]
+    fn voice_activity_still_gates_a_test() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_deafened(true);
+        processor.set_mic_test(true);
+
+        // Below the -50 dBFS threshold, then speech.
+        let (quiet, _) = test_microphone_at(&mut processor, 100, 0.001);
+        let (loud, _) = test_microphone_at(&mut processor, 100, 0.3);
+
+        assert!(quiet.iter().all(|db| *db < -100.0), "{quiet:?}");
+        assert!(settled(&loud) > -30.0, "{}", settled(&loud));
+    }
+
+    #[test]
+    fn stopping_goes_back_to_sending_nothing() {
+        let mut processor = Processor::new(settings(), (SAMPLE_RATE, 2), (SAMPLE_RATE, 2)).unwrap();
+        processor.set_deafened(true);
+        processor.set_mic_test(true);
+
+        let (testing, sent_testing) = test_microphone_at(&mut processor, 50, 0.3);
+        processor.set_mic_test(false);
+        let (after, sent_after) = test_microphone_at(&mut processor, 50, 0.3);
+
+        assert!(settled(&testing) > -30.0, "{}", settled(&testing));
+        assert_eq!(sent_testing + sent_after, 0);
+        assert!(after.iter().all(|db| *db < -100.0), "{after:?}");
     }
 
     #[test]

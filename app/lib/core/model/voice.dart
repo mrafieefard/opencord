@@ -260,8 +260,10 @@ typedef HotkeyBinding = ({HotkeyAction action, String keys});
 sealed class HotkeySupport {
   const HotkeySupport();
 
-  /// System-wide, through [HotkeysGlobal.method].
-  const factory HotkeySupport.global(String method) = HotkeysGlobal;
+  /// System-wide, through [HotkeysGlobal.method]; mouse buttons too unless
+  /// [HotkeysGlobal.mouse] says otherwise.
+  const factory HotkeySupport.global(String method, {bool mouse}) =
+      HotkeysGlobal;
 
   /// Only while Opencord is focused, because of [HotkeysFocusedOnly.reason];
   /// [HotkeysFocusedOnly.settingsUrl] opens where the user can allow them.
@@ -272,16 +274,20 @@ sealed class HotkeySupport {
 }
 
 final class HotkeysGlobal extends HotkeySupport {
-  const HotkeysGlobal(this.method);
+  const HotkeysGlobal(this.method, {this.mouse = true});
 
   final String method;
 
-  @override
-  bool operator ==(Object other) =>
-      other is HotkeysGlobal && other.method == method;
+  /// Whether mouse keybinds are bound system-wide too. Wayland's portal
+  /// takes keys only, so there the app handles the mouse while focused.
+  final bool mouse;
 
   @override
-  int get hashCode => method.hashCode;
+  bool operator ==(Object other) =>
+      other is HotkeysGlobal && other.method == method && other.mouse == mouse;
+
+  @override
+  int get hashCode => Object.hash(method, mouse);
 }
 
 final class HotkeysFocusedOnly extends HotkeySupport {

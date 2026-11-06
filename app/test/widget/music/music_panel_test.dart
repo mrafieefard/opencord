@@ -2,7 +2,9 @@
 // panel's modes, the now-playing card, the music panel and its states,
 // on the mock repository.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/music_session.dart';
@@ -10,6 +12,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/members/member_panel.dart';
+import 'package:opencord/features/music/music_controls.dart';
 import 'package:opencord/features/music/music_panel.dart';
 import 'package:opencord/features/music/music_queue.dart';
 import 'package:opencord/features/music/now_playing_card.dart';
@@ -20,7 +23,10 @@ import 'package:opencord/features/shell/shortcuts.dart';
 import 'package:opencord/features/voice/voice_chat_slot.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
+import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 
@@ -138,7 +144,12 @@ void main() {
     await tester.tap(_inPanel(find.byTooltip('Add to queue')).first);
     await _settle(tester);
 
-    final bar = tester.getCenter(_inPanel(find.byType(Slider)));
+    final bar = tester.getCenter(
+      find.descendant(
+        of: find.byType(MusicProgress),
+        matching: find.byType(Slider),
+      ),
+    );
     await tester.tapAt(bar + const Offset(0, -8));
     await _settle(tester);
 
@@ -762,4 +773,350 @@ void main() {
       await app.dispose(tester);
     },
   );
+
+  group('MusicVolumeBar (§3, Task 2)', () {
+    testWidgets('volume_needs_no_popover', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openMusic(tester);
+
+      expect(find.byType(MusicVolumeBar), findsOneWidget);
+      expect(find.byType(MusicVolumeControls), findsNothing);
+
+      final sliderFinder = find.descendant(
+        of: find.byType(MusicVolumeBar),
+        matching: find.byType(Slider),
+      );
+      expect(sliderFinder, findsOneWidget);
+
+      final initialVolume = app.read(musicListeningProvider).volume;
+      expect(initialVolume, 100);
+
+      // Drag the slider
+      await tester.drag(sliderFinder, const Offset(60, 0));
+      await tester.pump();
+
+      final newVolume = app.read(musicListeningProvider).volume;
+      expect(newVolume, isNot(100));
+      expect(newVolume, greaterThan(100));
+
+      // No route was pushed
+      expect(find.byType(MusicVolumeControls), findsNothing);
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('volume_row_numbers', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openMusic(tester);
+
+      final barFinder = find.byType(MusicVolumeBar);
+      expect(barFinder, findsOneWidget);
+
+      // Height is 32
+      final barSize = tester.getSize(barFinder);
+      expect(barSize.height, 32.0);
+
+      // Children: Speaker icon button, gap 8, Slider, gap 8, Value text
+      final speakerFinder = find
+          .descendant(of: barFinder, matching: find.byType(Tooltip))
+          .first;
+      final sliderFinder = find.descendant(
+        of: barFinder,
+        matching: find.byType(Slider),
+      );
+      final valueBoxFinder = find.descendant(
+        of: barFinder,
+        matching: find.byWidgetPredicate(
+          (w) => w is SizedBox && w.width == 36.0,
+        ),
+      );
+      expect(valueBoxFinder, findsOneWidget);
+
+      final speakerRect = tester.getRect(speakerFinder);
+      final sliderRect = tester.getRect(sliderFinder);
+      final valueRect = tester.getRect(valueBoxFinder);
+
+      expect(sliderRect.left - speakerRect.right, 8.0);
+      expect(valueRect.left - sliderRect.right, 8.0);
+      expect(valueRect.width, 36.0);
+
+      // Value text style: 11, tabular, textMuted, right-aligned in 36
+      final textFinder = find.descendant(
+        of: valueBoxFinder,
+        matching: find.byType(Text),
+      );
+      expect(textFinder, findsOneWidget);
+      final textWidget = tester.widget<Text>(textFinder);
+      expect(textWidget.textAlign, TextAlign.right);
+      expect(textWidget.style?.fontSize, 11.0);
+      expect(textWidget.style?.color, tester.element(barFinder).oc.textMuted);
+      expect(
+        textWidget.style?.fontFeatures?.contains(
+          const FontFeature.tabularFigures(),
+        ),
+        isTrue,
+      );
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('speaker_mutes_and_unmutes', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openMusic(tester);
+
+      final barFinder = find.byType(MusicVolumeBar);
+      final speakerFinder = find
+          .descendant(of: barFinder, matching: find.byType(Tooltip))
+          .first;
+      final valueTextFinder = find.descendant(
+        of: barFinder,
+        matching: find.byType(Text),
+      );
+
+      // 1. Initial unmuted: volumeUp, 'Mute music', '100%'
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeUp),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Mute music');
+      expect(tester.widget<Text>(valueTextFinder).data, '100%');
+
+      // Click 1: mute -> volumeOff, 'Unmute music', 'Muted'
+      await tester.tap(speakerFinder);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeOff),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Unmute music');
+      expect(tester.widget<Text>(valueTextFinder).data, 'Muted');
+
+      // Click 2: unmute -> volumeUp, 'Mute music', '100%'
+      await tester.tap(speakerFinder);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeUp),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Mute music');
+      expect(tester.widget<Text>(valueTextFinder).data, '100%');
+
+      // Click 3: mute again -> volumeOff, 'Unmute music', 'Muted'
+      await tester.tap(speakerFinder);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeOff),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Unmute music');
+      expect(tester.widget<Text>(valueTextFinder).data, 'Muted');
+
+      // Click 4: unmute again -> volumeUp, 'Mute music', '100%'
+      await tester.tap(speakerFinder);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeUp),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Mute music');
+      expect(tester.widget<Text>(valueTextFinder).data, '100%');
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('dragging_while_muted_unmutes', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openMusic(tester);
+
+      final barFinder = find.byType(MusicVolumeBar);
+      final speakerFinder = find
+          .descendant(of: barFinder, matching: find.byType(Tooltip))
+          .first;
+      final sliderFinder = find.descendant(
+        of: barFinder,
+        matching: find.byType(Slider),
+      );
+      final valueTextFinder = find.descendant(
+        of: barFinder,
+        matching: find.byType(Text),
+      );
+
+      // Mute first
+      await tester.tap(speakerFinder);
+      await tester.pump();
+      expect(app.read(musicListeningProvider).muted, isTrue);
+      expect(tester.widget<Text>(valueTextFinder).data, 'Muted');
+
+      // Drag the slider
+      await tester.drag(sliderFinder, const Offset(-30, 0));
+      await tester.pump();
+
+      // Dragging unmutes
+      expect(app.read(musicListeningProvider).muted, isFalse);
+      final vol = app.read(musicListeningProvider).volume;
+      expect(tester.widget<Text>(valueTextFinder).data, '$vol%');
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeUp),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Mute music');
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('the_row_follows_the_hotkey', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openMusic(tester);
+
+      final barFinder = find.byType(MusicVolumeBar);
+      final speakerFinder = find
+          .descendant(of: barFinder, matching: find.byType(Tooltip))
+          .first;
+      final valueTextFinder = find.descendant(
+        of: barFinder,
+        matching: find.byType(Text),
+      );
+
+      // Change from outside to 75%
+      app.container
+          .read(musicListeningProvider.notifier)
+          .update((l) => l.copyWith(volume: 75, muted: false));
+      await tester.pump();
+      expect(tester.widget<Text>(valueTextFinder).data, '75%');
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeUp),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Mute music');
+
+      // Change from outside to muted
+      app.container
+          .read(musicListeningProvider.notifier)
+          .update((l) => l.copyWith(muted: true));
+      await tester.pump();
+      expect(tester.widget<Text>(valueTextFinder).data, 'Muted');
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeOff),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Unmute music');
+
+      // Change from outside to 0 volume and unmuted: icon is volumeOff, tooltip is 'Mute music'
+      app.container
+          .read(musicListeningProvider.notifier)
+          .update((l) => l.copyWith(volume: 0, muted: false));
+      await tester.pump();
+      expect(tester.widget<Text>(valueTextFinder).data, '0%');
+      expect(
+        find.descendant(
+          of: speakerFinder,
+          matching: find.byIcon(OcIcons.volumeOff),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Tooltip>(speakerFinder).message, 'Mute music');
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('it_fits_the_narrowest_pane', (tester) async {
+      // 300 wide pane: pump MusicVolumeBar in a 300 wide container
+      final app = await MockApp.pump(tester);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: app.container,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: buildTheme(OcColors.dark),
+            home: const Scaffold(
+              body: SizedBox(
+                width: 300,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: MusicVolumeBar(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(MusicVolumeBar), findsOneWidget);
+      final size = tester.getSize(find.byType(MusicVolumeBar));
+      expect(size.width, 276.0); // 300 - 24
+      expect(size.height, 32.0);
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('the_transport_stays_centred', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openMusic(tester);
+
+      final panelFinder = find.byType(MusicPanel);
+      final playFinder = find.descendant(
+        of: find.byType(MusicTransport),
+        matching: find.byIcon(OcIcons.playArrow),
+      );
+      expect(playFinder, findsOneWidget);
+
+      final panelCenter = tester.getCenter(panelFinder);
+      final playCenter = tester.getCenter(playFinder);
+
+      expect((playCenter.dx - panelCenter.dx).abs(), lessThan(1.0));
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('the_cards_menu_keeps_its_controls', (tester) async {
+      final app = await MockApp.pump(tester);
+      await _openMusic(tester);
+      await _search(tester, 'lofi');
+      await tester.tap(_inPanel(find.byTooltip('Add to queue')).first);
+      await _settle(tester);
+
+      // Switch to text channel so NowPlayingCard shows in member list
+      await tester.tap(_inSidebar('general'));
+      await _settle(tester);
+      await _paneOn(tester, 'Members');
+
+      final cardFinder = find.byType(NowPlayingCard);
+      expect(cardFinder, findsOneWidget);
+
+      // Right-click the card
+      await tester.tap(cardFinder, buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
+
+      // MusicVolumeControls still opens from the now-playing card's right click
+      expect(find.byType(MusicVolumeControls), findsOneWidget);
+
+      await app.dispose(tester);
+    });
+  });
 }

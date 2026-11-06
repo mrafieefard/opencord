@@ -311,7 +311,12 @@ Nothing in these is macOS code. A short pass is enough; also try trackpad scroll
 - [ ] **Video and screen share:** A real video and a real screen share through focus mode (click to focus, strip underneath) and back.
 - [ ] **Two-person call with dock:** In a call, voice dock appears on mouse movement over the stage, auto-hides after 2.5 s of inactivity or pointer departure, and never hides while hovering the dock or with popups/menus open.
 
-## 12. Report
+## 12. Floating UI follow-ups hand checks (`feat/floating-ui-followups`)
+
+- [ ] **Mouse keybinds:** macOS, in another app; hold to talk; macOS Input Monitoring prompt covering the mouse.
+- [ ] **The test:** On headphones and on speakers, in and out of a call; a second person confirms they hear nothing; push to talk.
+
+## 13. Report
 
 - Post the ticked list in the batch's thread, with the failures, screenshots and session logs.
 - The building work (§5, §6.2) and fixes for macOS-only problems go in pull requests from a branch off the one under test, into `beta` (see the top of this file). Name the step each one is for.

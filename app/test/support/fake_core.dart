@@ -24,6 +24,7 @@ class FakeCoreApi extends Fake implements CoreApi {
   List<core.HotkeyBinding>? hotkeys;
   core.HotkeySupport hotkeySupport = const core.HotkeySupport.global(
     method: 'test',
+    mouse: true,
   );
   final calls = <String>[];
   var servers = <core.Server>[];

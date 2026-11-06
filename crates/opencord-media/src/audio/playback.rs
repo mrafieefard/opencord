@@ -26,6 +26,9 @@ const SPEAKING_ENDS_TICKS: u32 = 25;
 const DUCKED: f32 = 0.25;
 /// One tick of playing.
 const TICK_TIME: Duration = Duration::from_millis(10);
+/// Who the mic test plays as; never a real user (ids are positive). The
+/// one voice heard while deafened.
+pub const MIC_TEST_USER: i64 = -1;
 
 /// How the listener wants to hear someone.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -389,10 +392,12 @@ impl Playback {
             stream.next_tick(now);
         }
         let priority = &self.priority;
-        let ducking = self
-            .voices
-            .iter()
-            .any(|(user_id, voice)| voice.speaking && priority.contains(user_id));
+        // Deafened, nobody heard lowers the mic test.
+        let ducking = !self.deafened
+            && self
+                .voices
+                .iter()
+                .any(|(user_id, voice)| voice.speaking && priority.contains(user_id));
         for (user_id, voice) in &mut self.voices {
             let ducked = ducking && !priority.contains(user_id);
             voice.duck_to(if ducked { DUCKED } else { 1.0 });
@@ -402,7 +407,14 @@ impl Playback {
             sound.next_tick();
         }
         if self.deafened {
-            out.fill(0.0);
+            // Only the mic test is heard (spec §8.4): no people, sounds or
+            // streams.
+            let voices = self
+                .voices
+                .get(&MIC_TEST_USER)
+                .map(|voice| (&voice.tick[..], 1.0));
+            self.mixer
+                .mix_stereo(voices, std::iter::empty(), self.master, out);
         } else {
             let listening = &self.listening;
             let voices = self.voices.iter().map(|(user_id, voice)| {

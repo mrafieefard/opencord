@@ -299,10 +299,10 @@ void main() {
           .last,
     );
     expect((chip.decoration! as BoxDecoration).color, isNull);
-    // Bubbles keep to a column of 880, centred: (1056 - 880) / 2 + 16.
+    // In compact mode, lines use the whole width with 16 padding.
     final divider = tester.getRect(find.byType(RelayDivider));
-    expect(divider.left, 104);
-    expect(divider.right, 1056 - 104);
+    expect(divider.left, 16);
+    expect(divider.right, 1056 - 16);
 
     await app.dispose(tester);
   });

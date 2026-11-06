@@ -111,4 +111,98 @@ void main() {
     expect(endsWithCode(parseMarkdown('x\n```\ncode\n```')), isTrue);
     expect(endsWithCode(parseMarkdown('x')), isFalse);
   });
+
+  group('spec §7.1 fence table', () {
+    test('table row 1: ```py⏎⏎CODE```', () {
+      expect(parseMarkdown('```py\n\nCODE```'), [
+        const MdCode('CODE', language: 'py'),
+      ]);
+    });
+
+    test('table row 2: ```js⏎Code⏎```', () {
+      expect(parseMarkdown('```js\nCode\n```'), [
+        const MdCode('Code', language: 'js'),
+      ]);
+    });
+
+    test('table row 3: ```one line```', () {
+      expect(parseMarkdown('```one line```'), [const MdCode('one line')]);
+    });
+
+    test('table row 4: ```py code```', () {
+      expect(parseMarkdown('```py code```'), [const MdCode('py code')]);
+    });
+
+    test('table row 5: ```⏎b``` after', () {
+      expect(parseMarkdown('```\nb``` after'), [
+        const MdCode('b'),
+        const MdParagraph([MdText('after')]),
+      ]);
+    });
+
+    test('table row 6: ```⏎no end', () {
+      expect(parseMarkdown('```\nno end'), [
+        const MdParagraph([MdText('```\nno end')]),
+      ]);
+    });
+  });
+
+  test('a_language_can_have_these_characters', () {
+    expect(parseMarkdown('```c++\ncode```'), [
+      const MdCode('code', language: 'c++'),
+    ]);
+    expect(parseMarkdown('```c#\ncode```'), [
+      const MdCode('code', language: 'c#'),
+    ]);
+    expect(parseMarkdown('```objective-c\ncode```'), [
+      const MdCode('code', language: 'objective-c'),
+    ]);
+    expect(parseMarkdown('```f.x\ncode```'), [
+      const MdCode('code', language: 'f.x'),
+    ]);
+
+    final longLang = 'a' * 33;
+    expect(parseMarkdown('```$longLang\ncode```'), [MdCode('$longLang\ncode')]);
+  });
+
+  test('indentation_and_blank_lines_inside_stay', () {
+    const input = '```py\n  def foo():\n\n    return 42\n```';
+    expect(parseMarkdown(input), [
+      const MdCode('  def foo():\n\n    return 42', language: 'py'),
+    ]);
+  });
+
+  test('blank_lines_at_the_ends_go', () {
+    const input = '```py\n\n\ncode\n\n\n```';
+    expect(parseMarkdown(input), [const MdCode('code', language: 'py')]);
+  });
+
+  test('an_opening_fence_mid_line_is_not_a_block', () {
+    final blocks = parseMarkdown('see ```x``` here');
+    expect(blocks, hasLength(1));
+    expect(blocks.single, isA<MdParagraph>());
+  });
+
+  test('two_blocks_in_one_message', () {
+    const input = '```py\nx = 1\n```\n\n```js\ny = 2\n```';
+    expect(parseMarkdown(input), [
+      const MdCode('x = 1', language: 'py'),
+      const MdCode('y = 2', language: 'js'),
+    ]);
+  });
+
+  test('empty_fences_stay_text', () {
+    expect(parseMarkdown('``````').single, isA<MdParagraph>());
+    expect(parseMarkdown('```\n```').single, isA<MdParagraph>());
+    expect(parseMarkdown('```   ```').single, isA<MdParagraph>());
+  });
+
+  test('text_before_and_after_a_block', () {
+    const input = 'before\n```py\nx = 1\n```\nafter';
+    expect(parseMarkdown(input), [
+      const MdParagraph([MdText('before')]),
+      const MdCode('x = 1', language: 'py'),
+      const MdParagraph([MdText('after')]),
+    ]);
+  });
 }

@@ -1,5 +1,4 @@
-/// What a member's presence shape shows (§5.3). "Invisible" is a choice
-/// the user makes for themselves; everyone else sees [offline].
+/// What a member's presence shape shows (§5.3).
 enum Presence {
   online('Online'),
   idle('Idle'),

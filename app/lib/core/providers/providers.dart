@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -100,7 +101,13 @@ final eventPumpProvider = Provider<void>((ref) {
   }, fireImmediately: true);
   final inApp = _InAppHotkeys(ref);
   HardwareKeyboard.instance.addHandler(inApp.handle);
-  ref.onDispose(() => HardwareKeyboard.instance.removeHandler(inApp.handle));
+  GestureBinding.instance.pointerRouter.addGlobalRoute(inApp.handlePointer);
+  ref.onDispose(() {
+    HardwareKeyboard.instance.removeHandler(inApp.handle);
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(
+      inApp.handlePointer,
+    );
+  });
 });
 
 /// Binds the hotkeys again as they are: after the user allowed global
@@ -144,6 +151,9 @@ class _InAppHotkeys {
   /// The bindings down, by action.
   final _down = <HotkeyAction, Set<HotkeyBinding>>{};
 
+  /// The last buttons mask seen for each active pointer.
+  final _pointerButtons = <int, int>{};
+
   bool handle(KeyEvent event) {
     if (ref.read(hotkeySupportProvider) is! HotkeysFocusedOnly ||
         ref.read(recordingKeybindProvider)) {
@@ -165,6 +175,88 @@ class _InAppHotkeys {
       }
     }
     return false;
+  }
+
+  void handlePointer(PointerEvent event) {
+    if (ref.read(recordingKeybindProvider)) return;
+
+    final support = ref.read(hotkeySupportProvider);
+    final handleMouse = switch (support) {
+      HotkeysFocusedOnly() => true,
+      HotkeysGlobal(:final mouse) => !mouse,
+      _ => false,
+    };
+    if (!handleMouse) {
+      _pointerButtons.clear();
+      return;
+    }
+
+    if (event is PointerCancelEvent) {
+      _pointerButtons.remove(event.pointer);
+      _releaseMouseBindings();
+      return;
+    }
+
+    final last = _pointerButtons[event.pointer] ?? 0;
+    final current = event.buttons;
+    _pointerButtons[event.pointer] = current;
+
+    if (event is PointerUpEvent || current == 0) {
+      _pointerButtons.remove(event.pointer);
+    }
+
+    final changed = current ^ last;
+    if (changed == 0) return;
+
+    final downMask = changed & current;
+    final upMask = changed & last;
+
+    for (final button in MouseButton.values) {
+      if (downMask & button.mask != 0) {
+        _onButtonDown(button);
+      }
+      if (upMask & button.mask != 0) {
+        _onButtonUp(button);
+      }
+    }
+  }
+
+  void _onButtonDown(MouseButton button) {
+    for (final binding in ref.read(keybindsProvider).bound) {
+      final accelerator = Accelerator.parse(binding.keys);
+      if (accelerator == null || accelerator.button != button) continue;
+      if (accelerator.modifiersHeld(HardwareKeyboard.instance)) {
+        final down = _down.putIfAbsent(binding.action, () => {});
+        final first = down.isEmpty;
+        if (down.add(binding) && first) _act(binding.action, pressed: true);
+      }
+    }
+  }
+
+  void _onButtonUp(MouseButton button) {
+    for (final binding in ref.read(keybindsProvider).bound) {
+      final accelerator = Accelerator.parse(binding.keys);
+      if (accelerator == null || accelerator.button != button) continue;
+      final down = _down[binding.action];
+      if (down != null && down.remove(binding) && down.isEmpty) {
+        _act(binding.action, pressed: false);
+      }
+    }
+  }
+
+  void _releaseMouseBindings() {
+    for (final entry in _down.entries.toList()) {
+      final action = entry.key;
+      final set = entry.value;
+      final mouseBindings = set
+          .where((b) => Accelerator.parse(b.keys)?.button != null)
+          .toList();
+      for (final binding in mouseBindings) {
+        if (set.remove(binding) && set.isEmpty) {
+          _act(action, pressed: false);
+        }
+      }
+    }
   }
 
   void _act(HotkeyAction action, {required bool pressed}) {

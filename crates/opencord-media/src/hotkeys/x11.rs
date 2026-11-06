@@ -1,6 +1,7 @@
-//! Hotkeys on X11 sessions: XInput 2 raw key events show every key press
-//! wherever the focus is, without taking keys away from other apps (as a
-//! key grab would). A thread reads them and matches the bindings.
+//! Hotkeys on X11 sessions: XInput 2 raw key and button events show every
+//! key press and click wherever the focus is, without taking them away from
+//! other apps (as a grab would). A thread reads them and matches the
+//! bindings.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -14,12 +15,35 @@ use x11rb::protocol::Event;
 use x11rb::protocol::xinput::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::ConnectionExt as _;
 
-use super::{Held, HotkeyAction, HotkeyBinding, HotkeyEvent};
+use super::{Held, HotkeyAction, HotkeyBinding, HotkeyEvent, MouseButton};
 
 /// How often the thread looks for key events, and for being stopped.
 const POLL: Duration = Duration::from_millis(5);
-/// XInput 2's "all master devices": every keyboard attached to one.
+/// XInput 2's "all master devices": every keyboard and pointer attached to
+/// one.
 const ALL_MASTER_DEVICES: u16 = 1;
+
+/// The X button number (a raw event's detail) of each button a hotkey can
+/// use. 1 and 3 are left and right, and 4 to 7 the wheel.
+fn button_of(detail: u32) -> Option<MouseButton> {
+    match detail {
+        2 => Some(MouseButton::Middle),
+        8 => Some(MouseButton::Back),
+        9 => Some(MouseButton::Forward),
+        _ => None,
+    }
+}
+
+/// A button as the matcher counts it: a pseudo-key past every keycode,
+/// which X keeps below 256.
+fn button_key(button: MouseButton) -> u32 {
+    0x1_0000
+        + match button {
+            MouseButton::Middle => 2,
+            MouseButton::Back => 8,
+            MouseButton::Forward => 9,
+        }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Modifier {
@@ -41,7 +65,7 @@ const MODIFIER_KEYSYMS: [(u32, Modifier); 8] = [
     (0xffec, Modifier::Logo),
 ];
 
-/// One binding, in keycodes.
+/// One binding, in keycodes, or a button's pseudo-key.
 struct Watched {
     action: HotkeyAction,
     keys: Vec<u32>,
@@ -84,7 +108,10 @@ impl Matcher {
                 .collect();
                 Watched {
                     action: binding.action,
-                    keys: keycodes(accelerator.keysym),
+                    keys: match accelerator.button {
+                        Some(button) => vec![button_key(button)],
+                        None => keycodes(accelerator.keysym),
+                    },
                     modifiers,
                 }
             })
@@ -137,6 +164,16 @@ impl Matcher {
         }
         events
     }
+
+    /// A button went down or came up: the buttons a hotkey can't use
+    /// count for nothing.
+    fn button(&mut self, detail: u32, down: bool) -> Vec<HotkeyEvent> {
+        match button_of(detail).map(button_key) {
+            Some(key) if down => self.press(key),
+            Some(key) => self.release(key),
+            None => Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -186,7 +223,10 @@ impl X11Keys {
             &[xinput::EventMask {
                 deviceid: ALL_MASTER_DEVICES,
                 mask: vec![
-                    xinput::XIEventMask::RAW_KEY_PRESS | xinput::XIEventMask::RAW_KEY_RELEASE,
+                    xinput::XIEventMask::RAW_KEY_PRESS
+                        | xinput::XIEventMask::RAW_KEY_RELEASE
+                        | xinput::XIEventMask::RAW_BUTTON_PRESS
+                        | xinput::XIEventMask::RAW_BUTTON_RELEASE,
                 ],
             }],
         )?;
@@ -201,6 +241,12 @@ impl X11Keys {
                         Ok(Some(event)) => match event {
                             Event::XinputRawKeyPress(key) => matcher.press(key.detail),
                             Event::XinputRawKeyRelease(key) => matcher.release(key.detail),
+                            Event::XinputRawButtonPress(button) => {
+                                matcher.button(button.detail, true)
+                            }
+                            Event::XinputRawButtonRelease(button) => {
+                                matcher.button(button.detail, false)
+                            }
                             _ => continue,
                         },
                         Ok(None) => {
@@ -342,6 +388,89 @@ mod tests {
         assert_eq!(up, vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]);
     }
 
+    const BACK: u32 = 8;
+
+    #[test]
+    fn a_button_with_its_modifiers_presses_and_releases() {
+        let mut keys = matcher(&[(HotkeyAction::PushToTalk, "CTRL+Mouse4")]);
+
+        keys.press(10);
+        let down = keys.button(BACK, true);
+        let again = keys.button(BACK, true);
+        let up = keys.button(BACK, false);
+
+        assert_eq!(down, vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]);
+        assert!(again.is_empty(), "a held button does not press again");
+        assert_eq!(up, vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]);
+    }
+
+    #[test]
+    fn a_button_without_its_modifiers_does_nothing() {
+        let mut keys = matcher(&[(HotkeyAction::ToggleMute, "CTRL+Mouse4")]);
+
+        let down = keys.button(BACK, true);
+        let up = keys.button(BACK, false);
+        // Nor does Ctrl coming down while the button already is.
+        keys.button(BACK, true);
+        let ctrl_after = keys.press(10);
+
+        assert!(down.is_empty() && up.is_empty());
+        assert!(ctrl_after.is_empty());
+    }
+
+    #[test]
+    fn a_key_and_a_button_on_one_action_press_once() {
+        let mut keys = matcher(&[
+            (HotkeyAction::PushToTalk, "F12"),
+            (HotkeyAction::PushToTalk, "Mouse5"),
+        ]);
+
+        let key = keys.press(13);
+        let button = keys.button(9, true);
+        let key_up = keys.release(13);
+        let button_up = keys.button(9, false);
+
+        assert_eq!(key, vec![HotkeyEvent::Pressed(HotkeyAction::PushToTalk)]);
+        assert!(button.is_empty(), "already down");
+        assert!(key_up.is_empty(), "the button still holds it");
+        assert_eq!(
+            button_up,
+            vec![HotkeyEvent::Released(HotkeyAction::PushToTalk)]
+        );
+    }
+
+    #[test]
+    fn button_numbers_map_to_the_three_buttons() {
+        assert_eq!(button_of(2), Some(MouseButton::Middle));
+        assert_eq!(button_of(8), Some(MouseButton::Back));
+        assert_eq!(button_of(9), Some(MouseButton::Forward));
+        for unbindable in [1, 3, 4, 5, 6, 7, 10] {
+            assert_eq!(button_of(unbindable), None, "button {unbindable}");
+        }
+        let mut keys = matcher(&[(HotkeyAction::ToggleMute, "Mouse3")]);
+        assert!(keys.button(4, true).is_empty(), "the wheel");
+        assert_eq!(
+            keys.button(2, true),
+            vec![HotkeyEvent::Pressed(HotkeyAction::ToggleMute)]
+        );
+    }
+
+    #[test]
+    fn a_button_is_no_key() {
+        // A button's keysym is 0, which unmapped keycodes carry too.
+        let mut keys = Matcher::new(
+            &[HotkeyBinding {
+                action: HotkeyAction::PushToTalk,
+                accelerator: "Mouse4".parse().unwrap(),
+            }],
+            10,
+            &[vec![0], vec![0, 0]],
+        );
+
+        assert!(keys.press(10).is_empty());
+        assert!(keys.press(11).is_empty());
+    }
+
     /// A private X server, gone when dropped.
     struct Xvfb {
         child: std::process::Child,
@@ -385,6 +514,26 @@ mod tests {
         keys: &[(u32, bool)],
         expected: usize,
     ) -> Vec<HotkeyEvent> {
+        let typed: Vec<Input> = keys
+            .iter()
+            .map(|(keysym, down)| Input::Key(*keysym, *down))
+            .collect();
+        input_on_x(bindings, &typed, expected)
+    }
+
+    /// A key (X keysym) or a button (X button number), down or up.
+    enum Input {
+        Key(u32, bool),
+        Button(u8, bool),
+    }
+
+    /// Sends `inputs` to a private X server watched for `bindings`, and
+    /// returns the hotkey events that came.
+    fn input_on_x(
+        bindings: &[(HotkeyAction, &str)],
+        inputs: &[Input],
+        expected: usize,
+    ) -> Vec<HotkeyEvent> {
         use x11rb::protocol::xtest::ConnectionExt as _;
 
         let server = Xvfb::start();
@@ -415,10 +564,14 @@ mod tests {
             first + index as u8
         };
 
-        for (keysym, down) in keys {
-            let kind = if *down { 2 } else { 3 };
+        for input in inputs {
+            // KeyPress, KeyRelease, ButtonPress, ButtonRelease.
+            let (kind, detail) = match *input {
+                Input::Key(keysym, down) => (if down { 2 } else { 3 }, keycode(keysym)),
+                Input::Button(button, down) => (if down { 4 } else { 5 }, button),
+            };
             typist
-                .xtest_fake_input(kind, keycode(*keysym), 0, root, 0, 0, 0)
+                .xtest_fake_input(kind, detail, 0, root, 0, 0, 0)
                 .unwrap();
         }
         typist.flush().unwrap();
@@ -447,6 +600,39 @@ mod tests {
         let events = typed_on_x(
             &[(HotkeyAction::PushToTalk, "CTRL+m")],
             &[(ctrl, true), (m, true), (m, false), (ctrl, false)],
+            2,
+        );
+
+        assert_eq!(
+            events,
+            vec![
+                HotkeyEvent::Pressed(HotkeyAction::PushToTalk),
+                HotkeyEvent::Released(HotkeyAction::PushToTalk),
+            ]
+        );
+    }
+
+    /// Needs Xvfb; run with `--ignored` where it is installed.
+    #[test]
+    #[ignore = "needs Xvfb"]
+    fn buttons_clicked_anywhere_on_an_x_server_press_and_release_hotkeys() {
+        let ctrl = 0xffe3;
+
+        let events = input_on_x(
+            &[(HotkeyAction::PushToTalk, "CTRL+Mouse4")],
+            &[
+                // Without Ctrl, then the wheel and a left click: nothing.
+                Input::Button(8, true),
+                Input::Button(8, false),
+                Input::Button(4, true),
+                Input::Button(4, false),
+                Input::Button(1, true),
+                Input::Button(1, false),
+                Input::Key(ctrl, true),
+                Input::Button(8, true),
+                Input::Button(8, false),
+                Input::Key(ctrl, false),
+            ],
             2,
         );
 

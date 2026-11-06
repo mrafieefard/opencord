@@ -25,7 +25,7 @@ void main() {
     expect(deafen.action, const ToggleDeafen());
   });
 
-  test('Status lists every presence with the current one chosen', () {
+  test('the_choices_are_three: Status lists Online, Idle, Do not disturb', () {
     final status = trayMenu(
       const TrayState(presence: SelfPresence.doNotDisturb),
     ).firstWhere((item) => item.label == 'Status');
@@ -34,7 +34,6 @@ void main() {
       'Online',
       'Idle',
       'Do not disturb',
-      'Invisible',
     ]);
     expect(
       status.children.where((item) => item.checked == true).single.action,

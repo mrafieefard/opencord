@@ -2,6 +2,7 @@
 /// fingerprints, typing and message previews. English for now.
 library;
 
+import 'package:opencord/core/fences.dart';
 import 'package:opencord/core/mention_tokens.dart';
 
 const _weekdays = [
@@ -126,8 +127,7 @@ String typingLabel(List<String> names) => switch (names.length) {
   _ => 'Several people are typing',
 };
 
-final _codeBlock = RegExp(r'```[^\n]*\n?([\s\S]*?)```');
-final _inlineCode = RegExp('`([^`]*)`');
+final _inlineCode = RegExp(r'`([^`\n]+)`');
 final _emphasis = RegExp(r'(\*\*|__|~~|\*|_)(\S(?:[\s\S]*?\S)?)\1');
 final _quote = RegExp(r'^>\s?', multiLine: true);
 final _space = RegExp(r'\s+');
@@ -139,7 +139,18 @@ String previewText(
   required String? Function(int id) user,
   required String? Function(int id) channel,
 }) {
-  var text = content.replaceAllMapped(_codeBlock, (m) => ' ${m[1]} ');
+  final fences = findFences(content);
+  final buffer = StringBuffer();
+  var cursor = 0;
+  for (final fence in fences) {
+    buffer.write(content.substring(cursor, fence.start));
+    buffer.write(' ');
+    buffer.write(fence.code);
+    buffer.write(' ');
+    cursor = fence.end;
+  }
+  buffer.write(content.substring(cursor));
+  var text = buffer.toString();
   text = text.replaceAllMapped(_inlineCode, (m) => m[1]!);
   for (var previous = ''; previous != text;) {
     previous = text;

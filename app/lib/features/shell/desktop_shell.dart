@@ -2,7 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:opencord/core/hotkeys.dart';
 
 import 'package:opencord/core/model/channel_kind.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
@@ -83,15 +86,14 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
   final _membersDrawerKey = GlobalKey<ShellDrawerState>();
   ShellLayout _layout = ShellLayout.wide;
 
+  /// The left column's width, springing to its clamped target.
   late final AnimationController _sidebarWidthController =
       AnimationController.unbounded(vsync: this);
-  bool _isDraggingSplitter = false;
-  double? _splitterDragWidth;
-
-  /// Where the pointer has the column, limits aside.
-  double _splitterPointerWidth = 0;
-  bool _splitterMoved = false;
   double? _lastClampedTarget;
+  final _leftDrag = _SplitterDrag();
+
+  /// The right pane's springs are its slot's own.
+  final _sideDrag = _SplitterDrag();
 
   @override
   void dispose() {
@@ -347,6 +349,98 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
     );
   }
 
+  /// The splitter after the left column, [width] wide now (§5.7).
+  Widget _leftSplitter({
+    required double width,
+    required double min,
+    required double max,
+  }) {
+    final saved = ref.read(sidebarWidthProvider.notifier);
+    return Positioned(
+      left:
+          OcFloats.gap +
+          OcFloats.rail +
+          OcFloats.gap +
+          width +
+          (OcFloats.gap - ShellSplitter.hitWidth) / 2,
+      top: 0,
+      bottom: OcFloats.gap,
+      child: ShellSplitter(
+        label: 'Resize the channel list',
+        gapKey: ShellKeys.splitter,
+        currentWidth: width,
+        minWidth: min,
+        maxWidth: max,
+        isDragging: _leftDrag.active,
+        onDragStart: () {
+          _sidebarWidthController.stop();
+          setState(() => _leftDrag.start(width.clamp(min, max)));
+        },
+        onDragDelta: (delta) => setState(() {
+          _leftDrag.move(delta, min, max);
+          _sidebarWidthController.value = _leftDrag.width;
+        }),
+        onDragEnd: () {
+          if (!_leftDrag.active) return;
+          final dragged = _leftDrag.width;
+          var moved = false;
+          setState(() {
+            moved = _leftDrag.end();
+            // A click changes nothing: a spring it stopped carries on.
+            _lastClampedTarget = moved
+                ? dragged
+                : _sidebarWidthController.value;
+          });
+          if (moved) saved.save(dragged);
+        },
+        onReset: saved.reset,
+        onStep: (delta) {
+          final next = (width + delta).clamp(min, max);
+          _sidebarWidthController.value = next;
+          _lastClampedTarget = next;
+          saved.save(next);
+          setState(() {});
+        },
+      ),
+    );
+  }
+
+  /// The splitter before the right pane, at its resting edge while its slot
+  /// is open (follow-ups §2). The pane's own springs settle it.
+  Widget _sideSplitter({
+    required SideContent side,
+    required double width,
+    required double min,
+    required double max,
+  }) {
+    final saved = ref.read(sideWidthProvider(side).notifier);
+    return Positioned(
+      right: OcFloats.gap + width + (OcFloats.gap - ShellSplitter.hitWidth) / 2,
+      top: 0,
+      bottom: OcFloats.gap,
+      child: ShellSplitter(
+        label: 'Resize the right pane',
+        gapKey: ShellKeys.sideSplitter,
+        growsLeft: true,
+        currentWidth: width,
+        minWidth: min,
+        maxWidth: max,
+        isDragging: _sideDrag.active,
+        onDragStart: () => setState(() => _sideDrag.start(width)),
+        onDragDelta: (delta) => setState(() => _sideDrag.move(delta, min, max)),
+        onDragEnd: () {
+          if (!_sideDrag.active) return;
+          final dragged = _sideDrag.width;
+          var moved = false;
+          setState(() => moved = _sideDrag.end());
+          if (moved) saved.save(dragged);
+        },
+        onReset: saved.reset,
+        onStep: (delta) => saved.save((width + delta).clamp(min, max)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -394,10 +488,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
           child: MacMenuBar(
             child: Listener(
               onPointerDown: (event) {
+                if (ref.read(recordingKeybindProvider)) return;
                 if (event.buttons & kBackMouseButton != 0) {
-                  ref.read(navigationHistoryProvider.notifier).back();
+                  if (!_isBound(ref, MouseButton.back)) {
+                    ref.read(navigationHistoryProvider.notifier).back();
+                  }
                 } else if (event.buttons & kForwardMouseButton != 0) {
-                  ref.read(navigationHistoryProvider.notifier).forward();
+                  if (!_isBound(ref, MouseButton.forward)) {
+                    ref.read(navigationHistoryProvider.notifier).forward();
+                  }
                 }
               },
               child: Focus(
@@ -419,12 +518,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                               constraints.maxWidth,
                             );
                             _layout = layout;
+                            final window = constraints.maxWidth;
                             final defaultWidth = layout.sidebarWidth;
                             final savedWidth = ref.watch(sidebarWidthProvider);
                             final targetWidth = savedWidth ?? defaultWidth;
 
+                            // Decided by the chat's default width, so
+                            // dragging it never flips it to the full page.
                             final hasRoomForBoth =
-                                (constraints.maxWidth -
+                                (window -
                                     (OcFloats.gap +
                                         OcFloats.rail +
                                         OcFloats.gap +
@@ -433,20 +535,20 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                             : 0) +
                                         OcFloats.gap +
                                         OcFloats.gap) -
-                                    380.0 -
+                                    OcFloats.voiceChat -
                                     OcFloats.gap) >=
-                                600.0;
+                                OcFloats.voiceStageMin;
                             final voiceChat = ref.watch(voiceChatShownProvider);
                             final voiceChatInSlot =
                                 isVoice && voiceChat && hasRoomForBoth;
                             final voiceChatAlone =
                                 isVoice && voiceChat && !hasRoomForBoth;
 
-                            final paneWidth = voiceChatInSlot
-                                ? 380.0
+                            final side = voiceChatInSlot
+                                ? SideContent.voiceChat
                                 : (musicShown
-                                      ? OcFloats.sideMusic
-                                      : OcFloats.side);
+                                      ? SideContent.music
+                                      : SideContent.people);
 
                             final paneOpen = layout.membersInline
                                 ? (paneWanted || voiceChatInSlot)
@@ -456,16 +558,45 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                 (paneWanted || voiceChatInSlot) &&
                                 serverView;
 
+                            // The pane gives way first, down to its minimum,
+                            // then the left column (follow-ups §2).
+                            final sideMin = side.minWidth;
+                            final sideMax = math.max(
+                              sideMin,
+                              math.min(
+                                OcFloats.sideMax,
+                                window -
+                                    OcFloats.rail -
+                                    4 * OcFloats.gap -
+                                    (layout.sidebarInline
+                                        ? targetWidth.clamp(
+                                            OcFloats.leftMin,
+                                            OcFloats.leftMax,
+                                          )
+                                        : 0) -
+                                    side.mainMin,
+                              ),
+                            );
+                            final sideTarget =
+                                ref.watch(sideWidthProvider(side)) ??
+                                side.defaultWidth;
+                            // A drawer is at its default width.
+                            final paneWidth = !layout.membersInline
+                                ? side.defaultWidth
+                                : _sideDrag.active
+                                ? _sideDrag.width
+                                : sideTarget.clamp(sideMin, sideMax);
+
                             final minWidth = OcFloats.leftMin;
                             final maxWidth = math.max(
                               minWidth,
                               math.min(
                                 OcFloats.leftMax,
-                                constraints.maxWidth -
+                                window -
                                     OcFloats.rail -
                                     4 * OcFloats.gap -
                                     (slotOpen ? paneWidth : 0) -
-                                    380.0,
+                                    OcFloats.mainMin,
                               ),
                             );
                             final clampedTarget = targetWidth.clamp(
@@ -473,7 +604,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                               maxWidth,
                             );
 
-                            if (!_isDraggingSplitter) {
+                            if (!_leftDrag.active) {
                               if (_lastClampedTarget == null) {
                                 _sidebarWidthController.value = clampedTarget;
                                 _lastClampedTarget = clampedTarget;
@@ -496,8 +627,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                             return AnimatedBuilder(
                               animation: _sidebarWidthController,
                               builder: (context, _) {
-                                final currentSidebarWidth = _isDraggingSplitter
-                                    ? (_splitterDragWidth ?? clampedTarget)
+                                final currentSidebarWidth = _leftDrag.active
+                                    ? _leftDrag.width
                                     : _sidebarWidthController.value;
 
                                 return SpringValue.listenable(
@@ -573,6 +704,12 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                                   open: slotOpen,
                                                   width: paneWidth,
                                                   float: !voiceChatInSlot,
+                                                  // A click alone moves
+                                                  // nothing, nor stops a
+                                                  // spring.
+                                                  immediate:
+                                                      _sideDrag.active &&
+                                                      _sideDrag.moved,
                                                   child:
                                                       voiceChatInSlot &&
                                                           open != null
@@ -592,114 +729,20 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                                             ],
                                           ),
                                         ),
-                                        // Over the floats, so its hit area can
-                                        // reach 4 into each.
+                                        // Over the floats, so their hit areas
+                                        // can reach 4 into each.
                                         if (layout.sidebarInline)
-                                          Positioned(
-                                            left:
-                                                OcFloats.gap +
-                                                OcFloats.rail +
-                                                OcFloats.gap +
-                                                currentSidebarWidth +
-                                                (OcFloats.gap -
-                                                        ShellSplitter
-                                                            .hitWidth) /
-                                                    2,
-                                            top: 0,
-                                            bottom: OcFloats.gap,
-                                            child: ShellSplitter(
-                                              currentWidth: currentSidebarWidth,
-                                              minWidth: minWidth,
-                                              maxWidth: maxWidth,
-                                              isDragging: _isDraggingSplitter,
-                                              onDragStart: () {
-                                                _sidebarWidthController.stop();
-                                                final width =
-                                                    currentSidebarWidth.clamp(
-                                                      minWidth,
-                                                      maxWidth,
-                                                    );
-                                                setState(() {
-                                                  _isDraggingSplitter = true;
-                                                  _splitterMoved = false;
-                                                  _splitterDragWidth = width;
-                                                  _splitterPointerWidth = width;
-                                                });
-                                              },
-                                              onDragDelta: (dx) {
-                                                // Past a limit the column waits
-                                                // for the pointer to come back.
-                                                final pointer =
-                                                    _splitterPointerWidth + dx;
-                                                final width = pointer.clamp(
-                                                  minWidth,
-                                                  maxWidth,
-                                                );
-                                                setState(() {
-                                                  _splitterMoved = true;
-                                                  _splitterPointerWidth =
-                                                      pointer;
-                                                  _splitterDragWidth = width;
-                                                  _sidebarWidthController
-                                                          .value =
-                                                      width;
-                                                });
-                                              },
-                                              onDragEnd: () {
-                                                if (!_isDraggingSplitter) {
-                                                  return;
-                                                }
-                                                final finalWidth =
-                                                    _splitterDragWidth ??
-                                                    _sidebarWidthController
-                                                        .value;
-                                                final moved = _splitterMoved;
-                                                setState(() {
-                                                  _isDraggingSplitter = false;
-                                                  _splitterDragWidth = null;
-                                                  // A click changes nothing: a
-                                                  // spring it stopped carries on.
-                                                  _lastClampedTarget = moved
-                                                      ? finalWidth
-                                                      : _sidebarWidthController
-                                                            .value;
-                                                });
-                                                if (!moved) return;
-                                                ref
-                                                    .read(
-                                                      sidebarWidthProvider
-                                                          .notifier,
-                                                    )
-                                                    .save(finalWidth);
-                                              },
-                                              onReset: () {
-                                                ref
-                                                    .read(
-                                                      sidebarWidthProvider
-                                                          .notifier,
-                                                    )
-                                                    .reset();
-                                              },
-                                              onStep: (delta) {
-                                                final next =
-                                                    (currentSidebarWidth +
-                                                            delta)
-                                                        .clamp(
-                                                          minWidth,
-                                                          maxWidth,
-                                                        );
-                                                _sidebarWidthController.value =
-                                                    next;
-                                                _lastClampedTarget = next;
-                                                ref
-                                                    .read(
-                                                      sidebarWidthProvider
-                                                          .notifier,
-                                                    )
-                                                    .save(next);
-                                                setState(() {});
-                                              },
-                                            ),
+                                          _leftSplitter(
+                                            width: currentSidebarWidth,
+                                            min: minWidth,
+                                            max: maxWidth,
+                                          ),
+                                        if (slotOpen)
+                                          _sideSplitter(
+                                            side: side,
+                                            width: paneWidth,
+                                            min: sideMin,
+                                            max: sideMax,
                                           ),
                                         if (!layout.sidebarInline &&
                                             _sidebarDrawer)
@@ -753,6 +796,40 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
         ),
       ),
     );
+  }
+}
+
+/// A splitter's drag (§5.7): the width its column shows meanwhile, and where
+/// the pointer has the edge, limits aside. Past a limit the column waits for
+/// the pointer to come back.
+class _SplitterDrag {
+  bool active = false;
+
+  /// Whether the pointer has moved since it went down: a click moves nothing.
+  bool moved = false;
+  double width = 0;
+  double _pointer = 0;
+
+  void start(double from) {
+    active = true;
+    moved = false;
+    width = from;
+    _pointer = from;
+  }
+
+  /// The column [delta] wider, kept within [min] and [max].
+  void move(double delta, double min, double max) {
+    moved = true;
+    _pointer += delta;
+    width = _pointer.clamp(min, max);
+  }
+
+  /// Ends the drag, and says whether it moved anything.
+  bool end() {
+    final wasMoved = moved;
+    active = false;
+    moved = false;
+    return wasMoved;
   }
 }
 
@@ -997,4 +1074,19 @@ class _MainColumn extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Whether [button] is bound to a keybind whose modifiers are currently held.
+bool _isBound(WidgetRef ref, MouseButton button) {
+  final bound = ref.read(keybindsProvider).bound;
+  final keyboard = HardwareKeyboard.instance;
+  for (final binding in bound) {
+    final accelerator = Accelerator.parse(binding.keys);
+    if (accelerator != null && accelerator.button == button) {
+      if (accelerator.modifiersHeld(keyboard)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
-import 'package:opencord/features/chat/bubble.dart';
+import 'package:opencord/features/chat/compact_message.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
 import 'package:opencord/features/chat/typing_dots.dart';
 import 'package:opencord/features/shell/navigation.dart';
@@ -131,8 +131,8 @@ void main() {
 
     expect(_pinLabel(tester), 'Pinned message 1 of 2');
     final highlighted = tester
-        .widgetList<MessageBubble>(find.byType(MessageBubble))
-        .where((bubble) => bubble.highlighted);
+        .widgetList<CompactMessage>(find.byType(CompactMessage))
+        .where((row) => row.highlighted);
     expect(
       highlighted.single.message.content,
       startsWith('Release checklist for M5'),
@@ -186,8 +186,8 @@ void main() {
 
     expect(find.byType(PinnedList), findsNothing);
     final highlighted = tester
-        .widgetList<MessageBubble>(find.byType(MessageBubble))
-        .where((bubble) => bubble.highlighted);
+        .widgetList<CompactMessage>(find.byType(CompactMessage))
+        .where((row) => row.highlighted);
     expect(highlighted.single.message.content, contains('Berlin meetup'));
     await tester.pump(const Duration(seconds: 2));
     await app.dispose(tester);

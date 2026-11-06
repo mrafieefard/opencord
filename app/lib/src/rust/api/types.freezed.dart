@@ -5526,10 +5526,10 @@ return focusedOnly(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String method)?  global,TResult Function( String reason,  String? settingsUrl)?  focusedOnly,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String method,  bool mouse)?  global,TResult Function( String reason,  String? settingsUrl)?  focusedOnly,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case HotkeySupport_Global() when global != null:
-return global(_that.method);case HotkeySupport_FocusedOnly() when focusedOnly != null:
+return global(_that.method,_that.mouse);case HotkeySupport_FocusedOnly() when focusedOnly != null:
 return focusedOnly(_that.reason,_that.settingsUrl);case _:
   return orElse();
 
@@ -5548,10 +5548,10 @@ return focusedOnly(_that.reason,_that.settingsUrl);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String method)  global,required TResult Function( String reason,  String? settingsUrl)  focusedOnly,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String method,  bool mouse)  global,required TResult Function( String reason,  String? settingsUrl)  focusedOnly,}) {final _that = this;
 switch (_that) {
 case HotkeySupport_Global():
-return global(_that.method);case HotkeySupport_FocusedOnly():
+return global(_that.method,_that.mouse);case HotkeySupport_FocusedOnly():
 return focusedOnly(_that.reason,_that.settingsUrl);}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -5566,10 +5566,10 @@ return focusedOnly(_that.reason,_that.settingsUrl);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String method)?  global,TResult? Function( String reason,  String? settingsUrl)?  focusedOnly,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String method,  bool mouse)?  global,TResult? Function( String reason,  String? settingsUrl)?  focusedOnly,}) {final _that = this;
 switch (_that) {
 case HotkeySupport_Global() when global != null:
-return global(_that.method);case HotkeySupport_FocusedOnly() when focusedOnly != null:
+return global(_that.method,_that.mouse);case HotkeySupport_FocusedOnly() when focusedOnly != null:
 return focusedOnly(_that.reason,_that.settingsUrl);case _:
   return null;
 
@@ -5582,10 +5582,11 @@ return focusedOnly(_that.reason,_that.settingsUrl);case _:
 
 
 class HotkeySupport_Global extends HotkeySupport {
-  const HotkeySupport_Global({required this.method}): super._();
+  const HotkeySupport_Global({required this.method, required this.mouse}): super._();
   
 
  final  String method;
+ final  bool mouse;
 
 /// Create a copy of HotkeySupport
 /// with the given fields replaced by the non-null parameter values.
@@ -5597,16 +5598,16 @@ $HotkeySupport_GlobalCopyWith<HotkeySupport_Global> get copyWith => _$HotkeySupp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HotkeySupport_Global&&(identical(other.method, method) || other.method == method));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HotkeySupport_Global&&(identical(other.method, method) || other.method == method)&&(identical(other.mouse, mouse) || other.mouse == mouse));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,method);
+int get hashCode => Object.hash(runtimeType,method,mouse);
 
 @override
 String toString() {
-  return 'HotkeySupport.global(method: $method)';
+  return 'HotkeySupport.global(method: $method, mouse: $mouse)';
 }
 
 
@@ -5617,7 +5618,7 @@ abstract mixin class $HotkeySupport_GlobalCopyWith<$Res> implements $HotkeySuppo
   factory $HotkeySupport_GlobalCopyWith(HotkeySupport_Global value, $Res Function(HotkeySupport_Global) _then) = _$HotkeySupport_GlobalCopyWithImpl;
 @useResult
 $Res call({
- String method
+ String method, bool mouse
 });
 
 
@@ -5634,10 +5635,11 @@ class _$HotkeySupport_GlobalCopyWithImpl<$Res>
 
 /// Create a copy of HotkeySupport
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? method = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? method = null,Object? mouse = null,}) {
   return _then(HotkeySupport_Global(
 method: null == method ? _self.method : method // ignore: cast_nullable_to_non_nullable
-as String,
+as String,mouse: null == mouse ? _self.mouse : mouse // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

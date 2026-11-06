@@ -13,12 +13,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/app.dart';
+import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
+import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/features/voice/noise_chip.dart';
 import 'package:opencord/features/voice/voice_tile.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 
 import 'app.dart';
 import 'finders.dart';
@@ -81,6 +87,62 @@ class FloatingScene {
 const floatingScenes = [
   FloatingScene('text', playText),
   FloatingScene('text-pane-closed', playTextPaneClosed),
+  // The follow-ups' own: the pane has a splitter only where it's inline.
+  FloatingScene(
+    'pane-resized',
+    playPaneResized,
+    widths: [wide1440, wide1280, wide1180],
+    light: [wide1280],
+  ),
+  FloatingScene(
+    'settings-appearance',
+    playSettingsAppearance,
+    widths: [wide1280],
+    light: [wide1280],
+  ),
+  FloatingScene(
+    'settings-keybinds',
+    playSettingsKeybinds,
+    widths: [wide1280, medium980],
+    light: [wide1280, medium980],
+  ),
+  FloatingScene(
+    'settings-keybinds-recording',
+    playSettingsKeybindsRecording,
+    widths: [wide1280, medium980],
+    light: [wide1280],
+  ),
+  FloatingScene(
+    'settings-voice',
+    playSettingsVoice,
+    widths: [wide1280, medium980],
+    light: [wide1280, medium980],
+  ),
+  FloatingScene(
+    'code-block',
+    playCodeBlock,
+    widths: [wide1280, medium980, narrow940],
+    light: [wide1280, medium980, narrow940],
+  ),
+  // The voice card is in the left column wherever that column is inline.
+  FloatingScene(
+    'voice-card',
+    playVoiceCard,
+    widths: [wide1440, wide1280, wide1180, medium1100, medium980, narrow940],
+    light: [wide1440, wide1280, wide1180, medium980],
+  ),
+  FloatingScene(
+    'noise-popover',
+    playNoisePopover,
+    widths: [wide1440, wide1280, wide1180, medium1100, medium980, narrow940],
+    light: [wide1440, wide1280, wide1180, medium980],
+  ),
+  FloatingScene(
+    'noise-popover-testing',
+    playNoisePopoverTesting,
+    widths: [wide1440, wide1280, wide1180, medium1100, medium980, narrow940],
+    light: [wide1440, wide1280, wide1180, medium980],
+  ),
   FloatingScene('voice', playVoice),
   FloatingScene('voice-focus', playVoiceFocus),
   FloatingScene('voice-join', playVoiceJoin),
@@ -348,6 +410,145 @@ Future<void> playTextPaneClosed(SceneDriver scene) async {
     await scene.tap('the pane\'s close button', scene.paneClose);
     await scene.settle();
   }
+}
+
+/// #general with People dragged to 340 (follow-ups §2), the pointer left
+/// over the splitter, so its pill shows.
+Future<void> playPaneResized(SceneDriver scene) async {
+  await playText(scene);
+  await scene.paneOn('People');
+  final tester = scene.tester;
+  final splitter = scene.reach('the right pane\'s splitter', [
+    find.byKey(ShellKeys.sideSplitter),
+  ]);
+  final width = tester.getSize(find.byKey(ShellKeys.side)).width;
+  final drag = await tester.startGesture(tester.getCenter(splitter));
+  await drag.moveBy(Offset(width - 340, 0));
+  await tester.pump();
+  await drag.up();
+  await scene.settle();
+  await scene.hoverAt(tester.getCenter(find.byKey(ShellKeys.sideSplitter)));
+  await scene.settle(200);
+}
+
+/// The User settings dialog open on Appearance.
+Future<void> playSettingsAppearance(SceneDriver scene) async {
+  await playText(scene);
+  final tester = scene.tester;
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is OcIconButton && widget.tooltip == 'User settings',
+    ),
+  );
+  await scene.settle(300);
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Appearance'),
+    ),
+  );
+  await scene.settle(300);
+}
+
+/// The User settings dialog open on Voice & audio.
+Future<void> playSettingsVoice(SceneDriver scene) async {
+  await playText(scene);
+  final tester = scene.tester;
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is OcIconButton && widget.tooltip == 'User settings',
+    ),
+  );
+  await scene.settle(300);
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Voice & audio'),
+    ),
+  );
+  await scene.settle(300);
+}
+
+/// The User settings dialog open on Keybinds, with a key row and a mouse row.
+Future<void> playSettingsKeybinds(SceneDriver scene) async {
+  await playText(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  final keybinds = container.read(keybindsProvider.notifier);
+  keybinds.add(HotkeyAction.pushToTalk, keys: 'CTRL+SHIFT+k');
+  keybinds.add(HotkeyAction.toggleMute, keys: 'Mouse4');
+  final tester = scene.tester;
+  await tester.tap(
+    find.byWidgetPredicate(
+      (widget) => widget is OcIconButton && widget.tooltip == 'User settings',
+    ),
+  );
+  await scene.settle(300);
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Keybinds'),
+    ),
+  );
+  await scene.settle(300);
+}
+
+/// Keybinds through the portal, which leaves the mouse to the app: the
+/// footer's second sentence, and a new row's recorder listening.
+Future<void> playSettingsKeybindsRecording(SceneDriver scene) async {
+  await playText(scene);
+  final container = ProviderScope.containerOf(
+    scene.tester.element(find.byType(OpencordApp)),
+  );
+  (container.read(repositoryProvider) as MockRepository).hotkeySupport =
+      const HotkeySupport.global('the portal', mouse: false);
+  await playSettingsKeybinds(scene);
+  await scene.tester.tap(
+    find.descendant(
+      of: find.byType(SettingsDialog),
+      matching: find.text('Add a keybind'),
+    ),
+  );
+  await scene.settle(300);
+}
+
+/// The Rust code block in #general.
+Future<void> playCodeBlock(SceneDriver scene) async {
+  await playText(scene);
+  final scroll = find.descendant(
+    of: find.byKey(ShellKeys.main),
+    matching: find.byType(CustomScrollView),
+  );
+  for (var i = 0; i < 20; i++) {
+    if (find.text('rust').evaluate().isNotEmpty) break;
+    await scene.tester.drag(scroll, const Offset(0, 300));
+    await scene.settle(100);
+  }
+  await scene.tester.drag(scroll, const Offset(0, 150));
+  await scene.settle(300);
+}
+
+Future<void> playVoiceCard(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.hoverAt(const Offset(600, 400));
+  await scene.settle(200);
+}
+
+Future<void> playNoisePopover(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.tap('Noise chip', [find.byType(NoiseChip)]);
+  await scene.hoverAt(const Offset(600, 400));
+  await scene.settle(300);
+}
+
+Future<void> playNoisePopoverTesting(SceneDriver scene) async {
+  await openVoicePage(scene);
+  await scene.tap('Noise chip', [find.byType(NoiseChip)]);
+  await scene.settle(300);
+  await scene.tap('Test button', [find.text('Test')]);
+  await scene.hoverAt(const Offset(600, 400));
+  await scene.settle(300);
 }
 
 /// The voice page, without the pointer over it.

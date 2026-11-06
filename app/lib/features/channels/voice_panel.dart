@@ -8,6 +8,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
 import 'package:opencord/features/voice/camera_menu.dart';
 import 'package:opencord/features/voice/connection_info.dart';
+import 'package:opencord/features/voice/noise_chip.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -92,42 +93,10 @@ class VoiceConnectedPanel extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Builder(
-                            builder: (line) => GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => showPopover<void>(
-                                context: context,
-                                anchor: globalRectOf(line),
-                                side: PopoverSide.right,
-                                builder: (_) => const ConnectionGraph(),
-                              ),
-                              child: Semantics(
-                                label: [
-                                  status,
-                                  if (quality != null)
-                                    'Connection ${quality.$2}',
-                                  ?detail,
-                                  'Show the connection graph',
-                                ].join('. '),
-                                button: true,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      quality?.$1 ?? OcIcons.graphicEq,
-                                      size: 16,
-                                      color: colors.text,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: _StatusText(
-                                        status,
-                                        detail: detail,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                          _ConnectionStatusRow(
+                            status: status,
+                            detail: detail,
+                            quality: quality,
                           ),
                           const SizedBox(height: 1),
                           Semantics(
@@ -150,6 +119,8 @@ class VoiceConnectedPanel extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(width: 6),
+                const NoiseChip(),
                 const SizedBox(width: 6),
                 OcIconButton(
                   icon: OcIcons.callEnd,
@@ -266,6 +237,82 @@ class _Toggle extends StatelessWidget {
             child: Center(child: Icon(icon, size: 20, color: foreground)),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The signal bars' icon with a no-wait tooltip showing the ping (§10).
+class _SignalBarsIcon extends ConsumerWidget {
+  const _SignalBarsIcon({required this.quality});
+
+  final (IconData, String)? quality;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.oc;
+    final ping = ref.watch(voiceStatsProvider.select((stats) => stats?.pingMs));
+    final icon = Icon(
+      quality?.$1 ?? OcIcons.graphicEq,
+      size: 16,
+      color: colors.text,
+    );
+    if (quality == null || ping == null) {
+      return icon;
+    }
+    return Tooltip(
+      message: '$ping ms',
+      waitDuration: Duration.zero,
+      excludeFromSemantics: true,
+      child: icon,
+    );
+  }
+}
+
+/// The status line: signal bars with ping tooltip, status label, and a tap
+/// opening the connection graph (§10).
+class _ConnectionStatusRow extends ConsumerWidget {
+  const _ConnectionStatusRow({
+    required this.status,
+    this.detail,
+    required this.quality,
+  });
+
+  final String status;
+  final String? detail;
+  final (IconData, String)? quality;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ping = ref.watch(voiceStatsProvider.select((stats) => stats?.pingMs));
+    final label = [
+      status,
+      if (quality != null) 'Connection ${quality!.$2}',
+      if (ping != null && quality != null) '$ping ms',
+      ?detail,
+      'Show the connection graph',
+    ].join('. ');
+
+    return Builder(
+      builder: (line) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => showPopover<void>(
+          context: context,
+          anchor: globalRectOf(line),
+          side: PopoverSide.right,
+          builder: (_) => const ConnectionGraph(),
+        ),
+        child: Semantics(
+          label: label,
+          button: true,
+          child: Row(
+            children: [
+              _SignalBarsIcon(quality: quality),
+              const SizedBox(width: 6),
+              Flexible(child: _StatusText(status, detail: detail)),
+            ],
+          ),
+        ),
       ),
     );
   }

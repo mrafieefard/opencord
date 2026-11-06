@@ -9,8 +9,11 @@ import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/core/settings/keybinds.dart';
+import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/home/friend_rows.dart';
 import 'package:opencord/features/home/friends_page.dart';
 import 'package:opencord/features/members/member_avatar.dart';
@@ -533,5 +536,235 @@ void main() {
     expect(crumbRect.width, lessThanOrEqualTo(448.0));
     // Centred in 800 px window: centre around 400
     expect(crumbRect.center.dx, closeTo(400.0, 1.0));
+  });
+
+  testWidgets('mouse_4_bound_no_longer_goes_back', (tester) async {
+    final app = await MockApp.pump(tester);
+    try {
+      app.container
+          .read(keybindsProvider.notifier)
+          .add(HotkeyAction.pushToTalk, keys: 'Mouse4');
+      await tester.pumpAndSettle();
+
+      final nav = app.container.read(navigationProvider.notifier);
+      final serverKey = app.container.read(serverListProvider).first.key;
+      final serverState = app.container.read(serverProvider(serverKey));
+      final textChannels = serverState.data!.channels.values
+          .where((c) => c.kind == ChannelKind.text)
+          .map((c) => c.id)
+          .toList();
+      final ch1 = textChannels[0];
+      final ch2 = textChannels[1];
+
+      nav.openChannel(serverKey, ch1);
+      await tester.pumpAndSettle();
+      nav.openChannel(serverKey, ch2);
+      await tester.pumpAndSettle();
+
+      expect(app.container.read(currentChannelProvider), ch2);
+
+      // Mouse back button (kBackMouseButton)
+      tester.binding.handlePointerEvent(
+        const PointerDownEvent(
+          position: Offset(300, 300),
+          buttons: kBackMouseButton,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pump();
+      // The one action the press has is the keybind's.
+      expect(app.repository.pushToTalkHeld, isTrue);
+      tester.binding.handlePointerEvent(
+        const PointerUpEvent(
+          position: Offset(300, 300),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Mouse 4 is bound, so it no longer goes back!
+      expect(app.container.read(currentChannelProvider), ch2);
+      expect(app.repository.pushToTalkHeld, isFalse);
+    } finally {
+      await app.dispose(tester);
+    }
+  });
+
+  testWidgets('mouse_4_with_ctrl_bound_goes_back_without_ctrl', (tester) async {
+    final app = await MockApp.pump(tester);
+    try {
+      app.container
+          .read(keybindsProvider.notifier)
+          .add(HotkeyAction.pushToTalk, keys: 'CTRL+Mouse4');
+      await tester.pumpAndSettle();
+
+      final nav = app.container.read(navigationProvider.notifier);
+      final serverKey = app.container.read(serverListProvider).first.key;
+      final serverState = app.container.read(serverProvider(serverKey));
+      final textChannels = serverState.data!.channels.values
+          .where((c) => c.kind == ChannelKind.text)
+          .map((c) => c.id)
+          .toList();
+      final ch1 = textChannels[0];
+      final ch2 = textChannels[1];
+
+      nav.openChannel(serverKey, ch1);
+      await tester.pumpAndSettle();
+      nav.openChannel(serverKey, ch2);
+      await tester.pumpAndSettle();
+
+      expect(app.container.read(currentChannelProvider), ch2);
+
+      // Mouse 4 WITHOUT Ctrl goes back
+      tester.binding.handlePointerEvent(
+        const PointerDownEvent(
+          position: Offset(300, 300),
+          buttons: kBackMouseButton,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      tester.binding.handlePointerEvent(
+        const PointerUpEvent(
+          position: Offset(300, 300),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(app.container.read(currentChannelProvider), ch1);
+
+      // Go forward to ch2 again
+      nav.openChannel(serverKey, ch2);
+      await tester.pumpAndSettle();
+      expect(app.container.read(currentChannelProvider), ch2);
+
+      // Mouse 4 WITH Ctrl held does NOT go back
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      tester.binding.handlePointerEvent(
+        const PointerDownEvent(
+          position: Offset(300, 300),
+          buttons: kBackMouseButton,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      tester.binding.handlePointerEvent(
+        const PointerUpEvent(
+          position: Offset(300, 300),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(app.container.read(currentChannelProvider), ch2);
+    } finally {
+      await app.dispose(tester);
+    }
+  });
+
+  testWidgets('side_buttons_step_with_nothing_bound', (tester) async {
+    final app = await MockApp.pump(tester);
+    try {
+      final nav = app.container.read(navigationProvider.notifier);
+      final serverKey = app.container.read(serverListProvider).first.key;
+      final serverState = app.container.read(serverProvider(serverKey));
+      final textChannels = serverState.data!.channels.values
+          .where((c) => c.kind == ChannelKind.text)
+          .map((c) => c.id)
+          .toList();
+      final ch1 = textChannels[0];
+      final ch2 = textChannels[1];
+
+      nav.openChannel(serverKey, ch1);
+      await tester.pumpAndSettle();
+      nav.openChannel(serverKey, ch2);
+      await tester.pumpAndSettle();
+
+      expect(app.container.read(currentChannelProvider), ch2);
+
+      // Mouse 4 steps back
+      tester.binding.handlePointerEvent(
+        const PointerDownEvent(
+          position: Offset(300, 300),
+          buttons: kBackMouseButton,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      tester.binding.handlePointerEvent(
+        const PointerUpEvent(
+          position: Offset(300, 300),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(app.container.read(currentChannelProvider), ch1);
+
+      // Mouse 5 steps forward
+      tester.binding.handlePointerEvent(
+        const PointerDownEvent(
+          position: Offset(300, 300),
+          buttons: kForwardMouseButton,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      tester.binding.handlePointerEvent(
+        const PointerUpEvent(
+          position: Offset(300, 300),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(app.container.read(currentChannelProvider), ch2);
+    } finally {
+      await app.dispose(tester);
+    }
+  });
+
+  testWidgets('recording_mouse_4_does_not_go_back', (tester) async {
+    final app = await MockApp.pump(tester);
+    try {
+      final nav = app.container.read(navigationProvider.notifier);
+      final serverKey = app.container.read(serverListProvider).first.key;
+      final serverState = app.container.read(serverProvider(serverKey));
+      final textChannels = serverState.data!.channels.values
+          .where((c) => c.kind == ChannelKind.text)
+          .map((c) => c.id)
+          .toList();
+      final ch1 = textChannels[0];
+      final ch2 = textChannels[1];
+
+      nav.openChannel(serverKey, ch1);
+      await tester.pumpAndSettle();
+      nav.openChannel(serverKey, ch2);
+      await tester.pumpAndSettle();
+
+      expect(app.container.read(currentChannelProvider), ch2);
+
+      // Set recording in progress
+      app.container.read(recordingKeybindProvider.notifier).set(true);
+      await tester.pump();
+
+      // Mouse 4 pressed while recording
+      tester.binding.handlePointerEvent(
+        const PointerDownEvent(
+          position: Offset(300, 300),
+          buttons: kBackMouseButton,
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      tester.binding.handlePointerEvent(
+        const PointerUpEvent(
+          position: Offset(300, 300),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // History is unchanged: still ch2!
+      expect(app.container.read(currentChannelProvider), ch2);
+    } finally {
+      await app.dispose(tester);
+    }
   });
 }
