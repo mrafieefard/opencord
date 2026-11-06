@@ -204,47 +204,159 @@ export function parseInline(
   return result;
 }
 
+export interface Fence {
+  start: number;
+  end: number;
+  language?: string;
+  code: string;
+}
+
+const LANG_PATTERN = /^[A-Za-z0-9_+#.-]{1,32}$/;
+
+export function findFences(text: string): Fence[] {
+  const fences: Fence[] = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const lineStart = cursor;
+    let i = lineStart;
+    while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+      i++;
+    }
+
+    if (i + 3 <= text.length && text.startsWith('```', i)) {
+      const openFenceEnd = i + 3;
+      const closeStart = text.indexOf('```', openFenceEnd);
+      if (closeStart !== -1) {
+        const raw = text.substring(openFenceEnd, closeStart);
+        const newlineIndex = raw.indexOf('\n');
+        let language: string | undefined;
+        let codeRaw: string;
+
+        if (newlineIndex !== -1) {
+          let langCandidate = raw.substring(0, newlineIndex);
+          if (langCandidate.endsWith('\r')) {
+            langCandidate = langCandidate.substring(0, langCandidate.length - 1);
+          }
+          if (LANG_PATTERN.test(langCandidate)) {
+            language = langCandidate;
+            codeRaw = raw.substring(newlineIndex + 1);
+          } else {
+            language = undefined;
+            codeRaw = raw;
+          }
+        } else {
+          language = undefined;
+          codeRaw = raw;
+        }
+
+        const codeLines = codeRaw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        let startLine = 0;
+        while (startLine < codeLines.length && codeLines[startLine]!.trim().length === 0) {
+          startLine++;
+        }
+        let endLine = codeLines.length - 1;
+        while (endLine >= startLine && codeLines[endLine]!.trim().length === 0) {
+          endLine--;
+        }
+
+        if (startLine <= endLine) {
+          const code = codeLines.slice(startLine, endLine + 1).join('\n');
+          if (code.length > 0) {
+            const closeEnd = closeStart + 3;
+            fences.push({
+              start: lineStart,
+              end: closeEnd,
+              language,
+              code,
+            });
+            const nextNewline = text.indexOf('\n', closeEnd);
+            if (nextNewline !== -1) {
+              cursor = nextNewline + 1;
+            } else {
+              cursor = text.length;
+            }
+            continue;
+          }
+        }
+      }
+    }
+
+    const nextNewline = text.indexOf('\n', cursor);
+    if (nextNewline !== -1) {
+      cursor = nextNewline + 1;
+    } else {
+      break;
+    }
+  }
+
+  return fences;
+}
+
 export function parseMarkdown(source: string): MdBlock[] {
-  const lines = source.split('\n');
+  const fences = findFences(source);
+  if (fences.length === 0) {
+    return parseNonCodeBlocks(source);
+  }
+
+  const blocks: MdBlock[] = [];
+  let cursor = 0;
+
+  for (const fence of fences) {
+    if (fence.start > cursor) {
+      const textBefore = source.substring(cursor, fence.start);
+      blocks.push(...parseNonCodeBlocks(textBefore));
+    }
+    blocks.push(new MdCode(fence.code, fence.language));
+    cursor = fence.end;
+  }
+
+  if (cursor < source.length) {
+    const textAfter = source.substring(cursor);
+    blocks.push(...parseNonCodeBlocks(textAfter));
+  }
+
+  return blocks;
+}
+
+function parseNonCodeBlocks(source: string): MdBlock[] {
+  let text = source;
+  while (text.startsWith('\n') || text.startsWith('\r')) {
+    text = text.substring(1);
+  }
+  while (text.endsWith('\n') || text.endsWith('\r')) {
+    text = text.substring(0, text.length - 1);
+  }
+  if (text.trim().length === 0) return [];
+
+  const lines = text.split('\n');
   const blocks: MdBlock[] = [];
   const paragraph: string[] = [];
   const quote: string[] = [];
 
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
-    blocks.push(new MdParagraph(parseInline(paragraph.join('\n'))));
+    const joined = paragraph.join('\n');
+    if (joined.trim().length > 0) {
+      let content = joined;
+      if (content.startsWith(' ') && !content.startsWith('    ')) {
+        content = content.trimStart();
+      }
+      blocks.push(new MdParagraph(parseInline(content)));
+    }
     paragraph.length = 0;
   };
 
   const flushQuote = () => {
     if (quote.length === 0) return;
-    blocks.push(new MdQuote(parseInline(quote.join('\n'))));
+    const joined = quote.join('\n');
+    if (joined.trim().length > 0) {
+      blocks.push(new MdQuote(parseInline(joined)));
+    }
     quote.length = 0;
   };
 
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line === undefined) {
-      i++;
-      continue;
-    }
-    if (line.trimStart().startsWith('```')) {
-      const end = closingFence(lines, i + 1);
-      if (end !== -1) {
-        flushParagraph();
-        flushQuote();
-        const language = line.trim().substring(3).trim();
-        blocks.push(
-          new MdCode(
-            lines.slice(i + 1, end).join('\n'),
-            language.length === 0 ? undefined : language,
-          ),
-        );
-        i = end + 1;
-        continue;
-      }
-    }
+  for (const line of lines) {
     if (line.startsWith('>')) {
       flushParagraph();
       const rest = line.substring(1);
@@ -253,17 +365,8 @@ export function parseMarkdown(source: string): MdBlock[] {
       flushQuote();
       paragraph.push(line);
     }
-    i++;
   }
   flushParagraph();
   flushQuote();
   return blocks;
-}
-
-function closingFence(lines: string[], from: number): number {
-  for (let j = from; j < lines.length; j++) {
-    const line = lines[j];
-    if (line !== undefined && line.trim() === '```') return j;
-  }
-  return -1;
 }

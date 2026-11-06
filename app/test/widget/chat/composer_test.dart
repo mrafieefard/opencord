@@ -370,4 +370,94 @@ void main() {
     expect(otherFocus.hasPrimaryFocus, isTrue);
     await app.dispose(tester);
   });
+
+  testWidgets('enter_inside_an_open_fence_adds_a_line', (tester) async {
+    final app = await MockApp.pump(tester);
+    final general = await _open(tester, app, 'general');
+    final initialCount = _messages(app, general).length;
+
+    await _type(tester, '```py ');
+    expect(_button('Send'), findsOneWidget);
+
+    // Enter inside open fence inserts a line and sends nothing
+    await _press(tester, LogicalKeyboardKey.enter);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    expect(_messages(app, general).length, initialCount);
+
+    // Continue typing code and closing fence
+    await _type(tester, '${_text(tester)}x = 1\n```');
+    // After closing fence, Enter sends
+    await _press(tester, LogicalKeyboardKey.enter);
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(_messages(app, general).length, initialCount + 1);
+    expect(_messages(app, general).last.content, '```py \nx = 1\n```');
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_cursor_decides', (tester) async {
+    final app = await MockApp.pump(tester);
+    final general = await _open(tester, app, 'general');
+    final initialCount = _messages(app, general).length;
+
+    // Focus input and set cursor before the opening fence
+    await _type(tester, 'temp');
+    final controller = tester.widget<TextField>(_input).controller!;
+    controller.value = const TextEditingValue(
+      text: '```py\ncode\n```',
+      selection: TextSelection.collapsed(offset: 0),
+    );
+    await tester.pump();
+
+    await _press(tester, LogicalKeyboardKey.enter);
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(_messages(app, general).length, initialCount + 1);
+    expect(_messages(app, general).last.content, '```py\ncode\n```');
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_suggestion_still_takes_enter_first', (tester) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+
+    await _type(tester, '```py\n@Pri');
+    expect(find.byType(SuggestionList), findsOneWidget);
+
+    await _press(tester, LogicalKeyboardKey.enter);
+    expect(_text(tester), '```py\n@Priya Shah ');
+    expect(find.byType(SuggestionList), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('shift_enter_is_unchanged', (tester) async {
+    final app = await MockApp.pump(tester);
+    final general = await _open(tester, app, 'general');
+    final initialCount = _messages(app, general).length;
+
+    await _type(tester, 'hello');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+
+    expect(_messages(app, general).length, initialCount);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_send_button_sends_an_open_fence_as_it_is', (tester) async {
+    final app = await MockApp.pump(tester);
+    final general = await _open(tester, app, 'general');
+    final initialCount = _messages(app, general).length;
+
+    await _type(tester, '```py\nunclosed');
+    expect(_button('Send'), findsOneWidget);
+
+    await tester.tap(_button('Send'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+
+    expect(_messages(app, general).length, initialCount + 1);
+    expect(_messages(app, general).last.content, '```py\nunclosed');
+    await app.dispose(tester);
+  });
 }

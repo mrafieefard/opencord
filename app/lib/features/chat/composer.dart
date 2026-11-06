@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/bidi.dart';
+import 'package:opencord/core/fences.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/format.dart';
@@ -326,6 +327,22 @@ class _ComposerState extends ConsumerState<Composer> {
     if ((key == LogicalKeyboardKey.enter ||
             key == LogicalKeyboardKey.numpadEnter) &&
         !shift) {
+      final sel = _text.selection;
+      final textBefore = sel.isValid && sel.start >= 0
+          ? _text.text.substring(0, sel.start)
+          : _text.text;
+      if (endsInsideFence(textBefore)) {
+        final start = sel.isValid && sel.start >= 0
+            ? sel.start
+            : _text.text.length;
+        final end = sel.isValid && sel.end >= 0 ? sel.end : start;
+        final newText = _text.text.replaceRange(start, end, '\n');
+        _text.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: start + 1),
+        );
+        return KeyEventResult.handled;
+      }
       _submit();
       return KeyEventResult.handled;
     }

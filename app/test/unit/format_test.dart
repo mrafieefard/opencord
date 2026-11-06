@@ -93,6 +93,33 @@ void main() {
       );
     });
 
+    test('previews_read_every_format', () {
+      expect(
+        previewText('```py\n\nCODE```', user: user, channel: channel),
+        'CODE',
+      );
+      expect(
+        previewText('```js\nCode\n```', user: user, channel: channel),
+        'Code',
+      );
+      expect(
+        previewText('```one line```', user: user, channel: channel),
+        'one line',
+      );
+      expect(
+        previewText('```py code```', user: user, channel: channel),
+        'py code',
+      );
+      expect(
+        previewText('```\nb``` after', user: user, channel: channel),
+        'b after',
+      );
+      expect(
+        previewText('```\nno end', user: user, channel: channel),
+        '``` no end',
+      );
+    });
+
     test('unknown mentions stay readable', () {
       expect(
         previewText('hi <@42>', user: user, channel: channel),

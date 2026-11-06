@@ -130,4 +130,98 @@ describe('markdown', () => {
       new MdParagraph([new MdText('a\nb')]),
     ]);
   });
+
+  describe('spec §7.1 fence table', () => {
+    it('table row 1: ```py⏎⏎CODE```', () => {
+      expect(parseMarkdown('```py\n\nCODE```')).toEqual([
+        new MdCode('CODE', 'py'),
+      ]);
+    });
+
+    it('table row 2: ```js⏎Code⏎```', () => {
+      expect(parseMarkdown('```js\nCode\n```')).toEqual([
+        new MdCode('Code', 'js'),
+      ]);
+    });
+
+    it('table row 3: ```one line```', () => {
+      expect(parseMarkdown('```one line```')).toEqual([
+        new MdCode('one line'),
+      ]);
+    });
+
+    it('table row 4: ```py code```', () => {
+      expect(parseMarkdown('```py code```')).toEqual([
+        new MdCode('py code'),
+      ]);
+    });
+
+    it('table row 5: ```⏎b``` after', () => {
+      expect(parseMarkdown('```\nb``` after')).toEqual([
+        new MdCode('b'),
+        new MdParagraph([new MdText('after')]),
+      ]);
+    });
+
+    it('table row 6: ```⏎no end', () => {
+      expect(parseMarkdown('```\nno end')).toEqual([
+        new MdParagraph([new MdText('```\nno end')]),
+      ]);
+    });
+  });
+
+  it('a_language_can_have_these_characters', () => {
+    expect(parseMarkdown('```c++\ncode```')).toEqual([new MdCode('code', 'c++')]);
+    expect(parseMarkdown('```c#\ncode```')).toEqual([new MdCode('code', 'c#')]);
+    expect(parseMarkdown('```objective-c\ncode```')).toEqual([new MdCode('code', 'objective-c')]);
+    expect(parseMarkdown('```f.x\ncode```')).toEqual([new MdCode('code', 'f.x')]);
+
+    const longLang = 'a'.repeat(33);
+    expect(parseMarkdown(`\`\`\`${longLang}\ncode\`\`\``)).toEqual([
+      new MdCode(`${longLang}\ncode`),
+    ]);
+  });
+
+  it('indentation_and_blank_lines_inside_stay', () => {
+    const input = '```py\n  def foo():\n\n    return 42\n```';
+    expect(parseMarkdown(input)).toEqual([
+      new MdCode('  def foo():\n\n    return 42', 'py'),
+    ]);
+  });
+
+  it('blank_lines_at_the_ends_go', () => {
+    const input = '```py\n\n\ncode\n\n\n```';
+    expect(parseMarkdown(input)).toEqual([
+      new MdCode('code', 'py'),
+    ]);
+  });
+
+  it('an_opening_fence_mid_line_is_not_a_block', () => {
+    const blocks = parseMarkdown('see ```x``` here');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toBeInstanceOf(MdParagraph);
+  });
+
+  it('two_blocks_in_one_message', () => {
+    const input = '```py\nx = 1\n```\n\n```js\ny = 2\n```';
+    expect(parseMarkdown(input)).toEqual([
+      new MdCode('x = 1', 'py'),
+      new MdCode('y = 2', 'js'),
+    ]);
+  });
+
+  it('empty_fences_stay_text', () => {
+    expect(parseMarkdown('``````')[0]).toBeInstanceOf(MdParagraph);
+    expect(parseMarkdown('```\n```')[0]).toBeInstanceOf(MdParagraph);
+    expect(parseMarkdown('```   ```')[0]).toBeInstanceOf(MdParagraph);
+  });
+
+  it('text_before_and_after_a_block', () => {
+    const input = 'before\n```py\nx = 1\n```\nafter';
+    expect(parseMarkdown(input)).toEqual([
+      new MdParagraph([new MdText('before')]),
+      new MdCode('x = 1', 'py'),
+      new MdParagraph([new MdText('after')]),
+    ]);
+  });
 });
