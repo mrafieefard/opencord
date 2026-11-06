@@ -358,6 +358,36 @@ void main() {
     await app.dispose(tester);
   });
 
+  testWidgets('a_modifier_held_before_recording_is_not_in_the_keybind', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
+    await _openPage(tester, 'Keybinds');
+
+    // Windows keeps the Super key logically down whenever Win+something
+    // opened the Start menu or switched desktop: it swallows the release,
+    // so Flutter never sees it. A mouse button pressed after that is still
+    // a keybind of its own, not Super + the button.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await _addKeybind(tester);
+
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kBackMouseButton,
+    );
+    await gesture.down(const Offset(150, 150));
+    await tester.pump();
+    await gesture.up();
+    await gesture.removePointer();
+    await _pumpFor(tester, const Duration(milliseconds: 100));
+
+    expect(_inPage(find.text('Mouse 4')), findsOneWidget);
+    expect(app.read(shownKeybindsProvider).list.last.keys, 'Mouse4');
+
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await app.dispose(tester);
+  });
+
   testWidgets('left_click_on_the_recorder_stops_it_once', (tester) async {
     final app = await MockApp.pump(tester, platform: TargetPlatform.linux);
     await _openPage(tester, 'Keybinds');

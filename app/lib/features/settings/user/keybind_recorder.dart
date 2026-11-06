@@ -14,7 +14,9 @@ import 'package:opencord/ui/widgets/hoverable.dart';
 /// Shows a keybind's keys; click it, then press the keys, like Discord's
 /// "Record keybind". A key with the modifiers held records at once; a
 /// modifier on its own (Right Ctrl, say) records when it comes up. Escape
-/// or clicking elsewhere stops without a change.
+/// or clicking elsewhere stops without a change. The modifiers are the
+/// ones pressed while it is recording, for a mouse button as for a key, so
+/// a mouse button on its own is a keybind on its own.
 class KeybindRecorder extends ConsumerStatefulWidget {
   const KeybindRecorder({
     super.key,
@@ -167,16 +169,19 @@ class _KeybindRecorderState extends ConsumerState<KeybindRecorder> {
     };
 
     if (button != null) {
-      final hw = HardwareKeyboard.instance;
-      bool isHeld(Set<LogicalKeyboardKey> kind, bool hwHeld) =>
-          hwHeld || _modifiers.any(kind.contains);
+      // Only the modifiers pressed since recording started, as a key's
+      // are: the keyboard's own state outlives a release the system
+      // swallowed — Windows keeps Super down after Win+something opened
+      // the Start menu — and a button pressed alone would then be
+      // recorded as Super and the button, which no press can repeat.
+      bool held(Set<LogicalKeyboardKey> kind) => _modifiers.any(kind.contains);
 
       final accelerator = Accelerator(
         button: button,
-        ctrl: isHeld(_ctrl, hw.isControlPressed),
-        alt: isHeld(_alt, hw.isAltPressed),
-        shift: isHeld(_shift, hw.isShiftPressed),
-        logo: isHeld(_logo, hw.isMetaPressed),
+        ctrl: held(_ctrl),
+        alt: held(_alt),
+        shift: held(_shift),
+        logo: held(_logo),
       );
       _finish(accelerator);
     }
