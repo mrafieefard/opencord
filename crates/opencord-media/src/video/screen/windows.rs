@@ -709,8 +709,8 @@ impl Session {
         // which for a window is not what the frames hold: measured on
         // Windows 10, a 1936x1056 window captures 1920x1040, the rest
         // being its invisible resize border. The share is announced at the
-        // size it is drawn, so the first frame decides it; `read` pulls
-        // that frame again from the pool it recreates.
+        // size it is drawn, so the first frame decides it and is then let
+        // go; `read` starts from the next one.
         let pool_size = size;
         let mut size = (size.Width.max(0) as u32, size.Height.max(0) as u32);
         let waiting = Instant::now();
