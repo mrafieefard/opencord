@@ -1,11 +1,15 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/channels/user_panel.dart';
 import 'package:opencord/features/channels/voice_panel.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
+import 'package:opencord/features/voice/connection_info.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -468,6 +472,154 @@ void main() {
       final deafenButton = tester.widget<OcIconButton>(undeafenFinder);
       expect(deafenButton.active, isTrue);
       expect(deafenButton.activeStyle, OcActiveStyle.selected);
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('(Task 12) hovering_the_bars_shows_the_ping', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      app.read(voiceStatsProvider.notifier).set(const VoiceStats(pingMs: 42));
+      await _settle(tester);
+
+      final barsFinder = find.byIcon(OcIcons.signalCellularAlt);
+      expect(barsFinder, findsOneWidget);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(tester.getCenter(barsFinder));
+      await tester.pump();
+
+      // Tooltip appears with no wait
+      final tipFinder = find.text('42 ms');
+      expect(tipFinder, findsOneWidget);
+
+      final colors = tester.element(find.byType(VoiceConnectedPanel)).oc;
+      final textWidget = tester.widget<Text>(tipFinder);
+      expect(textWidget.style?.color, colors.text);
+
+      await gesture.removePointer();
+      await app.dispose(tester);
+    });
+
+    testWidgets('(Task 12) it_follows_each_report', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      app.read(voiceStatsProvider.notifier).set(const VoiceStats(pingMs: 42));
+      await _settle(tester);
+
+      final barsFinder = find.byIcon(OcIcons.signalCellularAlt);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(tester.getCenter(barsFinder));
+      await tester.pump();
+
+      expect(find.text('42 ms'), findsOneWidget);
+
+      // New report while open
+      app.read(voiceStatsProvider.notifier).set(const VoiceStats(pingMs: 85));
+      await tester.pump();
+
+      expect(find.text('85 ms'), findsOneWidget);
+      expect(find.text('42 ms'), findsNothing);
+
+      await gesture.removePointer();
+      await app.dispose(tester);
+    });
+
+    testWidgets('(Task 12) no_ping_no_tooltip', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      await _settle(tester);
+
+      final iconFinder = find
+          .descendant(
+            of: find.byType(VoiceConnectedPanel),
+            matching: find.byType(Icon),
+          )
+          .first;
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(tester.getCenter(iconFinder));
+      await tester.pump();
+
+      expect(find.textContaining('ms'), findsNothing);
+
+      await gesture.removePointer();
+      await app.dispose(tester);
+    });
+
+    testWidgets('(Task 12) hovering_the_text_shows_nothing_new', (
+      tester,
+    ) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      app.read(voiceStatsProvider.notifier).set(const VoiceStats(pingMs: 42));
+      await _settle(tester);
+
+      final textFinder = find.text('Voice connected');
+      expect(textFinder, findsOneWidget);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(tester.getCenter(textFinder));
+      await tester.pump();
+
+      // Only the icon has the ping tooltip
+      expect(find.text('42 ms'), findsNothing);
+
+      await gesture.removePointer();
+      await app.dispose(tester);
+    });
+
+    testWidgets('(Task 12) a_click_still_opens_the_graph', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      app.read(voiceStatsProvider.notifier).set(const VoiceStats(pingMs: 42));
+      await _settle(tester);
+
+      await tester.tap(find.byIcon(OcIcons.signalCellularAlt));
+      await _settle(tester);
+
+      expect(find.byType(ConnectionGraph), findsOneWidget);
+
+      await app.dispose(tester);
+    });
+
+    testWidgets('(Task 12) screen_readers_hear_the_ping', (tester) async {
+      final app = await MockApp.pump(tester, size: const Size(1280, 800));
+      await _settle(tester);
+
+      final channelId = _voiceChannel(app);
+      await app.read(voiceSessionProvider.notifier).join(_dev, channelId);
+      app.read(voiceStatsProvider.notifier).set(const VoiceStats(pingMs: 42));
+      await _settle(tester);
+
+      final rowFinder = find
+          .ancestor(
+            of: find.text('Voice connected'),
+            matching: find.byType(Semantics),
+          )
+          .first;
+
+      final semantics = tester.getSemantics(rowFinder);
+      expect(semantics.label, contains('42 ms'));
 
       await app.dispose(tester);
     });
