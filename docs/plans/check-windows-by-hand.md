@@ -601,3 +601,11 @@ to drive them. They need the batch merged:
 - [ ] **Mouse side buttons:** Mouse button 4 (back) and button 5 (forward) navigate channel history.
 - [ ] **Video and screen share:** A real video and a real screen share transition through focus mode (click to focus, strip underneath) and return to grid.
 - [ ] **Two-person call with dock hiding:** In a call, voice dock appears on mouse movement over the stage, auto-hides after 2.5 s of inactivity or pointer departure, and never hides while hovering the dock or with popups/menus open.
+
+---
+
+# §10 Floating UI follow-ups hand checks (`feat/floating-ui-followups`)
+
+- [ ] **Mouse keybinds:** Windows and X11, in another app; hold to talk; that the mouse doesn't lag on Windows.
+- [ ] **Wayland (Linux):** The footer shows in Keybinds settings, and mouse keybinds work while focused.
+- [ ] **The test:** On headphones and on speakers, in and out of a call; a second person confirms they hear nothing; push to talk.

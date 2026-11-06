@@ -393,13 +393,13 @@ One dialog shell for both user and server settings, styled like Telegram's setti
 - Right: page title bar (60 px) with a close button, content scrolls, 24 px padding. Content is built from `SettingsSection` blocks (bordered, radius 12, rows separated by 1 px dividers).
 
 ### 8.1 User settings
-- **My profile:** avatar (upload later), display name, presence selector as choice cards.
+- **My profile:** avatar (upload later), display name, presence selector as choice cards (**Online · Idle · Do not disturb**; Invisible was removed in follow-ups).
 - **Identity & keys:** public key fingerprint (mono, grouped), Copy public key, Export identity backup, Import identity, plain warning text about keeping the backup private.
-- **Appearance:** theme choice cards **System · Dark · Light** (each card shows a miniature of the layout in that theme), message density (Comfortable / Compact — compact removes bubbles and lays messages out as Discord does: the avatar, name, role and time over a group's first message, the time beside later ones while hovered, the hovered row highlighted; still monochrome), font size slider (12–18), reduce motion switch.
+- **Appearance:** theme choice cards **System · Dark · Light** (each card shows a miniature of the layout in that theme), font size slider (12–18), reduce motion switch (bubbles and message density choice were removed in follow-ups; compact mode is the sole message style).
 - **Windows & behavior** (desktop only): close button minimizes to tray (on by default on Windows and Linux, off on macOS), start minimized, launch at login, restore last window position.
-- **Voice & audio**, **Video**, **Screen share**, **Sounds** and **Voice diagnostics:** full specification in §17.
+- **Voice & audio**, **Video**, **Screen share**, **Sounds** and **Voice diagnostics:** full specification in §17. Voice & audio includes the Microphone test section with note, live level meter, and Test button.
 - **Notifications:** desktop notifications, mentions only, message sound, flash taskbar.
-- **Keybinds:** the table from §7.
+- **Keybinds:** rebindable global and in-app shortcuts with keyboard keys and mouse buttons (Mouse 3, Mouse 4, Mouse 5) for Push to talk, Priority speaker, Toggle mute, Toggle deafen, Toggle push-to-talk, Toggle music mute.
 - **Trusted servers:** list of servers with address and pinned fingerprint, "Forget" action.
 - **About:** version, license, links. On desktop, **Logs** (D82, docs/logs.md): export this session's log, export the last session's when it ended unexpectedly, open the logs folder.
 
@@ -541,7 +541,7 @@ Make the app feel native on each desktop, not like a web page in a window:
 - **Drag and drop:** reorder servers in the rail, channels and categories in the sidebar (with permission), roles in settings; dropped files on the chat show a "Attachments are coming later" overlay for now.
 - **Context everywhere:** every object (server, channel, message, member, role, invite) has a right-click menu with Copy ID/link at the bottom, so power users never need to dig.
 - **Small details:** hovering a timestamp shows the full date and time; clicking an avatar or name opens the profile; clicking a `#channel` link opens it; the window title, tray and badges always agree on unread counts; long names truncate with ellipsis and show the full name in a tooltip.
-- **Density:** a Compact mode (§8.1) for people who want more messages on screen, and a comfortable default that matches Telegram.
+- **Compact message style:** compact mode (§8.1) is the standard style as Discord has it, maximizing readability on desktop without bubble clutter.
 - **First run:** after onboarding, an empty state that explains the two ways in (join with an invite, or host your own server with a link to the docs) instead of an empty window.
 
 ---

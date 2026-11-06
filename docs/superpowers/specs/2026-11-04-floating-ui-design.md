@@ -286,6 +286,8 @@ Each part names the widget that becomes it. A number here replaces the widget's 
 
 ### 5.5 Voice card (`VoiceConnectedPanel`)
 
+> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §8): noise suppression chip and popover added to the first row left of Disconnect.
+
 - A float of its own, shown only in voice. Padding `8 8 10`, gap `8`.
 - **Line:** gap `6`. The clickable part: padding `2 6`, radius `8`, hover `hover`; above, the connection icon at 16 then `Voice connected` 13/600 (`6` apart); below, `1` under, `General / Opencord Dev` 12.5 `textMuted`. Disconnect: compact button, icon 20.
 - **Toggles:** equal widths, `8` apart, height `36`, radius `10`, background `hover`, icon 20 `textSecondary`; hover `selected`/`text`; on `accent`/`onAccent`.
@@ -299,6 +301,8 @@ Each part names the widget that becomes it. A number here replaces the widget's 
 - The cog still opens User settings. The prototype's small theme menu there was only for trying themes.
 
 ### 5.7 Splitter (`ShellSplitter`, new)
+
+> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §2): a second splitter was added for the right pane, resizing live between 240 and 480.
 
 - In the `8` gap between the left column and main, inline layouts only. Hit area: the gap plus `4` on each side. Cursor: resize column.
 - **Drag** changes the left column's width live, with no animation: minimum `232`, maximum `min(420, window − 62 − 4·gap − side − 380)`. If the window or the pane shrinks past the maximum, the column follows on `pane`, and returns to the chosen width when there's room.
@@ -358,7 +362,7 @@ Each part names the widget that becomes it. A number here replaces the widget's 
 - **Reactions:** `5` under, `4` apart, height `24`, padding `0 8`, radius `12`, background `selected`, 12.5/500; own inverted.
 - **Unread line:** margin `6 0`, gap `12`, 12.5/600 `textSecondary`, lines `selected`.
 - **System pill:** padding `3 10`, radius `12`, background `hover`, 12.5 `textSecondary`, gap `6`, icon 16.
-- The compact message style stays as it is.
+> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §4): bubble mode was removed, and compact mode is now the sole message style.
 
 ### 5.12 Composer float (`ComposerFrame`)
 
@@ -367,6 +371,8 @@ Each part names the widget that becomes it. A number here replaces the widget's 
 - The private composer and every bar that takes its place (`RequestBar`, blocked, no shared server, not reachable, no connected server) are floats in the same spot, the same way.
 
 ### 5.13 Side slot (`SideSlot`, new; `MemberPanel`, `MusicPanel`)
+
+> See follow-ups spec (`2026-11-05-floating-ui-followups-design.md` §2): right pane width can be resized live between 240 and 480, default 264 (People) / 340 (Music).
 
 - A float, `264` or `340` wide, full height. The width changes on `pane` when opening or growing, on `paneOut` when closing.
 - **Content keeps its width while the slot opens**, so it slides in from behind the window's edge rather than being squeezed.
