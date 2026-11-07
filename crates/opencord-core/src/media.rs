@@ -296,17 +296,18 @@ impl Media {
         }
     }
 
-    /// A sound heard only on this device: in the call when there is one,
-    /// otherwise through an engine started for it with the microphone off.
+    /// A sound heard only on this device, deafened or not: in the call when
+    /// there is one, otherwise through an engine started for it with the
+    /// microphone off.
     pub fn preview(&self, samples: Arc<[f32]>, gain: f32) {
         let length = Duration::from_secs_f64(samples.len() as f64 / 48_000.0);
         let mut state = self.lock();
         if let Some(session) = &state.session {
-            session.engine.play_sound(samples, gain);
+            session.engine.play_own_sound(samples, gain);
             return;
         }
         if let Some(engine) = &state.mic_test_engine {
-            engine.play_sound(samples, gain);
+            engine.play_own_sound(samples, gain);
             return;
         }
         state.previews += 1;
@@ -329,7 +330,7 @@ impl Media {
         }
         if let Some((owner, engine)) = &mut state.preview_engine {
             *owner = preview;
-            engine.play_sound(samples, gain);
+            engine.play_own_sound(samples, gain);
         }
         // Closed when the last preview has played out.
         let media = self.preview_closer();
