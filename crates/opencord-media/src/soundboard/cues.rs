@@ -1,7 +1,6 @@
 //! The short sounds voice events make on this device (Phase 2 §12): joining
 //! and leaving, muting and deafening, a stream starting and stopping. They
-//! are bundled like the default sounds and made the same way, by
-//! `examples/cue_sounds.rs`.
+//! are custom sound effects, bundled like the default sounds.
 
 /// A voice event with a sound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

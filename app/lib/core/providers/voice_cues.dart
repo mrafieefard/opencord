@@ -149,20 +149,18 @@ List<VoiceCue> cuesBetween(CueScene before, CueScene after) {
     else if (after.muted != before.muted)
       after.muted ? VoiceCue.mute : VoiceCue.unmute,
   ];
-  // Deafened, others' comings and goings are not heard either.
-  if (!after.deafened) {
-    if (after.others.difference(before.others).isNotEmpty) {
-      cues.add(VoiceCue.userJoin);
-    }
-    if (before.others.difference(after.others).isNotEmpty) {
-      cues.add(VoiceCue.userLeave);
-    }
-    if (after.live.difference(before.live).isNotEmpty) {
-      cues.add(VoiceCue.streamStart);
-    }
-    if (before.live.difference(after.live).isNotEmpty) {
-      cues.add(VoiceCue.streamStop);
-    }
+  // Deafened, others' comings and goings are still heard.
+  if (after.others.difference(before.others).isNotEmpty) {
+    cues.add(VoiceCue.userJoin);
+  }
+  if (before.others.difference(after.others).isNotEmpty) {
+    cues.add(VoiceCue.userLeave);
+  }
+  if (after.live.difference(before.live).isNotEmpty) {
+    cues.add(VoiceCue.streamStart);
+  }
+  if (before.live.difference(after.live).isNotEmpty) {
+    cues.add(VoiceCue.streamStop);
   }
   return cues;
 }

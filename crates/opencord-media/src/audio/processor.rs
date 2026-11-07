@@ -281,9 +281,16 @@ impl Processor {
         }
     }
 
-    /// A soundboard sound, mono at 48 kHz, at `gain` (0–1).
+    /// Someone's soundboard sound, mono at 48 kHz, at `gain` (0–1); not
+    /// heard while deafened.
     pub fn play_sound(&mut self, samples: Arc<[f32]>, gain: f32) {
         self.playback.play_sound(samples, gain);
+    }
+
+    /// A voice cue or a preview, mono at 48 kHz, at `gain` (0–1); heard
+    /// while deafened too.
+    pub fn play_own_sound(&mut self, samples: Arc<[f32]>, gain: f32) {
+        self.playback.play_own_sound(samples, gain);
     }
 
     pub fn stop_sounds(&mut self) {
