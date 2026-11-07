@@ -176,6 +176,9 @@ struct Sound {
     samples: Arc<[f32]>,
     position: usize,
     gain: f32,
+    /// Played by this device alone, a voice cue or a preview: heard while
+    /// deafened too.
+    own: bool,
     /// Its next 10 ms; silence past its end.
     tick: [f32; TICK],
 }
@@ -202,7 +205,7 @@ pub struct Playback {
     stream_listening: HashMap<i64, Listening>,
     /// A mono tick of everything heard, for [`Self::tick`].
     stereo: [f32; 2 * TICK],
-    /// Soundboard sounds, until they end.
+    /// Soundboard sounds, voice cues and previews, until they end.
     sounds: Vec<Sound>,
     listening: HashMap<i64, Listening>,
     /// Who speaks with priority now, as the node relays it.
@@ -358,12 +361,24 @@ impl Playback {
         self.deafened = deafened;
     }
 
-    /// Plays a soundboard sound, mono at 48 kHz, at `gain` (0–1).
+    /// Plays someone's soundboard sound, mono at 48 kHz, at `gain` (0–1).
+    /// Not heard while deafened.
     pub fn play_sound(&mut self, samples: Arc<[f32]>, gain: f32) {
+        self.push_sound(samples, gain, false);
+    }
+
+    /// Plays a sound of this device's own, a voice cue or a preview, mono
+    /// at 48 kHz, at `gain` (0–1). Heard while deafened too.
+    pub fn play_own_sound(&mut self, samples: Arc<[f32]>, gain: f32) {
+        self.push_sound(samples, gain, true);
+    }
+
+    fn push_sound(&mut self, samples: Arc<[f32]>, gain: f32, own: bool) {
         self.sounds.push(Sound {
             samples,
             position: 0,
             gain: gain.clamp(0.0, 1.0),
+            own,
             tick: [0.0; TICK],
         });
     }
@@ -407,14 +422,23 @@ impl Playback {
             sound.next_tick();
         }
         if self.deafened {
-            // Only the mic test is heard (spec §8.4): no people, sounds or
-            // streams.
+            // Only the mic test (spec §8.4) and this device's own sounds
+            // are heard: no people, soundboard sounds or streams.
             let voices = self
                 .voices
                 .get(&MIC_TEST_USER)
                 .map(|voice| (&voice.tick[..], 1.0));
-            self.mixer
-                .mix_stereo(voices, std::iter::empty(), self.master, out);
+            let sounds = self
+                .sounds
+                .iter()
+                .filter(|sound| sound.own)
+                .map(|sound| (&sound.tick[..], sound.gain));
+            self.mixer.mix_stereo(
+                voices.into_iter().chain(sounds),
+                std::iter::empty(),
+                self.master,
+                out,
+            );
         } else {
             let listening = &self.listening;
             let voices = self.voices.iter().map(|(user_id, voice)| {
@@ -874,6 +898,17 @@ mod tests {
         // The short one ended while deafened; the long one plays on to its
         // end at 100 ms.
         assert_eq!(after, [0.25, 0.25, 0.25, 0.25, 0.25, 0.0]);
+    }
+
+    #[test]
+    fn own_sounds_are_heard_while_deafened() {
+        let mut playback = Playback::new();
+        playback.set_deafened(true);
+        playback.play_own_sound(Arc::from(vec![0.25; 2_400]), 1.0);
+        playback.play_sound(Arc::from(vec![0.5; 2_400]), 1.0);
+
+        // Only the cue: someone's soundboard sound stays unheard.
+        assert_eq!(peaks(&mut playback, 6), [0.25, 0.25, 0.25, 0.25, 0.25, 0.0]);
     }
 
     /// `user_id`'s screen share sound: 1 kHz left, 2.4 kHz right, as

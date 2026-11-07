@@ -47,11 +47,17 @@ void main() {
     expect(cuesBetween(_with(live: {2}), _in), [VoiceCue.streamStop]);
   });
 
-  test('deafened, only your own changes are heard', () {
+  test('deafened, others coming, going and going live are still heard', () {
     final deaf = _with(deafened: true, muted: true);
     expect(
-      cuesBetween(deaf, _with(deafened: true, muted: true, others: {2, 4})),
-      isEmpty,
+      cuesBetween(deaf, _with(deafened: true, muted: true, others: {2, 3, 4})),
+      [VoiceCue.userJoin],
     );
+    expect(cuesBetween(deaf, _with(deafened: true, muted: true, others: {2})), [
+      VoiceCue.userLeave,
+    ]);
+    expect(cuesBetween(deaf, _with(deafened: true, muted: true, live: {2})), [
+      VoiceCue.streamStart,
+    ]);
   });
 }

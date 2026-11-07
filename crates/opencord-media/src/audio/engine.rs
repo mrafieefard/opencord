@@ -122,6 +122,7 @@ enum Command {
     MicTest(bool),
     LevelMeter(bool),
     PlaySound(Arc<[f32]>, f32),
+    PlayOwnSound(Arc<[f32]>, f32),
     StopSounds,
     CaptureTap(Option<rtrb::Producer<f32>>, bool),
     LocalMedia(Option<rtrb::Consumer<f32>>),
@@ -363,10 +364,16 @@ impl AudioEngine {
     }
 
     /// Report the microphone's level 20 times a second while on.
-    /// Plays a soundboard sound or a preview, mono at 48 kHz, at `gain`
-    /// (0–1), mixed with the voices.
+    /// Plays someone's soundboard sound, mono at 48 kHz, at `gain` (0–1),
+    /// mixed with the voices. Not heard while deafened.
     pub fn play_sound(&self, samples: Arc<[f32]>, gain: f32) {
         self.command(Command::PlaySound(samples, gain));
+    }
+
+    /// Plays a voice cue or a preview, mono at 48 kHz, at `gain` (0–1),
+    /// mixed with the voices. Heard while deafened too.
+    pub fn play_own_sound(&self, samples: Arc<[f32]>, gain: f32) {
+        self.command(Command::PlayOwnSound(samples, gain));
     }
 
     pub fn stop_sounds(&self) {
@@ -571,6 +578,7 @@ impl Engine {
             Command::Priority(user_id, priority) => processor.set_priority(user_id, priority),
             Command::MicTest(on) => processor.set_mic_test(on),
             Command::PlaySound(samples, gain) => processor.play_sound(samples, gain),
+            Command::PlayOwnSound(samples, gain) => processor.play_own_sound(samples, gain),
             Command::StopSounds => processor.stop_sounds(),
             Command::LevelMeter(on) => self.level_meter = on,
             Command::CaptureTap(tap, silence_call) => {
