@@ -4693,6 +4693,7 @@ dependencies = [
  "tracing-subscriber",
  "webpki-roots",
  "x509-parser",
+ "zip",
 ]
 
 [[package]]

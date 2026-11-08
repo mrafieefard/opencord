@@ -20,6 +20,7 @@ mod members;
 mod messages;
 pub(crate) mod music;
 mod network;
+mod plugins;
 mod private;
 mod profile;
 mod roles;
@@ -196,17 +197,17 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdatePrivateSettings(request) => {
             private::update_private_settings(ctx, request).await
         }
-        Kind::FetchPlugins(_)
-        | Kind::FetchPluginReviews(_)
-        | Kind::ConfirmPluginReview(_)
-        | Kind::DiscardPluginReview(_)
-        | Kind::SetPluginPermissions(_)
-        | Kind::SetPluginConfig(_)
-        | Kind::SetPluginRunning(_)
-        | Kind::RestartPlugin(_)
-        | Kind::UninstallPlugin(_)
-        | Kind::FetchPluginLog(_)
-        | Kind::WatchPluginLog(_)
+        Kind::FetchPlugins(_) => plugins::fetch(ctx).await,
+        Kind::FetchPluginReviews(_) => plugins::fetch_reviews(ctx).await,
+        Kind::ConfirmPluginReview(request) => plugins::confirm(ctx, request).await,
+        Kind::DiscardPluginReview(request) => plugins::discard(ctx, request).await,
+        Kind::SetPluginPermissions(request) => plugins::set_permissions(ctx, request).await,
+        Kind::SetPluginConfig(request) => plugins::set_config(ctx, request).await,
+        Kind::SetPluginRunning(request) => plugins::set_running(ctx, request).await,
+        Kind::RestartPlugin(request) => plugins::restart(ctx, request).await,
+        Kind::UninstallPlugin(request) => plugins::uninstall(ctx, request).await,
+        Kind::FetchPluginLog(request) => plugins::fetch_log(ctx, request).await,
+        Kind::WatchPluginLog(_)
         | Kind::CreatePluginDevToken(_)
         | Kind::RevokePluginDevToken(_)
         | Kind::FetchPluginDevTokens(_) => Err(ApiError::invalid_argument("not supported yet")),

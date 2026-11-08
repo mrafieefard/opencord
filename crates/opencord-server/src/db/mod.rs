@@ -85,6 +85,8 @@ pub async fn holds_sealed_data(pool: &SqlitePool) -> Result<bool, sqlx::Error> {
             SELECT 1 FROM storage_backends WHERE secret_enc IS NOT NULL
             UNION ALL
             SELECT 1 FROM server_meta WHERE key = 'tunnel.token'
+            UNION ALL
+            SELECT 1 FROM plugin_config WHERE sealed = 1
         ) AS "has_rows: bool"
         "#
     )

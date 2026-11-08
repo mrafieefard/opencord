@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO plugins (id, user_id, role_id, version, folder, manifest, signature,\n                              public_key, github_check, running, license_accepted_by,\n                              installed_at, updated_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "6db601918e7851a7503a4946b851506ca2e25da97444642da7f0e094bea890b8"
+}

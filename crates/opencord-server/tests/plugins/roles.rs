@@ -4,11 +4,26 @@
 use opencord_proto::v1 as proto;
 use proto::request::Kind;
 
-use crate::common::{TestClient, TestServer, invite, join, owner, self_id};
+use crate::common::{
+    TestClient, TestServer, invite, join, media_token, owner, owner_again, self_id,
+};
+use crate::support::{install, manifest, package};
 
-/// The plugin user and managed role of a plugin the owner installed.
-async fn install_plugin(_server: &TestServer, _owner: &mut TestClient) -> proto::PluginUser {
-    todo!("Task 8: install a plugin with support::install and return its user")
+/// The plugin user of a plugin the owner installed.
+async fn install_plugin(server: &TestServer, owner: &mut TestClient) -> proto::PluginUser {
+    let (_again, ready) = owner_again(server).await;
+    let zip = package(&[
+        ("manifest.lua", &manifest("roles-test", &["kick_members"])),
+        ("server/main.luau", ""),
+    ]);
+    let plugin = install(server, owner, &media_token(&ready), zip, &["kick_members"]).await;
+    proto::PluginUser {
+        user_id: plugin.user_id,
+        plugin_id: plugin.id,
+        name: plugin.name,
+        avatar_hash: String::new(),
+        installed: true,
+    }
 }
 
 fn role_of(ready: &proto::Ready, plugin_id: &str) -> proto::Role {
@@ -21,7 +36,6 @@ fn role_of(ready: &proto::Ready, plugin_id: &str) -> proto::Role {
 }
 
 #[tokio::test]
-#[ignore = "needs Task 8"]
 async fn a_plugin_role_cannot_be_given_to_members() {
     let server = TestServer::start().await;
     let (mut owner, _) = owner(&server).await;
@@ -42,7 +56,6 @@ async fn a_plugin_role_cannot_be_given_to_members() {
 }
 
 #[tokio::test]
-#[ignore = "needs Task 8"]
 async fn a_plugin_role_cannot_be_deleted() {
     let server = TestServer::start().await;
     let (mut owner, _) = owner(&server).await;
@@ -59,7 +72,6 @@ async fn a_plugin_role_cannot_be_deleted() {
 }
 
 #[tokio::test]
-#[ignore = "needs Task 8"]
 async fn a_plugin_roles_permissions_cannot_be_edited() {
     let server = TestServer::start().await;
     let (mut owner, _) = owner(&server).await;
@@ -95,7 +107,6 @@ async fn a_plugin_roles_permissions_cannot_be_edited() {
 }
 
 #[tokio::test]
-#[ignore = "needs Task 8"]
 async fn ready_lists_plugin_users() {
     let server = TestServer::start().await;
     let (mut owner, _) = owner(&server).await;

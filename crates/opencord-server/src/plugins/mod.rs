@@ -2,10 +2,14 @@
 //! acting through a plugin user and a managed role.
 
 pub mod api;
+pub mod github;
+pub mod http;
 pub mod identity;
+pub mod install;
 pub mod logbook;
 pub mod permissions;
 pub mod queue;
+pub mod review;
 pub mod runtime;
 
 use std::collections::{HashMap, HashSet};
@@ -197,6 +201,11 @@ impl PluginHandle {
 pub struct Plugins {
     handles: RwLock<HashMap<String, Arc<PluginHandle>>>,
     clock: Arc<dyn Clock>,
+    /// Uploads waiting for an admin.
+    pub reviews: review::Reviews,
+    /// Held through each install, update, uninstall and permission change,
+    /// so two never interleave. Taken before the guild's write lock.
+    pub(crate) changes: tokio::sync::Mutex<()>,
 }
 
 impl Default for Plugins {
@@ -216,6 +225,8 @@ impl Plugins {
         Self {
             handles: RwLock::default(),
             clock,
+            reviews: review::Reviews::default(),
+            changes: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -530,33 +541,12 @@ pub async fn describe(
         .unwrap_or_default();
     Ok(Some(proto::Plugin {
         id: row.id,
-        name: manifest.name,
-        version: manifest.version.to_string(),
-        author: manifest.author,
-        description: manifest.description,
-        github: manifest
-            .github
-            .map(|github| format!("https://github.com/{}/{}", github.owner, github.repo))
-            .unwrap_or_default(),
-        license: manifest.license,
         signature: signature as i32,
         key_fingerprint,
         github_check: github_check as i32,
         state: plugin_state as i32,
         status_reason: status_reason.unwrap_or_default(),
         permissions,
-        domains: manifest.domains,
-        config_fields: manifest
-            .config
-            .into_iter()
-            .map(|field| proto::PluginConfigField {
-                key: field.key,
-                label: field.label,
-                kind: config_kind(field.kind) as i32,
-                choices: field.choices,
-                required: field.required,
-            })
-            .collect(),
         config: config
             .into_iter()
             .map(|value| proto::PluginConfigValue {
@@ -578,7 +568,38 @@ pub async fn describe(
         memory_bytes: stats.memory_bytes,
         database_bytes,
         files_bytes: u64::try_from(files_bytes).unwrap_or(0),
+        ..manifest_plugin(&manifest)
     }))
+}
+
+/// What the manifest says of a plugin, as admins see it.
+fn manifest_plugin(manifest: &Manifest) -> proto::Plugin {
+    proto::Plugin {
+        id: manifest.id.clone(),
+        name: manifest.name.clone(),
+        version: manifest.version.to_string(),
+        author: manifest.author.clone(),
+        description: manifest.description.clone(),
+        github: manifest
+            .github
+            .as_ref()
+            .map(|github| format!("https://github.com/{}/{}", github.owner, github.repo))
+            .unwrap_or_default(),
+        license: manifest.license.clone(),
+        domains: manifest.domains.clone(),
+        config_fields: manifest
+            .config
+            .iter()
+            .map(|field| proto::PluginConfigField {
+                key: field.key.clone(),
+                label: field.label.clone(),
+                kind: config_kind(field.kind) as i32,
+                choices: field.choices.clone(),
+                required: field.required,
+            })
+            .collect(),
+        ..Default::default()
+    }
 }
 
 fn config_kind(kind: ConfigKind) -> proto::PluginConfigKind {

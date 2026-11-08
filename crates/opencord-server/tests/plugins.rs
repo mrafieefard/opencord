@@ -2,6 +2,8 @@
 
 #[path = "common/mod.rs"]
 mod common;
+#[path = "plugins/install.rs"]
+mod install;
 #[path = "plugins/roles.rs"]
 mod roles;
 #[path = "plugins/runtime.rs"]

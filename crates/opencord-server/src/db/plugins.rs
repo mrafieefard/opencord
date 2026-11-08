@@ -173,6 +173,222 @@ pub async fn files_bytes(conn: &mut SqliteConnection, plugin_id: &str) -> Result
     .await
 }
 
+pub async fn count_plugins(conn: &mut SqliteConnection) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(r#"SELECT COUNT(*) AS "count!: i64" FROM plugins"#)
+        .fetch_one(conn)
+        .await
+}
+
+/// Installs the plugin's row; `crashed_reason` starts clear.
+pub async fn insert_plugin(
+    conn: &mut SqliteConnection,
+    row: &PluginRow,
+    license_accepted_by: Option<i64>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO plugins (id, user_id, role_id, version, folder, manifest, signature,
+                              public_key, github_check, running, license_accepted_by,
+                              installed_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+        row.id,
+        row.user_id,
+        row.role_id,
+        row.version,
+        row.folder,
+        row.manifest,
+        row.signature,
+        row.public_key,
+        row.github_check,
+        row.running,
+        license_accepted_by,
+        row.installed_at,
+        row.updated_at
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Replaces what an update (or putting the old version back) changes.
+pub async fn update_plugin(
+    conn: &mut SqliteConnection,
+    row: &PluginRow,
+    license_accepted_by: Option<i64>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE plugins SET version = $1, folder = $2, manifest = $3, signature = $4,
+                            public_key = $5, github_check = $6, running = $7,
+                            crashed_reason = $8, license_accepted_by = $9, updated_at = $10
+         WHERE id = $11",
+        row.version,
+        row.folder,
+        row.manifest,
+        row.signature,
+        row.public_key,
+        row.github_check,
+        row.running,
+        row.crashed_reason,
+        license_accepted_by,
+        row.updated_at,
+        row.id
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+pub async fn license_accepted_by(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+) -> Result<Option<i64>, sqlx::Error> {
+    let accepted = sqlx::query_scalar!(
+        "SELECT license_accepted_by FROM plugins WHERE id = $1",
+        plugin_id
+    )
+    .fetch_optional(conn)
+    .await?;
+    Ok(accepted.flatten())
+}
+
+/// The admin's switch.
+pub async fn set_running(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    running: bool,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE plugins SET running = $1 WHERE id = $2",
+        running,
+        plugin_id
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// A granted permission and who granted it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PermissionRow {
+    pub name: String,
+    pub granted_by: i64,
+    pub granted_at: i64,
+}
+
+pub async fn permission_rows(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+) -> Result<Vec<PermissionRow>, sqlx::Error> {
+    sqlx::query_as!(
+        PermissionRow,
+        "SELECT name, granted_by, granted_at FROM plugin_permissions
+         WHERE plugin_id = $1 ORDER BY name",
+        plugin_id
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// The plugin's granted permissions become exactly `rows`.
+pub async fn replace_permissions(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    rows: &[PermissionRow],
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM plugin_permissions WHERE plugin_id = $1",
+        plugin_id
+    )
+    .execute(&mut *conn)
+    .await?;
+    for row in rows {
+        sqlx::query!(
+            "INSERT INTO plugin_permissions (plugin_id, name, granted_by, granted_at)
+             VALUES ($1, $2, $3, $4)",
+            plugin_id,
+            row.name,
+            row.granted_by,
+            row.granted_at
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
+}
+
+/// The plugin's settings become exactly `rows`.
+pub async fn replace_config(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    rows: &[ConfigValueRow],
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM plugin_config WHERE plugin_id = $1", plugin_id)
+        .execute(&mut *conn)
+        .await?;
+    for row in rows {
+        sqlx::query!(
+            "INSERT INTO plugin_config (plugin_id, key, value, sealed) VALUES ($1, $2, $3, $4)",
+            plugin_id,
+            row.key,
+            row.value,
+            row.sealed
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
+}
+
+/// What an uninstall that kept the data left: `Some(pin)` when there is
+/// one, the pin being the key a reinstall must carry.
+pub async fn leftover(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+) -> Result<Option<Option<Vec<u8>>>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT public_key FROM plugin_leftovers WHERE id = $1",
+        plugin_id
+    )
+    .fetch_optional(conn)
+    .await
+}
+
+pub async fn insert_leftover(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    public_key: Option<&[u8]>,
+    removed_at: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT OR REPLACE INTO plugin_leftovers (id, public_key, removed_at) VALUES ($1, $2, $3)",
+        plugin_id,
+        public_key,
+        removed_at
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_leftover(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM plugin_leftovers WHERE id = $1", plugin_id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_plugin_files(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM plugin_files WHERE plugin_id = $1", plugin_id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 /// Why the plugin was turned off after failing; `None` clears it.
 pub async fn set_crashed_reason(
     conn: &mut SqliteConnection,
