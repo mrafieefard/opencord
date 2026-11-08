@@ -94,6 +94,7 @@ abstract final class OcIcons {
   static const IconData error = IconData(0xf8b6, fontFamily: fontFamily);
   static const IconData expandLess = IconData(0xe5ce, fontFamily: fontFamily);
   static const IconData expandMore = IconData(0xe5cf, fontFamily: fontFamily);
+  static const IconData extension = IconData(0xe87b, fontFamily: fontFamily);
   static const IconData fingerprint = IconData(0xe90d, fontFamily: fontFamily);
   static const IconData folder = IconData(0xe2c7, fontFamily: fontFamily);
   static const IconData folderZip = IconData(0xeb2c, fontFamily: fontFamily);

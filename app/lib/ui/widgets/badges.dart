@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 
@@ -162,4 +163,115 @@ class PluginBadge extends StatelessWidget {
     );
   }
 }
+
+/// A badge for a plugin's signature state: Signed, Verified, Unsigned, Dev.
+class PluginSignatureBadge extends StatelessWidget {
+  const PluginSignatureBadge({
+    super.key,
+    required this.signature,
+    this.githubCheck = GithubCheck.unspecified,
+  });
+
+  final PluginSignature signature;
+  final GithubCheck githubCheck;
+
+  String get label {
+    if (signature == PluginSignature.dev) return 'Dev';
+    if (githubCheck == GithubCheck.verified) return 'Verified';
+    if (signature == PluginSignature.signed) return 'Signed';
+    return 'Unsigned';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: colors.hover,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: colors.border),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        style: OcText.meta.copyWith(
+          color: colors.textSecondary,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+/// A badge for a plugin's execution state: Running, Stopped, Crashed, Starting.
+class PluginStatusBadge extends StatelessWidget {
+  const PluginStatusBadge({super.key, required this.state});
+
+  final PluginState state;
+
+  String get label => switch (state) {
+    PluginState.running => 'Running',
+    PluginState.stopped => 'Stopped',
+    PluginState.crashed => 'Crashed',
+    PluginState.starting => 'Starting',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    final isRunning = state == PluginState.running;
+    final isCrashed = state == PluginState.crashed;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: isRunning ? colors.selected : colors.hover,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: colors.border,
+        ),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        style: OcText.meta.copyWith(
+          color: isCrashed ? colors.text : colors.textSecondary,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+/// A small pill marking newly requested permissions in an update review.
+class NewBadge extends StatelessWidget {
+  const NewBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: colors.accent,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'New',
+        maxLines: 1,
+        style: OcText.meta.copyWith(
+          color: colors.onAccent,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
 

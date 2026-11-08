@@ -97,6 +97,9 @@ class PluginReviewsNotifier extends Notifier<Map<String, PluginReview>> {
   @override
   Map<String, PluginReview> build() => const {};
 
+  void set(List<PluginReview> reviews) =>
+      state = {for (final r in reviews) r.reviewId: r};
+
   void apply(RepoEvent event) {
     switch (event) {
       case PluginReviewUpdated(:final review):
