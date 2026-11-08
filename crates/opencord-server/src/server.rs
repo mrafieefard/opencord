@@ -210,8 +210,6 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
 }
 
 impl ServerHandle {
-    /// Closes every connection (1001), stops listening and closes the
-    /// database.
     /// The application state, for tests.
     pub fn state(&self) -> &Arc<AppState> {
         &self.state
@@ -227,6 +225,8 @@ impl ServerHandle {
         &self.state.plugins.dev_tokens
     }
 
+    /// Closes every connection (1001), stops listening and closes the
+    /// database.
     pub async fn shutdown(self) {
         // While the server still works, so `stop` handlers can use it.
         self.state.plugins.stop_all().await;

@@ -471,23 +471,15 @@ impl Plugins {
 
         if is_new_log {
             let (plugin_id_c, state_weak) = (installed.id.clone(), Arc::downgrade(state));
-            let mut rx = log.subscribe();
-            tokio::spawn(async move {
-                loop {
-                    match rx.recv().await {
-                        Ok(line) => {
-                            let Some(state) = state_weak.upgrade() else {
-                                break;
-                            };
-                            state
-                                .plugins
-                                .dispatch_log_append(&state, &plugin_id_c, line);
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                    }
-                }
-            });
+            tokio::spawn(logbook::forward(log.subscribe(), move |line| {
+                let Some(state) = state_weak.upgrade() else {
+                    return false;
+                };
+                state
+                    .plugins
+                    .dispatch_log_append(&state, &plugin_id_c, line);
+                true
+            }));
         }
         self.handles
             .write()

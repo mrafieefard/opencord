@@ -123,6 +123,26 @@ impl PluginLog {
     }
 }
 
+/// Hands each line `lines` receives to `deliver`, until the log is gone or
+/// `deliver` returns false. Falling behind skips what was missed and goes
+/// on.
+pub async fn forward(
+    mut lines: broadcast::Receiver<proto::PluginLogLine>,
+    mut deliver: impl FnMut(proto::PluginLogLine) -> bool,
+) {
+    loop {
+        match lines.recv().await {
+            Ok(line) => {
+                if !deliver(line) {
+                    return;
+                }
+            }
+            Err(broadcast::error::RecvError::Lagged(_)) => {}
+            Err(broadcast::error::RecvError::Closed) => return,
+        }
+    }
+}
+
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -260,5 +280,29 @@ mod tests {
         let old = fs::metadata(dir.path().join("log.1.txt")).unwrap().len();
         assert!(current < LOG_FILE_MAX_BYTES);
         assert!(old <= LOG_FILE_MAX_BYTES);
+    }
+
+    // Catches: a forwarder that ends at its first `Lagged`, so a burst
+    // stops every later line reaching the log's watchers.
+    #[tokio::test]
+    async fn a_forwarder_that_falls_behind_keeps_forwarding() {
+        let log = PluginLog::new("p", None);
+        let watcher = log.subscribe();
+        // More lines than a watcher holds, before it reads any.
+        for index in 0..WATCH_BUFFER + 10 {
+            log.push(proto::PluginLogLevel::Info, &index.to_string());
+        }
+        log.push(proto::PluginLogLevel::Info, "after");
+        drop(log);
+
+        let mut forwarded = Vec::new();
+        forward(watcher, |line| {
+            forwarded.push(line.text);
+            true
+        })
+        .await;
+        assert_eq!(forwarded.last().map(String::as_str), Some("after"));
+        // The oldest lines were skipped, not delivered late.
+        assert_eq!(forwarded.len(), WATCH_BUFFER);
     }
 }

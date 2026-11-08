@@ -462,8 +462,11 @@ async fn log_watcher_gets_each_line_once_after_restart() {
     );
 }
 
+// The forwarder usually keeps up with this burst, so it seldom lags here:
+// `logbook::tests::a_forwarder_that_falls_behind_keeps_forwarding` is the
+// test of lagging.
 #[tokio::test]
-async fn log_watcher_recovers_after_lagged_burst() {
+async fn a_burst_of_lines_reaches_a_watcher() {
     let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
 
@@ -510,7 +513,7 @@ async fn log_watcher_recovers_after_lagged_burst() {
         ))
         .await;
 
-    // Trigger burst (> 1024 lines to overflow WATCH_BUFFER = 1024)
+    // Trigger a burst of more lines than WATCH_BUFFER (1024)
     owner
         .ok(proto::request::Kind::UpdateServer(proto::UpdateServer {
             name: Some("Burst Server".to_owned()),
@@ -519,7 +522,7 @@ async fn log_watcher_recovers_after_lagged_burst() {
         }))
         .await;
 
-    // Verify watcher recovers from channel lag and receives after_burst_recovered
+    // Verify the line after the burst arrives
     let mut got_after_burst = false;
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
     while tokio::time::Instant::now() < deadline {
@@ -541,6 +544,6 @@ async fn log_watcher_recovers_after_lagged_burst() {
 
     assert!(
         got_after_burst,
-        "expected watcher to receive after_burst_recovered after broadcast buffer lag"
+        "expected watcher to receive after_burst_recovered after the burst"
     );
 }

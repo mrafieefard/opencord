@@ -357,7 +357,15 @@ async fn out_of_memory_restarts_the_plugin() {
 
     wait_for_log(&handle, "ping handler failed: the plugin ran out of memory").await;
     let began = Instant::now();
-    while handle.state() != proto::PluginState::Running {
+    // The restart logs "started" again, then the supervisor marks it
+    // running.
+    while logged(&handle)
+        .iter()
+        .filter(|line| line.text == "started")
+        .count()
+        < 2
+        || handle.state() != proto::PluginState::Running
+    {
         assert!(began.elapsed() < Duration::from_secs(5), "no restart");
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
