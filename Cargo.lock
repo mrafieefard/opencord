@@ -4618,11 +4618,15 @@ dependencies = [
 name = "opencord-plugins"
 version = "0.0.1"
 dependencies = [
+ "data-encoding",
+ "ed25519-dalek",
  "flate2",
+ "getrandom 0.4.3",
  "mlua",
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tempfile",
  "tokio",
  "zip",

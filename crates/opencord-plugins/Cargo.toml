@@ -8,11 +8,15 @@ license = "MPL-2.0"
 publish = false
 
 [dependencies]
+data-encoding.workspace = true
+ed25519-dalek.workspace = true
 flate2.workspace = true
+getrandom.workspace = true
 mlua.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
