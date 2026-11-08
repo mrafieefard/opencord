@@ -13,6 +13,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
@@ -162,6 +163,12 @@ class MockServer {
   /// The soundboard, by id.
   final Map<int, Sound> sounds = {};
 
+  final Map<String, Plugin> plugins = {};
+  final Map<String, PluginReview> pluginReviews = {};
+  final Map<int, PluginUser> pluginUsers = {};
+  final Map<String, List<PluginLogLine>> pluginLogs = {};
+  final List<PluginDevToken> pluginDevTokens = [];
+
   ServerSummary get summary => ServerSummary(
     key: key,
     name: info.name,
@@ -251,6 +258,7 @@ class MockServer {
       uploadSettings: uploadSettings,
       privateMessages: privateMessages,
       privateSettings: privateSettings,
+      pluginUsers: pluginUsers.values.toList(),
     );
   }
 }
@@ -1032,6 +1040,83 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     'Yes, once the settings pages land.',
   );
   b.readAll(maintainers);
+
+  const welcomeBotUserId = 9001;
+  const welcomeBotRoleId = 50;
+  const diceRollerUserId = 9002;
+  const diceRollerRoleId = 51;
+
+  final welcomeBotRole = Role(
+    id: welcomeBotRoleId,
+    name: 'Welcome Bot',
+    color: 0,
+    position: 4,
+    permissions: Permissions.none,
+    hoist: false,
+    mentionable: false,
+    pluginId: 'welcome-bot',
+  );
+  server.roles[welcomeBotRoleId] = welcomeBotRole;
+
+  final welcomeBot = Plugin(
+    id: 'welcome-bot',
+    name: 'Welcome Bot',
+    version: '0.1.0',
+    author: 'Opencord Contributors',
+    description: 'Greets new members and rolls dice.',
+    state: PluginState.running,
+    signature: PluginSignature.signed,
+    userId: welcomeBotUserId,
+    roleId: welcomeBotRoleId,
+    installedAt: now.subtract(const Duration(days: 10)),
+    updatedAt: now.subtract(const Duration(days: 10)),
+    permissions: const [
+      PluginPermissionGrant(
+        name: 'send_messages',
+        granted: true,
+        grantable: true,
+      ),
+      PluginPermissionGrant(
+        name: 'read_messages',
+        granted: true,
+        grantable: true,
+      ),
+    ],
+  );
+  server.plugins['welcome-bot'] = welcomeBot;
+
+  final diceRoller = Plugin(
+    id: 'dice-roller',
+    name: 'Dice Roller',
+    version: '0.2.1',
+    author: 'Community',
+    description: 'Rolls complex RPG dice sets.',
+    state: PluginState.crashed,
+    statusReason: 'OOM: memory limit exceeded',
+    signature: PluginSignature.unsigned,
+    userId: diceRollerUserId,
+    roleId: diceRollerRoleId,
+    installedAt: now.subtract(const Duration(days: 5)),
+    updatedAt: now.subtract(const Duration(days: 2)),
+  );
+  server.plugins['dice-roller'] = diceRoller;
+
+  server.pluginUsers[welcomeBotUserId] = const PluginUser(
+    userId: welcomeBotUserId,
+    pluginId: 'welcome-bot',
+    name: 'Welcome Bot',
+    avatarHash: '',
+    installed: true,
+  );
+
+  b.say(
+    welcome,
+    welcomeBotUserId,
+    b.daysAgo(1, 9, 13),
+    'Welcome to Opencord Dev, <@$priya>!',
+  );
+  b.readAll(welcome);
+
   return server;
 }
 

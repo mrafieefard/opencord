@@ -5290,6 +5290,227 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> rejectOwnDevice(String deviceId) =>
       _privateWorld.rejectOwnDevice(deviceId);
+
+  @override
+  Future<PluginReview> uploadPluginPackage(
+    String serverKey,
+    Uint8List bytes,
+  ) async {
+    final server = _server(serverKey);
+    final id = 'plugin-${server.plugins.length + 1}';
+    final plugin = Plugin(
+      id: id,
+      name: 'Uploaded Plugin',
+      version: '0.1.0',
+      author: 'Author',
+      description: 'Uploaded plugin package',
+      userId: 9900 + server.plugins.length,
+      roleId: 90 + server.plugins.length,
+      installedAt: _clock(),
+      updatedAt: _clock(),
+      signature: PluginSignature.unsigned,
+    );
+    final review = PluginReview(
+      reviewId: 'rev-${server.pluginReviews.length + 1}',
+      plugin: plugin,
+      expiresAt: _clock().add(const Duration(hours: 1)),
+    );
+    server.pluginReviews[review.reviewId] = review;
+    _emit(PluginReviewUpdated(serverKey, review));
+    return review;
+  }
+
+  @override
+  Future<List<Plugin>> fetchPlugins(String serverKey) async {
+    final server = _server(serverKey);
+    return server.plugins.values.toList();
+  }
+
+  @override
+  Future<List<PluginReview>> fetchPluginReviews(String serverKey) async {
+    final server = _server(serverKey);
+    return server.pluginReviews.values.toList();
+  }
+
+  @override
+  Future<Plugin> confirmPluginReview(
+    String serverKey,
+    String reviewId,
+    List<String> granted,
+    List<PluginConfigValue> config,
+    bool acceptLicense,
+  ) async {
+    final server = _server(serverKey);
+    final review = server.pluginReviews.remove(reviewId);
+    if (review == null) {
+      throw RepoException(RepoErrorKind.notFound, 'not found: $reviewId');
+    }
+    final plugin = review.plugin.copyWith(
+      state: PluginState.running,
+      config: config,
+    );
+    server.plugins[plugin.id] = plugin;
+    server.pluginUsers[plugin.userId] = PluginUser(
+      userId: plugin.userId,
+      pluginId: plugin.id,
+      name: plugin.name,
+    );
+    _emit(PluginReviewRemoved(serverKey, reviewId));
+    _emit(PluginUpdated(serverKey, plugin));
+    _emit(PluginUsersUpdated(serverKey, server.pluginUsers.values.toList()));
+    return plugin;
+  }
+
+  @override
+  Future<void> discardPluginReview(String serverKey, String reviewId) async {
+    final server = _server(serverKey);
+    if (server.pluginReviews.remove(reviewId) != null) {
+      _emit(PluginReviewRemoved(serverKey, reviewId));
+    }
+  }
+
+  @override
+  Future<Plugin> setPluginPermissions(
+    String serverKey,
+    String pluginId,
+    List<String> granted,
+  ) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+    }
+    final updated = plugin.copyWith(
+      permissions: [
+        for (final p in plugin.permissions)
+          PluginPermissionGrant(
+            name: p.name,
+            granted: granted.contains(p.name),
+            grantable: p.grantable,
+          ),
+      ],
+    );
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<Plugin> setPluginConfig(
+    String serverKey,
+    String pluginId,
+    List<PluginConfigValue> config,
+  ) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+    }
+    final updated = plugin.copyWith(config: config);
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<Plugin> setPluginRunning(
+    String serverKey,
+    String pluginId,
+    bool running,
+  ) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+    }
+    final updated = plugin.copyWith(
+      state: running ? PluginState.running : PluginState.stopped,
+    );
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<Plugin> restartPlugin(String serverKey, String pluginId) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+    }
+    final updated = plugin.copyWith(state: PluginState.running);
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<void> uninstallPlugin(
+    String serverKey,
+    String pluginId, {
+    required bool deleteData,
+  }) async {
+    final server = _server(serverKey);
+    final removed = server.plugins.remove(pluginId);
+    if (removed != null) {
+      server.pluginUsers.remove(removed.userId);
+      _emit(PluginRemoved(serverKey, pluginId));
+      _emit(PluginUsersUpdated(serverKey, server.pluginUsers.values.toList()));
+    }
+  }
+
+  @override
+  Future<List<PluginLogLine>> fetchPluginLog(
+    String serverKey,
+    String pluginId, {
+    int? before,
+    int limit = 200,
+  }) async {
+    final server = _server(serverKey);
+    final logs = server.pluginLogs[pluginId] ?? const [];
+    return logs.take(limit).toList();
+  }
+
+  @override
+  Future<void> watchPluginLog(
+    String serverKey,
+    String pluginId, {
+    required bool watch,
+  }) async {}
+
+  @override
+  Future<CreatedPluginDevToken> createPluginDevToken(
+    String serverKey,
+    String pluginId, {
+    int days = 7,
+  }) async {
+    final server = _server(serverKey);
+    final token = PluginDevToken(
+      id: server.pluginDevTokens.length + 1,
+      pluginId: pluginId,
+      createdBy: server.selfId,
+      createdAt: _clock(),
+      expiresAt: _clock().add(Duration(days: days)),
+    );
+    server.pluginDevTokens.add(token);
+    return CreatedPluginDevToken(
+      token: token,
+      secret: 'ocdev_mocksecret1234567890',
+      serverFingerprint: server.fingerprint,
+    );
+  }
+
+  @override
+  Future<void> revokePluginDevToken(String serverKey, int tokenId) async {
+    final server = _server(serverKey);
+    server.pluginDevTokens.removeWhere((t) => t.id == tokenId);
+  }
+
+  @override
+  Future<List<PluginDevToken>> fetchPluginDevTokens(String serverKey) async {
+    final server = _server(serverKey);
+    return server.pluginDevTokens.toList();
+  }
 }
 
 /// [domain] with some fields changed.

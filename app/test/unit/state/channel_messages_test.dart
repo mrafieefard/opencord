@@ -86,6 +86,7 @@ final _readyPayload = core.CoreEventPayload.ready(
     addresses: const core.ServerAddresses(domains: []),
     commands: const core.CommandList(commands: [], resultsPublic: true),
     uploadSettings: coreUploadSettings,
+    pluginUsers: const [],
   ),
 );
 

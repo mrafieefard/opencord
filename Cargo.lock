@@ -4767,6 +4767,7 @@ dependencies = [
  "libc",
  "opencord-common",
  "opencord-media",
+ "opencord-plugins",
  "opencord-proto",
  "opencord-server",
  "opus",

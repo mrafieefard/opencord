@@ -93,6 +93,7 @@ core.ReadySnapshot _ready({
   addresses: const core.ServerAddresses(domains: []),
   commands: const core.CommandList(commands: [], resultsPublic: true),
   uploadSettings: coreUploadSettings,
+  pluginUsers: const [],
 );
 
 /// A keychain that can be locked, refusing to save, or out of reach.

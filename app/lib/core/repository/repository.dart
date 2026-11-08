@@ -11,6 +11,8 @@ import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/plugins.dart';
+export 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/sound.dart';
@@ -1194,6 +1196,71 @@ abstract interface class OpencordRepository {
 
   /// Not mine.
   Future<void> rejectOwnDevice(String deviceId);
+
+  Future<PluginReview> uploadPluginPackage(String serverKey, Uint8List bytes);
+
+  Future<List<Plugin>> fetchPlugins(String serverKey);
+
+  Future<List<PluginReview>> fetchPluginReviews(String serverKey);
+
+  Future<Plugin> confirmPluginReview(
+    String serverKey,
+    String reviewId,
+    List<String> granted,
+    List<PluginConfigValue> config,
+    bool acceptLicense,
+  );
+
+  Future<void> discardPluginReview(String serverKey, String reviewId);
+
+  Future<Plugin> setPluginPermissions(
+    String serverKey,
+    String pluginId,
+    List<String> granted,
+  );
+
+  Future<Plugin> setPluginConfig(
+    String serverKey,
+    String pluginId,
+    List<PluginConfigValue> config,
+  );
+
+  Future<Plugin> setPluginRunning(
+    String serverKey,
+    String pluginId,
+    bool running,
+  );
+
+  Future<Plugin> restartPlugin(String serverKey, String pluginId);
+
+  Future<void> uninstallPlugin(
+    String serverKey,
+    String pluginId, {
+    required bool deleteData,
+  });
+
+  Future<List<PluginLogLine>> fetchPluginLog(
+    String serverKey,
+    String pluginId, {
+    int? before,
+    int limit = 200,
+  });
+
+  Future<void> watchPluginLog(
+    String serverKey,
+    String pluginId, {
+    required bool watch,
+  });
+
+  Future<CreatedPluginDevToken> createPluginDevToken(
+    String serverKey,
+    String pluginId, {
+    int days = 7,
+  });
+
+  Future<void> revokePluginDevToken(String serverKey, int tokenId);
+
+  Future<List<PluginDevToken>> fetchPluginDevTokens(String serverKey);
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

@@ -12,6 +12,7 @@ use opencord_common::address::{
     is_link, parse_fingerprint,
 };
 use opencord_proto::v1 as proto;
+use prost::Message as _;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
 use tokio::runtime::Handle;
@@ -20,14 +21,15 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use crate::api::types::{
     AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
     ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
-    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, KeyWords, MediaEvent,
-    MediaHandle, Member, Message, OutgoingFile, OverwriteTargetKind, OwnDevice,
-    PermissionOverwrite, PlaybackItem, PresenceStatus, PrivacySettingsData, PrivateContact,
-    PrivateEvent, PrivateMessage, PrivateOpened, PrivateSettings, Role, RoleChanges, S3Config,
-    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
-    ServerInfo, SharedServer, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
-    StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User,
-    VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    CreatedPluginDevToken, ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, KeyWords,
+    MediaEvent, MediaHandle, Member, Message, OutgoingFile, OverwriteTargetKind, OwnDevice,
+    PermissionOverwrite, PlaybackItem, Plugin, PluginConfigValue, PluginDevToken, PluginLogLine,
+    PluginReview, PresenceStatus, PrivacySettingsData, PrivateContact, PrivateEvent,
+    PrivateMessage, PrivateOpened, PrivateSettings, Role, RoleChanges, S3Config, ScreenProblem,
+    ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo,
+    SharedServer, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
+    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
+    VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -1181,6 +1183,233 @@ impl Client {
             .await?
         {
             Response::Bans(list) => Ok(list.bans.into_iter().map(convert::ban).collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn upload_plugin_package(
+        &self,
+        key: &str,
+        bytes: Vec<u8>,
+    ) -> Result<PluginReview, CoreError> {
+        let media = MediaHttp::new(
+            Arc::clone(&self.inner.routes),
+            Arc::clone(&self.inner.media_tokens),
+        );
+        let response = media
+            .request(self, key, "POST", "/plugins/packages", &bytes, 256 * 1024)
+            .await?;
+        let decoded = proto::Response::decode(response.body.as_slice())
+            .map_err(|error| CoreError::Connection {
+                message: error.to_string(),
+            })?
+            .result;
+        match decoded {
+            Some(Response::PluginReview(review)) => Ok(convert::plugin_review(*review)),
+            Some(Response::Error(error)) => Err(convert::error(error)),
+            Some(other) => Err(unexpected(&other)),
+            None => Err(CoreError::Connection {
+                message: format!("the server answered {}", response.status),
+            }),
+        }
+    }
+
+    pub async fn fetch_plugins(&self, key: &str) -> Result<Vec<Plugin>, CoreError> {
+        match self
+            .request(key, Request::FetchPlugins(proto::FetchPlugins {}))
+            .await?
+        {
+            Response::Plugins(list) => Ok(list.plugins.into_iter().map(convert::plugin).collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn fetch_plugin_reviews(&self, key: &str) -> Result<Vec<PluginReview>, CoreError> {
+        match self
+            .request(
+                key,
+                Request::FetchPluginReviews(proto::FetchPluginReviews {}),
+            )
+            .await?
+        {
+            Response::PluginReviews(list) => Ok(list
+                .reviews
+                .into_iter()
+                .map(convert::plugin_review)
+                .collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn confirm_plugin_review(
+        &self,
+        key: &str,
+        review_id: String,
+        granted: Vec<String>,
+        config: Vec<PluginConfigValue>,
+        accept_license: bool,
+    ) -> Result<Plugin, CoreError> {
+        let request = Request::ConfirmPluginReview(proto::ConfirmPluginReview {
+            review_id,
+            granted,
+            config: config
+                .into_iter()
+                .map(|c| proto::PluginConfigValue {
+                    key: c.key,
+                    value: c.value,
+                    has_value: c.has_value,
+                })
+                .collect(),
+            accept_license,
+        });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn discard_plugin_review(
+        &self,
+        key: &str,
+        review_id: String,
+    ) -> Result<(), CoreError> {
+        let request = Request::DiscardPluginReview(proto::DiscardPluginReview { review_id });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn set_plugin_permissions(
+        &self,
+        key: &str,
+        plugin_id: String,
+        granted: Vec<String>,
+    ) -> Result<Plugin, CoreError> {
+        let request =
+            Request::SetPluginPermissions(proto::SetPluginPermissions { plugin_id, granted });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn set_plugin_config(
+        &self,
+        key: &str,
+        plugin_id: String,
+        config: Vec<PluginConfigValue>,
+    ) -> Result<Plugin, CoreError> {
+        let request = Request::SetPluginConfig(proto::SetPluginConfig {
+            plugin_id,
+            config: config
+                .into_iter()
+                .map(|c| proto::PluginConfigValue {
+                    key: c.key,
+                    value: c.value,
+                    has_value: c.has_value,
+                })
+                .collect(),
+        });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn set_plugin_running(
+        &self,
+        key: &str,
+        plugin_id: String,
+        running: bool,
+    ) -> Result<Plugin, CoreError> {
+        let request = Request::SetPluginRunning(proto::SetPluginRunning { plugin_id, running });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn restart_plugin(&self, key: &str, plugin_id: String) -> Result<Plugin, CoreError> {
+        let request = Request::RestartPlugin(proto::RestartPlugin { plugin_id });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn uninstall_plugin(
+        &self,
+        key: &str,
+        plugin_id: String,
+        delete_data: bool,
+    ) -> Result<(), CoreError> {
+        let request = Request::UninstallPlugin(proto::UninstallPlugin {
+            plugin_id,
+            delete_data,
+        });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn fetch_plugin_log(
+        &self,
+        key: &str,
+        plugin_id: String,
+        before: Option<u64>,
+        limit: u32,
+    ) -> Result<Vec<PluginLogLine>, CoreError> {
+        let request = Request::FetchPluginLog(proto::FetchPluginLog {
+            plugin_id,
+            before,
+            limit,
+        });
+        match self.request(key, request).await? {
+            Response::PluginLog(log) => Ok(log
+                .lines
+                .into_iter()
+                .map(convert::plugin_log_line)
+                .collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn watch_plugin_log(
+        &self,
+        key: &str,
+        plugin_id: String,
+        watch: bool,
+    ) -> Result<(), CoreError> {
+        let request = Request::WatchPluginLog(proto::WatchPluginLog { plugin_id, watch });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn create_plugin_dev_token(
+        &self,
+        key: &str,
+        plugin_id: String,
+        days: u32,
+    ) -> Result<CreatedPluginDevToken, CoreError> {
+        let request =
+            Request::CreatePluginDevToken(proto::CreatePluginDevToken { plugin_id, days });
+        match self.request(key, request).await? {
+            Response::CreatedPluginDevToken(token) => Ok(convert::created_plugin_dev_token(token)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn revoke_plugin_dev_token(&self, key: &str, token_id: i64) -> Result<(), CoreError> {
+        let request = Request::RevokePluginDevToken(proto::RevokePluginDevToken { token_id });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn fetch_plugin_dev_tokens(
+        &self,
+        key: &str,
+    ) -> Result<Vec<PluginDevToken>, CoreError> {
+        let request = Request::FetchPluginDevTokens(proto::FetchPluginDevTokens {});
+        match self.request(key, request).await? {
+            Response::PluginDevTokens(list) => Ok(list
+                .tokens
+                .into_iter()
+                .map(convert::plugin_dev_token)
+                .collect()),
             other => Err(unexpected(&other)),
         }
     }

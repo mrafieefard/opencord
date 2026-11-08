@@ -8,6 +8,7 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/sound.dart';
@@ -41,6 +42,7 @@ class ReadySnapshot {
     this.uploadSettings = UploadSettings.fallback,
     this.privateMessages = false,
     this.privateSettings = const ServerPrivateSettings(),
+    this.pluginUsers = const [],
   });
 
   final User self;
@@ -82,4 +84,5 @@ class ReadySnapshot {
   final UploadSettings uploadSettings;
   final bool privateMessages;
   final ServerPrivateSettings privateSettings;
+  final List<PluginUser> pluginUsers;
 }
