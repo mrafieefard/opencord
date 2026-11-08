@@ -376,5 +376,6 @@ fn ready(
         private_messages: false,
         private_messages_v2: state.private.enabled(),
         private_settings: Some(state.private.settings_proto()),
+        plugin_users: Vec::new(),
     }
 }

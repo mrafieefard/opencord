@@ -337,6 +337,7 @@ impl Role {
             hoist: self.hoist,
             mentionable: self.mentionable,
             max_upload_bytes: self.max_upload_bytes,
+            plugin_id: None,
         }
     }
 }

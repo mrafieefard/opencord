@@ -1,0 +1,255 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+// Plugins (design 2026-11-07).
+
+enum PluginState {
+  PLUGIN_STATE_UNSPECIFIED = 0;
+  PLUGIN_STATE_STARTING = 1;
+  PLUGIN_STATE_RUNNING = 2;
+  // Turned off by an admin.
+  PLUGIN_STATE_STOPPED = 3;
+  // Turned off after failing again and again; `status_reason` says why.
+  PLUGIN_STATE_CRASHED = 4;
+}
+
+enum PluginSignature {
+  PLUGIN_SIGNATURE_UNSPECIFIED = 0;
+  PLUGIN_SIGNATURE_UNSIGNED = 1;
+  PLUGIN_SIGNATURE_SIGNED = 2;
+  // Pushed by dev mode.
+  PLUGIN_SIGNATURE_DEV = 3;
+}
+
+enum GithubCheck {
+  // No GitHub link, or not signed.
+  GITHUB_CHECK_UNSPECIFIED = 0;
+  GITHUB_CHECK_VERIFIED = 1;
+  // The repository publishes another key, or none.
+  GITHUB_CHECK_MISMATCH = 2;
+  // GitHub couldn't be reached.
+  GITHUB_CHECK_FAILED = 3;
+}
+
+enum PluginConfigKind {
+  PLUGIN_CONFIG_KIND_UNSPECIFIED = 0;
+  PLUGIN_CONFIG_KIND_TEXT = 1;
+  PLUGIN_CONFIG_KIND_SECRET = 2;
+  PLUGIN_CONFIG_KIND_NUMBER = 3;
+  PLUGIN_CONFIG_KIND_BOOLEAN = 4;
+  PLUGIN_CONFIG_KIND_CHOICE = 5;
+  PLUGIN_CONFIG_KIND_ROLE = 6;
+  PLUGIN_CONFIG_KIND_CHANNEL = 7;
+  PLUGIN_CONFIG_KIND_USER = 8;
+}
+
+message PluginConfigField {
+  string key = 1;
+  string label = 2;
+  PluginConfigKind kind = 3;
+  repeated string choices = 4;
+  bool required = 5;
+}
+
+// A config value as text: numbers and ids in decimal, booleans "true" or
+// "false". Secrets are never sent to apps: `value` is empty and
+// `has_value` says whether one is stored. Sending an empty secret keeps
+// the stored one.
+message PluginConfigValue {
+  string key = 1;
+  string value = 2;
+  bool has_value = 3;
+}
+
+message PluginPermissionGrant {
+  // "send_messages".
+  string name = 1;
+  bool granted = 2;
+  // Whether the member asking holds what granting it needs.
+  bool grantable = 3;
+}
+
+// The user behind a plugin's messages, plays and tracks.
+message PluginUser {
+  int64 user_id = 1;
+  string plugin_id = 2;
+  string name = 3;
+  // The plugin's icon as a profile picture; empty for none.
+  string avatar_hash = 4;
+  // False once the plugin is uninstalled: its old messages keep the name.
+  bool installed = 5;
+}
+
+message Plugin {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string author = 4;
+  string description = 5;
+  // Empty for none.
+  string github = 6;
+  string license = 7;
+  PluginSignature signature = 8;
+  // Empty when unsigned.
+  string key_fingerprint = 9;
+  GithubCheck github_check = 10;
+  PluginState state = 11;
+  string status_reason = 12;
+  repeated PluginPermissionGrant permissions = 13;
+  repeated string domains = 14;
+  repeated PluginConfigField config_fields = 15;
+  repeated PluginConfigValue config = 16;
+  int64 user_id = 17;
+  int64 role_id = 18;
+  int64 installed_at_ms = 19;
+  int64 updated_at_ms = 20;
+  // CPU time over the last 5 s, in thousandths of one core.
+  uint32 cpu_permille = 21;
+  uint64 memory_bytes = 22;
+  uint64 database_bytes = 23;
+  uint64 files_bytes = 24;
+}
+
+message Plugins {
+  repeated Plugin plugins = 1;
+}
+
+// What an uploaded zip would install (POST /plugins/packages), or what a
+// dev push waits for.
+message PluginReview {
+  string review_id = 1;
+  // As it would be once installed; permissions start granted where the
+  // member asking may grant them.
+  Plugin plugin = 2;
+  // The version it replaces, for an update.
+  optional Plugin installed = 3;
+  // Permissions the installed version didn't ask for.
+  repeated string new_permissions = 4;
+  bool license_needs_acceptance = 5;
+  int64 expires_at_ms = 6;
+  // Set for a dev push.
+  bool dev = 7;
+}
+
+message PluginReviews {
+  repeated PluginReview reviews = 1;
+}
+
+enum PluginLogLevel {
+  PLUGIN_LOG_LEVEL_UNSPECIFIED = 0;
+  PLUGIN_LOG_LEVEL_INFO = 1;
+  PLUGIN_LOG_LEVEL_WARN = 2;
+  PLUGIN_LOG_LEVEL_ERROR = 3;
+  // Something the plugin did: "deleted message 123 in #general".
+  PLUGIN_LOG_LEVEL_ACTION = 4;
+}
+
+message PluginLogLine {
+  uint64 seq = 1;
+  int64 at_ms = 2;
+  PluginLogLevel level = 3;
+  string text = 4;
+}
+
+// Oldest first.
+message PluginLog {
+  repeated PluginLogLine lines = 1;
+}
+
+message PluginDevToken {
+  int64 id = 1;
+  string plugin_id = 2;
+  int64 created_by = 3;
+  int64 created_at_ms = 4;
+  int64 expires_at_ms = 5;
+  optional int64 last_used_at_ms = 6;
+}
+
+message PluginDevTokens {
+  repeated PluginDevToken tokens = 1;
+}
+
+message CreatedPluginDevToken {
+  PluginDevToken token = 1;
+  // Shown once.
+  string secret = 2;
+  // For `opencord-plugin dev --fingerprint`.
+  string server_fingerprint = 3;
+}
+
+// Requests. All need MANAGE_PLUGINS.
+message FetchPlugins {}
+message FetchPluginReviews {}
+message ConfirmPluginReview {
+  string review_id = 1;
+  repeated string granted = 2;
+  repeated PluginConfigValue config = 3;
+  bool accept_license = 4;
+}
+message DiscardPluginReview {
+  string review_id = 1;
+}
+message SetPluginPermissions {
+  string plugin_id = 1;
+  repeated string granted = 2;
+}
+message SetPluginConfig {
+  string plugin_id = 1;
+  repeated PluginConfigValue config = 2;
+}
+message SetPluginRunning {
+  string plugin_id = 1;
+  bool running = 2;
+}
+message RestartPlugin {
+  string plugin_id = 1;
+}
+message UninstallPlugin {
+  string plugin_id = 1;
+  bool delete_data = 2;
+}
+message FetchPluginLog {
+  string plugin_id = 1;
+  // Lines before this sequence number; none for the newest.
+  optional uint64 before = 2;
+  // 1–500; 0 means 200.
+  uint32 limit = 3;
+}
+message WatchPluginLog {
+  string plugin_id = 1;
+  bool watch = 2;
+}
+message CreatePluginDevToken {
+  string plugin_id = 1;
+  // 1–30; 0 means 7.
+  uint32 days = 2;
+}
+message RevokePluginDevToken {
+  int64 token_id = 1;
+}
+message FetchPluginDevTokens {}
+
+// Events. To members with MANAGE_PLUGINS, except where noted.
+message PluginUpdate {
+  Plugin plugin = 1;
+}
+message PluginRemove {
+  string plugin_id = 1;
+}
+message PluginReviewUpdate {
+  PluginReview review = 1;
+}
+message PluginReviewRemove {
+  string review_id = 1;
+}
+// To the sessions watching that plugin's log.
+message PluginLogAppend {
+  string plugin_id = 1;
+  repeated PluginLogLine lines = 2;
+}
+// To everyone: the whole list.
+message PluginUsersUpdate {
+  repeated PluginUser users = 1;
+}

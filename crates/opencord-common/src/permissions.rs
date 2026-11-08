@@ -18,6 +18,8 @@ bitflags::bitflags! {
         const CHANGE_NICKNAME = 1 << 12;
         const MANAGE_NICKNAMES = 1 << 13;
         const SEND_VOICE_MESSAGES = 1 << 14;
+        /// Install, configure and remove plugins (design 2026-11-07).
+        const MANAGE_PLUGINS = 1 << 15;
         const CONNECT = 1 << 16;
         const SPEAK = 1 << 17;
         /// Camera.
@@ -498,5 +500,10 @@ mod tests {
             Permissions::SEND_MESSAGES | Permissions::BAN_MEMBERS
         ));
         assert!(can_grant(Permissions::ADMINISTRATOR, Permissions::all()));
+    }
+
+    #[test]
+    fn manage_plugins_is_bit_15() {
+        assert_eq!(Permissions::MANAGE_PLUGINS.bits(), 1 << 15);
     }
 }

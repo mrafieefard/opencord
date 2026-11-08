@@ -7,6 +7,7 @@ import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
+import "opencord/v1/plugins.proto";
 import "opencord/v1/private.proto";
 
 message Request {
@@ -149,6 +150,22 @@ message Request {
     MusicFindLocal music_find_local = 200;
     RemoveLocalSong remove_local_song = 201;
     FetchLocalSongs fetch_local_songs = 202;
+
+    // Plugins (design 2026-11-07).
+    FetchPlugins fetch_plugins = 210;
+    FetchPluginReviews fetch_plugin_reviews = 211;
+    ConfirmPluginReview confirm_plugin_review = 212;
+    DiscardPluginReview discard_plugin_review = 213;
+    SetPluginPermissions set_plugin_permissions = 214;
+    SetPluginConfig set_plugin_config = 215;
+    SetPluginRunning set_plugin_running = 216;
+    RestartPlugin restart_plugin = 217;
+    UninstallPlugin uninstall_plugin = 218;
+    FetchPluginLog fetch_plugin_log = 219;
+    WatchPluginLog watch_plugin_log = 220;
+    CreatePluginDevToken create_plugin_dev_token = 221;
+    RevokePluginDevToken revoke_plugin_dev_token = 222;
+    FetchPluginDevTokens fetch_plugin_dev_tokens = 223;
   }
 }
 
@@ -202,6 +219,15 @@ message Response {
     // Uploaded songs (design 2026-10-24).
     MusicLocalMatch music_local_match = 41;
     LocalSongs local_songs = 42;
+
+    // Plugins (design 2026-11-07).
+    Plugins plugins = 43;
+    Plugin plugin = 44;
+    PluginReview plugin_review = 45;
+    PluginReviews plugin_reviews = 46;
+    PluginLog plugin_log = 47;
+    PluginDevTokens plugin_dev_tokens = 48;
+    CreatedPluginDevToken created_plugin_dev_token = 49;
   }
 }
 

@@ -282,6 +282,7 @@ impl TestClient {
             protocol_version: opencord_common::PROTOCOL_VERSION,
             host: String::new(),
             host_signature: Vec::new(),
+            features: Vec::new(),
         }
     }
 
@@ -311,6 +312,7 @@ impl TestClient {
             protocol_version: opencord_common::PROTOCOL_VERSION,
             host: host.to_owned(),
             host_signature: auth::sign(&self.key, &challenge(auth::host_binding(host))).to_vec(),
+            features: Vec::new(),
         }
     }
 

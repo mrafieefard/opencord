@@ -612,7 +612,13 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         | Kind::UploadReady(_)
         | Kind::UploadFailed(_)
         | Kind::PendingEvent(_)
-        | Kind::PrivateTypingStart(_) => return None,
+        | Kind::PrivateTypingStart(_)
+        | Kind::PluginUpdate(_)
+        | Kind::PluginRemove(_)
+        | Kind::PluginReviewUpdate(_)
+        | Kind::PluginReviewRemove(_)
+        | Kind::PluginLogAppend(_)
+        | Kind::PluginUsersUpdate(_) => return None,
     })
 }
 

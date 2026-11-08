@@ -179,6 +179,20 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdatePrivateSettings(request) => {
             private::update_private_settings(ctx, request).await
         }
+        Kind::FetchPlugins(_)
+        | Kind::FetchPluginReviews(_)
+        | Kind::ConfirmPluginReview(_)
+        | Kind::DiscardPluginReview(_)
+        | Kind::SetPluginPermissions(_)
+        | Kind::SetPluginConfig(_)
+        | Kind::SetPluginRunning(_)
+        | Kind::RestartPlugin(_)
+        | Kind::UninstallPlugin(_)
+        | Kind::FetchPluginLog(_)
+        | Kind::WatchPluginLog(_)
+        | Kind::CreatePluginDevToken(_)
+        | Kind::RevokePluginDevToken(_)
+        | Kind::FetchPluginDevTokens(_) => Err(ApiError::invalid_argument("not supported yet")),
     }
 }
 
