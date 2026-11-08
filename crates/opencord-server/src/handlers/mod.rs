@@ -17,7 +17,7 @@ mod friends;
 mod invites;
 mod lavalink;
 mod members;
-mod messages;
+pub(crate) mod messages;
 pub(crate) mod music;
 mod network;
 mod plugins;

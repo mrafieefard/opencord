@@ -321,12 +321,15 @@ async fn run_vm(
         started = start_vm(vm, env, spec) => started,
     };
     let failed = started.is_err();
+    let mut stats = Stats::default();
+    if !failed {
+        stats.sample(vm, handle);
+    }
     report(&reports, Report::Started(started));
     if failed {
         return;
     }
     let mut running = JoinSet::new();
-    let mut stats = Stats::default();
     let mut tick = tokio::time::interval(STATS_EVERY);
     loop {
         tokio::select! {

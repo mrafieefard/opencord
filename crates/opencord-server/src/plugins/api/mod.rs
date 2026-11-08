@@ -9,6 +9,7 @@
 pub mod db;
 pub mod http;
 pub mod log;
+pub mod messages;
 pub mod plugin;
 
 use std::fmt;
@@ -27,6 +28,7 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     log::install(vm, env)?;
     http::install(&vm.lua, env)?;
     db::install(&vm.lua, env)?;
+    messages::install(&vm.lua, env)?;
     #[cfg(test)]
     tests::install(&vm.lua, env)?;
     Ok(())

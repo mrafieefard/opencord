@@ -8,6 +8,8 @@ mod dev;
 mod events;
 #[path = "plugins/install.rs"]
 mod install;
+#[path = "plugins/messages.rs"]
+mod messages;
 #[path = "plugins/roles.rs"]
 mod roles;
 #[path = "plugins/runtime.rs"]
