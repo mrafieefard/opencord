@@ -7,14 +7,16 @@ use axum::body::{Body, to_bytes};
 use axum::extract::{Path, Query, State};
 use axum::http::header::CONTENT_LENGTH;
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::Response;
-use axum::routing::{get, post, put};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{any, get, post, put};
 use opencord_proto::v1 as proto;
 use proto::response::Result as Reply;
 use serde::Deserialize;
 
 use super::dev::{self, Pushed};
 use super::install;
+use super::permissions::PluginPermission;
+use crate::db;
 use crate::error::ApiError;
 use crate::media::{authorize, reply, reply_error};
 use crate::state::AppState;
@@ -24,6 +26,8 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/plugins/packages", post(upload))
         .route("/plugins/dev/{id}", put(dev_push))
         .route("/plugins/dev/{id}/log", get(dev_log))
+        .route("/plugins/{id}/hooks", any(hook_root))
+        .route("/plugins/{id}/hooks/{*path}", any(hook_path))
 }
 
 fn plugins_off() -> Response {
@@ -138,4 +142,190 @@ async fn dev_log(
     }
     let lines = dev::wait_for_log(&state, &id, query.after).await;
     reply(StatusCode::OK, Reply::PluginLog(proto::PluginLog { lines }))
+}
+
+async fn hook_root(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(query): Query<std::collections::HashMap<String, String>>,
+    method: axum::http::Method,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    handle_hook(state, id, String::new(), query, method, headers, body).await
+}
+
+async fn hook_path(
+    State(state): State<Arc<AppState>>,
+    Path((id, path)): Path<(String, String)>,
+    Query(query): Query<std::collections::HashMap<String, String>>,
+    method: axum::http::Method,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    handle_hook(state, id, path, query, method, headers, body).await
+}
+
+async fn handle_hook(
+    state: Arc<AppState>,
+    id: String,
+    path: String,
+    query: std::collections::HashMap<String, String>,
+    method: axum::http::Method,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let path = path.trim_start_matches('/').to_owned();
+
+    // 1. Check plugin existence
+    let handle = state.plugins.get(&id);
+    let handle = match handle {
+        Some(h) => h,
+        None => {
+            let in_db = match state.db.acquire().await {
+                Ok(mut conn) => db::plugins::plugin(&mut conn, &id)
+                    .await
+                    .unwrap_or(None)
+                    .is_some(),
+                Err(_) => false,
+            };
+            if in_db {
+                return (StatusCode::SERVICE_UNAVAILABLE, "plugin stopped").into_response();
+            } else {
+                return (StatusCode::NOT_FOUND, "plugin not found").into_response();
+            }
+        }
+    };
+
+    // 2. 503 when it's stopped
+    if handle.state() != proto::PluginState::Running {
+        return (StatusCode::SERVICE_UNAVAILABLE, "plugin stopped").into_response();
+    }
+
+    // 3. 403 without receive_web_requests
+    if !handle.holds(PluginPermission::ReceiveWebRequests) {
+        return (
+            StatusCode::FORBIDDEN,
+            "missing receive_web_requests permission",
+        )
+            .into_response();
+    }
+
+    // 4. 413 for a body over 1 MiB
+    let max_bytes = 1024 * 1024;
+    let declared = headers
+        .get(CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<usize>().ok());
+    if declared.is_some_and(|len| len > max_bytes) {
+        return (StatusCode::PAYLOAD_TOO_LARGE, "body exceeds 1 MiB").into_response();
+    }
+    let body_bytes = match to_bytes(body, max_bytes + 1).await {
+        Ok(bytes) if bytes.len() <= max_bytes => bytes.to_vec(),
+        _ => return (StatusCode::PAYLOAD_TOO_LARGE, "body exceeds 1 MiB").into_response(),
+    };
+
+    // 5. 429 past 60 a minute for the plugin
+    if state.rate_limits.check_web_hook(&id).is_err() {
+        return (StatusCode::TOO_MANY_REQUESTS, "rate limited").into_response();
+    }
+
+    // 6. 404 when no handler for that exact path
+    if !handle.has_hook(&path) {
+        return (StatusCode::NOT_FOUND, "no handler for path").into_response();
+    }
+
+    // 7. Prepare request: method, path, query, headers (lowercase, no cookie), body
+    let mut query_map = serde_json::Map::new();
+    for (k, v) in query {
+        query_map.insert(k, serde_json::Value::String(v));
+    }
+
+    let mut headers_map = serde_json::Map::new();
+    for (name, value) in &headers {
+        let name_lower = name.as_str().to_ascii_lowercase();
+        if name_lower != "cookie"
+            && let Ok(v_str) = value.to_str()
+        {
+            headers_map.insert(name_lower, serde_json::Value::String(v_str.to_owned()));
+        }
+    }
+
+    let body_str = String::from_utf8_lossy(&body_bytes).into_owned();
+
+    let timeout_duration = state
+        .config
+        .plugins
+        .hook_timeout_ms
+        .map(|ms| std::time::Duration::from_millis(u64::from(ms)))
+        .unwrap_or(std::time::Duration::from_secs(10));
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let event = crate::plugins::PluginEvent {
+        name: "hook".to_owned(),
+        payload: serde_json::json!({
+            "method": method.as_str(),
+            "path": path,
+            "query": serde_json::Value::Object(query_map),
+            "headers": serde_json::Value::Object(headers_map),
+            "body": body_str,
+        }),
+        reply: Some(tx),
+    };
+    handle.deliver(event);
+
+    let answer = match tokio::time::timeout(timeout_duration, rx).await {
+        Ok(Ok(val)) => val,
+        Ok(Err(_)) => {
+            handle.log().push(
+                proto::PluginLogLevel::Action,
+                &format!("hook {} {} → 500", method.as_str(), path),
+            );
+            return (StatusCode::INTERNAL_SERVER_ERROR, "handler failed").into_response();
+        }
+        Err(_) => {
+            handle.log().push(
+                proto::PluginLogLevel::Action,
+                &format!("hook {} {} → 504", method.as_str(), path),
+            );
+            return (StatusCode::GATEWAY_TIMEOUT, "hook timed out").into_response();
+        }
+    };
+
+    let status_code = answer
+        .get("status")
+        .and_then(|v| v.as_u64())
+        .and_then(|s| u16::try_from(s).ok())
+        .and_then(|s| StatusCode::from_u16(s).ok())
+        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+
+    handle.log().push(
+        proto::PluginLogLevel::Action,
+        &format!(
+            "hook {} {} → {}",
+            method.as_str(),
+            path,
+            status_code.as_u16()
+        ),
+    );
+
+    let mut resp_headers = HeaderMap::new();
+    if let Some(headers_obj) = answer.get("headers").and_then(|v| v.as_object()) {
+        for (k, v) in headers_obj {
+            if !k.eq_ignore_ascii_case("set-cookie")
+                && let (Ok(hname), Some(v_str)) =
+                    (axum::http::HeaderName::from_bytes(k.as_bytes()), v.as_str())
+                && let Ok(hval) = axum::http::HeaderValue::from_str(v_str)
+            {
+                resp_headers.insert(hname, hval);
+            }
+        }
+    }
+    let resp_body = answer
+        .get("body")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_owned();
+
+    (status_code, resp_headers, resp_body).into_response()
 }

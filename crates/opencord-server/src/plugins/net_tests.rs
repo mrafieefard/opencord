@@ -2,7 +2,7 @@
 //! 127.0.0.1; the test resolver points public-looking names at it, which
 //! only [`AddressPolicy::LoopbackForTests`] lets through.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::convert::Infallible;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, RwLock, Weak};
@@ -100,6 +100,7 @@ fn env(net: PluginNet, granted: &[PluginPermission]) -> (Vm, Arc<PluginEnv>) {
         db: crate::plugins::database::PluginDb::unused(),
         files_dir: std::path::PathBuf::new(),
         files_bytes: 5120 * 1024 * 1024,
+        hooks: Arc::new(RwLock::new(HashSet::new())),
     });
     (vm, env)
 }

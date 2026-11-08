@@ -31,6 +31,8 @@ pub struct RateLimits {
     key_claims: DefaultKeyedRateLimiter<i64>,
     /// Per dev token.
     dev_pushes: DefaultKeyedRateLimiter<i64>,
+    /// Per plugin id for web hooks (60/min).
+    web_hooks: DefaultKeyedRateLimiter<String>,
     clock: DefaultClock,
 }
 
@@ -66,6 +68,10 @@ impl RateLimits {
             dev_pushes: DefaultKeyedRateLimiter::keyed(quota(RateLimit {
                 burst: DEV_PUSHES_PER_SECOND,
                 period: Duration::from_secs(1),
+            })),
+            web_hooks: DefaultKeyedRateLimiter::keyed(quota(RateLimit {
+                burst: 60,
+                period: Duration::from_secs(60),
             })),
             clock: DefaultClock::default(),
         }
@@ -161,6 +167,12 @@ impl RateLimits {
             .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
     }
 
+    pub fn check_web_hook(&self, plugin_id: &str) -> Result<(), Duration> {
+        self.web_hooks
+            .check_key(&plugin_id.to_string())
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
     /// Forgets keys whose limits have fully recovered.
     pub fn prune(&self) {
         self.identify.retain_recent();
@@ -179,6 +191,7 @@ impl RateLimits {
         self.private_messages.retain_recent();
         self.key_claims.retain_recent();
         self.dev_pushes.retain_recent();
+        self.web_hooks.retain_recent();
     }
 }
 

@@ -173,6 +173,7 @@ pub struct PluginsSection {
     pub handler_ms: u32,
     pub database_mb: u32,
     pub files_mb: u32,
+    pub hook_timeout_ms: Option<u32>,
 }
 
 impl Default for PluginsSection {
@@ -185,6 +186,7 @@ impl Default for PluginsSection {
             handler_ms: 100,
             database_mb: 1024,
             files_mb: 5120,
+            hook_timeout_ms: None,
         }
     }
 }

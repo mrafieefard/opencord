@@ -14,6 +14,8 @@ mod events;
 mod files;
 #[path = "plugins/guild.rs"]
 mod guild;
+#[path = "plugins/hooks.rs"]
+mod hooks;
 #[path = "plugins/install.rs"]
 mod install;
 #[path = "plugins/messages.rs"]

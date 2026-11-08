@@ -72,6 +72,8 @@ pub struct PluginEnv {
     /// `files` in the plugin's folder, and its quota.
     pub files_dir: PathBuf,
     pub files_bytes: u64,
+    /// Hook paths registered via `hooks.on`.
+    pub hooks: Arc<RwLock<HashSet<String>>>,
 }
 
 impl PluginEnv {
@@ -301,6 +303,7 @@ fn spawn_vm(
                 db,
                 files_dir: spec.files_dir.clone(),
                 files_bytes: spec.files_bytes,
+                hooks: handle.hooks.clone(),
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));
@@ -619,6 +622,44 @@ fn to_json(lua: &Lua, args: Variadic<Value>) -> mlua::Result<serde_json::Value> 
         .map_err(|error| raise(format!("INVALID_ARGUMENT: {error}")))
 }
 
+fn parse_hook_response(res: mlua::Result<Value>) -> serde_json::Value {
+    let Ok(Value::Table(table)) = res else {
+        return serde_json::json!({ "status": 500 });
+    };
+    let status = match table.get::<Option<i64>>("status") {
+        Ok(Some(s)) if (100..=599).contains(&s) => s,
+        _ => return serde_json::json!({ "status": 500 }),
+    };
+    let mut headers = serde_json::Map::new();
+    if let Ok(Some(headers_table)) = table.get::<Option<Table>>("headers") {
+        for pair in headers_table.pairs::<Value, Value>() {
+            if let Ok((Value::String(k), v_val)) = pair
+                && let Ok(k_str) = k.to_str()
+                && !k_str.eq_ignore_ascii_case("set-cookie")
+            {
+                let v_str = match v_val {
+                    Value::String(s) => s.to_str().map(|b| b.to_string()).unwrap_or_default(),
+                    Value::Integer(i) => i.to_string(),
+                    Value::Number(n) => n.to_string(),
+                    Value::Boolean(b) => b.to_string(),
+                    _ => String::new(),
+                };
+                headers.insert(k_str.to_ascii_lowercase(), serde_json::Value::String(v_str));
+            }
+        }
+    }
+    let body = match table.get::<Option<Value>>("body") {
+        Ok(Some(Value::String(s))) => s.to_str().map(|b| b.to_string()).unwrap_or_default(),
+        Ok(Some(Value::Buffer(b))) => String::from_utf8_lossy(&b.to_vec()).into_owned(),
+        _ => String::new(),
+    };
+    serde_json::json!({
+        "status": status,
+        "headers": serde_json::Value::Object(headers),
+        "body": body,
+    })
+}
+
 /// Runs each handler for the event in its own task, with its own budget.
 fn dispatch(
     vm: &Vm,
@@ -634,6 +675,45 @@ fn dispatch(
         payload,
         reply,
     } = event;
+
+    if name == "hook" {
+        let path = payload
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let hooks_registry: Table = match vm.lua.named_registry_value(api::hooks::HOOKS) {
+            Ok(t) => t,
+            Err(error) => return failed(env, reports, &name, error, limit),
+        };
+        let handler: Option<Function> = hooks_registry.raw_get(path).ok();
+        let Some(handler) = handler else {
+            return;
+        };
+        let options = mlua::SerializeOptions::new()
+            .serialize_none_to_null(false)
+            .serialize_unit_to_null(false)
+            .set_array_metatable(false);
+        let request_val = match vm.lua.to_value_with(&payload, options) {
+            Ok(v) => v,
+            Err(error) => return failed(env, reports, &name, error, limit),
+        };
+        let (env_c, reports_c, name_c) = (env.clone(), reports.clone(), name.clone());
+        let call = Budgeted::new(env.budget.clone(), limit, async move {
+            let res = handler.call_async::<Value>(request_val).await;
+            if let Some(reply) = reply {
+                let answer = parse_hook_response(res);
+                let _ = reply.send(answer);
+            }
+            Ok::<(), mlua::Error>(())
+        });
+        running.spawn(async move {
+            if let Err(error) = call.await {
+                failed(&env_c, &reports_c, &name_c, error, limit);
+            }
+        });
+        return;
+    }
+
     let handlers = match handlers_for(&vm.lua, &name) {
         Ok(handlers) => handlers,
         Err(error) => return failed(env, reports, &name, error, limit),

@@ -93,6 +93,7 @@ pub struct PluginHandle {
     memory_bytes: AtomicU64,
     stopping: watch::Sender<bool>,
     supervisor: tokio::sync::Mutex<Option<JoinHandle<()>>>,
+    pub(crate) hooks: Arc<RwLock<HashSet<String>>>,
 }
 
 struct Status {
@@ -182,6 +183,20 @@ impl PluginHandle {
         *self.status() = Status { state, reason };
     }
 
+    pub fn has_hook(&self, path: &str) -> bool {
+        self.hooks
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(path)
+    }
+
+    pub fn clear_hooks(&self) {
+        self.hooks
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+    }
+
     /// Delivers `stop`, waits the grace, ends the VM. A crashed plugin
     /// stays crashed.
     async fn stop(&self) {
@@ -204,6 +219,7 @@ impl PluginHandle {
                 };
             }
         }
+        self.clear_hooks();
         self.queue.clear();
     }
 }
@@ -322,6 +338,7 @@ impl Plugins {
             memory_bytes: AtomicU64::new(0),
             stopping,
             supervisor: tokio::sync::Mutex::new(None),
+            hooks: Arc::new(RwLock::new(HashSet::new())),
         });
         self.handles
             .write()

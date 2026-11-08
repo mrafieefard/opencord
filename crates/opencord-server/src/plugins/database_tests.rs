@@ -63,6 +63,7 @@ async fn plugin() -> (Vm, Arc<PluginEnv>, tempfile::TempDir) {
         db,
         files_dir: dir.path().join("files"),
         files_bytes: 5120 * 1024 * 1024,
+        hooks: Arc::new(RwLock::new(std::collections::HashSet::new())),
     });
     vm.budget().start(Duration::from_secs(5));
     api::install(&vm, &env).unwrap();

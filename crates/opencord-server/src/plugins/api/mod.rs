@@ -10,6 +10,7 @@ pub mod commands;
 pub mod db;
 pub mod files;
 pub mod guild;
+pub mod hooks;
 pub mod http;
 pub mod log;
 pub mod messages;
@@ -37,7 +38,8 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     guild::install(&vm.lua, env)?;
     voice::install(&vm.lua, env)?;
     files::install(&vm.lua, env)?;
-    #[cfg(test)]
+    hooks::install(&vm.lua, env)?;
+    #[cfg(any(test, debug_assertions))]
     tests::install(&vm.lua, env)?;
     Ok(())
 }
@@ -182,7 +184,7 @@ pub fn string_arg(value: Value, what: &str) -> mlua::Result<String> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, debug_assertions))]
 mod tests {
     //! `wait(seconds)`, for the runtime's tests of cancelling waits.
 
