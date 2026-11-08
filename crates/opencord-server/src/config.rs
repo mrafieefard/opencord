@@ -114,6 +114,23 @@ max_pending_per_device = 5000
 # events. 7 to 365. OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS
 device_expiry_days = 60
 
+[plugins]
+# Plugins: server Lua scripts admins install from Server settings →
+# Plugins (design 2026-11-07). OPENCORD_PLUGINS_ENABLED
+enabled = true
+# Most plugins installed at once. 1 to 200.
+max_plugins = 50
+# Largest plugin zip, in MB. 1 to 500.
+max_package_mb = 50
+# Memory each plugin's server scripts may use, in MB. 16 to 1024.
+memory_mb = 128
+# CPU time one event handler may use, in ms. 10 to 5000.
+handler_ms = 100
+# Each plugin's database, in MB. 16 to 10240.
+database_mb = 1024
+# Each plugin's files, in MB. 16 to 102400.
+files_mb = 5120
+
 [network]
 # Services that answer with the address a request came from, used to find
 # the server's public address. Empty turns detection off; the owner can
@@ -142,6 +159,34 @@ pub struct Config {
     pub acme: AcmeSection,
     pub tunnel: TunnelSection,
     pub private_messages: PrivateMessagesSection,
+    pub plugins: PluginsSection,
+}
+
+/// Plugins: server scripts, custom channels and activities (design 2026-11-07).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PluginsSection {
+    pub enabled: bool,
+    pub max_plugins: u32,
+    pub max_package_mb: u32,
+    pub memory_mb: u32,
+    pub handler_ms: u32,
+    pub database_mb: u32,
+    pub files_mb: u32,
+}
+
+impl Default for PluginsSection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_plugins: 50,
+            max_package_mb: 50,
+            memory_mb: 128,
+            handler_ms: 100,
+            database_mb: 1024,
+            files_mb: 5120,
+        }
+    }
 }
 
 /// Private messages, friends and offline delivery (design 2026-10-22).
@@ -505,6 +550,42 @@ impl Config {
                 message: "must be between 7 and 365".to_string(),
             });
         }
+        if !(1..=200).contains(&config.plugins.max_plugins) {
+            return Err(ConfigError::Invalid {
+                key: "plugins.max_plugins",
+                message: "must be between 1 and 200".to_string(),
+            });
+        }
+        if !(1..=500).contains(&config.plugins.max_package_mb) {
+            return Err(ConfigError::Invalid {
+                key: "plugins.max_package_mb",
+                message: "must be between 1 and 500".to_string(),
+            });
+        }
+        if !(16..=1024).contains(&config.plugins.memory_mb) {
+            return Err(ConfigError::Invalid {
+                key: "plugins.memory_mb",
+                message: "must be between 16 and 1024".to_string(),
+            });
+        }
+        if !(10..=5000).contains(&config.plugins.handler_ms) {
+            return Err(ConfigError::Invalid {
+                key: "plugins.handler_ms",
+                message: "must be between 10 and 5000".to_string(),
+            });
+        }
+        if !(16..=10240).contains(&config.plugins.database_mb) {
+            return Err(ConfigError::Invalid {
+                key: "plugins.database_mb",
+                message: "must be between 16 and 10240".to_string(),
+            });
+        }
+        if !(16..=102400).contains(&config.plugins.files_mb) {
+            return Err(ConfigError::Invalid {
+                key: "plugins.files_mb",
+                message: "must be between 16 and 102400".to_string(),
+            });
+        }
         Ok(Loaded {
             config,
             created: loaded.created,
@@ -536,6 +617,10 @@ impl Config {
 
     pub fn max_file_bytes(&self) -> u64 {
         self.uploads.max_file_mb * opencord_common::upload::MIB
+    }
+
+    pub fn plugins_dir(&self) -> PathBuf {
+        self.server.data_dir.join("plugins")
     }
 
     fn with_env(self, env: &impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
@@ -626,6 +711,9 @@ impl Config {
         if let Some(value) = env("OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS") {
             config.private_messages.device_expiry_days =
                 parse_env("OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS", value)?;
+        }
+        if let Some(value) = env("OPENCORD_PLUGINS_ENABLED") {
+            config.plugins.enabled = parse_env("OPENCORD_PLUGINS_ENABLED", value)?;
         }
         Ok(config)
     }
@@ -760,6 +848,7 @@ mod tests {
             ("OPENCORD_PRIVATE_UNDELIVERED_DAYS", "45"),
             ("OPENCORD_PRIVATE_MAX_PENDING_PER_DEVICE", "2500"),
             ("OPENCORD_PRIVATE_DEVICE_EXPIRY_DAYS", "90"),
+            ("OPENCORD_PLUGINS_ENABLED", "false"),
         ]);
 
         let config = Config::load_or_create(&path, |name| env.get(name).map(|v| (*v).to_owned()))
@@ -784,6 +873,7 @@ mod tests {
         assert_eq!(config.private_messages.undelivered_days, 45);
         assert_eq!(config.private_messages.max_pending_per_device, 2500);
         assert_eq!(config.private_messages.device_expiry_days, 90);
+        assert!(!config.plugins.enabled);
     }
 
     #[test]
@@ -999,6 +1089,40 @@ mod tests {
                 }
                 other => panic!(
                     "for {var}={bad}, expected ConfigError::Invalid with key {expected_key}, got {:?}",
+                    other
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn plugin_limits_out_of_range_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opencord.toml");
+
+        let cases = [
+            ("max_plugins", "0", "plugins.max_plugins"),
+            ("max_plugins", "201", "plugins.max_plugins"),
+            ("max_package_mb", "0", "plugins.max_package_mb"),
+            ("max_package_mb", "501", "plugins.max_package_mb"),
+            ("memory_mb", "15", "plugins.memory_mb"),
+            ("memory_mb", "1025", "plugins.memory_mb"),
+            ("handler_ms", "9", "plugins.handler_ms"),
+            ("handler_ms", "5001", "plugins.handler_ms"),
+            ("database_mb", "15", "plugins.database_mb"),
+            ("database_mb", "10241", "plugins.database_mb"),
+            ("files_mb", "15", "plugins.files_mb"),
+            ("files_mb", "102401", "plugins.files_mb"),
+        ];
+
+        for (field, bad, expected_key) in cases {
+            fs::write(&path, format!("[plugins]\n{field} = {bad}\n")).unwrap();
+            match Config::load_or_create(&path, no_env) {
+                Err(ConfigError::Invalid { key, .. }) => {
+                    assert_eq!(key, expected_key);
+                }
+                other => panic!(
+                    "for {field}={bad}, expected ConfigError::Invalid with key {expected_key}, got {:?}",
                     other
                 ),
             }
