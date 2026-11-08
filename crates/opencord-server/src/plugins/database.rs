@@ -157,7 +157,7 @@ pub struct PluginDb {
 
 /// Opens (creating it if needed) the database at `path`, at most
 /// `max_bytes` large. Call it on the runtime its calls should run on.
-pub async fn open(path: &Path, max_bytes: u64) -> Result<PluginDb, sqlx::Error> {
+pub async fn open(path: &Path, max_bytes: u64, memory_cap: usize) -> Result<PluginDb, sqlx::Error> {
     if let Some(folder) = path.parent() {
         tokio::fs::create_dir_all(folder).await?;
     }
@@ -166,9 +166,10 @@ pub async fn open(path: &Path, max_bytes: u64) -> Result<PluginDb, sqlx::Error> 
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .busy_timeout(BUSY_TIMEOUT);
+    let max_length = i32::try_from(memory_cap).unwrap_or(i32::MAX);
     let pool = SqlitePoolOptions::new()
         .max_connections(MAX_CONNECTIONS)
-        .after_connect(move |conn, _| Box::pin(lock_down(conn, max_bytes)))
+        .after_connect(move |conn, _| Box::pin(lock_down(conn, max_bytes, max_length)))
         .connect_with(options)
         .await?;
     Ok(PluginDb {
@@ -491,7 +492,11 @@ impl Deadline {
 }
 
 /// What every connection gets before the plugin's first statement.
-async fn lock_down(conn: &mut SqliteConnection, max_bytes: u64) -> Result<(), sqlx::Error> {
+async fn lock_down(
+    conn: &mut SqliteConnection,
+    max_bytes: u64,
+    max_length: i32,
+) -> Result<(), sqlx::Error> {
     let page_size: i64 = sqlx::query_scalar("PRAGMA page_size")
         .fetch_one(&mut *conn)
         .await?;
@@ -507,6 +512,7 @@ async fn lock_down(conn: &mut SqliteConnection, max_bytes: u64) -> Result<(), sq
     // so its null user data stays valid for the connection's life.
     let configured = unsafe {
         ffi::sqlite3_limit(db, ffi::SQLITE_LIMIT_ATTACHED, 0);
+        ffi::sqlite3_limit(db, ffi::SQLITE_LIMIT_LENGTH, max_length);
         let mut defensive: c_int = 0;
         let defended = ffi::sqlite3_db_config(
             db,

@@ -38,8 +38,8 @@ async fn the_bus_needs_the_permission_on_both_sides() {
         local ok, err = pcall(function()
             plugins.emit("hello", { greeting = "world" })
         end)
-        if not ok then
-            log.info("emit_denied: " .. tostring(err))
+        if not ok and type(err) == "string" then
+            log.info("emit_denied: " .. err)
         end
         "#,
     )
@@ -57,8 +57,8 @@ async fn the_bus_needs_the_permission_on_both_sides() {
         local ok, err = pcall(function()
             plugins.on("bus-sender", "hello", function(data) end)
         end)
-        if not ok then
-            log.info("listen_denied: " .. tostring(err))
+        if not ok and type(err) == "string" then
+            log.info("listen_denied: " .. err)
         end
         "#,
     )
@@ -94,8 +94,8 @@ async fn the_bus_needs_the_permission_on_both_sides() {
         local ok, err = pcall(function()
             plugins.emit("oversized", big_data)
         end)
-        if not ok then
-            log.info("oversized_refused: " .. tostring(err))
+        if not ok and type(err) == "string" then
+            log.info("oversized_refused: " .. err)
         end
 
         -- Normal emit
@@ -106,4 +106,46 @@ async fn the_bus_needs_the_permission_on_both_sides() {
 
     wait_for_log(&mut owner, "bus-sender", "oversized_refused:").await;
     wait_for_log(&mut owner, "bus-receiver", "bus_received: pong").await;
+}
+
+#[tokio::test]
+async fn plugin_calls_and_emit_are_rate_limited() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let _p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "rate-limited-plugin",
+        &["talk_to_plugins"],
+        &format!(
+            r#"
+            local hit_rate_limit = false
+            for i = 1, {} do
+                local ok, err = pcall(function()
+                    plugins.emit("spam", {{ i = i }})
+                end)
+                if not ok and string.find(tostring(err), "RATE_LIMITED") then
+                    hit_rate_limit = true
+                    break
+                end
+            end
+            if hit_rate_limit then
+                log.info("rate_limited_as_expected")
+            else
+                log.info("did_not_hit_rate_limit")
+            end
+            "#,
+            opencord_common::limits::REQUEST_RATE.burst + 15
+        ),
+    )
+    .await;
+
+    wait_for_log(
+        &mut owner,
+        "rate-limited-plugin",
+        "rate_limited_as_expected",
+    )
+    .await;
 }

@@ -8,7 +8,7 @@ use mlua::{Lua, LuaSerdeExt, Value};
 use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
 
-use super::{async_function, raise};
+use super::{async_function, id_arg, raise};
 use crate::db::messages;
 use crate::error::ApiError;
 use crate::handlers::{self, Ctx};
@@ -29,8 +29,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let env = send_env.clone();
                 async move {
                     env.require(PluginPermission::SendMessages)?;
-                    let channel_id = parse_id_arg(channel_val, "channel_id")?;
+                    let channel_id = id_arg(channel_val, "channel_id")?;
                     let content = parse_content_arg(content_val, true)?;
+                    env.check_rate_limit()?;
 
                     let state = env.state()?;
                     let plugin_id = env.plugin_id.clone();
@@ -52,9 +53,20 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                     match resp {
                         Response::Message(msg) => {
-                            let state = env.state()?;
-                            let guild = state.guild();
-                            let table = events::message_table(&msg, &guild);
+                            let (table, ch_name) = {
+                                let state = env.state()?;
+                                let guild = state.guild();
+                                let ch_name = guild
+                                    .channels
+                                    .get(&channel_id)
+                                    .map(|c| c.name.clone())
+                                    .unwrap_or_else(|| channel_id.to_string());
+                                (events::message_table(&msg, &guild), ch_name)
+                            };
+                            env.log.push(
+                                proto::PluginLogLevel::Action,
+                                &format!("sent message in #{ch_name}"),
+                            );
                             to_lua_value(&lua, &table)
                         }
                         _ => Err(raise("INTERNAL: expected message response")),
@@ -74,8 +86,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let env = edit_env.clone();
                 async move {
                     env.require(PluginPermission::SendMessages)?;
-                    let message_id = parse_id_arg(message_val, "message_id")?;
+                    let message_id = id_arg(message_val, "message_id")?;
                     let content = parse_content_arg(content_val, false)?;
+                    env.check_rate_limit()?;
 
                     let state = env.state()?;
                     let plugin_id = env.plugin_id.clone();
@@ -95,9 +108,15 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                     match resp {
                         Response::Message(msg) => {
-                            let state = env.state()?;
-                            let guild = state.guild();
-                            let table = events::message_table(&msg, &guild);
+                            let table = {
+                                let state = env.state()?;
+                                let guild = state.guild();
+                                events::message_table(&msg, &guild)
+                            };
+                            env.log.push(
+                                proto::PluginLogLevel::Action,
+                                &format!("edited message {message_id}"),
+                            );
                             to_lua_value(&lua, &table)
                         }
                         _ => Err(raise("INTERNAL: expected message response")),
@@ -114,7 +133,8 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
         async_function(lua, move |_lua, message_val: Value| {
             let env = delete_env.clone();
             async move {
-                let message_id = parse_id_arg(message_val, "message_id")?;
+                let message_id = id_arg(message_val, "message_id")?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
@@ -146,6 +166,10 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     }
                 })?;
 
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("deleted message {message_id}"),
+                );
                 Ok(())
             }
         })?,
@@ -161,14 +185,15 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let env = fetch_env.clone();
                 async move {
                     env.require(PluginPermission::ReadMessages)?;
-                    let channel_id = parse_id_arg(channel_val, "channel_id")?;
+                    let channel_id = id_arg(channel_val, "channel_id")?;
+                    env.check_rate_limit()?;
 
                     let (before, limit) = match options_val {
                         None | Some(Value::Nil) => (None, None),
                         Some(Value::Table(table)) => {
                             let before = match table.get::<Value>("before")? {
                                 Value::Nil => None,
-                                val => Some(parse_id_arg(val, "before")?),
+                                val => Some(id_arg(val, "before")?),
                             };
                             let limit = match table.get::<Value>("limit")? {
                                 Value::Nil => None,
@@ -210,13 +235,14 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                     match resp {
                         Response::Messages(list) => {
-                            let state = env.state()?;
-                            let guild = state.guild();
-                            let tables: Vec<serde_json::Value> = list
-                                .messages
-                                .iter()
-                                .map(|m| events::message_table(m, &guild))
-                                .collect();
+                            let tables = {
+                                let state = env.state()?;
+                                let guild = state.guild();
+                                list.messages
+                                    .iter()
+                                    .map(|m| events::message_table(m, &guild))
+                                    .collect::<Vec<_>>()
+                            };
                             to_lua_value(&lua, &serde_json::Value::Array(tables))
                         }
                         _ => Err(raise("INTERNAL: expected message list response")),
@@ -237,7 +263,8 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = typing_env.clone();
             async move {
                 env.require(PluginPermission::SendMessages)?;
-                let channel_id = parse_id_arg(channel_val, "channel_id")?;
+                let channel_id = id_arg(channel_val, "channel_id")?;
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -259,22 +286,6 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     lua.globals().raw_set("typing", typing)?;
 
     Ok(())
-}
-
-fn parse_id_arg(value: Value, name: &str) -> mlua::Result<i64> {
-    match value {
-        Value::String(s) => {
-            let str_val = s
-                .to_str()
-                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} must be an id string")))?;
-            str_val
-                .parse::<i64>()
-                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} must be an id string")))
-        }
-        _ => Err(raise(format!(
-            "INVALID_ARGUMENT: {name} must be an id string"
-        ))),
-    }
 }
 
 fn parse_content_arg(value: Value, check_files: bool) -> mlua::Result<String> {

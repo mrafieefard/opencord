@@ -211,7 +211,17 @@ async fn handle_hook(
             .into_response();
     }
 
-    // 4. 413 for a body over 1 MiB
+    // 4. 404 when no handler for that exact path (cheapest check before body/rate limit)
+    if !handle.has_hook(&path) {
+        return (StatusCode::NOT_FOUND, "no handler for path").into_response();
+    }
+
+    // 5. 429 past 60 a minute for the plugin (checked before reading body)
+    if state.rate_limits.check_web_hook(&id).is_err() {
+        return (StatusCode::TOO_MANY_REQUESTS, "rate limited").into_response();
+    }
+
+    // 6. 413 for a body over 1 MiB
     let max_bytes = 1024 * 1024;
     let declared = headers
         .get(CONTENT_LENGTH)
@@ -224,16 +234,6 @@ async fn handle_hook(
         Ok(bytes) if bytes.len() <= max_bytes => bytes.to_vec(),
         _ => return (StatusCode::PAYLOAD_TOO_LARGE, "body exceeds 1 MiB").into_response(),
     };
-
-    // 5. 429 past 60 a minute for the plugin
-    if state.rate_limits.check_web_hook(&id).is_err() {
-        return (StatusCode::TOO_MANY_REQUESTS, "rate limited").into_response();
-    }
-
-    // 6. 404 when no handler for that exact path
-    if !handle.has_hook(&path) {
-        return (StatusCode::NOT_FOUND, "no handler for path").into_response();
-    }
 
     // 7. Prepare request: method, path, query, headers (lowercase, no cookie), body
     let mut query_map = serde_json::Map::new();
@@ -253,13 +253,6 @@ async fn handle_hook(
 
     let body_str = String::from_utf8_lossy(&body_bytes).into_owned();
 
-    let timeout_duration = state
-        .config
-        .plugins
-        .hook_timeout_ms
-        .map(|ms| std::time::Duration::from_millis(u64::from(ms)))
-        .unwrap_or(std::time::Duration::from_secs(10));
-
     let (tx, rx) = tokio::sync::oneshot::channel();
     let event = crate::plugins::PluginEvent {
         name: "hook".to_owned(),
@@ -274,7 +267,7 @@ async fn handle_hook(
     };
     handle.deliver(event);
 
-    let answer = match tokio::time::timeout(timeout_duration, rx).await {
+    let answer = match tokio::time::timeout(std::time::Duration::from_secs(10), rx).await {
         Ok(Ok(val)) => val,
         Ok(Err(_)) => {
             handle.log().push(
@@ -309,10 +302,24 @@ async fn handle_hook(
         ),
     );
 
+    const FORBIDDEN_HOOK_RESPONSE_HEADERS: &[&str] = &[
+        "set-cookie",
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "keep-alive",
+        "proxy-connection",
+        "te",
+        "trailer",
+        "upgrade",
+    ];
+
     let mut resp_headers = HeaderMap::new();
     if let Some(headers_obj) = answer.get("headers").and_then(|v| v.as_object()) {
         for (k, v) in headers_obj {
-            if !k.eq_ignore_ascii_case("set-cookie")
+            if !FORBIDDEN_HOOK_RESPONSE_HEADERS
+                .iter()
+                .any(|forbidden| k.eq_ignore_ascii_case(forbidden))
                 && let (Ok(hname), Some(v_str)) =
                     (axum::http::HeaderName::from_bytes(k.as_bytes()), v.as_str())
                 && let Ok(hval) = axum::http::HeaderValue::from_str(v_str)

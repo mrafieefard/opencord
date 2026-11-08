@@ -83,3 +83,83 @@ async fn an_endless_loop_does_not_delay_chat() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn a_restart_clears_timers_hooks_and_bus() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let zip = package(&[
+        (
+            "manifest.lua",
+            &manifest(
+                "crasher",
+                &[
+                    "receive_web_requests",
+                    "talk_to_plugins",
+                    "register_commands",
+                ],
+            ),
+        ),
+        (
+            "server/main.luau",
+            r#"
+            hooks.on("ping", function(req)
+                return { status = 200, body = "pong" }
+            end)
+            timer.every(10, function() end)
+            commands.register({ name = "ping", description = "pong" }, function() end)
+            plugins.on("other", "ev", function() end)
+            log.info("hook_registered")
+            "#,
+        ),
+    ]);
+    install(
+        &server,
+        &mut owner,
+        &media_token(&ready),
+        zip,
+        &[
+            "receive_web_requests",
+            "talk_to_plugins",
+            "register_commands",
+        ],
+    )
+    .await;
+
+    wait_for_log(&mut owner, "crasher", "hook_registered").await;
+
+    // Verify hook works
+    let (status, body) = server
+        .send_http("GET", "/plugins/crasher/hooks/ping", &[], b"")
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(body, b"pong");
+
+    // Stop the plugin
+    owner
+        .ok(Kind::SetPluginRunning(proto::SetPluginRunning {
+            plugin_id: "crasher".to_owned(),
+            running: false,
+        }))
+        .await;
+
+    // Verify hook returns 503 when stopped
+    let (status, _) = server
+        .send_http("GET", "/plugins/crasher/hooks/ping", &[], b"")
+        .await;
+    assert_eq!(status, 503);
+
+    // Uninstall the plugin
+    owner
+        .ok(Kind::UninstallPlugin(proto::UninstallPlugin {
+            plugin_id: "crasher".to_owned(),
+            delete_data: false,
+        }))
+        .await;
+
+    // Verify hook is now gone (404)
+    let (status, _) = server
+        .send_http("GET", "/plugins/crasher/hooks/ping", &[], b"")
+        .await;
+    assert_eq!(status, 404);
+}

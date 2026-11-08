@@ -116,21 +116,32 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             if choices.len() >= 25 {
                                 return Err(raise("INVALID_ARGUMENT: at most 25 choices"));
                             }
-                            if let Value::Table(ct) = item {
-                                let c_name: String = ct
-                                    .get("name")
-                                    .or_else(|_| ct.get(1))
-                                    .map_err(|_| raise("INVALID_ARGUMENT: choice name required"))?;
-                                let c_val: String =
-                                    ct.get("value").or_else(|_| ct.get(2)).map_err(|_| {
-                                        raise("INVALID_ARGUMENT: choice value required")
-                                    })?;
-                                choices.push(proto::CommandChoice {
-                                    name: c_name,
-                                    value: c_val,
-                                    artwork_id: String::new(),
-                                });
+                            let ct = match item {
+                                Value::Table(ct) => ct,
+                                _ => {
+                                    return Err(raise("INVALID_ARGUMENT: choice must be a table"));
+                                }
+                            };
+                            let c_name: String = ct
+                                .get("name")
+                                .or_else(|_| ct.get(1))
+                                .map_err(|_| raise("INVALID_ARGUMENT: choice name required"))?;
+                            let c_val: String =
+                                ct.get("value").or_else(|_| ct.get(2)).map_err(|_| {
+                                    raise("INVALID_ARGUMENT: choice value required")
+                                })?;
+                            let c_name_len = c_name.chars().count();
+                            let c_val_len = c_val.chars().count();
+                            if !(1..=100).contains(&c_name_len) || !(1..=100).contains(&c_val_len) {
+                                return Err(raise(
+                                    "INVALID_ARGUMENT: choice name and value must be 1 to 100 characters",
+                                ));
                             }
+                            choices.push(proto::CommandChoice {
+                                name: c_name,
+                                value: c_val,
+                                artwork_id: String::new(),
+                            });
                         }
                     }
 
@@ -151,6 +162,8 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             if crate::commands::find(&name).is_some() {
                 return Err(raise(format!("INVALID_ARGUMENT: /{name} is already taken")));
             }
+
+            env_reg.check_rate_limit()?;
 
             let state = env_reg.state()?;
             if let Some(other) = state.commands.find_plugin(&name)
@@ -176,6 +189,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .register_plugin(&env_reg.plugin_id, spec)
                 .map_err(PluginEnv::api_error)?;
             crate::commands::announce(&state);
+            env_reg
+                .log
+                .push(proto::PluginLogLevel::Action, &format!("registered command /{name}"));
             tracing::info!(plugin = %env_reg.plugin_id, %name, "registered command");
             Ok(())
         })?,
@@ -188,12 +204,17 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
         function(lua, move |_lua, name: String| {
             env_unreg.require(PluginPermission::RegisterCommands)?;
             let name = name.trim_start_matches('/').to_ascii_lowercase();
+            env_unreg.check_rate_limit()?;
             let state = env_unreg.state()?;
             if state
                 .commands
                 .unregister_plugin(&env_unreg.plugin_id, &name)
             {
                 crate::commands::announce(&state);
+                env_unreg.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("unregistered command /{name}"),
+                );
                 tracing::info!(plugin = %env_unreg.plugin_id, %name, "unregistered command");
             }
             Ok(())

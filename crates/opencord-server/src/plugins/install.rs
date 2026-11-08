@@ -834,9 +834,62 @@ pub async fn set_permissions(
                 &format!("{admin} revoked {name}"),
             );
         }
+        if held.contains("register_commands")
+            && !now.contains("register_commands")
+            && state.commands.remove_for_plugin(&id)
+        {
+            crate::commands::announce(state);
+        }
     }
     super::announce(state, &id).await;
     shown(state, &id, caller).await
+}
+
+pub(crate) fn build_config_values(
+    state: &AppState,
+    plugin_id: &str,
+    manifest_fields: &[ConfigField],
+    stored: &[ConfigValueRow],
+) -> HashMap<String, super::ConfigValue> {
+    let mut map = HashMap::new();
+    for field in manifest_fields {
+        if let Some(row) = stored.iter().find(|r| r.key == field.key) {
+            let val_str = String::from_utf8_lossy(&row.value);
+            let config_val = match field.kind {
+                ConfigKind::Number => val_str.parse::<f64>().ok().map(super::ConfigValue::Number),
+                ConfigKind::Boolean => Some(super::ConfigValue::Boolean(val_str == "true")),
+                ConfigKind::Role => Some(super::ConfigValue::Role(val_str.into_owned())),
+                ConfigKind::Channel => Some(super::ConfigValue::Channel(val_str.into_owned())),
+                ConfigKind::User => Some(super::ConfigValue::User(val_str.into_owned())),
+                ConfigKind::Secret => {
+                    let purpose = config_purpose(plugin_id, &field.key);
+                    match state
+                        .certificates
+                        .secrets()
+                        .open_string(&purpose, &row.value)
+                    {
+                        Ok(opened) => Some(super::ConfigValue::Secret(opened)),
+                        Err(err) => {
+                            tracing::warn!(
+                                plugin = %plugin_id,
+                                key = %field.key,
+                                %err,
+                                "could not open plugin secret"
+                            );
+                            None
+                        }
+                    }
+                }
+                ConfigKind::Text | ConfigKind::Choice => {
+                    Some(super::ConfigValue::Text(val_str.into_owned()))
+                }
+            };
+            if let Some(cv) = config_val {
+                map.insert(field.key.clone(), cv);
+            }
+        }
+    }
+    map
 }
 
 /// `SetPluginConfig`, then `settings_change` with the keys sent.
@@ -864,38 +917,7 @@ pub async fn set_config(
     changed.dedup();
 
     if let Some(handle) = state.plugins.get(&id) {
-        let mut map = HashMap::new();
-        for field in &manifest.config {
-            if let Some(row) = config.iter().find(|r| r.key == field.key) {
-                let val_str = String::from_utf8_lossy(&row.value);
-                let config_val = match field.kind {
-                    ConfigKind::Number => {
-                        val_str.parse::<f64>().ok().map(super::ConfigValue::Number)
-                    }
-                    ConfigKind::Boolean => Some(super::ConfigValue::Boolean(val_str == "true")),
-                    ConfigKind::Role => Some(super::ConfigValue::Role(val_str.into_owned())),
-                    ConfigKind::Channel => Some(super::ConfigValue::Channel(val_str.into_owned())),
-                    ConfigKind::User => Some(super::ConfigValue::User(val_str.into_owned())),
-                    ConfigKind::Secret => {
-                        let purpose = config_purpose(&id, &field.key);
-                        match state
-                            .certificates
-                            .secrets()
-                            .open_string(&purpose, &row.value)
-                        {
-                            Ok(opened) => Some(super::ConfigValue::Secret(opened)),
-                            Err(_) => None,
-                        }
-                    }
-                    ConfigKind::Text | ConfigKind::Choice => {
-                        Some(super::ConfigValue::Text(val_str.into_owned()))
-                    }
-                };
-                if let Some(cv) = config_val {
-                    map.insert(field.key.clone(), cv);
-                }
-            }
-        }
+        let map = build_config_values(state, &id, &manifest.config, &config);
         handle.update_config(map);
     }
 

@@ -68,6 +68,57 @@ pub fn raise(message: impl Into<String>) -> mlua::Error {
     mlua::Error::external(Raise(message.into()))
 }
 
+/// Parses a required Snowflake ID string argument. Must consist strictly of ASCII digits and fit in an i64.
+pub fn id_arg(val: Value, name: &str) -> mlua::Result<i64> {
+    match val {
+        Value::String(s) => {
+            let bytes = s.as_bytes();
+            let s_str = s
+                .to_str()
+                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} must be a valid string")))?;
+            if s_str.is_empty() || !bytes.iter().all(|b| b.is_ascii_digit()) {
+                return Err(raise(format!(
+                    "INVALID_ARGUMENT: {name} must be numeric digits only"
+                )));
+            }
+            s_str
+                .parse::<i64>()
+                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} is out of range")))
+        }
+        _ => Err(raise(format!(
+            "INVALID_ARGUMENT: {name} must be an id string"
+        ))),
+    }
+}
+
+/// Parses an optional Snowflake ID string argument.
+pub fn id_arg_opt(val: Value, name: &str) -> mlua::Result<Option<i64>> {
+    match val {
+        Value::Nil => Ok(None),
+        Value::String(s) => {
+            let bytes = s.as_bytes();
+            let s_str = s
+                .to_str()
+                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} must be a valid string")))?;
+            if s_str.is_empty() {
+                return Err(raise(format!("INVALID_ARGUMENT: {name} cannot be empty")));
+            }
+            if !bytes.iter().all(|b| b.is_ascii_digit()) {
+                return Err(raise(format!(
+                    "INVALID_ARGUMENT: {name} must be numeric digits only"
+                )));
+            }
+            s_str
+                .parse::<i64>()
+                .map(Some)
+                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} is out of range")))
+        }
+        _ => Err(raise(format!(
+            "INVALID_ARGUMENT: {name} must be a string or nil"
+        ))),
+    }
+}
+
 /// The text of a [`raise`]d error under mlua's wrappers.
 fn raised(error: &mlua::Error) -> Option<&str> {
     match error {

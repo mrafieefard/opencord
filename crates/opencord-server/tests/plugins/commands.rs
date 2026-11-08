@@ -444,3 +444,119 @@ async fn disabled_plugin_commands_are_refused() {
     let err = member.error(run(ch, "toggleable", &[])).await;
     assert_eq!(err.code, proto::ErrorCode::CommandDisabled as i32);
 }
+
+#[tokio::test]
+async fn an_oversized_reply_is_refused() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let code = invite(&mut owner, None).await;
+    let (mut member, _member_ready) = join(&server, 2, &code).await;
+    let ch = channel_id(&ready, "general");
+
+    let _p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "oversized-bot",
+        &["register_commands"],
+        r#"commands.register({
+            name = "huge",
+            description = "answers huge reply",
+        })
+        opencord.on("command", function(cmd)
+            local big = string.rep("a", 4001)
+            cmd.reply(big)
+        end)
+        log.info("ready")"#,
+    )
+    .await;
+
+    wait_for_log(&mut owner, "oversized-bot", "ready").await;
+
+    let err = member.error(run(ch, "huge", &[])).await;
+    assert_eq!(err.code, proto::ErrorCode::PluginUnavailable as i32);
+    assert!(err.message.contains("sent an invalid reply"));
+}
+
+#[tokio::test]
+async fn commands_cap_at_100() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let _p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "cmd-spammer",
+        &["register_commands"],
+        r#"
+        local i = 1
+        while i <= 100 do
+            local ok, err = pcall(function()
+                commands.register({ name = "cmd" .. i, description = "desc" })
+            end)
+            if ok then
+                i = i + 1
+            else
+                wait(0.2)
+            end
+        end
+        local ok, err
+        repeat
+            ok, err = pcall(function()
+                commands.register({ name = "cmd101", description = "desc" })
+            end)
+            if not ok and tostring(err):find("RATE_LIMITED") then
+                wait(0.2)
+            end
+        until ok or not tostring(err):find("RATE_LIMITED")
+        log.info("101: " .. tostring(err))
+        "#,
+    )
+    .await;
+
+    wait_for_log(&mut owner, "cmd-spammer", "at most 100 commands").await;
+}
+
+#[tokio::test]
+async fn revoking_register_commands_removes_them() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let code = invite(&mut owner, None).await;
+    let (mut member, _member_ready) = join(&server, 2, &code).await;
+    let ch = channel_id(&ready, "general");
+
+    let p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "revokable",
+        &["register_commands"],
+        r#"commands.register({
+            name = "revokable",
+            description = "will be revoked",
+        })
+        opencord.on("command", function(cmd)
+            cmd.reply("still here")
+        end)
+        log.info("ready")"#,
+    )
+    .await;
+
+    wait_for_log(&mut owner, "revokable", "ready").await;
+
+    // Command works initially
+    let _res = result(owner.ok(run(ch, "revokable", &[])).await);
+
+    // Revoke register_commands permission
+    owner
+        .ok(Kind::SetPluginPermissions(proto::SetPluginPermissions {
+            plugin_id: p.id.clone(),
+            granted: vec![],
+        }))
+        .await;
+
+    // Command is now unknown
+    let err = member.error(run(ch, "revokable", &[])).await;
+    assert_eq!(err.code, proto::ErrorCode::CommandUnknown as i32);
+}

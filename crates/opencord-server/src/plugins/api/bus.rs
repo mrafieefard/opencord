@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use mlua::{Function, Lua, LuaSerdeExt, Table, Value};
 
-use super::PluginEnv;
+use super::{PluginEnv, function, raise};
 use crate::plugins::permissions::PluginPermission;
 
 pub const BUS_LISTENERS: &str = "__opencord_bus_listeners";
@@ -16,44 +16,34 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
     let plugins_table = lua.create_table()?;
 
-    plugins_table.set(
+    let env_emit = env.clone();
+    plugins_table.raw_set(
         "emit",
-        lua.create_function({
-            let env = env.clone();
-            move |lua, (name, data): (String, Value)| {
-                if !env.has(PluginPermission::TalkToPlugins) {
-                    return Err(mlua::Error::runtime(
-                        "PERMISSION_DENIED: missing talk_to_plugins",
-                    ));
-                }
-                let data_json: serde_json::Value = lua.from_value(data)?;
-                let data_bytes = serde_json::to_vec(&data_json)
-                    .map_err(|e| mlua::Error::runtime(format!("INVALID_ARGUMENT: {e}")))?;
-                if data_bytes.len() > 64 * 1024 {
-                    return Err(mlua::Error::runtime(
-                        "INVALID_ARGUMENT: data is over 64 KiB",
-                    ));
-                }
-                let state = env.state()?;
-                state
-                    .plugins
-                    .bus
-                    .emit(&state.plugins, &env.plugin_id, &name, data_json);
-                Ok(())
+        function(lua, move |lua, (name, data): (String, Value)| {
+            env_emit.require(PluginPermission::TalkToPlugins)?;
+            env_emit.check_rate_limit()?;
+            let data_json: serde_json::Value = lua.from_value(data)?;
+            let data_bytes = serde_json::to_vec(&data_json)
+                .map_err(|e| raise(format!("INVALID_ARGUMENT: {e}")))?;
+            if data_bytes.len() > 64 * 1024 {
+                return Err(raise("INVALID_ARGUMENT: data is over 64 KiB"));
             }
+            let state = env_emit.state()?;
+            state
+                .plugins
+                .bus
+                .emit(&state.plugins, &env_emit.plugin_id, &name, data_json);
+            Ok(())
         })?,
     )?;
 
-    plugins_table.set(
+    let env_on = env.clone();
+    plugins_table.raw_set(
         "on",
-        lua.create_function({
-            let env = env.clone();
+        function(
+            lua,
             move |lua, (sender_id, name, handler): (String, String, Function)| {
-                if !env.has(PluginPermission::TalkToPlugins) {
-                    return Err(mlua::Error::runtime(
-                        "PERMISSION_DENIED: missing talk_to_plugins",
-                    ));
-                }
+                env_on.require(PluginPermission::TalkToPlugins)?;
                 let listeners: Table = lua.named_registry_value(BUS_LISTENERS)?;
                 let key = format!("{sender_id}:{name}");
                 let list: Table = match listeners.raw_get(&*key) {
@@ -66,13 +56,16 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 };
                 list.raw_push(handler)?;
 
-                let state = env.state()?;
-                state.plugins.bus.listen(&env.plugin_id, &sender_id, &name);
+                let state = env_on.state()?;
+                state
+                    .plugins
+                    .bus
+                    .listen(&env_on.plugin_id, &sender_id, &name);
                 Ok(())
-            }
-        })?,
+            },
+        )?,
     )?;
 
-    lua.globals().set("plugins", plugins_table)?;
+    lua.globals().raw_set("plugins", plugins_table)?;
     Ok(())
 }

@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use mlua::{Function, Lua, Table};
 
-use super::PluginEnv;
+use super::{PluginEnv, function, raise};
 use crate::plugins::PluginEvent;
 
 pub const TIMERS: &str = "__opencord_timers";
@@ -276,153 +276,159 @@ fn parse_field(
     Ok(result)
 }
 
+const MAX_TIMER_SECS: f64 = 365.0 * 86_400.0;
+
 pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     lua.set_named_registry_value(TIMERS, lua.create_table()?)?;
 
     let timer_table = lua.create_table()?;
 
-    timer_table.set(
+    let env_after = env.clone();
+    timer_table.raw_set(
         "after",
-        lua.create_function({
-            let env = env.clone();
-            move |lua, (seconds, handler): (f64, Function)| {
-                if seconds < 0.0 {
-                    return Err(mlua::Error::runtime(
-                        "INVALID_ARGUMENT: delay must be non-negative",
-                    ));
-                }
-                let timers = env.timers.lock().unwrap_or_else(PoisonError::into_inner);
-                if timers.len() >= 1000 {
-                    return Err(mlua::Error::runtime("PLUGIN_LIMIT: at most 1,000 timers"));
-                }
-                drop(timers);
-                let id = env.next_timer_id.fetch_add(1, Ordering::Relaxed);
-                let reg: Table = lua.named_registry_value(TIMERS)?;
-                reg.raw_set(id, handler)?;
+        function(lua, move |lua, (seconds, handler): (f64, Function)| {
+            if !seconds.is_finite() || seconds < 0.0 || seconds > MAX_TIMER_SECS {
+                return Err(raise(
+                    "INVALID_ARGUMENT: delay must be finite, non-negative, and at most one year",
+                ));
+            }
+            let timers = env_after
+                .timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if timers.len() >= 1000 {
+                return Err(raise("PLUGIN_LIMIT: at most 1,000 timers"));
+            }
+            drop(timers);
+            let id = env_after.next_timer_id.fetch_add(1, Ordering::Relaxed);
+            let reg: Table = lua.named_registry_value(TIMERS)?;
+            reg.raw_set(id, handler)?;
 
-                let env_c = env.clone();
-                let handle = tokio::spawn(async move {
-                    tokio::time::sleep(Duration::from_secs_f64(seconds)).await;
+            let env_c = env_after.clone();
+            let handle = tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs_f64(seconds)).await;
+                env_c.queue.push(PluginEvent {
+                    name: "timer".into(),
+                    payload: serde_json::json!({ "timer_id": id, "repeating": false }),
+                    reply: None,
+                });
+            });
+
+            env_after
+                .timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(id, handle);
+            Ok(id)
+        })?,
+    )?;
+
+    let env_every = env.clone();
+    timer_table.raw_set(
+        "every",
+        function(lua, move |lua, (seconds, handler): (f64, Function)| {
+            if !seconds.is_finite() || seconds < 1.0 || seconds > MAX_TIMER_SECS {
+                return Err(raise(
+                    "INVALID_ARGUMENT: interval must be finite, at least 1 second, and at most one year",
+                ));
+            }
+            let timers = env_every
+                .timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if timers.len() >= 1000 {
+                return Err(raise("PLUGIN_LIMIT: at most 1,000 timers"));
+            }
+            drop(timers);
+            let id = env_every.next_timer_id.fetch_add(1, Ordering::Relaxed);
+            let reg: Table = lua.named_registry_value(TIMERS)?;
+            reg.raw_set(id, handler)?;
+
+            let env_c = env_every.clone();
+            let dur = Duration::from_secs_f64(seconds);
+            let handle = tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(dur).await;
                     env_c.queue.push(PluginEvent {
                         name: "timer".into(),
-                        payload: serde_json::json!({ "timer_id": id, "repeating": false }),
+                        payload: serde_json::json!({ "timer_id": id, "repeating": true }),
                         reply: None,
                     });
-                });
+                }
+            });
 
-                env.timers
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(id, handle);
-                Ok(id)
-            }
+            env_every
+                .timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(id, handle);
+            Ok(id)
         })?,
     )?;
 
-    timer_table.set(
-        "every",
-        lua.create_function({
-            let env = env.clone();
-            move |lua, (seconds, handler): (f64, Function)| {
-                if seconds < 1.0 {
-                    return Err(mlua::Error::runtime(
-                        "INVALID_ARGUMENT: interval must be at least 1 second",
-                    ));
-                }
-                let timers = env.timers.lock().unwrap_or_else(PoisonError::into_inner);
-                if timers.len() >= 1000 {
-                    return Err(mlua::Error::runtime("PLUGIN_LIMIT: at most 1,000 timers"));
-                }
-                drop(timers);
-                let id = env.next_timer_id.fetch_add(1, Ordering::Relaxed);
-                let reg: Table = lua.named_registry_value(TIMERS)?;
-                reg.raw_set(id, handler)?;
-
-                let env_c = env.clone();
-                let dur = Duration::from_secs_f64(seconds);
-                let handle = tokio::spawn(async move {
-                    loop {
-                        tokio::time::sleep(dur).await;
-                        env_c.queue.push(PluginEvent {
-                            name: "timer".into(),
-                            payload: serde_json::json!({ "timer_id": id, "repeating": true }),
-                            reply: None,
-                        });
-                    }
-                });
-
-                env.timers
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(id, handle);
-                Ok(id)
-            }
-        })?,
-    )?;
-
-    timer_table.set(
+    let env_cron = env.clone();
+    timer_table.raw_set(
         "cron",
-        lua.create_function({
-            let env = env.clone();
-            move |lua, (expr, handler): (String, Function)| {
-                let cron = CronExpr::parse(&expr).map_err(mlua::Error::runtime)?;
-                let timers = env.timers.lock().unwrap_or_else(PoisonError::into_inner);
-                if timers.len() >= 1000 {
-                    return Err(mlua::Error::runtime("PLUGIN_LIMIT: at most 1,000 timers"));
-                }
-                drop(timers);
-                let id = env.next_timer_id.fetch_add(1, Ordering::Relaxed);
-                let reg: Table = lua.named_registry_value(TIMERS)?;
-                reg.raw_set(id, handler)?;
-
-                let env_c = env.clone();
-                let handle = tokio::spawn(async move {
-                    loop {
-                        let now_secs = crate::state::now_ms() / 1000;
-                        let next_secs = match cron.next_after(now_secs) {
-                            Ok(s) => s,
-                            Err(_) => break,
-                        };
-                        let delay = (next_secs - now_secs).max(0) as u64;
-                        tokio::time::sleep(Duration::from_secs(delay)).await;
-                        env_c.queue.push(PluginEvent {
-                            name: "timer".into(),
-                            payload: serde_json::json!({ "timer_id": id, "repeating": true }),
-                            reply: None,
-                        });
-                    }
-                });
-
-                env.timers
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .insert(id, handle);
-                Ok(id)
+        function(lua, move |lua, (expr, handler): (String, Function)| {
+            let cron = CronExpr::parse(&expr).map_err(raise)?;
+            let timers = env_cron
+                .timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if timers.len() >= 1000 {
+                return Err(raise("PLUGIN_LIMIT: at most 1,000 timers"));
             }
+            drop(timers);
+            let id = env_cron.next_timer_id.fetch_add(1, Ordering::Relaxed);
+            let reg: Table = lua.named_registry_value(TIMERS)?;
+            reg.raw_set(id, handler)?;
+
+            let env_c = env_cron.clone();
+            let handle = tokio::spawn(async move {
+                loop {
+                    let now_secs = crate::state::now_ms() / 1000;
+                    let next_secs = match cron.next_after(now_secs) {
+                        Ok(s) => s,
+                        Err(_) => break,
+                    };
+                    let delay = (next_secs - now_secs).max(0) as u64;
+                    tokio::time::sleep(Duration::from_secs(delay)).await;
+                    env_c.queue.push(PluginEvent {
+                        name: "timer".into(),
+                        payload: serde_json::json!({ "timer_id": id, "repeating": true }),
+                        reply: None,
+                    });
+                }
+            });
+
+            env_cron
+                .timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(id, handle);
+            Ok(id)
         })?,
     )?;
 
-    timer_table.set(
+    let env_cancel = env.clone();
+    timer_table.raw_set(
         "cancel",
-        lua.create_function({
-            let env = env.clone();
-            move |lua, timer_id: u64| {
-                if let Some(task) = env
-                    .timers
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .remove(&timer_id)
-                {
-                    task.abort();
-                }
-                if let Ok(reg) = lua.named_registry_value::<Table>(TIMERS) {
-                    reg.raw_remove(timer_id).ok();
-                }
-                Ok(())
+        function(lua, move |lua, timer_id: u64| {
+            if let Some(task) = env_cancel
+                .timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&timer_id)
+            {
+                task.abort();
             }
+            if let Ok(reg) = lua.named_registry_value::<Table>(TIMERS) {
+                let _ = reg.raw_remove(timer_id);
+            }
+            Ok(())
         })?,
     )?;
 
-    lua.globals().set("timer", timer_table)?;
+    lua.globals().raw_set("timer", timer_table)?;
     Ok(())
 }

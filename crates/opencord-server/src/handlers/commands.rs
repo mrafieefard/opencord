@@ -231,6 +231,28 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
             }
         }
         UsableCommand::Plugin(plugin_cmd) => {
+            let has_reg = ctx
+                .state
+                .plugins
+                .get(&plugin_cmd.plugin_id)
+                .is_some_and(|h| {
+                    h.holds(crate::plugins::permissions::PluginPermission::RegisterCommands)
+                });
+            if !has_reg {
+                let plugin_name = ctx
+                    .state
+                    .guild()
+                    .plugin_users
+                    .values()
+                    .find(|u| u.plugin_id == plugin_cmd.plugin_id)
+                    .map(|u| u.name.clone())
+                    .unwrap_or_else(|| plugin_cmd.plugin_id.clone());
+                return Err(ApiError::new(
+                    proto::ErrorCode::PluginUnavailable,
+                    format!("{plugin_name} is not permitted to handle commands"),
+                ));
+            }
+
             let options_map = parse_plugin_options(
                 &plugin_cmd.spec.name,
                 &plugin_cmd.spec.options,
@@ -271,11 +293,27 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                 }
             };
 
-            let content = answer
+            let content_raw = answer
                 .get("content")
                 .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_owned();
+                .unwrap_or_default();
+            let content = match opencord_common::validation::message_content(content_raw) {
+                Ok(c) => c,
+                Err(_) => {
+                    let plugin_name = ctx
+                        .state
+                        .guild()
+                        .plugin_users
+                        .values()
+                        .find(|u| u.plugin_id == plugin_cmd.plugin_id)
+                        .map(|u| u.name.clone())
+                        .unwrap_or_else(|| plugin_cmd.plugin_id.clone());
+                    return Err(ApiError::new(
+                        proto::ErrorCode::PluginUnavailable,
+                        format!("{plugin_name} sent an invalid reply"),
+                    ));
+                }
+            };
             let only_you = answer
                 .get("only_you")
                 .and_then(|v| v.as_bool())

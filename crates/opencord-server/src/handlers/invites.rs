@@ -36,28 +36,27 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateInvite) -> Result<Respo
     )
     .await?;
 
-    let mut payload = serde_json::json!({
-        "code": invite.code.clone(),
-        "by": crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id),
-    });
+    let mut payload = serde_json::Map::new();
+    payload.insert(
+        "code".to_owned(),
+        serde_json::Value::String(invite.code.clone()),
+    );
+    payload.insert(
+        "by".to_owned(),
+        crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id),
+    );
     if let Some(max_uses) = invite.max_uses {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("max_uses".to_owned(), serde_json::json!(max_uses));
+        payload.insert("max_uses".to_owned(), serde_json::json!(max_uses));
     }
     if let Some(expires_at) = invite.expires_at {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("expires_at_ms".to_owned(), serde_json::json!(expires_at));
+        payload.insert("expires_at_ms".to_owned(), serde_json::json!(expires_at));
     }
     crate::plugins::events::emit(
         ctx.state,
         "invite_create",
         crate::plugins::permissions::PluginPermission::ReadInvites,
         None,
-        payload,
+        serde_json::Value::Object(payload),
     );
 
     Ok(Response::Invite(to_proto(ctx, invite)))

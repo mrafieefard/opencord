@@ -199,10 +199,7 @@ async fn rate_limit_exceeded_is_429() {
 
 #[tokio::test]
 async fn slow_plugin_is_504() {
-    let server = TestServer::start_with(|config| {
-        config.plugins.hook_timeout_ms = Some(200);
-    })
-    .await;
+    let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
 
     let _p = plugin_with(
@@ -213,7 +210,7 @@ async fn slow_plugin_is_504() {
         &["receive_web_requests"],
         r#"
         hooks.on("delay", function(req)
-            wait(1.0)
+            wait(11.0)
             return { status = 200 }
         end)
         log.info("ready")
@@ -414,4 +411,108 @@ async fn set_cookie_is_dropped() {
         .iter()
         .any(|(k, v)| k.eq_ignore_ascii_case("x-safe") && v == "safe-header");
     assert!(has_safe, "safe header must be kept");
+}
+
+#[tokio::test]
+async fn framing_headers_from_a_hook_are_dropped() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let _p = plugin_with(
+        &server,
+        &mut owner,
+        &ready,
+        "hook-framing",
+        &["receive_web_requests"],
+        r#"
+        hooks.on("framing", function(req)
+            return {
+                status = 200,
+                headers = {
+                    ["content-length"] = "9999",
+                    ["transfer-encoding"] = "chunked",
+                    ["connection"] = "custom-token",
+                    ["keep-alive"] = "timeout=5",
+                    ["proxy-connection"] = "keep-alive",
+                    ["te"] = "trailers",
+                    ["trailer"] = "X-Foo",
+                    ["upgrade"] = "websocket",
+                    ["x-safe"] = "preserved",
+                },
+                body = "framed"
+            }
+        end)
+        log.info("ready")
+        "#,
+    )
+    .await;
+
+    wait_for_log(&mut owner, "hook-framing", "ready").await;
+
+    let (status, headers, body) = server
+        .send_http_full("GET", "/plugins/hook-framing/hooks/framing", &[], b"")
+        .await;
+
+    assert_eq!(status, 200);
+    assert_eq!(std::str::from_utf8(&body).unwrap(), "framed");
+
+    let custom_conn = headers
+        .iter()
+        .any(|(k, v)| k.eq_ignore_ascii_case("connection") && v.contains("custom-token"));
+    assert!(!custom_conn, "custom connection token must be dropped");
+
+    for forbidden in [
+        "transfer-encoding",
+        "keep-alive",
+        "proxy-connection",
+        "te",
+        "trailer",
+        "upgrade",
+    ] {
+        let present = headers
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case(forbidden));
+        assert!(!present, "header {forbidden} must be dropped");
+    }
+    let cl = headers
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+        .map(|(_, v)| v.as_str());
+    assert_ne!(cl, Some("9999"));
+
+    let has_safe = headers
+        .iter()
+        .any(|(k, v)| k.eq_ignore_ascii_case("x-safe") && v == "preserved");
+    assert!(has_safe, "safe header must be kept");
+}
+
+#[tokio::test]
+async fn a_failing_hook_is_logged() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let _p = plugin_with(
+        &server,
+        &mut owner,
+        &ready,
+        "hook-failing",
+        &["receive_web_requests"],
+        r#"
+        hooks.on("fail", function(req)
+            error("intentional_hook_crash", 0)
+        end)
+        log.info("ready")
+        "#,
+    )
+    .await;
+
+    wait_for_log(&mut owner, "hook-failing", "ready").await;
+
+    let (status, _) = server
+        .send_http("GET", "/plugins/hook-failing/hooks/fail", &[], b"")
+        .await;
+
+    assert_eq!(status, 500);
+
+    wait_for_log(&mut owner, "hook-failing", "intentional_hook_crash").await;
 }

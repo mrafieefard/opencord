@@ -187,6 +187,16 @@ impl Commands {
                 spec.name
             )));
         }
+        let count = plugins
+            .values()
+            .filter(|cmd| cmd.plugin_id == plugin_id)
+            .count();
+        if !plugins.contains_key(&spec.name) && count >= 100 {
+            return Err(ApiError::new(
+                proto::ErrorCode::PluginLimit,
+                "at most 100 commands",
+            ));
+        }
         plugins.insert(
             spec.name.clone(),
             PluginCommand {

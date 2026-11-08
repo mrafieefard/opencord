@@ -166,6 +166,8 @@ pub struct PluginHandle {
     pub(crate) timers: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
     pub(crate) next_timer_id: Arc<AtomicU64>,
     pub(crate) config_values: Arc<RwLock<HashMap<String, ConfigValue>>>,
+    pub(crate) files_lock: Arc<tokio::sync::Mutex<()>>,
+    pub(crate) files_reads: Arc<tokio::sync::Semaphore>,
 }
 
 struct Status {
@@ -409,11 +411,21 @@ impl Plugins {
                 tracing::warn!(plugin = %installed.id, %error, "could not clear a plugin's crash");
                 StartError("the server couldn't save the plugin's state".to_owned())
             })?;
-        let log = match &old {
-            Some(old) => old.log.clone(),
-            None => PluginLog::new(
-                &installed.id,
-                Some(state.config.plugins_dir().join(&installed.id)),
+        let (log, is_new_log) = match &old {
+            Some(old) => (old.log.clone(), false),
+            None => (
+                PluginLog::new(
+                    &installed.id,
+                    Some(state.config.plugins_dir().join(&installed.id)),
+                ),
+                true,
+            ),
+        };
+        let (files_lock, files_reads) = match &old {
+            Some(old) => (old.files_lock.clone(), old.files_reads.clone()),
+            None => (
+                Arc::new(tokio::sync::Mutex::new(())),
+                Arc::new(tokio::sync::Semaphore::new(10)),
             ),
         };
         let mut conn = state
@@ -426,39 +438,12 @@ impl Plugins {
             .map_err(|e| StartError(e.to_string()))?;
         drop(conn);
 
-        let mut config_map = HashMap::new();
-        for field in &installed.manifest.config {
-            if let Some(row) = config_rows.iter().find(|r| r.key == field.key) {
-                let val_str = String::from_utf8_lossy(&row.value);
-                let config_val = match field.kind {
-                    ConfigKind::Number => val_str.parse::<f64>().ok().map(ConfigValue::Number),
-                    ConfigKind::Boolean => Some(ConfigValue::Boolean(val_str == "true")),
-                    ConfigKind::Role => Some(ConfigValue::Role(val_str.into_owned())),
-                    ConfigKind::Channel => Some(ConfigValue::Channel(val_str.into_owned())),
-                    ConfigKind::User => Some(ConfigValue::User(val_str.into_owned())),
-                    ConfigKind::Secret => {
-                        let purpose = install::config_purpose(&installed.id, &field.key);
-                        match state
-                            .certificates
-                            .secrets()
-                            .open_string(&purpose, &row.value)
-                        {
-                            Ok(opened) => Some(ConfigValue::Secret(opened)),
-                            Err(err) => {
-                                tracing::warn!(plugin = %installed.id, key = %field.key, %err, "could not open plugin secret");
-                                None
-                            }
-                        }
-                    }
-                    ConfigKind::Text | ConfigKind::Choice => {
-                        Some(ConfigValue::Text(val_str.into_owned()))
-                    }
-                };
-                if let Some(cv) = config_val {
-                    config_map.insert(field.key.clone(), cv);
-                }
-            }
-        }
+        let config_map = install::build_config_values(
+            state,
+            &installed.id,
+            &installed.manifest.config,
+            &config_rows,
+        );
 
         let (stopping, stopping_receiver) = watch::channel(false);
         let handle = Arc::new(PluginHandle {
@@ -479,20 +464,30 @@ impl Plugins {
             timers: Arc::new(Mutex::new(HashMap::new())),
             next_timer_id: Arc::new(AtomicU64::new(1)),
             config_values: Arc::new(RwLock::new(config_map)),
+            files_lock,
+            files_reads,
         });
 
-        let (plugin_id_c, state_weak) = (installed.id.clone(), Arc::downgrade(state));
-        let mut rx = log.subscribe();
-        tokio::spawn(async move {
-            while let Ok(line) = rx.recv().await {
-                let Some(state) = state_weak.upgrade() else {
-                    break;
-                };
-                state
-                    .plugins
-                    .dispatch_log_append(&state, &plugin_id_c, line);
-            }
-        });
+        if is_new_log {
+            let (plugin_id_c, state_weak) = (installed.id.clone(), Arc::downgrade(state));
+            let mut rx = log.subscribe();
+            tokio::spawn(async move {
+                loop {
+                    match rx.recv().await {
+                        Ok(line) => {
+                            let Some(state) = state_weak.upgrade() else {
+                                break;
+                            };
+                            state
+                                .plugins
+                                .dispatch_log_append(&state, &plugin_id_c, line);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
+        }
         self.handles
             .write()
             .unwrap_or_else(PoisonError::into_inner)
@@ -597,9 +592,19 @@ impl Plugins {
         };
         let now = std::time::Instant::now();
         let mut gone = Vec::new();
+        let guild = state.guild();
         for id in watchers {
             match state.sessions.get(&id) {
-                Some(session) if !session.is_ended() => session.push_event(&event, now),
+                Some(session) if !session.is_ended() => {
+                    let has_perm = guild
+                        .base_permissions(session.user_id)
+                        .contains(opencord_common::permissions::Permissions::MANAGE_PLUGINS);
+                    if has_perm {
+                        session.push_event(&event, now);
+                    } else {
+                        gone.push(id);
+                    }
+                }
                 _ => gone.push(id),
             }
         }

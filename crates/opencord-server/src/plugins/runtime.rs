@@ -78,6 +78,8 @@ pub struct PluginEnv {
     pub timers: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
     pub next_timer_id: Arc<AtomicU64>,
     pub config_values: Arc<RwLock<HashMap<String, super::ConfigValue>>>,
+    pub files_lock: Arc<tokio::sync::Mutex<()>>,
+    pub files_reads: Arc<tokio::sync::Semaphore>,
 }
 
 impl PluginEnv {
@@ -104,6 +106,15 @@ impl PluginEnv {
             .upgrade()
             .filter(|state| !state.shutdown.is_cancelled())
             .ok_or_else(|| raise("STOPPING: the server is stopping"))
+    }
+
+    /// Checks the general per-user request rate limit for this plugin's synthetic user.
+    pub fn check_rate_limit(&self) -> mlua::Result<()> {
+        let state = self.state()?;
+        match state.rate_limits.check_request(self.user_id) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(raise("RATE_LIMITED: slow down")),
+        }
     }
 
     /// `"<CODE>: <message>"`, as a member's request would have failed.
@@ -312,6 +323,8 @@ fn spawn_vm(
                 timers: handle.timers.clone(),
                 next_timer_id: handle.next_timer_id.clone(),
                 config_values: handle.config_values.clone(),
+                files_lock: handle.files_lock.clone(),
+                files_reads: handle.files_reads.clone(),
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));
@@ -349,10 +362,13 @@ async fn run_vm(
     }
     report(&reports, Report::Started(started));
     if failed {
-        if let Some(state) = env.state.upgrade()
-            && state.commands.remove_for_plugin(&env.plugin_id)
-        {
-            crate::commands::announce(&state);
+        handle.clear_timers();
+        handle.clear_hooks();
+        if let Some(state) = env.state.upgrade() {
+            state.plugins.bus.unlisten_all(&env.plugin_id);
+            if state.commands.remove_for_plugin(&env.plugin_id) {
+                crate::commands::announce(&state);
+            }
         }
         return;
     }
@@ -380,10 +396,13 @@ async fn run_vm(
             _ = tick.tick() => stats.sample(vm, handle),
         }
     }
-    if let Some(state) = env.state.upgrade()
-        && state.commands.remove_for_plugin(&env.plugin_id)
-    {
-        crate::commands::announce(&state);
+    handle.clear_timers();
+    handle.clear_hooks();
+    if let Some(state) = env.state.upgrade() {
+        state.plugins.bus.unlisten_all(&env.plugin_id);
+        if state.commands.remove_for_plugin(&env.plugin_id) {
+            crate::commands::announce(&state);
+        }
     }
 }
 
@@ -555,10 +574,16 @@ fn event_table(
                 let Some(sender) = sender else {
                     return Err(raise("INVALID_ARGUMENT: already replied"));
                 };
-                let _ = sender.send(serde_json::json!({
-                    "content": content,
-                    "only_you": only_you,
-                }));
+                if sender
+                    .send(serde_json::json!({
+                        "content": content,
+                        "only_you": only_you,
+                    }))
+                    .is_err()
+                {
+                    // The command handler timed out or disconnected before this reply arrived.
+                    tracing::debug!("command reply receiver dropped before response was sent");
+                }
                 Ok(())
             })?;
             table.raw_set("reply", function)?;
@@ -577,17 +602,26 @@ fn event_table(
                 let mut choices = Vec::new();
                 for pair in choices_table.sequence_values::<Value>() {
                     let val = pair?;
-                    if let Value::Table(item) = val {
-                        let name: String = item
-                            .get("name")
-                            .or_else(|_| item.get(1))
-                            .map_err(|_| raise("INVALID_ARGUMENT: choice name required"))?;
-                        let value: String = item
-                            .get("value")
-                            .or_else(|_| item.get(2))
-                            .map_err(|_| raise("INVALID_ARGUMENT: choice value required"))?;
-                        choices.push(serde_json::json!({ "name": name, "value": value }));
+                    let item = match val {
+                        Value::Table(item) => item,
+                        _ => return Err(raise("INVALID_ARGUMENT: choice must be a table")),
+                    };
+                    let name: String = item
+                        .get("name")
+                        .or_else(|_| item.get(1))
+                        .map_err(|_| raise("INVALID_ARGUMENT: choice name required"))?;
+                    let value: String = item
+                        .get("value")
+                        .or_else(|_| item.get(2))
+                        .map_err(|_| raise("INVALID_ARGUMENT: choice value required"))?;
+                    let name_len = name.chars().count();
+                    let value_len = value.chars().count();
+                    if !(1..=100).contains(&name_len) || !(1..=100).contains(&value_len) {
+                        return Err(raise(
+                            "INVALID_ARGUMENT: choice name and value must be 1 to 100 characters",
+                        ));
                     }
+                    choices.push(serde_json::json!({ "name": name, "value": value }));
                 }
                 if choices.len() > 25 {
                     return Err(raise("INVALID_ARGUMENT: at most 25 choices"));
@@ -596,7 +630,15 @@ fn event_table(
                 let Some(sender) = sender else {
                     return Err(raise("INVALID_ARGUMENT: already replied"));
                 };
-                let _ = sender.send(serde_json::json!({ "choices": choices }));
+                if sender
+                    .send(serde_json::json!({ "choices": choices }))
+                    .is_err()
+                {
+                    // Autocomplete caller disconnected or cancelled.
+                    tracing::debug!(
+                        "autocomplete choices receiver dropped before response was sent"
+                    );
+                }
                 Ok(())
             })?;
             table.raw_set("suggest", function)?;
@@ -630,7 +672,7 @@ fn to_json(lua: &Lua, args: Variadic<Value>) -> mlua::Result<serde_json::Value> 
         .map_err(|error| raise(format!("INVALID_ARGUMENT: {error}")))
 }
 
-fn parse_hook_response(res: mlua::Result<Value>) -> serde_json::Value {
+fn parse_hook_response(res: &mlua::Result<Value>) -> serde_json::Value {
     let Ok(Value::Table(table)) = res else {
         return serde_json::json!({ "status": 500 });
     };
@@ -709,10 +751,12 @@ fn dispatch(
         let call = Budgeted::new(env.budget.clone(), limit, async move {
             let res = handler.call_async::<Value>(request_val).await;
             if let Some(reply) = reply {
-                let answer = parse_hook_response(res);
-                let _ = reply.send(answer);
+                let answer = parse_hook_response(&res);
+                if reply.send(answer).is_err() {
+                    tracing::debug!("hook reply receiver dropped before response was sent");
+                }
             }
-            Ok::<(), mlua::Error>(())
+            res.map(|_| ())
         });
         running.spawn(async move {
             if let Err(error) = call.await {
@@ -1071,7 +1115,13 @@ async fn run_once(
             None => Life::Broke(error),
         };
     // Opened here, on the server's runtime, where its connections stay.
-    let db = match database::open(&spec.database, spec.database_bytes).await {
+    let db = match database::open(
+        &spec.database,
+        spec.database_bytes,
+        spec.limits.memory_bytes,
+    )
+    .await
+    {
         Ok(db) => db,
         Err(error) => {
             return first_failed(

@@ -92,13 +92,15 @@ pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, A
         let by = crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id);
         remove_member(ctx, request.user_id, CloseCode::BANNED, &overwrite_channels);
         ctx.state.private.forget(request.user_id);
-        let mut payload = serde_json::json!({
-            "user": target_user,
-            "reason": "banned",
-            "by": by,
-        });
+        let mut payload = serde_json::Map::new();
+        payload.insert("user".to_owned(), target_user);
+        payload.insert(
+            "reason".to_owned(),
+            serde_json::Value::String("banned".to_owned()),
+        );
+        payload.insert("by".to_owned(), by);
         if let Some(r) = &reason {
-            payload.as_object_mut().unwrap().insert(
+            payload.insert(
                 "ban_reason".to_owned(),
                 serde_json::Value::String(r.clone()),
             );
@@ -108,7 +110,7 @@ pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, A
             "member_leave",
             crate::plugins::permissions::PluginPermission::ReadMembers,
             None,
-            payload,
+            serde_json::Value::Object(payload),
         );
     }
     Ok(ack())

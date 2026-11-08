@@ -81,20 +81,59 @@ export type Channel = {
     parent_id: string?,
 }
 
+export type PermissionName =
+    | "view_channel"
+    | "send_messages"
+    | "read_history"
+    | "manage_messages"
+    | "manage_channels"
+    | "manage_roles"
+    | "kick_members"
+    | "ban_members"
+    | "create_invite"
+    | "manage_server"
+    | "attach_files"
+    | "mention_everyone"
+    | "change_nickname"
+    | "manage_nicknames"
+    | "send_voice_messages"
+    | "manage_plugins"
+    | "connect"
+    | "speak"
+    | "video"
+    | "screenshare"
+    | "mute_members"
+    | "deafen_members"
+    | "move_members"
+    | "priority_speaker"
+    | "use_voice_activity"
+    | "use_soundboard"
+    | "use_external_sounds"
+    | "manage_soundboard"
+    | "music_add"
+    | "music_control"
+    | "music_manage_queue"
+    | "music_manage"
+    | "music_all_local_songs"
+    | "administrator"
+
 export type Role = {
     id: string,
     name: string,
     color: number,
     position: number,
-    permissions: number,
+    permissions: { PermissionName },
     hoist: boolean,
     mentionable: boolean,
 }
 
 export type Member = {
-    user: User,
+    id: string,
+    name: string,
     nickname: string?,
     roles: { string },
+    role_ids: { string },
+    avatar_hash: string?,
     joined_at_ms: number,
 }
 
@@ -105,12 +144,10 @@ export type Ban = {
 
 export type Invite = {
     code: string,
-    channel_id: string,
-    inviter: User?,
     uses: number,
-    max_uses: number,
-    created_at_ms: number,
+    max_uses: number?,
     expires_at_ms: number?,
+    address: string?,
 }
 
 export type ServerInfo = {
@@ -123,12 +160,13 @@ export type ServerInfo = {
 
 export type VoiceState = {
     channel_id: string,
-    user_id: string,
-    session_id: string,
-    mute: boolean,
-    deafen: boolean,
+    user: { id: string, name: string, plugin: string? },
     self_mute: boolean,
-    self_deafen: boolean,
+    self_deaf: boolean,
+    server_mute: boolean,
+    server_deaf: boolean,
+    video: boolean,
+    streaming: boolean,
 }
 
 export type MusicTrack = {
@@ -259,17 +297,17 @@ declare channels: {
     delete: (id: string) -> (),
     --- Permission: manage_channels
     reorder: (order: { string }) -> (),
-    --- Permission: manage_channels
-    set_overwrite: (channel_id: string, target: { role_id: string? } | { user_id: string? }, allow: number, deny: number) -> (),
+    --- Permission: manage_channels, manage_roles
+    set_overwrite: (channel_id: string, spec: { target: "role" | "member", id: string, allow: { PermissionName }?, deny: { PermissionName }? }) -> (),
 }
 
 declare roles: {
     --- Permission: read_roles
     list: () -> { Role },
     --- Permission: manage_roles
-    create: (spec: { name: string, color: number?, permissions: number?, hoist: boolean?, mentionable: boolean? }) -> Role,
+    create: (spec: { name: string, color: number?, permissions: { PermissionName }?, hoist: boolean?, mentionable: boolean? }) -> Role,
     --- Permission: manage_roles
-    update: (id: string, spec: { name: string?, color: number?, permissions: number?, hoist: boolean?, mentionable: boolean? }) -> Role,
+    update: (id: string, spec: { name: string?, color: number?, permissions: { PermissionName }?, hoist: boolean?, mentionable: boolean? }) -> Role,
     --- Permission: manage_roles
     delete: (id: string) -> (),
     --- Permission: manage_roles
@@ -278,7 +316,7 @@ declare roles: {
 
 declare members: {
     --- Permission: read_members
-    list: (options: { limit: number?, after: string? }?) -> { Member },
+    list: () -> { Member },
     --- Permission: read_members
     get: (id: string) -> Member?,
     --- Permission: manage_roles
@@ -304,7 +342,7 @@ declare invites: {
     --- Permission: read_invites
     list: () -> { Invite },
     --- Permission: create_invites
-    create: (spec: { channel_id: string, max_uses: number?, expires_in_seconds: number? }?) -> Invite,
+    create: (spec: { max_uses: number?, expires_in_s: number? }?) -> Invite,
 }
 
 declare server: {

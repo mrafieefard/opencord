@@ -8,21 +8,43 @@ use mlua::{Lua, Table, Value};
 use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
 
-use super::{async_function, raise};
+use super::{async_function, id_arg, raise};
 use crate::handlers::Ctx;
 use crate::handlers::{channels, invites, members, roles};
 use crate::plugins::permissions::PluginPermission;
 use crate::plugins::runtime::PluginEnv;
 
-fn parse_id(val: Value, name: &'static str) -> mlua::Result<i64> {
-    match val {
-        Value::String(s) => s
-            .to_str()?
-            .parse::<i64>()
-            .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} must be an id string"))),
-        _ => Err(raise(format!(
-            "INVALID_ARGUMENT: {name} must be an id string"
-        ))),
+fn get_opt_string(table: &Table, key: &'static str) -> mlua::Result<Option<String>> {
+    match table.raw_get::<Value>(key)? {
+        Value::Nil => Ok(None),
+        Value::String(s) => Ok(Some(s.to_str()?.to_owned())),
+        _ => Err(raise(format!("INVALID_ARGUMENT: {key} must be a string"))),
+    }
+}
+
+fn get_opt_bool(table: &Table, key: &'static str) -> mlua::Result<Option<bool>> {
+    match table.raw_get::<Value>(key)? {
+        Value::Nil => Ok(None),
+        Value::Boolean(b) => Ok(Some(b)),
+        _ => Err(raise(format!("INVALID_ARGUMENT: {key} must be a boolean"))),
+    }
+}
+
+fn get_opt_u32(table: &Table, key: &'static str) -> mlua::Result<Option<u32>> {
+    match table.raw_get::<Value>(key)? {
+        Value::Nil => Ok(None),
+        Value::Integer(i) if i >= 0 && i <= u32::MAX as i64 => Ok(Some(i as u32)),
+        Value::Number(n) if n >= 0.0 && n.fract() == 0.0 && n <= u32::MAX as f64 => {
+            Ok(Some(n as u32))
+        }
+        _ => Err(raise(format!("INVALID_ARGUMENT: {key} must be an integer"))),
+    }
+}
+
+fn get_opt_id(table: &Table, key: &'static str) -> mlua::Result<Option<i64>> {
+    match table.raw_get::<Value>(key)? {
+        Value::Nil => Ok(None),
+        val => id_arg(val, key).map(Some),
     }
 }
 
@@ -70,60 +92,18 @@ fn parse_permissions_table(table: Table) -> mlua::Result<Permissions> {
     let mut perms = Permissions::empty();
     for item in table.sequence_values::<Value>() {
         let val = item?;
-        if let Value::String(s) = val {
-            let name = s.to_str()?;
-            let bit = member_permission_from_name(&name)
-                .ok_or_else(|| raise(format!("INVALID_ARGUMENT: unknown permission '{name}'")))?;
-            perms |= bit;
+        match val {
+            Value::String(s) => {
+                let name = s.to_str()?;
+                let bit = member_permission_from_name(&name).ok_or_else(|| {
+                    raise(format!("INVALID_ARGUMENT: unknown permission '{name}'"))
+                })?;
+                perms |= bit;
+            }
+            _ => return Err(raise("INVALID_ARGUMENT: permission name must be a string")),
         }
     }
     Ok(perms)
-}
-
-fn permissions_to_names(perms: Permissions) -> Vec<String> {
-    let all = [
-        (Permissions::VIEW_CHANNEL, "view_channel"),
-        (Permissions::SEND_MESSAGES, "send_messages"),
-        (Permissions::READ_HISTORY, "read_history"),
-        (Permissions::MANAGE_MESSAGES, "manage_messages"),
-        (Permissions::MANAGE_CHANNELS, "manage_channels"),
-        (Permissions::MANAGE_ROLES, "manage_roles"),
-        (Permissions::KICK_MEMBERS, "kick_members"),
-        (Permissions::BAN_MEMBERS, "ban_members"),
-        (Permissions::CREATE_INVITE, "create_invite"),
-        (Permissions::MANAGE_SERVER, "manage_server"),
-        (Permissions::ATTACH_FILES, "attach_files"),
-        (Permissions::MENTION_EVERYONE, "mention_everyone"),
-        (Permissions::CHANGE_NICKNAME, "change_nickname"),
-        (Permissions::MANAGE_NICKNAMES, "manage_nicknames"),
-        (Permissions::SEND_VOICE_MESSAGES, "send_voice_messages"),
-        (Permissions::MANAGE_PLUGINS, "manage_plugins"),
-        (Permissions::CONNECT, "connect"),
-        (Permissions::SPEAK, "speak"),
-        (Permissions::VIDEO, "video"),
-        (Permissions::SCREENSHARE, "screenshare"),
-        (Permissions::MUTE_MEMBERS, "mute_members"),
-        (Permissions::DEAFEN_MEMBERS, "deafen_members"),
-        (Permissions::MOVE_MEMBERS, "move_members"),
-        (Permissions::PRIORITY_SPEAKER, "priority_speaker"),
-        (Permissions::USE_VOICE_ACTIVITY, "use_voice_activity"),
-        (Permissions::USE_SOUNDBOARD, "use_soundboard"),
-        (Permissions::USE_EXTERNAL_SOUNDS, "use_external_sounds"),
-        (Permissions::MANAGE_SOUNDBOARD, "manage_soundboard"),
-        (Permissions::MUSIC_ADD, "music_add"),
-        (Permissions::MUSIC_CONTROL, "music_control"),
-        (Permissions::MUSIC_MANAGE_QUEUE, "music_manage_queue"),
-        (Permissions::MUSIC_MANAGE, "music_manage"),
-        (Permissions::MUSIC_ALL_LOCAL_SONGS, "music_all_local_songs"),
-        (Permissions::ADMINISTRATOR, "administrator"),
-    ];
-    let mut names = Vec::new();
-    for (bit, name) in all {
-        if perms.contains(bit) {
-            names.push(name.to_owned());
-        }
-    }
-    names
 }
 
 fn channel_table(lua: &Lua, ch: &proto::Channel) -> mlua::Result<Table> {
@@ -158,7 +138,7 @@ fn role_table(lua: &Lua, r: &proto::Role) -> mlua::Result<Table> {
     t.raw_set("mentionable", r.mentionable)?;
     t.raw_set("position", r.position)?;
     let perms = Permissions::from_bits_truncate(r.permissions);
-    let perm_names = permissions_to_names(perms);
+    let perm_names = crate::plugins::events::permissions_to_names(perms);
     let perms_table = lua.create_sequence_from(perm_names)?;
     t.raw_set("permissions", perms_table)?;
     Ok(t)
@@ -175,7 +155,8 @@ fn member_table(lua: &Lua, m: &proto::Member) -> mlua::Result<Table> {
         t.raw_set("nickname", nick.clone())?;
     }
     let roles_table = lua.create_sequence_from(m.role_ids.iter().map(|id| id.to_string()))?;
-    t.raw_set("roles", roles_table)?;
+    t.raw_set("roles", roles_table.clone())?;
+    t.raw_set("role_ids", roles_table)?;
     if let Some(user) = user
         && !user.avatar_hash.is_empty()
     {
@@ -221,17 +202,20 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_list.clone();
             async move {
                 env.require(PluginPermission::ReadChannels)?;
-                let state = env.state()?;
-                let guild = state.guild();
-                let user_id = env.user_id;
+                let list = {
+                    let state = env.state()?;
+                    let guild = state.guild();
+                    let user_id = env.user_id;
 
-                let mut list = Vec::new();
-                for channel in guild.channels.values() {
-                    if guild.can_view(user_id, channel.id) {
-                        list.push(channel.to_proto());
+                    let mut list = Vec::new();
+                    for channel in guild.channels.values() {
+                        if guild.can_view(user_id, channel.id) {
+                            list.push(channel.to_proto());
+                        }
                     }
-                }
-                list.sort_by_key(|c| c.position);
+                    list.sort_by_key(|c| c.position);
+                    list
+                };
 
                 let res_table = lua.create_table()?;
                 for (idx, ch) in list.iter().enumerate() {
@@ -250,15 +234,23 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_get.clone();
             async move {
                 env.require(PluginPermission::ReadChannels)?;
-                let channel_id = parse_id(id_val, "channel_id")?;
-                let state = env.state()?;
-                let guild = state.guild();
-                let user_id = env.user_id;
+                let channel_id = id_arg(id_val, "channel_id")?;
+                let ch_opt = {
+                    let state = env.state()?;
+                    let guild = state.guild();
+                    let user_id = env.user_id;
 
-                if let Some(ch) = guild.channels.get(&channel_id)
-                    && guild.can_view(user_id, channel_id)
-                {
-                    return Ok(Value::Table(channel_table(&lua, &ch.to_proto())?));
+                    if let Some(ch) = guild.channels.get(&channel_id)
+                        && guild.can_view(user_id, channel_id)
+                    {
+                        Some(ch.to_proto())
+                    } else {
+                        None
+                    }
+                };
+
+                if let Some(ch) = ch_opt {
+                    return Ok(Value::Table(channel_table(&lua, &ch)?));
                 }
                 Ok(Value::Nil)
             }
@@ -280,23 +272,16 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let name: String = spec
                     .get("name")
                     .map_err(|_| raise("INVALID_ARGUMENT: channel name is required"))?;
-                let kind_str: String = spec.get("kind").unwrap_or_else(|_| "text".to_owned());
+                let kind_str = get_opt_string(&spec, "kind")?.unwrap_or_else(|| "text".to_owned());
                 let kind = match kind_str.as_str() {
                     "text" => proto::ChannelKind::Text as i32,
                     "voice" => proto::ChannelKind::Voice as i32,
                     "category" => proto::ChannelKind::Category as i32,
                     _ => return Err(raise("INVALID_ARGUMENT: unknown channel kind")),
                 };
-                let topic: Option<String> = spec.get("topic").ok();
-                let parent_id = if let Ok(pid_val) = spec.get::<Value>("parent_id") {
-                    if pid_val == Value::Nil {
-                        None
-                    } else {
-                        Some(parse_id(pid_val, "parent_id")?)
-                    }
-                } else {
-                    None
-                };
+                let topic = get_opt_string(&spec, "topic")?;
+                let parent_id = get_opt_id(&spec, "parent_id")?;
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -318,6 +303,10 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 match resp {
                     proto::response::Result::Channel(ch) => {
+                        env.log.push(
+                            proto::PluginLogLevel::Action,
+                            &format!("created channel #{}", ch.name),
+                        );
                         Ok(Value::Table(channel_table(&lua, &ch)?))
                     }
                     _ => Err(raise("INTERNAL: unexpected response")),
@@ -334,22 +323,15 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_update.clone();
             async move {
                 env.require(PluginPermission::ManageChannels)?;
-                let channel_id = parse_id(id_val, "channel_id")?;
+                let channel_id = id_arg(id_val, "channel_id")?;
                 let spec = match spec_val {
                     Value::Table(t) => t,
                     _ => return Err(raise("INVALID_ARGUMENT: spec must be a table")),
                 };
-                let name: Option<String> = spec.get("name").ok();
-                let topic: Option<String> = spec.get("topic").ok();
-                let parent_id = if let Ok(pid_val) = spec.get::<Value>("parent_id") {
-                    if pid_val == Value::Nil {
-                        None
-                    } else {
-                        Some(parse_id(pid_val, "parent_id")?)
-                    }
-                } else {
-                    None
-                };
+                let name = get_opt_string(&spec, "name")?;
+                let topic = get_opt_string(&spec, "topic")?;
+                let parent_id = get_opt_id(&spec, "parent_id")?;
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -374,6 +356,10 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 match resp {
                     proto::response::Result::Channel(ch) => {
+                        env.log.push(
+                            proto::PluginLogLevel::Action,
+                            &format!("updated channel #{}", ch.name),
+                        );
                         Ok(Value::Table(channel_table(&lua, &ch)?))
                     }
                     _ => Err(raise("INTERNAL: unexpected response")),
@@ -390,7 +376,8 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_del.clone();
             async move {
                 env.require(PluginPermission::ManageChannels)?;
-                let channel_id = parse_id(id_val, "channel_id")?;
+                let channel_id = id_arg(id_val, "channel_id")?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
@@ -401,6 +388,11 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 })
                 .await?
                 .map_err(PluginEnv::api_error)?;
+
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("deleted channel {channel_id}"),
+                );
 
                 Ok(())
             }
@@ -421,8 +413,9 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 };
                 let mut channel_ids = Vec::new();
                 for item in list_table.sequence_values::<Value>() {
-                    channel_ids.push(parse_id(item?, "channel_id")?);
+                    channel_ids.push(id_arg(item?, "channel_id")?);
                 }
+                env.check_rate_limit()?;
 
                 let positions = channel_ids
                     .into_iter()
@@ -444,6 +437,9 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .await?
                 .map_err(PluginEnv::api_error)?;
 
+                env.log
+                    .push(proto::PluginLogLevel::Action, "reordered channels");
+
                 Ok(())
             }
         })?,
@@ -457,7 +453,8 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_overwrite.clone();
             async move {
                 env.require(PluginPermission::ManageChannels)?;
-                let channel_id = parse_id(cid_val, "channel_id")?;
+                env.require(PluginPermission::ManageRoles)?;
+                let channel_id = id_arg(cid_val, "channel_id")?;
                 let spec = match spec_val {
                     Value::Table(t) => t,
                     _ => return Err(raise("INVALID_ARGUMENT: overwrite must be a table")),
@@ -471,18 +468,19 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     "member" => proto::OverwriteTarget::Member as i32,
                     _ => return Err(raise("INVALID_ARGUMENT: target must be 'role' or 'member'")),
                 };
-                let target_id = parse_id(spec.get("id")?, "target_id")?;
+                let target_id = id_arg(spec.get("id")?, "target_id")?;
 
-                let allow = if let Ok(allow_table) = spec.get::<Table>("allow") {
-                    parse_permissions_table(allow_table)?.bits()
-                } else {
-                    0
+                let allow = match spec.get::<Value>("allow")? {
+                    Value::Nil => 0,
+                    Value::Table(t) => parse_permissions_table(t)?.bits(),
+                    _ => return Err(raise("INVALID_ARGUMENT: allow must be a table")),
                 };
-                let deny = if let Ok(deny_table) = spec.get::<Table>("deny") {
-                    parse_permissions_table(deny_table)?.bits()
-                } else {
-                    0
+                let deny = match spec.get::<Value>("deny")? {
+                    Value::Nil => 0,
+                    Value::Table(t) => parse_permissions_table(t)?.bits(),
+                    _ => return Err(raise("INVALID_ARGUMENT: deny must be a table")),
                 };
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -504,6 +502,11 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .await?
                 .map_err(PluginEnv::api_error)?;
 
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("set overwrite in channel {channel_id}"),
+                );
+
                 Ok(())
             }
         })?,
@@ -524,12 +527,15 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_list.clone();
             async move {
                 env.require(PluginPermission::ReadRoles)?;
-                let state = env.state()?;
-                let guild = state.guild();
+                let list = {
+                    let state = env.state()?;
+                    let guild = state.guild();
 
-                let mut list: Vec<proto::Role> =
-                    guild.roles.values().map(|r| r.to_proto()).collect();
-                list.sort_by_key(|r| r.position);
+                    let mut list: Vec<proto::Role> =
+                        guild.roles.values().map(|r| r.to_proto()).collect();
+                    list.sort_by_key(|r| r.position);
+                    list
+                };
 
                 let res_table = lua.create_table()?;
                 for (idx, r) in list.iter().enumerate() {
@@ -555,15 +561,16 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let name: String = spec
                     .get("name")
                     .map_err(|_| raise("INVALID_ARGUMENT: role name is required"))?;
-                let color = spec.get::<u32>("color").unwrap_or(0);
-                let hoist = spec.get::<bool>("hoist").unwrap_or(false);
-                let mentionable = spec.get::<bool>("mentionable").unwrap_or(false);
+                let color = get_opt_u32(&spec, "color")?.unwrap_or(0);
+                let hoist = get_opt_bool(&spec, "hoist")?.unwrap_or(false);
+                let mentionable = get_opt_bool(&spec, "mentionable")?.unwrap_or(false);
 
-                let permissions = if let Ok(perms_table) = spec.get::<Table>("permissions") {
-                    parse_permissions_table(perms_table)?.bits()
-                } else {
-                    0
+                let permissions = match spec.get::<Value>("permissions")? {
+                    Value::Nil => 0,
+                    Value::Table(perms_table) => parse_permissions_table(perms_table)?.bits(),
+                    _ => return Err(raise("INVALID_ARGUMENT: permissions must be a table")),
                 };
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -586,7 +593,13 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     .map_err(PluginEnv::api_error)?;
 
                 match resp {
-                    proto::response::Result::Role(r) => Ok(Value::Table(role_table(&lua, &r)?)),
+                    proto::response::Result::Role(r) => {
+                        env.log.push(
+                            proto::PluginLogLevel::Action,
+                            &format!("created role @{}", r.name),
+                        );
+                        Ok(Value::Table(role_table(&lua, &r)?))
+                    }
                     _ => Err(raise("INTERNAL: unexpected response")),
                 }
             }
@@ -601,21 +614,22 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_update.clone();
             async move {
                 env.require(PluginPermission::ManageRoles)?;
-                let role_id = parse_id(id_val, "role_id")?;
+                let role_id = id_arg(id_val, "role_id")?;
                 let spec = match spec_val {
                     Value::Table(t) => t,
                     _ => return Err(raise("INVALID_ARGUMENT: spec must be a table")),
                 };
-                let name: Option<String> = spec.get("name").ok();
-                let color: Option<u32> = spec.get("color").ok();
-                let hoist: Option<bool> = spec.get("hoist").ok();
-                let mentionable: Option<bool> = spec.get("mentionable").ok();
+                let name = get_opt_string(&spec, "name")?;
+                let color = get_opt_u32(&spec, "color")?;
+                let hoist = get_opt_bool(&spec, "hoist")?;
+                let mentionable = get_opt_bool(&spec, "mentionable")?;
 
-                let permissions = if let Ok(perms_table) = spec.get::<Table>("permissions") {
-                    Some(parse_permissions_table(perms_table)?.bits())
-                } else {
-                    None
+                let permissions = match spec.get::<Value>("permissions")? {
+                    Value::Nil => None,
+                    Value::Table(perms_table) => Some(parse_permissions_table(perms_table)?.bits()),
+                    _ => return Err(raise("INVALID_ARGUMENT: permissions must be a table")),
                 };
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -639,7 +653,13 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     .map_err(PluginEnv::api_error)?;
 
                 match resp {
-                    proto::response::Result::Role(r) => Ok(Value::Table(role_table(&lua, &r)?)),
+                    proto::response::Result::Role(r) => {
+                        env.log.push(
+                            proto::PluginLogLevel::Action,
+                            &format!("updated role @{}", r.name),
+                        );
+                        Ok(Value::Table(role_table(&lua, &r)?))
+                    }
                     _ => Err(raise("INTERNAL: unexpected response")),
                 }
             }
@@ -654,7 +674,8 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_del.clone();
             async move {
                 env.require(PluginPermission::ManageRoles)?;
-                let role_id = parse_id(id_val, "role_id")?;
+                let role_id = id_arg(id_val, "role_id")?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
@@ -665,6 +686,11 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 })
                 .await?
                 .map_err(PluginEnv::api_error)?;
+
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("deleted role {role_id}"),
+                );
 
                 Ok(())
             }
@@ -685,8 +711,9 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 };
                 let mut role_ids = Vec::new();
                 for item in list_table.sequence_values::<Value>() {
-                    role_ids.push(parse_id(item?, "role_id")?);
+                    role_ids.push(id_arg(item?, "role_id")?);
                 }
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -698,6 +725,9 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 })
                 .await?
                 .map_err(PluginEnv::api_error)?;
+
+                env.log
+                    .push(proto::PluginLogLevel::Action, "reordered roles");
 
                 Ok(())
             }
@@ -719,12 +749,15 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_list.clone();
             async move {
                 env.require(PluginPermission::ReadMembers)?;
-                let state = env.state()?;
-                let guild = state.guild();
+                let list: Vec<proto::Member> = {
+                    let state = env.state()?;
+                    let guild = state.guild();
+                    guild.members.values().map(|m| m.to_proto()).collect()
+                };
 
                 let res_table = lua.create_table()?;
-                for (idx, member) in (1..).zip(guild.members.values()) {
-                    res_table.raw_set(idx, member_table(&lua, &member.to_proto())?)?;
+                for (idx, member) in (1..).zip(list.iter()) {
+                    res_table.raw_set(idx, member_table(&lua, member)?)?;
                 }
                 Ok(Value::Table(res_table))
             }
@@ -739,12 +772,15 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_get.clone();
             async move {
                 env.require(PluginPermission::ReadMembers)?;
-                let target_user_id = parse_id(id_val, "user_id")?;
-                let state = env.state()?;
-                let guild = state.guild();
+                let target_user_id = id_arg(id_val, "user_id")?;
+                let m_opt = {
+                    let state = env.state()?;
+                    let guild = state.guild();
+                    guild.members.get(&target_user_id).map(|m| m.to_proto())
+                };
 
-                if let Some(m) = guild.members.get(&target_user_id) {
-                    return Ok(Value::Table(member_table(&lua, &m.to_proto())?));
+                if let Some(m) = m_opt {
+                    return Ok(Value::Table(member_table(&lua, &m)?));
                 }
                 Ok(Value::Nil)
             }
@@ -759,8 +795,9 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_add_role.clone();
             async move {
                 env.require(PluginPermission::ManageRoles)?;
-                let target_user_id = parse_id(uid_val, "user_id")?;
-                let role_id = parse_id(rid_val, "role_id")?;
+                let target_user_id = id_arg(uid_val, "user_id")?;
+                let role_id = id_arg(rid_val, "role_id")?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
@@ -779,6 +816,11 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .await?
                 .map_err(PluginEnv::api_error)?;
 
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("gave @{role_id} to {target_user_id}"),
+                );
+
                 Ok(())
             }
         })?,
@@ -792,8 +834,9 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_rm_role.clone();
             async move {
                 env.require(PluginPermission::ManageRoles)?;
-                let target_user_id = parse_id(uid_val, "user_id")?;
-                let role_id = parse_id(rid_val, "role_id")?;
+                let target_user_id = id_arg(uid_val, "user_id")?;
+                let role_id = id_arg(rid_val, "role_id")?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
@@ -812,6 +855,11 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .await?
                 .map_err(PluginEnv::api_error)?;
 
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("removed @{role_id} from {target_user_id}"),
+                );
+
                 Ok(())
             }
         })?,
@@ -825,12 +873,13 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_nick.clone();
             async move {
                 env.require(PluginPermission::ManageNicknames)?;
-                let target_user_id = parse_id(uid_val, "user_id")?;
+                let target_user_id = id_arg(uid_val, "user_id")?;
                 let nickname = match nick_val {
                     Value::String(s) => Some(s.to_str()?.to_owned()),
                     Value::Nil => None,
                     _ => return Err(raise("INVALID_ARGUMENT: nickname must be a string or nil")),
                 };
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -850,6 +899,11 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .await?
                 .map_err(PluginEnv::api_error)?;
 
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("updated nickname for {target_user_id}"),
+                );
+
                 Ok(())
             }
         })?,
@@ -865,7 +919,8 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let env = env_kick.clone();
                 async move {
                     env.require(PluginPermission::KickMembers)?;
-                    let target_user_id = parse_id(uid_val, "user_id")?;
+                    let target_user_id = id_arg(uid_val, "user_id")?;
+                    env.check_rate_limit()?;
                     let state = env.state()?;
                     let plugin_id = env.plugin_id.clone();
                     let user_id = env.user_id;
@@ -884,6 +939,11 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     .await?
                     .map_err(PluginEnv::api_error)?;
 
+                    env.log.push(
+                        proto::PluginLogLevel::Action,
+                        &format!("kicked {target_user_id}"),
+                    );
+
                     Ok(())
                 }
             },
@@ -900,7 +960,8 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let env = env_ban.clone();
                 async move {
                     env.require(PluginPermission::BanMembers)?;
-                    let target_user_id = parse_id(uid_val, "user_id")?;
+                    let target_user_id = id_arg(uid_val, "user_id")?;
+                    env.check_rate_limit()?;
                     let state = env.state()?;
                     let plugin_id = env.plugin_id.clone();
                     let user_id = env.user_id;
@@ -919,6 +980,11 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     .await?
                     .map_err(PluginEnv::api_error)?;
 
+                    env.log.push(
+                        proto::PluginLogLevel::Action,
+                        &format!("banned {target_user_id}"),
+                    );
+
                     Ok(())
                 }
             },
@@ -933,7 +999,8 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_unban.clone();
             async move {
                 env.require(PluginPermission::BanMembers)?;
-                let target_user_id = parse_id(uid_val, "user_id")?;
+                let target_user_id = id_arg(uid_val, "user_id")?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
@@ -950,6 +1017,11 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 })
                 .await?
                 .map_err(PluginEnv::api_error)?;
+
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("unbanned {target_user_id}"),
+                );
 
                 Ok(())
             }
@@ -1053,12 +1125,14 @@ fn install_invites(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             async move {
                 env.require(PluginPermission::CreateInvites)?;
                 let (max_uses, expires_in_s) = match spec_val {
+                    Value::Nil => (None, None),
                     Value::Table(t) => (
-                        t.get::<u32>("max_uses").ok(),
-                        t.get::<u32>("expires_in_s").ok(),
+                        get_opt_u32(&t, "max_uses")?,
+                        get_opt_u32(&t, "expires_in_s")?,
                     ),
-                    _ => (None, None),
+                    _ => return Err(raise("INVALID_ARGUMENT: spec must be a table or nil")),
                 };
+                env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
@@ -1079,6 +1153,10 @@ fn install_invites(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 match resp {
                     proto::response::Result::Invite(inv) => {
+                        env.log.push(
+                            proto::PluginLogLevel::Action,
+                            &format!("created invite {}", inv.code),
+                        );
                         Ok(Value::Table(invite_table(&lua, &inv)?))
                     }
                     _ => Err(raise("INTERNAL: unexpected response")),
@@ -1102,14 +1180,17 @@ fn install_server(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_get.clone();
             async move {
                 env.require(PluginPermission::ReadServer)?;
-                let state = env.state()?;
-                let guild = state.guild();
+                let meta = {
+                    let state = env.state()?;
+                    let guild = state.guild();
+                    guild.meta.clone()
+                };
 
                 let res = lua.create_table()?;
-                res.raw_set("id", hex::encode(guild.meta.server_id))?;
-                res.raw_set("name", guild.meta.name.clone())?;
-                res.raw_set("description", guild.meta.description.clone())?;
-                res.raw_set("owner_id", guild.meta.owner_id.unwrap_or(0).to_string())?;
+                res.raw_set("id", hex::encode(meta.server_id))?;
+                res.raw_set("name", meta.name)?;
+                res.raw_set("description", meta.description)?;
+                res.raw_set("owner_id", meta.owner_id.unwrap_or(0).to_string())?;
                 Ok(Value::Table(res))
             }
         })?,

@@ -105,6 +105,8 @@ fn env(net: PluginNet, granted: &[PluginPermission]) -> (Vm, Arc<PluginEnv>) {
         timers: Arc::new(Mutex::new(HashMap::new())),
         next_timer_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
         config_values: Arc::new(RwLock::new(HashMap::new())),
+        files_lock: Arc::new(tokio::sync::Mutex::new(())),
+        files_reads: Arc::new(tokio::sync::Semaphore::new(10)),
     });
     (vm, env)
 }

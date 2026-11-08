@@ -18,9 +18,13 @@ const MIB: u64 = 1024 * 1024;
 /// A database in its own folder, at most `max_bytes` large.
 async fn scratch(max_bytes: u64) -> (PluginDb, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
-    let db = open(&dir.path().join("data.sqlite"), max_bytes)
-        .await
-        .unwrap();
+    let db = open(
+        &dir.path().join("data.sqlite"),
+        max_bytes,
+        64 * MIB as usize,
+    )
+    .await
+    .unwrap();
     (db, dir)
 }
 
@@ -69,6 +73,8 @@ async fn plugin() -> (Vm, Arc<PluginEnv>, tempfile::TempDir) {
         timers: Arc::new(Mutex::new(HashMap::new())),
         next_timer_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
         config_values: Arc::new(RwLock::new(HashMap::new())),
+        files_lock: Arc::new(tokio::sync::Mutex::new(())),
+        files_reads: Arc::new(tokio::sync::Semaphore::new(10)),
     });
     vm.budget().start(Duration::from_secs(5));
     api::install(&vm, &env).unwrap();
@@ -495,5 +501,21 @@ async fn queries_need_no_permission() {
         run(&vm, source).await,
         "0 2 2 one two INVALID_ARGUMENT: argument 1 can't go into SQL: it's a table \
          INVALID_ARGUMENT: sql must be a string"
+    );
+}
+
+// Catches: SELECT zeroblob exceeding the VM's memory cap.
+#[tokio::test]
+async fn a_huge_blob_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open(&dir.path().join("data.sqlite"), 10 * MIB, MIB as usize)
+        .await
+        .unwrap();
+    let result = db
+        .query("SELECT zeroblob(5000000)".to_owned(), Vec::new())
+        .await;
+    assert!(
+        result.is_err(),
+        "expected huge blob to be refused by length limit"
     );
 }

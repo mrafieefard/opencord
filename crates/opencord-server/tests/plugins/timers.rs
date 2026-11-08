@@ -119,15 +119,15 @@ async fn bad_cron_is_refused() {
         local ok, err = pcall(function()
             timer.cron("not a cron expression", function() end)
         end)
-        if not ok then
-            log.info("cron_rejected: " .. tostring(err))
+        if not ok and type(err) == "string" then
+            log.info("cron_rejected: " .. err)
         end
 
         local ok2, err2 = pcall(function()
             timer.cron("60 * * * *", function() end)
         end)
-        if not ok2 then
-            log.info("cron_out_of_bounds: " .. tostring(err2))
+        if not ok2 and type(err2) == "string" then
+            log.info("cron_out_of_bounds: " .. err2)
         end
         "#,
     )
@@ -168,6 +168,34 @@ async fn bad_cron_is_refused() {
         "expected INVALID_ARGUMENT in: {}",
         line2.text
     );
+}
+
+#[tokio::test]
+async fn invalid_timer_duration_is_refused() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let _p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "timers-invalid-duration",
+        r#"
+        local ok1, err1 = pcall(function() timer.after(0/0, function() end) end)
+        if not ok1 and type(err1) == "string" and string.find(err1, "INVALID_ARGUMENT") then
+            log.info("nan_after_rejected")
+        end
+
+        local ok2, err2 = pcall(function() timer.every(1/0, function() end) end)
+        if not ok2 and type(err2) == "string" and string.find(err2, "INVALID_ARGUMENT") then
+            log.info("inf_every_rejected")
+        end
+        "#,
+    )
+    .await;
+
+    wait_for_log(&mut owner, "timers-invalid-duration", "nan_after_rejected").await;
+    wait_for_log(&mut owner, "timers-invalid-duration", "inf_every_rejected").await;
 }
 
 #[tokio::test]

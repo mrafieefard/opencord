@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use mlua::{Lua, Table, Value};
+use opencord_proto::v1 as proto;
 
 use super::{async_function, raise};
 use crate::db;
@@ -60,8 +61,11 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     let files_dir = env.files_dir.clone();
                     let data_len = data_bytes.len() as i64;
                     let files_bytes_quota = env.files_bytes;
+                    let files_lock = env.files_lock.clone();
+                    let path_for_server = path.clone();
 
                     env.on_server(async move {
+                        let _guard = files_lock.lock().await;
                         let mut conn = state
                             .db
                             .acquire()
@@ -70,7 +74,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         let total = db::plugins::files_bytes(&mut conn, &plugin_id)
                             .await
                             .map_err(|e| raise(format!("INTERNAL: {e}")))?;
-                        let old_size = db::plugins::file_size(&mut conn, &plugin_id, &path)
+                        let old_size = db::plugins::file_size(&mut conn, &plugin_id, &path_for_server)
                             .await
                             .map_err(|e| raise(format!("INTERNAL: {e}")))?
                             .unwrap_or(0);
@@ -79,7 +83,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             return Err(raise("PLUGIN_LIMIT: the plugin's files are full"));
                         }
 
-                        let target_path = files_dir.join(&path);
+                        let target_path = files_dir.join(&path_for_server);
                         if let Some(parent) = target_path.parent() {
                             tokio::fs::create_dir_all(parent).await.map_err(|e| {
                                 raise(format!("INTERNAL: failed to create directory: {e}"))
@@ -92,18 +96,22 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         );
                         let temp_path = target_path.parent().unwrap_or(&files_dir).join(temp_name);
                         if let Err(e) = tokio::fs::write(&temp_path, &data_bytes).await {
-                            let _ = tokio::fs::remove_file(&temp_path).await;
+                            if let Err(rm_err) = tokio::fs::remove_file(&temp_path).await {
+                                tracing::debug!(path = %temp_path.display(), error = %rm_err, "failed to clean up temp file");
+                            }
                             return Err(raise(format!("INTERNAL: failed to write file: {e}")));
                         }
                         if let Err(e) = tokio::fs::rename(&temp_path, &target_path).await {
-                            let _ = tokio::fs::remove_file(&temp_path).await;
+                            if let Err(rm_err) = tokio::fs::remove_file(&temp_path).await {
+                                tracing::debug!(path = %temp_path.display(), error = %rm_err, "failed to clean up temp file");
+                            }
                             return Err(raise(format!("INTERNAL: failed to rename file: {e}")));
                         }
 
                         db::plugins::upsert_plugin_file(
                             &mut conn,
                             &plugin_id,
-                            &path,
+                            &path_for_server,
                             data_len,
                             public,
                             crate::state::now_ms(),
@@ -114,6 +122,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         Ok::<(), mlua::Error>(())
                     })
                     .await??;
+                    env.log.push(proto::PluginLogLevel::Action, &format!("saved file {path}"));
                     Ok(())
                 }
             },
@@ -132,6 +141,11 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 };
                 check_file_path(&path)
                     .map_err(|e| raise(format!("INVALID_ARGUMENT: {path}: {e}")))?;
+                let _permit = env
+                    .files_reads
+                    .acquire()
+                    .await
+                    .map_err(|_| raise("STOPPING: the server is stopping"))?;
                 let target_path = env.files_dir.join(&path);
                 let bytes_opt = env
                     .on_server(async move {
@@ -165,20 +179,28 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let target_path = env.files_dir.join(&path);
+                let path_c = path.clone();
 
                 env.on_server(async move {
-                    let _ = tokio::fs::remove_file(&target_path).await;
+                    match tokio::fs::remove_file(&target_path).await {
+                        Ok(()) => {}
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(e) => {
+                            tracing::warn!(path = %target_path.display(), error = %e, "could not remove plugin file on disk");
+                        }
+                    }
                     let mut conn = state
                         .db
                         .acquire()
                         .await
                         .map_err(|e| raise(format!("INTERNAL: {e}")))?;
-                    db::plugins::delete_plugin_file(&mut conn, &plugin_id, &path)
+                    db::plugins::delete_plugin_file(&mut conn, &plugin_id, &path_c)
                         .await
                         .map_err(|e| raise(format!("INTERNAL: {e}")))?;
                     Ok::<(), mlua::Error>(())
                 })
                 .await??;
+                env.log.push(proto::PluginLogLevel::Action, &format!("deleted file {path}"));
                 Ok(())
             }
         })?,

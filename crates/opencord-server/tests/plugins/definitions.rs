@@ -36,6 +36,8 @@ async fn definitions_match_the_api() {
         db: PluginDb::unused(),
         files_dir: PathBuf::new(),
         files_bytes: 0,
+        files_lock: Arc::new(tokio::sync::Mutex::new(())),
+        files_reads: Arc::new(tokio::sync::Semaphore::new(10)),
         hooks: Arc::new(RwLock::new(HashSet::new())),
         queue: Arc::new(EventQueue::default()),
         timers: Arc::new(Mutex::new(HashMap::new())),

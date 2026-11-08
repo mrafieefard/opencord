@@ -400,6 +400,8 @@ async fn a_voice_state_names_its_user_and_leaves_the_session_out() {
                 "suppress": false,
                 "self_video": false,
                 "self_stream": false,
+                "video": false,
+                "streaming": false,
             }
         })
     );
@@ -420,7 +422,15 @@ async fn a_member_joining_is_a_member_table() {
 
     assert_eq!(
         payload(&kind, &guild().await),
-        serde_json::json!({ "member": { "id": "4", "name": "Bea" } })
+        serde_json::json!({
+            "member": {
+                "id": "4",
+                "name": "Bea",
+                "role_ids": [],
+                "roles": [],
+                "joined_at_ms": 0,
+            }
+        })
     );
 }
 

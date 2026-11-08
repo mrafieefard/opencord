@@ -184,7 +184,9 @@ pub fn role_table(r: &proto::Role) -> Value {
     table.insert("name".to_owned(), Value::String(r.name.clone()));
     table.insert("color".to_owned(), json!(r.color));
     table.insert("position".to_owned(), json!(r.position));
-    table.insert("permissions".to_owned(), json!(r.permissions));
+    let perms = opencord_common::permissions::Permissions::from_bits_truncate(r.permissions);
+    let perm_names = events::permissions_to_names(perms);
+    table.insert("permissions".to_owned(), json!(perm_names));
     table.insert("hoist".to_owned(), Value::Bool(r.hoist));
     table.insert("mentionable".to_owned(), Value::Bool(r.mentionable));
     if let Some(max_upload) = r.max_upload_bytes {
@@ -221,6 +223,7 @@ pub fn member_update_table(m: &proto::Member) -> Value {
     if let Some(nick) = &m.nickname {
         table.insert("nickname".to_owned(), Value::String(nick.clone()));
     }
+    table.insert("roles".to_owned(), Value::Array(role_ids.clone()));
     table.insert("role_ids".to_owned(), Value::Array(role_ids));
     table.insert("joined_at_ms".to_owned(), json!(m.joined_at_ms));
     Value::Object(table)
