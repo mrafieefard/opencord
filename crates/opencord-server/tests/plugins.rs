@@ -8,6 +8,8 @@ mod commands;
 mod common;
 #[path = "plugins/config.rs"]
 mod config;
+#[path = "plugins/definitions.rs"]
+mod definitions;
 #[path = "plugins/dev.rs"]
 mod dev;
 #[path = "plugins/event_tables.rs"]

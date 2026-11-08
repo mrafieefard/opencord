@@ -581,11 +581,11 @@ fn allowed(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, debug_assertions))]
 impl PluginDb {
     /// For tests whose plugin never uses its database: nothing opens until
     /// a call, and then an empty one in memory.
-    pub(crate) fn unused() -> PluginDb {
+    pub fn unused() -> PluginDb {
         let options: SqliteConnectOptions = "sqlite::memory:".parse().unwrap();
         PluginDb {
             pool: SqlitePoolOptions::new().connect_lazy_with(options),
