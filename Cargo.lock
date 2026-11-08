@@ -4663,6 +4663,7 @@ dependencies = [
  "igd-next",
  "image",
  "instant-acme",
+ "mlua",
  "opencord-common",
  "opencord-plugins",
  "opencord-proto",

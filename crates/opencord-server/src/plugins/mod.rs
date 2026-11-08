@@ -1,5 +1,595 @@
 //! Plugins (design 2026-11-07): server Lua scripts admins install, each
 //! acting through a plugin user and a managed role.
 
+pub mod api;
 pub mod identity;
+pub mod logbook;
 pub mod permissions;
+pub mod queue;
+pub mod runtime;
+
+use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
+use std::time::Duration;
+
+use opencord_common::permissions::Permissions;
+use opencord_plugins::manifest::{ConfigKind, Manifest};
+use opencord_plugins::package::Package;
+use opencord_plugins::signing::PublicKey;
+use opencord_proto::v1 as proto;
+use tokio::sync::{oneshot, watch};
+use tokio::task::JoinHandle;
+
+use crate::db;
+use crate::error::ApiError;
+use crate::state::{AppState, Audience};
+use logbook::PluginLog;
+use permissions::{PluginPermission, may_grant};
+use queue::EventQueue;
+use runtime::{Clock, Spec, SystemClock};
+
+/// How long `Plugins::start` waits for the scripts and `start`, in real time.
+const START_WAIT: Duration = Duration::from_secs(30);
+
+/// What starting a plugin needs.
+pub struct InstalledPlugin {
+    pub id: String,
+    pub user_id: i64,
+    pub folder: PathBuf,
+    pub manifest: Manifest,
+    pub package: Package,
+    pub granted: HashSet<PluginPermission>,
+}
+
+/// An event for a plugin's handlers. Ids in the payload are strings.
+pub struct PluginEvent {
+    pub name: String,
+    pub payload: serde_json::Value,
+    /// The first `reply(...)` a handler makes, as a JSON array of its
+    /// arguments. Nobody replying drops it, or leaves it to time out.
+    pub reply: Option<oneshot::Sender<serde_json::Value>>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PluginStats {
+    /// CPU time over the last 5 s, in thousandths of one core.
+    pub cpu_permille: u32,
+    pub memory_bytes: u64,
+}
+
+/// Why a plugin didn't start.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartError(pub String);
+
+impl fmt::Display for StartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for StartError {}
+
+/// One plugin as the runtime keeps it, across its VM's restarts.
+pub struct PluginHandle {
+    pub id: String,
+    pub user_id: i64,
+    queue: EventQueue,
+    log: Arc<PluginLog>,
+    granted: Arc<RwLock<HashSet<PluginPermission>>>,
+    status: Mutex<Status>,
+    cpu_permille: AtomicU32,
+    memory_bytes: AtomicU64,
+    stopping: watch::Sender<bool>,
+    supervisor: tokio::sync::Mutex<Option<JoinHandle<()>>>,
+}
+
+struct Status {
+    state: proto::PluginState,
+    reason: Option<String>,
+}
+
+impl PluginHandle {
+    pub fn state(&self) -> proto::PluginState {
+        self.status().state
+    }
+
+    pub fn status_reason(&self) -> Option<String> {
+        self.status().reason.clone()
+    }
+
+    pub fn granted(&self) -> HashSet<PluginPermission> {
+        self.granted
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Changes what the plugin may do, and tells it with
+    /// `permission_change { granted, added, removed }`.
+    pub fn set_granted(&self, granted: HashSet<PluginPermission>) {
+        let old = std::mem::replace(
+            &mut *self.granted.write().unwrap_or_else(PoisonError::into_inner),
+            granted.clone(),
+        );
+        let names = |set: &mut dyn Iterator<Item = &PluginPermission>| {
+            let mut names: Vec<&str> = set.map(|permission| permission.name()).collect();
+            names.sort_unstable();
+            names
+        };
+        let payload = serde_json::json!({
+            "granted": names(&mut granted.iter()),
+            "added": names(&mut granted.difference(&old)),
+            "removed": names(&mut old.difference(&granted)),
+        });
+        self.deliver(PluginEvent {
+            name: "permission_change".to_owned(),
+            payload,
+            reply: None,
+        });
+    }
+
+    pub fn stats(&self) -> PluginStats {
+        PluginStats {
+            cpu_permille: self.cpu_permille.load(Ordering::Relaxed),
+            memory_bytes: self.memory_bytes.load(Ordering::Relaxed),
+        }
+    }
+
+    pub fn log(&self) -> &PluginLog {
+        &self.log
+    }
+
+    /// Queues the event while the plugin is starting or running; drops it
+    /// otherwise.
+    pub fn deliver(&self, event: PluginEvent) {
+        if self.takes_events() {
+            self.queue.push(event);
+        }
+    }
+
+    fn takes_events(&self) -> bool {
+        matches!(
+            self.state(),
+            proto::PluginState::Starting | proto::PluginState::Running
+        )
+    }
+
+    fn status(&self) -> std::sync::MutexGuard<'_, Status> {
+        self.status.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn set_status(&self, state: proto::PluginState, reason: Option<String>) {
+        *self.status() = Status { state, reason };
+    }
+
+    /// Delivers `stop`, waits the grace, ends the VM. A crashed plugin
+    /// stays crashed.
+    async fn stop(&self) {
+        self.stopping.send_replace(true);
+        let supervisor = self.supervisor.lock().await.take();
+        if let Some(supervisor) = supervisor
+            && let Err(error) = supervisor.await
+        {
+            tracing::error!(plugin = %self.id, %error, "a plugin's supervisor failed");
+        }
+        {
+            let mut status = self.status();
+            if matches!(
+                status.state,
+                proto::PluginState::Starting | proto::PluginState::Running
+            ) {
+                *status = Status {
+                    state: proto::PluginState::Stopped,
+                    reason: None,
+                };
+            }
+        }
+        self.queue.clear();
+    }
+}
+
+/// The plugins the runtime knows. An entry is added by [`Plugins::start`]
+/// and leaves with [`Plugins::remove`] (uninstalling); a stopped or crashed
+/// plugin keeps its entry, so its state, reason and log stay readable.
+pub struct Plugins {
+    handles: RwLock<HashMap<String, Arc<PluginHandle>>>,
+    clock: Arc<dyn Clock>,
+}
+
+impl Default for Plugins {
+    fn default() -> Self {
+        Self::with_clock(Arc::new(SystemClock))
+    }
+}
+
+impl fmt::Debug for Plugins {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Plugins").field("ids", &self.ids()).finish()
+    }
+}
+
+impl Plugins {
+    pub(crate) fn with_clock(clock: Arc<dyn Clock>) -> Self {
+        Self {
+            handles: RwLock::default(),
+            clock,
+        }
+    }
+
+    pub fn get(&self, id: &str) -> Option<Arc<PluginHandle>> {
+        self.handles
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(id)
+            .cloned()
+    }
+
+    pub fn ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .handles
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .keys()
+            .cloned()
+            .collect();
+        ids.sort_unstable();
+        ids
+    }
+
+    fn all(&self) -> Vec<Arc<PluginHandle>> {
+        self.handles
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .cloned()
+            .collect()
+    }
+
+    /// Starts the plugin, stopping a running copy first. Resolves once its
+    /// scripts ran and `start` was handled, or with what made start fail;
+    /// either way the plugin's handle stays, with its state and reason.
+    pub async fn start(
+        &self,
+        state: &Arc<AppState>,
+        installed: InstalledPlugin,
+    ) -> Result<(), StartError> {
+        if !state.config.plugins.enabled {
+            return Err(StartError(
+                "plugins are turned off on this server".to_owned(),
+            ));
+        }
+        let spec = Arc::new(Spec::new(&installed, &state.config.plugins)?);
+        let old = self.get(&installed.id);
+        if let Some(old) = &old {
+            old.stop().await;
+        }
+        // Starting it again clears why it was turned off.
+        save_crashed_reason(state, &installed.id, None)
+            .await
+            .map_err(|error| {
+                tracing::warn!(plugin = %installed.id, %error, "could not clear a plugin's crash");
+                StartError("the server couldn't save the plugin's state".to_owned())
+            })?;
+        let log = match &old {
+            Some(old) => old.log.clone(),
+            None => PluginLog::new(
+                &installed.id,
+                Some(state.config.plugins_dir().join(&installed.id)),
+            ),
+        };
+        let (stopping, stopping_receiver) = watch::channel(false);
+        let handle = Arc::new(PluginHandle {
+            id: installed.id.clone(),
+            user_id: installed.user_id,
+            queue: EventQueue::default(),
+            log,
+            granted: Arc::new(RwLock::new(installed.granted)),
+            status: Mutex::new(Status {
+                state: proto::PluginState::Starting,
+                reason: None,
+            }),
+            cpu_permille: AtomicU32::new(0),
+            memory_bytes: AtomicU64::new(0),
+            stopping,
+            supervisor: tokio::sync::Mutex::new(None),
+        });
+        self.handles
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(installed.id, handle.clone());
+        let (started, started_receiver) = oneshot::channel();
+        let supervisor = tokio::spawn(runtime::supervise(
+            Arc::downgrade(state),
+            handle.clone(),
+            spec,
+            self.clock.clone(),
+            stopping_receiver,
+            started,
+        ));
+        *handle.supervisor.lock().await = Some(supervisor);
+        match tokio::time::timeout(START_WAIT, started_receiver).await {
+            Ok(Ok(Ok(()))) => Ok(()),
+            Ok(Ok(Err(error))) => Err(StartError(error)),
+            Ok(Err(_)) => Err(StartError(
+                "the plugin was stopped while starting".to_owned(),
+            )),
+            Err(_) => {
+                handle.stop().await;
+                let error = format!("starting took longer than {} s", START_WAIT.as_secs());
+                handle.log.push(proto::PluginLogLevel::Error, &error);
+                handle.set_status(proto::PluginState::Stopped, Some(error.clone()));
+                Err(StartError(error))
+            }
+        }
+    }
+
+    /// Delivers `stop`, waits the grace, drops the VM; waiting calls are
+    /// cancelled.
+    pub async fn stop(&self, id: &str) {
+        if let Some(handle) = self.get(id) {
+            handle.stop().await;
+        }
+    }
+
+    /// Stops the plugin and forgets it, writing out its log first.
+    pub async fn remove(&self, id: &str) {
+        let Some(handle) = self.get(id) else { return };
+        handle.stop().await;
+        self.handles
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(id);
+        handle.log.close().await;
+    }
+
+    pub async fn stop_all(&self) {
+        let handles = self.all();
+        futures_util::future::join_all(handles.iter().map(|handle| handle.stop())).await;
+    }
+
+    pub fn deliver(&self, id: &str, event: PluginEvent) {
+        if let Some(handle) = self.get(id) {
+            handle.deliver(event);
+        }
+    }
+
+    /// Offers each starting or running plugin an event built by `f`.
+    /// Never waits.
+    pub fn deliver_all(&self, f: impl Fn(&PluginHandle) -> Option<PluginEvent>) {
+        for handle in self.all() {
+            if handle.takes_events()
+                && let Some(event) = f(&handle)
+            {
+                handle.queue.push(event);
+            }
+        }
+    }
+}
+
+/// Starts every plugin an admin left running and that wasn't turned off
+/// after failing, each in the background.
+pub async fn start_all(state: &Arc<AppState>) {
+    if !state.config.plugins.enabled {
+        return;
+    }
+    let rows = match state.db.acquire().await {
+        Ok(mut conn) => db::plugins::plugins(&mut conn).await,
+        Err(error) => Err(error),
+    };
+    let rows = match rows {
+        Ok(rows) => rows,
+        Err(error) => {
+            return tracing::warn!(%error, "could not read the installed plugins");
+        }
+    };
+    for row in rows {
+        if !row.running || row.crashed_reason.is_some() {
+            continue;
+        }
+        let state = state.clone();
+        tokio::spawn(async move {
+            let id = row.id.clone();
+            match installed(&state, row).await {
+                Ok(installed) => {
+                    if let Err(error) = state.plugins.start(&state, installed).await {
+                        tracing::warn!(plugin = %id, %error, "a plugin failed to start");
+                    }
+                }
+                Err(error) => tracing::warn!(plugin = %id, %error, "could not load a plugin"),
+            }
+        });
+    }
+}
+
+/// An installed plugin as its row and folder hold it.
+async fn installed(
+    state: &AppState,
+    row: db::plugins::PluginRow,
+) -> Result<InstalledPlugin, String> {
+    let manifest: Manifest = serde_json::from_str(&row.manifest)
+        .map_err(|error| format!("its saved manifest is unreadable: {error}"))?;
+    let granted = match state.db.acquire().await {
+        Ok(mut conn) => db::plugins::granted(&mut conn, &row.id).await,
+        Err(error) => Err(error),
+    }
+    .map_err(|error| error.to_string())?
+    .iter()
+    .filter_map(|name| PluginPermission::from_name(name))
+    .collect();
+    let folder = state.config.plugins_dir().join(&row.id).join(&row.folder);
+    let reading = folder.clone();
+    let package = tokio::task::spawn_blocking(move || Package::from_dir(&reading))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())?;
+    Ok(InstalledPlugin {
+        id: row.id,
+        user_id: row.user_id,
+        folder,
+        manifest,
+        package,
+        granted,
+    })
+}
+
+async fn save_crashed_reason(
+    state: &AppState,
+    id: &str,
+    reason: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    let mut conn = state.db.acquire().await?;
+    db::plugins::set_crashed_reason(&mut conn, id, reason).await
+}
+
+/// Sends the admins (`MANAGE_PLUGINS`) the plugin as it is now.
+pub async fn announce(state: &AppState, id: &str) {
+    match describe(state, id, None).await {
+        Ok(Some(plugin)) => state.broadcast(
+            proto::event::Kind::PluginUpdate(proto::PluginUpdate {
+                plugin: Some(plugin),
+            }),
+            Audience::Holding(Permissions::MANAGE_PLUGINS),
+        ),
+        Ok(None) => {}
+        Err(error) => {
+            tracing::warn!(plugin = %id, error = %error.message, "could not describe a plugin");
+        }
+    }
+}
+
+/// What admins see of an installed plugin; `None` when it isn't installed.
+/// Each permission's `grantable` is worked out for `viewer`, and is false
+/// without one.
+pub async fn describe(
+    state: &AppState,
+    id: &str,
+    viewer: Option<i64>,
+) -> Result<Option<proto::Plugin>, ApiError> {
+    let mut conn = state.db.acquire().await?;
+    let Some(row) = db::plugins::plugin(&mut conn, id).await? else {
+        return Ok(None);
+    };
+    let granted: HashSet<String> = db::plugins::granted(&mut conn, id)
+        .await?
+        .into_iter()
+        .collect();
+    let config = db::plugins::config_values(&mut conn, id).await?;
+    let files_bytes = db::plugins::files_bytes(&mut conn, id).await?;
+    drop(conn);
+    let manifest: Manifest = serde_json::from_str(&row.manifest).map_err(|error| {
+        tracing::error!(plugin = %id, %error, "a plugin's saved manifest is unreadable");
+        ApiError::internal()
+    })?;
+    let database = state.config.plugins_dir().join(id).join("data.sqlite");
+    let database_bytes = tokio::fs::metadata(database)
+        .await
+        .map_or(0, |metadata| metadata.len());
+    let (plugin_state, status_reason, stats) = match state.plugins.get(id) {
+        Some(handle) => (handle.state(), handle.status_reason(), handle.stats()),
+        None => match row.crashed_reason {
+            Some(reason) => (
+                proto::PluginState::Crashed,
+                Some(reason),
+                PluginStats::default(),
+            ),
+            None => (proto::PluginState::Stopped, None, PluginStats::default()),
+        },
+    };
+    let permissions = {
+        let guild = state.guild();
+        manifest
+            .permissions
+            .iter()
+            .map(|name| proto::PluginPermissionGrant {
+                name: name.clone(),
+                granted: granted.contains(name),
+                grantable: viewer
+                    .zip(PluginPermission::from_name(name))
+                    .is_some_and(|(viewer, permission)| may_grant(&guild, viewer, permission)),
+            })
+            .collect()
+    };
+    let signature = match row.signature.as_str() {
+        "signed" => proto::PluginSignature::Signed,
+        "dev" => proto::PluginSignature::Dev,
+        _ => proto::PluginSignature::Unsigned,
+    };
+    let github_check = match row.github_check.as_str() {
+        "verified" => proto::GithubCheck::Verified,
+        "mismatch" => proto::GithubCheck::Mismatch,
+        "failed" => proto::GithubCheck::Failed,
+        _ => proto::GithubCheck::Unspecified,
+    };
+    let key_fingerprint = row
+        .public_key
+        .and_then(|key| <[u8; 32]>::try_from(key).ok())
+        .map(|key| PublicKey(key).fingerprint())
+        .unwrap_or_default();
+    Ok(Some(proto::Plugin {
+        id: row.id,
+        name: manifest.name,
+        version: manifest.version.to_string(),
+        author: manifest.author,
+        description: manifest.description,
+        github: manifest
+            .github
+            .map(|github| format!("https://github.com/{}/{}", github.owner, github.repo))
+            .unwrap_or_default(),
+        license: manifest.license,
+        signature: signature as i32,
+        key_fingerprint,
+        github_check: github_check as i32,
+        state: plugin_state as i32,
+        status_reason: status_reason.unwrap_or_default(),
+        permissions,
+        domains: manifest.domains,
+        config_fields: manifest
+            .config
+            .into_iter()
+            .map(|field| proto::PluginConfigField {
+                key: field.key,
+                label: field.label,
+                kind: config_kind(field.kind) as i32,
+                choices: field.choices,
+                required: field.required,
+            })
+            .collect(),
+        config: config
+            .into_iter()
+            .map(|value| proto::PluginConfigValue {
+                key: value.key,
+                // Secrets never leave the server.
+                value: if value.sealed {
+                    String::new()
+                } else {
+                    String::from_utf8_lossy(&value.value).into_owned()
+                },
+                has_value: true,
+            })
+            .collect(),
+        user_id: row.user_id,
+        role_id: row.role_id,
+        installed_at_ms: row.installed_at,
+        updated_at_ms: row.updated_at,
+        cpu_permille: stats.cpu_permille,
+        memory_bytes: stats.memory_bytes,
+        database_bytes,
+        files_bytes: u64::try_from(files_bytes).unwrap_or(0),
+    }))
+}
+
+fn config_kind(kind: ConfigKind) -> proto::PluginConfigKind {
+    match kind {
+        ConfigKind::Text => proto::PluginConfigKind::Text,
+        ConfigKind::Secret => proto::PluginConfigKind::Secret,
+        ConfigKind::Number => proto::PluginConfigKind::Number,
+        ConfigKind::Boolean => proto::PluginConfigKind::Boolean,
+        ConfigKind::Choice => proto::PluginConfigKind::Choice,
+        ConfigKind::Role => proto::PluginConfigKind::Role,
+        ConfigKind::Channel => proto::PluginConfigKind::Channel,
+        ConfigKind::User => proto::PluginConfigKind::User,
+    }
+}

@@ -68,6 +68,8 @@ pub struct AppState {
     pub attachments: crate::attachments::Attachments,
     /// Private messages and friends (design 2026-10-22).
     pub private: crate::private::PrivateMessages,
+    /// Running plugins (design 2026-11-07).
+    pub plugins: crate::plugins::Plugins,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -120,6 +122,7 @@ impl AppState {
             commands: crate::commands::Commands::default(),
             attachments,
             private,
+            plugins: crate::plugins::Plugins::default(),
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),

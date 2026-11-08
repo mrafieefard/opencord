@@ -130,6 +130,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     state.commands.load(&mut *state.db.acquire().await?).await?;
     crate::lavalink::start(&state).await?;
     crate::attachments::start(&state).await?;
+    crate::plugins::start_all(&state).await;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -209,6 +210,8 @@ impl ServerHandle {
     /// Closes every connection (1001), stops listening and closes the
     /// database.
     pub async fn shutdown(self) {
+        // While the server still works, so `stop` handlers can use it.
+        self.state.plugins.stop_all().await;
         if let Some(node) = self.state.voice_nodes.embedded() {
             node.shutdown();
         }

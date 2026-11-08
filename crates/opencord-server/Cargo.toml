@@ -27,6 +27,7 @@ image.workspace = true
 hickory-proto.workspace = true
 igd-next.workspace = true
 instant-acme.workspace = true
+mlua.workspace = true
 rcgen.workspace = true
 reqwest.workspace = true
 rusty-s3 = "0.10.2"
