@@ -198,6 +198,9 @@ impl AppState {
                 session.push_event(&event, now);
             }
         }
+        if let Some(kind) = &event.kind {
+            self.plugins.observe(&guild, kind, audience);
+        }
     }
 
     /// What other members see for this user.

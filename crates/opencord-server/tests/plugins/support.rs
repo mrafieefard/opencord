@@ -138,7 +138,7 @@ pub async fn install(
 /// The plugin's last 500 log lines' text.
 pub async fn log_lines(client: &mut TestClient, plugin_id: &str) -> Vec<String> {
     let reply = client
-        .ok(Kind::FetchPluginLog(proto::FetchPluginLog {
+        .ok_paced(Kind::FetchPluginLog(proto::FetchPluginLog {
             plugin_id: plugin_id.to_owned(),
             before: None,
             limit: 500,
@@ -150,7 +150,8 @@ pub async fn log_lines(client: &mut TestClient, plugin_id: &str) -> Vec<String> 
     log.lines.into_iter().map(|line| line.text).collect()
 }
 
-/// Waits up to 5 s for a line holding `text` in the plugin's log.
+/// Waits up to 5 s for a line holding `text` in the plugin's log, polling
+/// at the pace the request rate limit refills.
 pub async fn wait_for_log(client: &mut TestClient, plugin_id: &str, text: &str) {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
@@ -162,7 +163,7 @@ pub async fn wait_for_log(client: &mut TestClient, plugin_id: &str, text: &str) 
             Instant::now() < deadline,
             "{text:?} never appeared in {plugin_id}'s log: {lines:#?}"
         );
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 }
 

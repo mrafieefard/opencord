@@ -63,6 +63,11 @@ pub fn announce(state: &AppState, voice_state: proto::VoiceState, channels: &[i6
                 session.push_event(&event, now);
             }
         }
+        if let Some(kind) = &event.kind {
+            state
+                .plugins
+                .observe_in(&guild, kind, crate::plugins::events::Scope::AnyOf(channels));
+        }
         current.map(|channel_id| guild.channel_permissions(user_id, channel_id).bits())
     };
     for left in channels.iter().copied().filter(|c| Some(*c) != current) {

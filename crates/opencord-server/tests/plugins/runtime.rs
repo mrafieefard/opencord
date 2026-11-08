@@ -11,7 +11,6 @@ use crate::support::{install, manifest, package, wait_for_log};
 // Catches: running Lua on the server's runtime, where a busy plugin holds
 // up everyone's messages.
 #[tokio::test]
-#[ignore = "needs Task 9: messages reach plugins once events are routed"]
 async fn an_endless_loop_does_not_delay_chat() {
     let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
@@ -36,14 +35,28 @@ async fn an_endless_loop_does_not_delay_chat() {
 
     for index in 0..20 {
         let content = format!("message {index}");
-        let sent = Instant::now();
-        owner
-            .ok(Kind::SendMessage(proto::SendMessage {
-                channel_id: general,
-                content: content.clone(),
-                ..Default::default()
-            }))
-            .await;
+        // Past the burst, messages are rate limited: wait that out, and
+        // time only the attempt that was accepted.
+        let sent = loop {
+            let sent = Instant::now();
+            match owner
+                .request(Kind::SendMessage(proto::SendMessage {
+                    channel_id: general,
+                    content: content.clone(),
+                    ..Default::default()
+                }))
+                .await
+            {
+                proto::response::Result::Error(error)
+                    if error.code == proto::ErrorCode::RateLimited as i32 =>
+                {
+                    let wait = error.retry_after_ms.unwrap_or(100);
+                    tokio::time::sleep(Duration::from_millis(wait)).await;
+                }
+                proto::response::Result::Error(error) => panic!("not sent: {error:?}"),
+                _ => break sent,
+            }
+        };
         alice
             .wait_for(|event| match event {
                 proto::event::Kind::MessageCreate(created)

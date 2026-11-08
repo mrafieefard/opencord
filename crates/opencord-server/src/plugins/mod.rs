@@ -2,6 +2,7 @@
 //! acting through a plugin user and a managed role.
 
 pub mod api;
+pub mod events;
 pub mod github;
 pub mod http;
 pub mod identity;
@@ -109,6 +110,14 @@ impl PluginHandle {
             .read()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
+    }
+
+    /// Whether the plugin holds `permission` now.
+    pub fn holds(&self, permission: PluginPermission) -> bool {
+        self.granted
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&permission)
     }
 
     /// Changes what the plugin may do, and tells it with
@@ -359,6 +368,16 @@ impl Plugins {
     pub async fn stop_all(&self) {
         let handles = self.all();
         futures_util::future::join_all(handles.iter().map(|handle| handle.stop())).await;
+    }
+
+    /// The users of the plugins taking events: whose visible channels
+    /// `Visibility` follows alongside members'.
+    pub fn listening_user_ids(&self) -> Vec<i64> {
+        self.all()
+            .iter()
+            .filter(|handle| handle.takes_events())
+            .map(|handle| handle.user_id)
+            .collect()
     }
 
     pub fn deliver(&self, id: &str, event: PluginEvent) {
