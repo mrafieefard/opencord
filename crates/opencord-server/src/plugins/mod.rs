@@ -8,6 +8,7 @@ pub mod http;
 pub mod identity;
 pub mod install;
 pub mod logbook;
+pub mod net;
 pub mod permissions;
 pub mod queue;
 pub mod review;

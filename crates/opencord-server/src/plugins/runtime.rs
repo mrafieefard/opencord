@@ -31,6 +31,7 @@ use tokio::task::JoinSet;
 
 use super::api::plugin::handlers_for;
 use super::api::{self, raise};
+use super::net::{NetGuard, PluginNet};
 use super::permissions::PluginPermission;
 use super::{InstalledPlugin, PluginHandle, StartError};
 use crate::config::PluginsSection;
@@ -61,6 +62,9 @@ pub struct PluginEnv {
     /// The server's runtime. Server work runs there ([`PluginEnv::on_server`]),
     /// so it finishes even if the plugin stops halfway.
     pub server: tokio::runtime::Handle,
+    /// The plugin's internet access. Its connections live on the VM's
+    /// runtime and end with it.
+    pub net: super::net::PluginNet,
 }
 
 impl PluginEnv {
@@ -142,6 +146,8 @@ pub(crate) struct Spec {
     /// Every `server/*.lua` and `server/*.luau`, by path.
     sources: Arc<HashMap<String, String>>,
     limits: VmLimits,
+    /// The manifest's domains.
+    domains: Arc<NetGuard>,
 }
 
 impl Spec {
@@ -169,6 +175,7 @@ impl Spec {
                 memory_bytes: usize::try_from(memory).unwrap_or(usize::MAX),
                 handler_time: Duration::from_millis(config.handler_ms.into()),
             },
+            domains: Arc::new(NetGuard::new(&installed.manifest.domains)),
         })
     }
 }
@@ -251,6 +258,15 @@ fn spawn_vm(
                 Ok(vm) => vm,
                 Err(error) => return report(&reports, Report::Started(Err(error.to_string()))),
             };
+            // A client per VM: its pooled connections belong to this
+            // thread's runtime, which a restart replaces.
+            let net = match PluginNet::new(spec.domains.clone()) {
+                Ok(net) => net,
+                Err(error) => {
+                    let error = format!("could not set up the plugin's internet access: {error}");
+                    return report(&reports, Report::Started(Err(error)));
+                }
+            };
             let env = Arc::new(PluginEnv {
                 state,
                 plugin_id: spec.id.clone(),
@@ -260,6 +276,7 @@ fn spawn_vm(
                 log: handle.log.clone(),
                 budget: vm.budget().clone(),
                 server,
+                net,
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));

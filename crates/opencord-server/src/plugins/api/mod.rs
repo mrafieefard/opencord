@@ -6,6 +6,7 @@
 //! [`async_function`]: an `Err` from a bare mlua callback would reach Lua
 //! as userdata instead.
 
+pub mod http;
 pub mod log;
 pub mod plugin;
 
@@ -23,6 +24,7 @@ use super::runtime::PluginEnv;
 pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     plugin::install(&vm.lua, env)?;
     log::install(vm, env)?;
+    http::install(&vm.lua, env)?;
     #[cfg(test)]
     tests::install(&vm.lua, env)?;
     Ok(())
