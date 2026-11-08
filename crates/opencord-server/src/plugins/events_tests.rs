@@ -121,14 +121,8 @@ fn table() -> Vec<(Kind, Expected)> {
             Kind::RoleDelete(Default::default()),
             Some(("role_delete", ReadRoles)),
         ),
-        (
-            Kind::MemberJoin(Default::default()),
-            Some(("member_join", ReadMembers)),
-        ),
-        (
-            Kind::MemberLeave(Default::default()),
-            Some(("member_leave", ReadMembers)),
-        ),
+        (Kind::MemberJoin(Default::default()), None),
+        (Kind::MemberLeave(Default::default()), None),
         (
             Kind::MemberUpdate(Default::default()),
             Some(("member_update", ReadMembers)),

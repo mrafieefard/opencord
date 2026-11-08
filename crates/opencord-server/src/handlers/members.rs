@@ -17,7 +17,7 @@ use crate::visibility::Visibility;
 pub async fn kick(ctx: &Ctx<'_>, request: proto::KickMember) -> Result<Response, ApiError> {
     optional_reason(request.reason.as_deref())?;
     let _writes = ctx.state.write_lock().await;
-    let overwrite_channels = {
+    let (target_user, overwrite_channels) = {
         let guild = ctx.state.guild();
         require_base(&guild, ctx.user_id, Permissions::KICK_MEMBERS)?;
         require_other(ctx, request.user_id)?;
@@ -25,22 +25,38 @@ pub async fn kick(ctx: &Ctx<'_>, request: proto::KickMember) -> Result<Response,
             return Err(ApiError::not_found("member"));
         }
         require_outranks_member(&guild, ctx.user_id, request.user_id)?;
-        channels_with_member_overwrite(&guild, request.user_id)
+        (
+            crate::plugins::events::user_table(&guild, request.user_id),
+            channels_with_member_overwrite(&guild, request.user_id),
+        )
     };
     let mut tx = ctx.state.db.begin().await?;
     channels::delete_overwrites_for_target(&mut tx, "member", request.user_id).await?;
     members::delete(&mut tx, request.user_id).await?;
     crate::private::forget_member(&mut tx, request.user_id).await?;
     tx.commit().await?;
+    let by = crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id);
     remove_member(ctx, request.user_id, CloseCode::KICKED, &overwrite_channels);
     ctx.state.private.forget(request.user_id);
+    let payload = serde_json::json!({
+        "user": target_user,
+        "reason": "kicked",
+        "by": by,
+    });
+    crate::plugins::events::emit(
+        ctx.state,
+        "member_leave",
+        crate::plugins::permissions::PluginPermission::ReadMembers,
+        None,
+        payload,
+    );
     Ok(ack())
 }
 
 pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, ApiError> {
     let reason = optional_reason(request.reason.as_deref())?;
     let _writes = ctx.state.write_lock().await;
-    let (is_member, overwrite_channels) = {
+    let (is_member, target_user, overwrite_channels) = {
         let guild = ctx.state.guild();
         require_base(&guild, ctx.user_id, Permissions::BAN_MEMBERS)?;
         require_other(ctx, request.user_id)?;
@@ -50,6 +66,7 @@ pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, A
         }
         (
             is_member,
+            crate::plugins::events::user_table(&guild, request.user_id),
             channels_with_member_overwrite(&guild, request.user_id),
         )
     };
@@ -72,8 +89,27 @@ pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, A
     }
     tx.commit().await?;
     if is_member {
+        let by = crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id);
         remove_member(ctx, request.user_id, CloseCode::BANNED, &overwrite_channels);
         ctx.state.private.forget(request.user_id);
+        let mut payload = serde_json::json!({
+            "user": target_user,
+            "reason": "banned",
+            "by": by,
+        });
+        if let Some(r) = &reason {
+            payload.as_object_mut().unwrap().insert(
+                "ban_reason".to_owned(),
+                serde_json::Value::String(r.clone()),
+            );
+        }
+        crate::plugins::events::emit(
+            ctx.state,
+            "member_leave",
+            crate::plugins::permissions::PluginPermission::ReadMembers,
+            None,
+            payload,
+        );
     }
     Ok(ack())
 }
@@ -81,6 +117,18 @@ pub async fn ban(ctx: &Ctx<'_>, request: proto::BanMember) -> Result<Response, A
 pub async fn unban(ctx: &Ctx<'_>, request: proto::UnbanMember) -> Result<Response, ApiError> {
     require_base(&ctx.state.guild(), ctx.user_id, Permissions::BAN_MEMBERS)?;
     if bans::delete(&mut *ctx.state.db.acquire().await?, request.user_id).await? {
+        let by = crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id);
+        let payload = serde_json::json!({
+            "user_id": crate::plugins::events::id(request.user_id),
+            "by": by,
+        });
+        crate::plugins::events::emit(
+            ctx.state,
+            "member_unban",
+            crate::plugins::permissions::PluginPermission::ReadMembers,
+            None,
+            payload,
+        );
         Ok(ack())
     } else {
         Err(ApiError::not_found("ban"))

@@ -35,6 +35,31 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateInvite) -> Result<Respo
         now_ms(),
     )
     .await?;
+
+    let mut payload = serde_json::json!({
+        "code": invite.code.clone(),
+        "by": crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id),
+    });
+    if let Some(max_uses) = invite.max_uses {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("max_uses".to_owned(), serde_json::json!(max_uses));
+    }
+    if let Some(expires_at) = invite.expires_at {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("expires_at_ms".to_owned(), serde_json::json!(expires_at));
+    }
+    crate::plugins::events::emit(
+        ctx.state,
+        "invite_create",
+        crate::plugins::permissions::PluginPermission::ReadInvites,
+        None,
+        payload,
+    );
+
     Ok(Response::Invite(to_proto(ctx, invite)))
 }
 
@@ -55,6 +80,19 @@ pub async fn revoke(ctx: &Ctx<'_>, request: proto::RevokeInvite) -> Result<Respo
         require_base(&ctx.state.guild(), ctx.user_id, Permissions::MANAGE_SERVER)?;
     }
     invites::delete(&mut conn, &invite.code).await?;
+
+    let payload = serde_json::json!({
+        "code": invite.code.clone(),
+        "by": crate::plugins::events::user_table(&ctx.state.guild(), ctx.user_id),
+    });
+    crate::plugins::events::emit(
+        ctx.state,
+        "invite_revoke",
+        crate::plugins::permissions::PluginPermission::ReadInvites,
+        None,
+        payload,
+    );
+
     Ok(ack())
 }
 

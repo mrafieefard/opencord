@@ -6,6 +6,8 @@ mod commands;
 mod common;
 #[path = "plugins/dev.rs"]
 mod dev;
+#[path = "plugins/event_tables.rs"]
+mod event_tables;
 #[path = "plugins/events.rs"]
 mod events;
 #[path = "plugins/guild.rs"]

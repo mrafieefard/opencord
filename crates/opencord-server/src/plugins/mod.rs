@@ -4,6 +4,7 @@
 pub mod api;
 pub mod database;
 pub mod dev;
+pub mod event_tables;
 pub mod events;
 pub mod github;
 pub mod http;

@@ -87,8 +87,10 @@ pub fn route(kind: &Kind) -> Option<Route> {
         Kind::RoleUpdate(_) => to("role_update", ReadRoles, None),
         Kind::RoleDelete(_) => to("role_delete", ReadRoles, None),
 
-        Kind::MemberJoin(_) => to("member_join", ReadMembers, None),
-        Kind::MemberLeave(_) => to("member_leave", ReadMembers, None),
+        // Task 17: member_join (with invite_code) and member_leave (with reason
+        // and by) are emitted directly at their call sites after the database write.
+        Kind::MemberJoin(_) => None,
+        Kind::MemberLeave(_) => None,
         Kind::MemberUpdate(_) => to("member_update", ReadMembers, None),
         Kind::PresenceUpdate(_) => to("presence_update", ReadMembers, None),
 
@@ -185,9 +187,7 @@ pub fn payload(kind: &Kind, guild: &Guild) -> Value {
                 .as_ref()
                 .map(|state| voice_state_table(state, guild)),
         }),
-        // Task 17 writes the rest in `event_tables.rs`; until then they
-        // arrive without a payload.
-        _ => Value::Null,
+        _ => super::event_tables::payload(kind, guild),
     }
 }
 
@@ -227,7 +227,7 @@ pub fn user_table(guild: &Guild, user_id: i64) -> Value {
 }
 
 /// A member as plugins see one, from the member as sent: `{ id, name }`.
-fn member_table(member: &proto::Member) -> Value {
+pub fn member_table(member: &proto::Member) -> Value {
     let user = member.user.as_ref();
     let name = member
         .nickname

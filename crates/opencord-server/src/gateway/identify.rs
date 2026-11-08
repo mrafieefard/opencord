@@ -114,8 +114,27 @@ pub async fn identify(
             .get(&joined.user_id)
             .map(Member::to_proto);
         state.broadcast(
-            proto::event::Kind::MemberJoin(proto::MemberJoin { member }),
+            proto::event::Kind::MemberJoin(proto::MemberJoin {
+                member: member.clone(),
+            }),
             Audience::Everyone,
+        );
+        let mut table = serde_json::Map::new();
+        if let Some(m) = &member {
+            table.insert("member".to_owned(), crate::plugins::events::member_table(m));
+        }
+        if let Some(code) = &joined.invite_code {
+            table.insert(
+                "invite_code".to_owned(),
+                serde_json::Value::String(code.clone()),
+            );
+        }
+        crate::plugins::events::emit(
+            state,
+            "member_join",
+            crate::plugins::permissions::PluginPermission::ReadMembers,
+            None,
+            serde_json::Value::Object(table),
         );
     }
     if joined.claimed {
@@ -157,6 +176,7 @@ struct Joined {
     user_id: i64,
     newly_joined: bool,
     claimed: bool,
+    invite_code: Option<String>,
 }
 
 /// Decides whether the key may join, and records the membership.
@@ -232,6 +252,7 @@ async fn admit(
             user
         }
     };
+    let invite_code = invite.as_ref().map(|inv| inv.code.clone());
     if let Some(invite) = &invite {
         invites::increment_uses(&mut tx, &invite.code).await?;
     }
@@ -272,6 +293,7 @@ async fn admit(
         user_id: user.id,
         newly_joined: !is_member,
         claimed,
+        invite_code,
     })
 }
 
