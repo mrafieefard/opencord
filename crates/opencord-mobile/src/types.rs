@@ -146,6 +146,15 @@ pub struct ServerSnapshot {
     pub soundboard_sounds: Vec<SoundboardSoundRecord>,
     /// The longest voice message this server takes.
     pub voice_message_max_seconds: u32,
+    pub plugin_users: Vec<PluginUserRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginUserRecord {
+    pub user_id: String,
+    pub plugin_id: String,
+    pub name: String,
+    pub avatar_hash: Option<String>,
 }
 
 /// The server's soundboard settings (Phase 2 plan §11.2), from its voice

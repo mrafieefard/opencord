@@ -184,6 +184,10 @@ pub enum MobileEvent {
         title: String,
         body: String,
     },
+    PluginUsersUpdated {
+        server_key: String,
+        plugin_users: Vec<PluginUserRecord>,
+    },
 }
 
 enum Incoming {
@@ -455,6 +459,10 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             server_key,
             max_seconds: settings.voice_message_max_seconds,
         },
+        CoreEventPayload::PluginUsersUpdate(users) => MobileEvent::PluginUsersUpdated {
+            server_key,
+            plugin_users: users.into_iter().map(convert::plugin_user).collect(),
+        },
         CoreEventPayload::RoleCreate(_)
         | CoreEventPayload::RoleUpdate(_)
         | CoreEventPayload::RoleDelete { .. }
@@ -475,7 +483,12 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::StorageUpdate(_)
         | CoreEventPayload::VoiceRejoinFailed { .. }
         | CoreEventPayload::StagedUploadProgress { .. }
-        | CoreEventPayload::DownloadProgress { .. } => return None,
+        | CoreEventPayload::DownloadProgress { .. }
+        | CoreEventPayload::PluginUpdate(_)
+        | CoreEventPayload::PluginRemove { .. }
+        | CoreEventPayload::PluginReviewUpdate(_)
+        | CoreEventPayload::PluginReviewRemove { .. }
+        | CoreEventPayload::PluginLogAppend { .. } => return None,
     })
 }
 
@@ -629,6 +642,7 @@ mod tests {
                     hoist: false,
                     mentionable: false,
                     max_upload_bytes: None,
+                    plugin_id: None,
                 }),
             })
             .unwrap();

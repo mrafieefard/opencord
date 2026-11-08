@@ -169,6 +169,17 @@ export function snapshot(serverKey: string): ServerSnapshot {
     soundboard: { enabled: true, allowDefaultSounds: true, allowExternalSounds: true, cooldownMs: 3_000 },
     soundboardSounds: soundboardSounds(serverKey),
     voiceMessageMaxSeconds: 300,
+    pluginUsers:
+      serverKey === NIGHT_OWLS
+        ? [
+            {
+              userId: '9002',
+              pluginId: 'ticket-bot',
+              name: 'Ticket Bot',
+              avatarHash: undefined,
+            },
+          ]
+        : [],
   };
 }
 
@@ -192,6 +203,7 @@ const lines: [string, string][] = [
   ['1006', 'the release notes are at https://example.com/notes'],
   ['1001', 'I put a few songs in the queue in <#20>'],
   ['1007', '_quietly_ joins'],
+  ['9002', 'Welcome! Ticket bot is active in this channel.'],
   ['1003', 'did the ~~old~~ new mic arrive?'],
 ];
 

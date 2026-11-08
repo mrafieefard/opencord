@@ -4612,6 +4612,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uniffi",
+ "zip",
 ]
 
 [[package]]

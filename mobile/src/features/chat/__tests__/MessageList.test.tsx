@@ -99,6 +99,47 @@ describe('MessageList', () => {
     expect(getByText('@Mira')).toBeTruthy();
   });
 
+  it("shows a plugin's name and badge on its messages", async () => {
+    const key = channelKey(NIGHT_OWLS, CHANNELS.general);
+    const BOT_USER_ID = '9002';
+    const currentServer = useAppStore.getState().servers[NIGHT_OWLS];
+    if (!currentServer) throw new Error('missing server');
+    useAppStore.setState({
+      servers: {
+        [NIGHT_OWLS]: {
+          ...currentServer,
+          pluginUsers: {
+            [BOT_USER_ID]: {
+              userId: BOT_USER_ID,
+              pluginId: 'ticket-bot',
+              name: 'Ticket Bot',
+              avatarHash: undefined,
+            },
+          },
+        },
+      },
+      messages: {
+        [key]: {
+          items: [
+            msg('10', BOT_USER_ID, 'Ticket #101 created', 1761500000000),
+          ],
+          hasOlder: false,
+          loadingOlder: false,
+          loaded: true,
+          pending: [],
+        },
+      },
+      openChannel: { serverKey: NIGHT_OWLS, channelId: CHANNELS.general, atBottom: true },
+    });
+
+    const { getByText } = await render(
+      <MessageList serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />,
+    );
+
+    expect(getByText('Ticket Bot')).toBeTruthy();
+    expect(getByText('Plugin')).toBeTruthy();
+  });
+
   it('a channel link opens that channel', async () => {
     const key = channelKey(NIGHT_OWLS, CHANNELS.general);
     useAppStore.setState({

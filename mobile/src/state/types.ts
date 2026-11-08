@@ -8,6 +8,7 @@ import type {
   MusicNowPlayingRecord,
   MusicSessionRecord,
   MusicSettingsRecord,
+  PluginUserRecord,
   ServerEntry,
   ServerSnapshot,
   UploadPhaseRecord,
@@ -44,6 +45,8 @@ export interface ServerState {
   voice: Record<string, VoiceStateRecord>;
   nowPlaying: Record<string, MusicNowPlayingRecord>;
   musicSettings: MusicSettingsRecord | null;
+  /** Plugin users by user id. */
+  pluginUsers?: Record<string, PluginUserRecord>;
 }
 
 export interface PickedFile {

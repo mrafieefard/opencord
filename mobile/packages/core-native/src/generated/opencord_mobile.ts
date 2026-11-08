@@ -3149,6 +3149,57 @@ const FfiConverterTypeOutgoingFileRecord = (() => {
     return new FFIConverter();
 })();
 
+export type PluginUserRecord = {
+    userId: string,
+    pluginId: string,
+    name: string,
+    avatarHash?: string
+}
+
+/**
+ * Generated factory for {@link PluginUserRecord} record objects.
+ */
+export const PluginUserRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<PluginUserRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<PluginUserRecord>,
+    });
+})();
+
+const FfiConverterTypePluginUserRecord = (() => {
+    type TypeName = PluginUserRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                userId: FfiConverterString.readFromCursor(c), 
+                pluginId: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                avatarHash: FfiConverterOptionalString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.userId, c);
+            FfiConverterString.writeIntoCursor(value.pluginId, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterOptionalString.writeIntoCursor(value.avatarHash, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.userId) +
+             FfiConverterString.allocationSize(value.pluginId) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterOptionalString.allocationSize(value.avatarHash);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
 export type ServerEntry = {
     /**
      * `host:port`; names the server in every other call.
@@ -3355,7 +3406,8 @@ export type ServerSnapshot = {
     /**
      * The longest voice message this server takes.
      */
-    voiceMessageMaxSeconds: number
+    voiceMessageMaxSeconds: number,
+    pluginUsers: Array<PluginUserRecord>
 }
 
 /**
@@ -3392,7 +3444,8 @@ const FfiConverterTypeServerSnapshot = (() => {
                 voiceEnabled: FfiConverterBool.readFromCursor(c), 
                 soundboard: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c), 
                 soundboardSounds: FfiConverterSequenceTypeSoundboardSoundRecord.readFromCursor(c), 
-                voiceMessageMaxSeconds: FfiConverterUInt32.readFromCursor(c)
+                voiceMessageMaxSeconds: FfiConverterUInt32.readFromCursor(c), 
+                pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -3410,6 +3463,7 @@ const FfiConverterTypeServerSnapshot = (() => {
             FfiConverterTypeSoundboardSettingsRecord.writeIntoCursor(value.soundboard, c);
             FfiConverterSequenceTypeSoundboardSoundRecord.writeIntoCursor(value.soundboardSounds, c);
             FfiConverterUInt32.writeIntoCursor(value.voiceMessageMaxSeconds, c);
+            FfiConverterSequenceTypePluginUserRecord.writeIntoCursor(value.pluginUsers, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.serverKey) +
@@ -3425,7 +3479,8 @@ const FfiConverterTypeServerSnapshot = (() => {
              FfiConverterBool.allocationSize(value.voiceEnabled) +
              FfiConverterTypeSoundboardSettingsRecord.allocationSize(value.soundboard) +
              FfiConverterSequenceTypeSoundboardSoundRecord.allocationSize(value.soundboardSounds) +
-             FfiConverterUInt32.allocationSize(value.voiceMessageMaxSeconds);
+             FfiConverterUInt32.allocationSize(value.voiceMessageMaxSeconds) +
+             FfiConverterSequenceTypePluginUserRecord.allocationSize(value.pluginUsers);
             
         }
     };
@@ -5470,7 +5525,8 @@ export enum MobileEvent_Tags {
     SoundPlayed = "SoundPlayed",
     MusicUpload = "MusicUpload",
     SendProgress = "SendProgress",
-    Notice = "Notice"
+    Notice = "Notice",
+    PluginUsersUpdated = "PluginUsersUpdated"
 }
 export const MobileEvent = (() => {
 
@@ -6552,6 +6608,37 @@ inner: {serverKey: string; key: string; title: string; body: string }): Notice_ 
 
     }
 
+    type PluginUsersUpdated__interface = {
+        tag: MobileEvent_Tags.PluginUsersUpdated;
+        inner: 
+Readonly<{serverKey: string; pluginUsers: Array<PluginUserRecord>}>
+    };
+    class PluginUsersUpdated_ extends UniffiEnum implements PluginUsersUpdated__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.PluginUsersUpdated;
+        readonly inner: 
+Readonly<{serverKey: string; pluginUsers: Array<PluginUserRecord>}>;
+        constructor(
+inner: {serverKey: string; pluginUsers: Array<PluginUserRecord> }) {
+            super("MobileEvent", "PluginUsersUpdated");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; pluginUsers: Array<PluginUserRecord> }): PluginUsersUpdated_ {
+            return new PluginUsersUpdated_(inner);
+        }
+
+        static instanceOf(obj: any): obj is PluginUsersUpdated_ {
+            return obj.tag === MobileEvent_Tags.PluginUsersUpdated;
+        }
+
+    }
+
     function instanceOf(obj: any): obj is MobileEvent {
         return obj[uniffiTypeNameSymbol] === "MobileEvent";
     }
@@ -6591,12 +6678,13 @@ inner: {serverKey: string; key: string; title: string; body: string }): Notice_ 
   SoundPlayed: SoundPlayed_, 
   MusicUpload: MusicUpload_, 
   SendProgress: SendProgress_, 
-  Notice: Notice_
+  Notice: Notice_, 
+  PluginUsersUpdated: PluginUsersUpdated_
     });
 
 })();
 export type MobileEvent = InstanceType<
-    typeof MobileEvent['Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice']
+    typeof MobileEvent['Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated']
 >;
 
 // FfiConverter for enum MobileEvent
@@ -6639,6 +6727,7 @@ const FfiConverterTypeMobileEvent = (() => {
                 case 32: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
                 case 33: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
                 case 34: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
+                case 35: return new MobileEvent.PluginUsersUpdated({serverKey: FfiConverterString.readFromCursor(c), pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -6894,6 +6983,13 @@ const FfiConverterTypeMobileEvent = (() => {
                     FfiConverterString.writeIntoCursor(inner.key, c);
                     FfiConverterString.writeIntoCursor(inner.title, c);
                     FfiConverterString.writeIntoCursor(inner.body, c);
+                    return;
+                }
+                case MobileEvent_Tags.PluginUsersUpdated: {
+                    c.writeI32(35);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterSequenceTypePluginUserRecord.writeIntoCursor(inner.pluginUsers, c);
                     return;
                 }
                 default:
@@ -7154,6 +7250,13 @@ const FfiConverterTypeMobileEvent = (() => {
                     size += FfiConverterString.allocationSize(inner.body);
                     return size;
                 }
+                case MobileEvent_Tags.PluginUsersUpdated: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterSequenceTypePluginUserRecord.allocationSize(inner.pluginUsers);
+                    return size;
+                }
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -7282,6 +7385,9 @@ const FfiConverterSequenceTypeVoiceStateRecord = new FfiConverterArray(FfiConver
 
 // FfiConverter for Array<SoundboardSoundRecord>
 const FfiConverterSequenceTypeSoundboardSoundRecord = new FfiConverterArray(FfiConverterTypeSoundboardSoundRecord);
+
+// FfiConverter for Array<PluginUserRecord>
+const FfiConverterSequenceTypePluginUserRecord = new FfiConverterArray(FfiConverterTypePluginUserRecord);
 
 // FfiConverter for Array<SpeakingChangeRecord>
 const FfiConverterSequenceTypeSpeakingChangeRecord = new FfiConverterArray(FfiConverterTypeSpeakingChangeRecord);
@@ -7552,6 +7658,7 @@ export default Object.freeze({
     FfiConverterTypeNewIdentity,
     FfiConverterTypeOutgoingFileRecord,
     FfiConverterTypePlaybackItemRecord,
+    FfiConverterTypePluginUserRecord,
     FfiConverterTypeServerEntry,
     FfiConverterTypeServerSnapshot,
     FfiConverterTypeSoundEffectRecord,
