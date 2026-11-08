@@ -29,7 +29,7 @@ pub(crate) mod soundboard;
 mod storage;
 mod streams;
 mod uploads;
-mod voice;
+pub(crate) mod voice;
 
 /// The caller of a request.
 pub struct Ctx<'a> {

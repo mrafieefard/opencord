@@ -20,6 +20,8 @@ mod roles;
 mod runtime;
 #[path = "plugins/support.rs"]
 mod support;
+#[path = "plugins/voice.rs"]
+mod voice;
 
 use common::TestServer;
 use opencord_server::config::Config;
