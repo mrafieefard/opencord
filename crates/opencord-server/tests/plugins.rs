@@ -2,6 +2,8 @@
 
 #[path = "common/mod.rs"]
 mod common;
+#[path = "plugins/roles.rs"]
+mod roles;
 
 use common::TestServer;
 use opencord_server::config::Config;

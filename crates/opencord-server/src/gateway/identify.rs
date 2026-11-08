@@ -125,7 +125,12 @@ pub async fn identify(
             Audience::Everyone,
         );
     }
-    Ok(open_session(state, joined.user_id, connection))
+    Ok(open_session(
+        state,
+        joined.user_id,
+        identify.features,
+        connection,
+    ))
 }
 
 pub fn resume(
@@ -270,15 +275,23 @@ async fn admit(
     })
 }
 
-fn open_session(state: &AppState, user_id: i64, connection: &Connection) -> Arc<Session> {
+fn open_session(
+    state: &AppState,
+    user_id: i64,
+    features: Vec<String>,
+    connection: &Connection,
+) -> Arc<Session> {
     let session_id = hex::encode(random::bytes::<16>());
     let resume_token = random::bytes::<32>();
-    let session = Arc::new(Session::new(
-        session_id.clone(),
-        user_id,
-        &resume_token,
-        connection.clone(),
-    ));
+    let session = Arc::new(
+        Session::new(
+            session_id.clone(),
+            user_id,
+            &resume_token,
+            connection.clone(),
+        )
+        .with_features(features),
+    );
     let was_online = state.sessions.has_user(user_id);
     let ready = ready(state, user_id, session_id, resume_token.to_vec());
     if connection
@@ -376,6 +389,6 @@ fn ready(
         private_messages: false,
         private_messages_v2: state.private.enabled(),
         private_settings: Some(state.private.settings_proto()),
-        plugin_users: Vec::new(),
+        plugin_users: crate::plugins::identity::plugin_users_proto(&guild),
     }
 }

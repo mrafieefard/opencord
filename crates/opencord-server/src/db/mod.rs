@@ -21,6 +21,7 @@ pub mod members;
 pub mod messages;
 pub mod meta;
 pub mod music;
+pub mod plugins;
 pub mod private;
 pub mod roles;
 pub mod sounds;

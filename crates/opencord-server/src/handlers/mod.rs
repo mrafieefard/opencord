@@ -34,9 +34,25 @@ mod voice;
 pub struct Ctx<'a> {
     pub state: &'a Arc<AppState>,
     pub user_id: i64,
-    /// The gateway session the request came on.
+    /// The gateway session the request came on; empty for a plugin.
     pub session_id: &'a str,
-    pub session: &'a Arc<Session>,
+    /// `None` for a plugin.
+    pub session: Option<&'a Arc<Session>>,
+    /// The plugin acting, if one is (design 2026-11-07).
+    pub plugin_id: Option<&'a str>,
+}
+
+impl<'a> Ctx<'a> {
+    /// A plugin acting as its plugin user.
+    pub fn for_plugin(state: &'a Arc<AppState>, user_id: i64, plugin_id: &'a str) -> Self {
+        Self {
+            state,
+            user_id,
+            session_id: "",
+            session: None,
+            plugin_id: Some(plugin_id),
+        }
+    }
 }
 
 pub async fn handle(
@@ -48,7 +64,8 @@ pub async fn handle(
         state,
         user_id: session.user_id,
         session_id: &session.id,
-        session,
+        session: Some(session),
+        plugin_id: None,
     };
     let result = match state.rate_limits.check_request(ctx.user_id) {
         Ok(()) => dispatch(&ctx, request).await,

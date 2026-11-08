@@ -29,7 +29,8 @@ pub(crate) fn require_device(ctx: &Ctx<'_>) -> Result<[u8; 16], ApiError> {
     if !ctx.state.private.enabled() {
         return Err(unregistered());
     }
-    ctx.session.private_device().ok_or_else(unregistered)
+    let session = ctx.session.ok_or_else(ApiError::internal)?;
+    session.private_device().ok_or_else(unregistered)
 }
 
 pub async fn register_device(
@@ -37,6 +38,7 @@ pub async fn register_device(
     request: proto::RegisterDevice,
 ) -> Result<Response, ApiError> {
     require_enabled(ctx)?;
+    let own = ctx.session.ok_or_else(ApiError::internal)?;
     // 1. Shape.
     let keys = request
         .device
@@ -48,11 +50,7 @@ pub async fn register_device(
     check_prekey(&fallback)?;
     check_one_time_keys(&request.one_time_keys)?;
     // 2. One device per session.
-    if ctx
-        .session
-        .private_device()
-        .is_some_and(|held| held != device_id)
-    {
+    if own.private_device().is_some_and(|held| held != device_id) {
         return Err(ApiError::conflict(
             "this connection already registered another device",
         ));
@@ -117,7 +115,7 @@ pub async fn register_device(
     tx.commit().await?;
     // 6. This session alone holds the device; none holds a removed one.
     for session in ctx.state.sessions.for_user(ctx.user_id) {
-        let unbind = session.id != ctx.session.id
+        let unbind = session.id != own.id
             && session.private_device().is_some_and(|held| {
                 held == device_id || removed.iter().any(|gone| gone.as_slice() == held)
             });
@@ -125,7 +123,7 @@ pub async fn register_device(
             session.set_private_device(None);
         }
     }
-    ctx.session.set_private_device(Some(device_id));
+    own.set_private_device(Some(device_id));
     // 7.
     registration(ctx, &device_id).await
 }
@@ -181,12 +179,13 @@ pub async fn upload_keys(ctx: &Ctx<'_>, request: proto::UploadKeys) -> Result<Re
 
 pub async fn unregister_device(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
     require_enabled(ctx)?;
-    let Some(device_id) = ctx.session.private_device() else {
+    let session = ctx.session.ok_or_else(ApiError::internal)?;
+    let Some(device_id) = session.private_device() else {
         return Ok(ack());
     };
     // Its keys and waiting events go with it.
     db::delete_device(&mut *ctx.state.db.acquire().await?, ctx.user_id, &device_id).await?;
-    ctx.session.set_private_device(None);
+    session.set_private_device(None);
     Ok(ack())
 }
 
@@ -737,7 +736,10 @@ fn require_members(ctx: &Ctx<'_>, mut user_ids: impl Iterator<Item = i64>) -> Re
 /// The session's device was removed (pushed out by newer ones): the
 /// session no longer holds it.
 fn unbind_removed_device(ctx: &Ctx<'_>) -> ApiError {
-    ctx.session.set_private_device(None);
+    let Some(session) = ctx.session else {
+        return ApiError::internal();
+    };
+    session.set_private_device(None);
     ApiError::private_messages_unavailable("register this device first")
 }
 
