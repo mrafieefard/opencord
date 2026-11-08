@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT size AS \"size!: i64\" FROM plugin_files WHERE plugin_id = $1 AND path = $2",
+  "describe": {
+    "columns": [
+      {
+        "name": "size!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_files",
+            "name": "size"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7e1c1ba0e2e3490d66ecd0563a4bf276f51a920362d09dac71df2bf56b45d765"
+}

@@ -69,6 +69,9 @@ pub struct PluginEnv {
     pub net: super::net::PluginNet,
     /// The plugin's database, open while the VM runs.
     pub db: PluginDb,
+    /// `files` in the plugin's folder, and its quota.
+    pub files_dir: PathBuf,
+    pub files_bytes: u64,
 }
 
 impl PluginEnv {
@@ -155,6 +158,9 @@ pub(crate) struct Spec {
     /// `data.sqlite` in the plugin's folder, and its quota.
     database: PathBuf,
     database_bytes: u64,
+    /// `files` in the plugin's folder, and its quota.
+    files_dir: PathBuf,
+    files_bytes: u64,
 }
 
 impl Spec {
@@ -174,6 +180,7 @@ impl Spec {
             }
         }
         let memory = u64::from(config.memory_mb) * 1024 * 1024;
+        let files_bytes = u64::from(config.files_mb) * 1024 * 1024;
         Ok(Spec {
             id: installed.id.clone(),
             user_id: installed.user_id,
@@ -187,6 +194,8 @@ impl Spec {
             domains: Arc::new(NetGuard::new(&installed.manifest.domains)),
             database: data_dir.join("data.sqlite"),
             database_bytes: u64::from(config.database_mb) * 1024 * 1024,
+            files_dir: data_dir.join("files"),
+            files_bytes,
         })
     }
 }
@@ -290,6 +299,8 @@ fn spawn_vm(
                 server,
                 net,
                 db,
+                files_dir: spec.files_dir.clone(),
+                files_bytes: spec.files_bytes,
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));

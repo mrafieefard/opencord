@@ -61,6 +61,8 @@ async fn plugin() -> (Vm, Arc<PluginEnv>, tempfile::TempDir) {
         server: tokio::runtime::Handle::current(),
         net: PluginNet::new(Arc::new(NetGuard::new(&[]))).unwrap(),
         db,
+        files_dir: dir.path().join("files"),
+        files_bytes: 5120 * 1024 * 1024,
     });
     vm.budget().start(Duration::from_secs(5));
     api::install(&vm, &env).unwrap();

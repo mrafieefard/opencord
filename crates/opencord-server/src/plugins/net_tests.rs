@@ -98,6 +98,8 @@ fn env(net: PluginNet, granted: &[PluginPermission]) -> (Vm, Arc<PluginEnv>) {
         server: tokio::runtime::Handle::current(),
         net,
         db: crate::plugins::database::PluginDb::unused(),
+        files_dir: std::path::PathBuf::new(),
+        files_bytes: 5120 * 1024 * 1024,
     });
     (vm, env)
 }

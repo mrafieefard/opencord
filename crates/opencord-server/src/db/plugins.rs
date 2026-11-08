@@ -389,6 +389,94 @@ pub async fn delete_plugin_files(
     Ok(())
 }
 
+pub async fn file_size(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    path: &str,
+) -> Result<Option<i64>, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT size AS "size!: i64" FROM plugin_files WHERE plugin_id = $1 AND path = $2"#,
+        plugin_id,
+        path
+    )
+    .fetch_optional(conn)
+    .await
+}
+
+pub async fn upsert_plugin_file(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    path: &str,
+    size: i64,
+    public: bool,
+    updated_at: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO plugin_files (plugin_id, path, size, public, updated_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (plugin_id, path) DO UPDATE SET
+             size = excluded.size,
+             public = excluded.public,
+             updated_at = excluded.updated_at",
+        plugin_id,
+        path,
+        size,
+        public,
+        updated_at
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_plugin_file(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    path: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM plugin_files WHERE plugin_id = $1 AND path = $2",
+        plugin_id,
+        path
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PluginFileRow {
+    pub path: String,
+    pub size: i64,
+    pub public: bool,
+    pub updated_at: i64,
+}
+
+pub async fn list_plugin_files(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    prefix: Option<&str>,
+) -> Result<Vec<PluginFileRow>, sqlx::Error> {
+    let rows = sqlx::query_as!(
+        PluginFileRow,
+        r#"SELECT path, size, public AS "public: bool", updated_at
+           FROM plugin_files
+           WHERE plugin_id = $1
+           ORDER BY path"#,
+        plugin_id
+    )
+    .fetch_all(conn)
+    .await?;
+    if let Some(prefix) = prefix {
+        Ok(rows
+            .into_iter()
+            .filter(|r| r.path.starts_with(prefix))
+            .collect())
+    } else {
+        Ok(rows)
+    }
+}
+
 /// A dev token, without its secret's hash.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DevTokenRow {
