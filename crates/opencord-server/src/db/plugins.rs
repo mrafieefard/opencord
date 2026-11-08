@@ -389,6 +389,97 @@ pub async fn delete_plugin_files(
     Ok(())
 }
 
+/// A dev token, without its secret's hash.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DevTokenRow {
+    pub id: i64,
+    pub plugin_id: String,
+    pub created_by: i64,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub last_used_at: Option<i64>,
+}
+
+/// What checking a dev token needs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DevTokenHashRow {
+    pub id: i64,
+    pub token_hash: Vec<u8>,
+    pub created_by: i64,
+    pub expires_at: i64,
+}
+
+pub async fn insert_dev_token(
+    conn: &mut SqliteConnection,
+    row: &DevTokenRow,
+    token_hash: &[u8],
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO plugin_dev_tokens (id, plugin_id, token_hash, created_by, created_at,
+                                        expires_at, last_used_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        row.id,
+        row.plugin_id,
+        token_hash,
+        row.created_by,
+        row.created_at,
+        row.expires_at,
+        row.last_used_at
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Every dev token, expired ones too, oldest first.
+pub async fn dev_tokens(conn: &mut SqliteConnection) -> Result<Vec<DevTokenRow>, sqlx::Error> {
+    sqlx::query_as!(
+        DevTokenRow,
+        "SELECT id, plugin_id, created_by, created_at, expires_at, last_used_at
+         FROM plugin_dev_tokens ORDER BY created_at, id"
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// The dev tokens naming the plugin, with their hashes.
+pub async fn dev_token_hashes(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+) -> Result<Vec<DevTokenHashRow>, sqlx::Error> {
+    sqlx::query_as!(
+        DevTokenHashRow,
+        "SELECT id, token_hash, created_by, expires_at
+         FROM plugin_dev_tokens WHERE plugin_id = $1",
+        plugin_id
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// Whether there was such a token.
+pub async fn delete_dev_token(conn: &mut SqliteConnection, id: i64) -> Result<bool, sqlx::Error> {
+    let deleted = sqlx::query!("DELETE FROM plugin_dev_tokens WHERE id = $1", id)
+        .execute(conn)
+        .await?;
+    Ok(deleted.rows_affected() == 1)
+}
+
+pub async fn set_dev_token_used(
+    conn: &mut SqliteConnection,
+    id: i64,
+    at: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE plugin_dev_tokens SET last_used_at = $1 WHERE id = $2",
+        at,
+        id
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
 /// Why the plugin was turned off after failing; `None` clears it.
 pub async fn set_crashed_reason(
     conn: &mut SqliteConnection,

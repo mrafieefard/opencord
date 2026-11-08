@@ -3,6 +3,7 @@
 
 pub mod api;
 pub mod database;
+pub mod dev;
 pub mod events;
 pub mod github;
 pub mod http;
@@ -214,6 +215,7 @@ pub struct Plugins {
     clock: Arc<dyn Clock>,
     /// Uploads waiting for an admin.
     pub reviews: review::Reviews,
+    pub dev_tokens: dev::DevTokens,
     /// Held through each install, update, uninstall and permission change,
     /// so two never interleave. Taken before the guild's write lock.
     pub(crate) changes: tokio::sync::Mutex<()>,
@@ -237,6 +239,7 @@ impl Plugins {
             handles: RwLock::default(),
             clock,
             reviews: review::Reviews::default(),
+            dev_tokens: dev::DevTokens::default(),
             changes: tokio::sync::Mutex::new(()),
         }
     }

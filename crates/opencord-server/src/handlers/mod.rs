@@ -207,10 +207,10 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::RestartPlugin(request) => plugins::restart(ctx, request).await,
         Kind::UninstallPlugin(request) => plugins::uninstall(ctx, request).await,
         Kind::FetchPluginLog(request) => plugins::fetch_log(ctx, request).await,
-        Kind::WatchPluginLog(_)
-        | Kind::CreatePluginDevToken(_)
-        | Kind::RevokePluginDevToken(_)
-        | Kind::FetchPluginDevTokens(_) => Err(ApiError::invalid_argument("not supported yet")),
+        Kind::CreatePluginDevToken(request) => plugins::create_dev_token(ctx, request).await,
+        Kind::RevokePluginDevToken(request) => plugins::revoke_dev_token(ctx, request).await,
+        Kind::FetchPluginDevTokens(_) => plugins::fetch_dev_tokens(ctx).await,
+        Kind::WatchPluginLog(_) => Err(ApiError::invalid_argument("not supported yet")),
     }
 }
 

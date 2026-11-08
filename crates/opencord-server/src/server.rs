@@ -217,6 +217,11 @@ impl ServerHandle {
         &self.state.plugins.reviews
     }
 
+    /// The dev tokens' clock, for tests that move it.
+    pub fn plugin_dev_tokens(&self) -> &crate::plugins::dev::DevTokens {
+        &self.state.plugins.dev_tokens
+    }
+
     pub async fn shutdown(self) {
         // While the server still works, so `stop` handlers can use it.
         self.state.plugins.stop_all().await;

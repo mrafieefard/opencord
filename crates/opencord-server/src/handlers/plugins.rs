@@ -6,7 +6,7 @@ use proto::response::Result as Response;
 
 use super::{Ctx, ack};
 use crate::error::ApiError;
-use crate::plugins::{self, install, review};
+use crate::plugins::{self, dev, install, review};
 
 /// `FetchPluginLog`'s page size when none is asked for, and its largest.
 const LOG_PAGE: u32 = 200;
@@ -92,6 +92,27 @@ pub async fn uninstall(
 ) -> Result<Response, ApiError> {
     install::uninstall(ctx.state, ctx.user_id, request).await?;
     Ok(ack())
+}
+
+pub async fn create_dev_token(
+    ctx: &Ctx<'_>,
+    request: proto::CreatePluginDevToken,
+) -> Result<Response, ApiError> {
+    let created = dev::create(ctx.state, ctx.user_id, request).await?;
+    Ok(Response::CreatedPluginDevToken(created))
+}
+
+pub async fn revoke_dev_token(
+    ctx: &Ctx<'_>,
+    request: proto::RevokePluginDevToken,
+) -> Result<Response, ApiError> {
+    dev::revoke(ctx.state, ctx.user_id, request).await?;
+    Ok(ack())
+}
+
+pub async fn fetch_dev_tokens(ctx: &Ctx<'_>) -> Result<Response, ApiError> {
+    let tokens = dev::fetch(ctx.state, ctx.user_id).await?;
+    Ok(Response::PluginDevTokens(tokens))
 }
 
 /// The plugin's log, newest page first; lines oldest first.

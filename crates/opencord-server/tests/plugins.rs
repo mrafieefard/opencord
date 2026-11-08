@@ -2,6 +2,8 @@
 
 #[path = "common/mod.rs"]
 mod common;
+#[path = "plugins/dev.rs"]
+mod dev;
 #[path = "plugins/events.rs"]
 mod events;
 #[path = "plugins/install.rs"]

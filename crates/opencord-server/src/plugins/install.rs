@@ -81,7 +81,10 @@ fn check_package(zip: &[u8]) -> Result<Checked, ApiError> {
 
 /// The plugin's row, if installed, and the key it is pinned to: the
 /// installed version's, or the one an uninstall that kept the data left.
-async fn pinned(state: &AppState, id: &str) -> Result<(Option<PluginRow>, Pin), ApiError> {
+pub(super) async fn pinned(
+    state: &AppState,
+    id: &str,
+) -> Result<(Option<PluginRow>, Pin), ApiError> {
     let mut conn = state.db.acquire().await?;
     let row = rows::plugin(&mut conn, id).await?;
     let key = match &row {
@@ -100,7 +103,7 @@ async fn pinned(state: &AppState, id: &str) -> Result<(Option<PluginRow>, Pin), 
 
 /// The pin after installing what came, or why it may not replace what's
 /// there.
-fn decide(pin: Pin, review: &PendingReview) -> Result<Pin, ApiError> {
+pub(super) fn decide(pin: Pin, review: &PendingReview) -> Result<Pin, ApiError> {
     let incoming = match review.signature {
         SignatureState::Signed(key) => Incoming::Signed(key),
         SignatureState::Unsigned if review.dev => Incoming::Dev,
@@ -114,7 +117,7 @@ fn decide(pin: Pin, review: &PendingReview) -> Result<Pin, ApiError> {
     }
 }
 
-async fn check_room(state: &AppState) -> Result<(), ApiError> {
+pub(super) async fn check_room(state: &AppState) -> Result<(), ApiError> {
     let max = state.config.plugins.max_plugins;
     let count = rows::count_plugins(&mut *state.db.acquire().await?).await?;
     if count >= i64::from(max) {
@@ -133,6 +136,27 @@ pub async fn upload(
     user_id: i64,
     zip: Vec<u8>,
 ) -> Result<proto::PluginReview, ApiError> {
+    let (mut pending, package) = read_package(zip, false).await?;
+    let (row, pin) = pinned(state, &pending.manifest.id).await?;
+    decide(pin, &pending)?;
+    if row.is_none() {
+        check_room(state).await?;
+    }
+    if let (Some(repo), SignatureState::Signed(key)) = (&pending.manifest.github, pending.signature)
+    {
+        pending.github_check = super::github::check(repo, &key).await;
+    }
+    let pending = hold_for_review(state, pending, package).await?;
+    review::to_proto(state, &pending, user_id).await
+}
+
+/// Checks a zip off the async threads, and makes its icon a profile
+/// picture: a review with no folder or expiry yet. A dev push (`dev`) is
+/// never signed, whatever its files say.
+pub(super) async fn read_package(
+    zip: Vec<u8>,
+    dev: bool,
+) -> Result<(PendingReview, Package), ApiError> {
     let checked = tokio::task::spawn_blocking(move || check_package(&zip))
         .await
         .map_err(|_| ApiError::internal())??;
@@ -143,36 +167,41 @@ pub async fn upload(
             )?),
             None => None,
         };
-    let (row, pin) = pinned(state, &checked.manifest.id).await?;
-    let mut pending = PendingReview {
+    let (signature, rotation) = if dev {
+        (SignatureState::Unsigned, None)
+    } else {
+        (checked.signature, checked.rotation)
+    };
+    let pending = PendingReview {
         id: review::new_id(),
         manifest: checked.manifest,
-        signature: checked.signature,
-        rotation: checked.rotation,
+        signature,
+        rotation,
         github_check: proto::GithubCheck::Unspecified,
         icon,
         folder: PathBuf::new(),
         expires_at_ms: 0,
-        dev: false,
+        dev,
     };
-    decide(pin, &pending)?;
-    if row.is_none() {
-        check_room(state).await?;
-    }
-    if let (Some(repo), SignatureState::Signed(key)) = (&pending.manifest.github, pending.signature)
-    {
-        pending.github_check = super::github::check(repo, &key).await;
-    }
+    Ok((pending, checked.package))
+}
+
+/// Writes the review's files where reviews wait, and keeps it.
+pub(super) async fn hold_for_review(
+    state: &AppState,
+    mut pending: PendingReview,
+    package: Package,
+) -> Result<Arc<PendingReview>, ApiError> {
     pending.folder = review::folder(state).join(&pending.id);
-    write_package(checked.package, pending.folder.clone()).await?;
+    write_package(package, pending.folder.clone()).await?;
     pending.expires_at_ms = state.plugins.reviews.expires_at_ms();
     let pending = state.plugins.reviews.insert(pending);
-    tracing::info!(plugin = %pending.manifest.id, "a plugin is waiting for review");
-    review::to_proto(state, &pending, user_id).await
+    tracing::info!(plugin = %pending.manifest.id, dev = pending.dev, "a plugin is waiting for review");
+    Ok(pending)
 }
 
 /// Writes the package's files into `folder`, or nothing.
-async fn write_package(package: Package, folder: PathBuf) -> Result<(), ApiError> {
+pub(super) async fn write_package(package: Package, folder: PathBuf) -> Result<(), ApiError> {
     let target = folder.clone();
     let written = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
         for path in package.paths() {
@@ -251,7 +280,7 @@ fn config_purpose(plugin_id: &str, key: &str) -> String {
 /// unsets a setting, except a secret's, which keeps the stored one.
 /// Settings the manifest no longer has are dropped; every required one
 /// must be set.
-fn merge_config(
+pub(super) fn merge_config(
     state: &AppState,
     manifest: &Manifest,
     stored: &[ConfigValueRow],
@@ -358,7 +387,7 @@ fn check_value(guild: &Guild, field: &ConfigField, value: &str) -> Result<(), Ap
     }
 }
 
-fn saved_manifest(row: &PluginRow) -> Result<Manifest, ApiError> {
+pub(super) fn saved_manifest(row: &PluginRow) -> Result<Manifest, ApiError> {
     serde_json::from_str(&row.manifest).map_err(|error| {
         tracing::error!(plugin = %row.id, %error, "a plugin's saved manifest is unreadable");
         ApiError::internal()
@@ -366,14 +395,18 @@ fn saved_manifest(row: &PluginRow) -> Result<Manifest, ApiError> {
 }
 
 /// The installed plugin as `viewer` sees it.
-async fn shown(state: &AppState, id: &str, viewer: i64) -> Result<proto::Plugin, ApiError> {
+pub(super) async fn shown(
+    state: &AppState,
+    id: &str,
+    viewer: i64,
+) -> Result<proto::Plugin, ApiError> {
     super::describe(state, id, Some(viewer))
         .await?
         .ok_or_else(|| ApiError::not_found("plugin"))
 }
 
 /// Starts the plugin its row describes.
-async fn start(state: &Arc<AppState>, row: &PluginRow) -> Result<(), String> {
+pub(super) async fn start(state: &Arc<AppState>, row: &PluginRow) -> Result<(), String> {
     let installed = super::installed(state, row.clone()).await?;
     state
         .plugins

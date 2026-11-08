@@ -64,7 +64,7 @@ pub struct PendingReview {
 }
 
 /// The reviews waiting. **An entry leaves** when confirmed or discarded
-/// ([`Reviews::take`]), replaced by a newer dev push (Task 12), or once
+/// ([`Reviews::take`]), replaced by a newer dev push ([`Reviews::take_dev`]), or once
 /// expired ([`Reviews::sweep`], every [`SWEEP_EVERY`]); its folder goes
 /// with it.
 #[derive(Default)]
@@ -113,6 +113,18 @@ impl Reviews {
             return None;
         }
         entries.remove(id)
+    }
+
+    /// Takes out the plugin's dev reviews other than `keep`, expired or
+    /// not. Their folders are the caller's.
+    pub fn take_dev(&self, plugin_id: &str, keep: &str) -> Vec<Arc<PendingReview>> {
+        let mut entries = self.lock();
+        let ids: Vec<String> = entries
+            .values()
+            .filter(|review| review.dev && review.manifest.id == plugin_id && review.id != keep)
+            .map(|review| review.id.clone())
+            .collect();
+        ids.iter().filter_map(|id| entries.remove(id)).collect()
     }
 
     /// The reviews that haven't expired, oldest first.

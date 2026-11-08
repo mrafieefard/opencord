@@ -453,8 +453,8 @@ fn read_version(table: &Table) -> Result<semver::Version, ManifestError> {
     semver::Version::parse(&version).map_err(|_| bad())
 }
 
-/// `^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$`
-fn valid_id(id: &str) -> bool {
+/// Whether `id` is a plugin id: `^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$`.
+pub fn valid_id(id: &str) -> bool {
     let edge = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit();
     let bytes = id.as_bytes();
     (3..=40).contains(&bytes.len())
