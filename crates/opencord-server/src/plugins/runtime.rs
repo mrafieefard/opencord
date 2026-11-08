@@ -13,6 +13,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError, RwLock, Weak};
@@ -31,6 +32,7 @@ use tokio::task::JoinSet;
 
 use super::api::plugin::handlers_for;
 use super::api::{self, raise};
+use super::database::{self, PluginDb};
 use super::net::{NetGuard, PluginNet};
 use super::permissions::PluginPermission;
 use super::{InstalledPlugin, PluginHandle, StartError};
@@ -65,6 +67,8 @@ pub struct PluginEnv {
     /// The plugin's internet access. Its connections live on the VM's
     /// runtime and end with it.
     pub net: super::net::PluginNet,
+    /// The plugin's database, open while the VM runs.
+    pub db: PluginDb,
 }
 
 impl PluginEnv {
@@ -148,12 +152,17 @@ pub(crate) struct Spec {
     limits: VmLimits,
     /// The manifest's domains.
     domains: Arc<NetGuard>,
+    /// `data.sqlite` in the plugin's folder, and its quota.
+    database: PathBuf,
+    database_bytes: u64,
 }
 
 impl Spec {
+    /// `data_dir` is the plugin's folder, `data/plugins/<id>`.
     pub(crate) fn new(
         installed: &InstalledPlugin,
         config: &PluginsSection,
+        data_dir: PathBuf,
     ) -> Result<Spec, StartError> {
         let mut sources = HashMap::new();
         for path in installed.package.paths() {
@@ -176,6 +185,8 @@ impl Spec {
                 handler_time: Duration::from_millis(config.handler_ms.into()),
             },
             domains: Arc::new(NetGuard::new(&installed.manifest.domains)),
+            database: data_dir.join("data.sqlite"),
+            database_bytes: u64::from(config.database_mb) * 1024 * 1024,
         })
     }
 }
@@ -238,6 +249,7 @@ fn spawn_vm(
     reports: mpsc::UnboundedSender<Report>,
     commands: watch::Receiver<Command>,
     state: Weak<AppState>,
+    db: PluginDb,
 ) -> std::io::Result<()> {
     let server = tokio::runtime::Handle::current();
     std::thread::Builder::new()
@@ -277,6 +289,7 @@ fn spawn_vm(
                 budget: vm.budget().clone(),
                 server,
                 net,
+                db,
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));
@@ -785,6 +798,16 @@ async fn run_once(
             }
             None => Life::Broke(error),
         };
+    // Opened here, on the server's runtime, where its connections stay.
+    let db = match database::open(&spec.database, spec.database_bytes).await {
+        Ok(db) => db,
+        Err(error) => {
+            return first_failed(
+                started,
+                format!("could not open the plugin's database: {error}"),
+            );
+        }
+    };
     let (reports_sender, mut reports) = mpsc::unbounded_channel();
     let (commands, commands_receiver) = watch::channel(Command::Run);
     if let Err(error) = spawn_vm(
@@ -793,7 +816,9 @@ async fn run_once(
         reports_sender,
         commands_receiver,
         state.clone(),
+        db.clone(),
     ) {
+        db.close().await;
         return first_failed(
             started,
             format!("could not start the plugin's thread: {error}"),
@@ -827,6 +852,9 @@ async fn run_once(
     };
     // The thread holds a sender until its runtime and VM are gone.
     while reports.recv().await.is_some() {}
+    // Transactions the VM left open roll back once its calls are dropped,
+    // which happened with the VM; then every connection closes.
+    db.close().await;
     life
 }
 

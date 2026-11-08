@@ -2,6 +2,7 @@
 //! acting through a plugin user and a managed role.
 
 pub mod api;
+pub mod database;
 pub mod events;
 pub mod github;
 pub mod http;
@@ -282,7 +283,8 @@ impl Plugins {
                 "plugins are turned off on this server".to_owned(),
             ));
         }
-        let spec = Arc::new(Spec::new(&installed, &state.config.plugins)?);
+        let data_dir = state.config.plugins_dir().join(&installed.id);
+        let spec = Arc::new(Spec::new(&installed, &state.config.plugins, data_dir)?);
         let old = self.get(&installed.id);
         if let Some(old) = &old {
             old.stop().await;

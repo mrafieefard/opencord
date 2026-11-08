@@ -27,6 +27,8 @@ image.workspace = true
 hickory-proto.workspace = true
 igd-next.workspace = true
 instant-acme.workspace = true
+# The version sqlx uses: the plugin database's authorizer and limits.
+libsqlite3-sys = "0.37.0"
 mlua.workspace = true
 rcgen.workspace = true
 reqwest.workspace = true

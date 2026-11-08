@@ -4663,6 +4663,7 @@ dependencies = [
  "igd-next",
  "image",
  "instant-acme",
+ "libsqlite3-sys",
  "mlua",
  "opencord-common",
  "opencord-plugins",

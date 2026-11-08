@@ -6,6 +6,7 @@
 //! [`async_function`]: an `Err` from a bare mlua callback would reach Lua
 //! as userdata instead.
 
+pub mod db;
 pub mod http;
 pub mod log;
 pub mod plugin;
@@ -25,6 +26,7 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     plugin::install(&vm.lua, env)?;
     log::install(vm, env)?;
     http::install(&vm.lua, env)?;
+    db::install(&vm.lua, env)?;
     #[cfg(test)]
     tests::install(&vm.lua, env)?;
     Ok(())
@@ -133,6 +135,28 @@ where
     let inner = lua.create_async_function(move |lua, args: A| {
         let call = f(lua.clone(), args);
         async move { answer(&lua, call.await) }
+    })?;
+    raising(lua, inner)
+}
+
+/// [`async_function`] for calls that pass a Lua error on: `Ok(Err(value))`
+/// raises `value` itself, as `error(value, 0)` does.
+pub fn async_function_passing<A, R, F, FR>(lua: &Lua, f: F) -> mlua::Result<Function>
+where
+    A: FromLuaMulti,
+    R: IntoLuaMulti,
+    F: Fn(Lua, A) -> FR + MaybeSend + 'static,
+    FR: Future<Output = mlua::Result<Result<R, Value>>> + MaybeSend + 'static,
+{
+    let inner = lua.create_async_function(move |lua, args: A| {
+        let call = f(lua.clone(), args);
+        async move {
+            match call.await {
+                Ok(Err(value)) => (false, value).into_lua_multi(&lua),
+                Ok(Ok(values)) => answer(&lua, Ok(values)),
+                Err(error) => answer::<()>(&lua, Err(error)),
+            }
+        }
     })?;
     raising(lua, inner)
 }

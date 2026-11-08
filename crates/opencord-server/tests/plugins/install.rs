@@ -344,7 +344,10 @@ async fn an_update_keeps_data_and_shows_new_permissions() {
             "manifest.lua",
             &manifest_with("keeper", "1.0.0", &["read_channels"], GREETING),
         ),
-        ("server/main.luau", ""),
+        (
+            "server/main.luau",
+            "db.exec(\"CREATE TABLE kept (x)\") db.exec(\"INSERT INTO kept VALUES ('kept')\")",
+        ),
     ]);
     let first = review(&server, &token, v1).await;
     let Reply::Plugin(old) = owner
@@ -353,7 +356,6 @@ async fn an_update_keeps_data_and_shows_new_permissions() {
     else {
         panic!("not installed");
     };
-    std::fs::write(plugin_dir(&server, "keeper").join("data.sqlite"), b"kept").unwrap();
     let v2 = package(&[
         (
             "manifest.lua",
@@ -364,7 +366,11 @@ async fn an_update_keeps_data_and_shows_new_permissions() {
                 GREETING,
             ),
         ),
-        ("server/main.luau", ""),
+        // Starts only if v1's row is still there.
+        (
+            "server/main.luau",
+            "assert(db.query(\"SELECT x FROM kept\")[1].x == \"kept\", \"the data was lost\")",
+        ),
     ]);
 
     let update = review(&server, &token, v2).await;
@@ -382,10 +388,7 @@ async fn an_update_keeps_data_and_shows_new_permissions() {
     assert_eq!(config_value(&new, "greeting"), "hi");
     // In the manifest's order.
     assert_eq!(granted(&new), vec!["read_channels", "kick_members"]);
-    assert_eq!(
-        std::fs::read(plugin_dir(&server, "keeper").join("data.sqlite")).unwrap(),
-        b"kept"
-    );
+    assert!(plugin_dir(&server, "keeper").join("data.sqlite").exists());
     assert_eq!(versions(&server, "keeper").len(), 1);
 }
 

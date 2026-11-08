@@ -97,6 +97,7 @@ fn env(net: PluginNet, granted: &[PluginPermission]) -> (Vm, Arc<PluginEnv>) {
         budget: vm.budget().clone(),
         server: tokio::runtime::Handle::current(),
         net,
+        db: crate::plugins::database::PluginDb::unused(),
     });
     (vm, env)
 }
