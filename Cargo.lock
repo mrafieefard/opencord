@@ -4618,10 +4618,14 @@ dependencies = [
 name = "opencord-plugins"
 version = "0.0.1"
 dependencies = [
+ "flate2",
  "mlua",
+ "semver",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
+ "zip",
 ]
 
 [[package]]

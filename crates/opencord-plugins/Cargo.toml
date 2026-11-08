@@ -8,9 +8,13 @@ license = "MPL-2.0"
 publish = false
 
 [dependencies]
+flate2.workspace = true
 mlua.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
+tempfile.workspace = true
 tokio.workspace = true
