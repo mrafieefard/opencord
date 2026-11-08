@@ -11,6 +11,7 @@ repository = "https://github.com/mrafieefard/opencord"
 opencord-common = { path = "crates/opencord-common" }
 opencord-core = { package = "opencord_core", path = "crates/opencord-core" }
 opencord-media = { path = "crates/opencord-media" }
+opencord-plugins = { path = "crates/opencord-plugins" }
 opencord-proto = { path = "crates/opencord-proto" }
 opencord-server = { path = "crates/opencord-server" }
 opencord-voice = { path = "crates/opencord-voice" }
@@ -46,6 +47,7 @@ igd-next = { version = "0.18.0", default-features = false, features = ["aio_toki
 irondash_run_loop = "0.5.0"
 irondash_texture = "0.5.0"
 jni-sys = "0.3.1"
+mlua = { version = "0.11.6", features = ["luau", "async", "send", "serde"] }
 ndk-context = "0.1.1"
 nnnoiseless = { version = "0.5.2", default-features = false }
 openh264 = { version = "0.9.8", default-features = false, features = ["libloading"] }

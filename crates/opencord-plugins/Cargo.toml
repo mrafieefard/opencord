@@ -1,0 +1,16 @@
+[package]
+name = "opencord-plugins"
+description = "What the Opencord server and the plugin tool share: the Luau sandbox, packages, manifests and signing."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[dependencies]
+mlua.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
