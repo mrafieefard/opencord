@@ -7,21 +7,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/providers/plugins_state.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/settings/server/plugins/plugin_page.dart';
 import 'package:opencord/features/settings/server/plugins/review_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/badges.dart';
+import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
-const _pluginZipTypes = XTypeGroup(
-  label: 'Plugins',
-  extensions: ['zip'],
-);
+const _pluginZipTypes = XTypeGroup(label: 'Plugins', extensions: ['zip']);
 
 /// Server settings → Plugins (§17.1): drop zone, waiting dev reviews,
 /// installed plugins with metrics and run switch.
@@ -36,6 +35,7 @@ class ServerPluginsPage extends ConsumerStatefulWidget {
 
 class _ServerPluginsPageState extends ConsumerState<ServerPluginsPage> {
   bool _dragging = false;
+  String? _selectedPluginId;
   Timer? _pollTimer;
 
   @override
@@ -113,6 +113,14 @@ class _ServerPluginsPageState extends ConsumerState<ServerPluginsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_selectedPluginId != null) {
+      return PluginPage(
+        serverKey: widget.serverKey,
+        pluginId: _selectedPluginId!,
+        onBack: () => setState(() => _selectedPluginId = null),
+      );
+    }
+
     final colors = context.oc;
     final pluginsAsync = ref.watch(pluginsProvider(widget.serverKey));
     final plugins = pluginsAsync.value ?? const [];
@@ -230,6 +238,8 @@ class _ServerPluginsPageState extends ConsumerState<ServerPluginsPage> {
                   _PluginRow(
                     plugin: plugin,
                     onToggle: (on) => _toggleRunning(plugin, on),
+                    onSelect: () =>
+                        setState(() => _selectedPluginId = plugin.id),
                   ),
               ],
             ),
@@ -243,10 +253,12 @@ class _PluginRow extends StatelessWidget {
   const _PluginRow({
     required this.plugin,
     required this.onToggle,
+    required this.onSelect,
   });
 
   final Plugin plugin;
   final ValueChanged<bool> onToggle;
+  final VoidCallback onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -258,115 +270,115 @@ class _PluginRow extends StatelessWidget {
     final cpuPercent = (plugin.cpuPermille / 10).toStringAsFixed(1);
     final memoryMb = (plugin.memoryBytes / (1024 * 1024)).toStringAsFixed(1);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: OcSpace.s16,
-        vertical: OcSpace.s12,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: colors.hover,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.border),
+    return Hoverable(
+      onTap: onSelect,
+      builder: (context, state) => Container(
+        color: state.hovered ? colors.hover : null,
+        padding: const EdgeInsets.symmetric(
+          horizontal: OcSpace.s16,
+          vertical: OcSpace.s12,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: colors.hover,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                OcIcons.extension,
+                size: 20,
+                color: colors.textSecondary,
+              ),
             ),
-            alignment: Alignment.center,
-            child: Icon(
-              OcIcons.extension,
-              size: 20,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(width: OcSpace.s12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        plugin.name,
-                        style: OcText.body.copyWith(
-                          color: colors.text,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: OcSpace.s8),
-                    Text(
-                      plugin.version,
-                      style: OcText.small.copyWith(color: colors.textMuted),
-                    ),
-                    const SizedBox(width: OcSpace.s8),
-                    Text(
-                      plugin.author,
-                      style: OcText.small.copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    PluginSignatureBadge(
-                      signature: plugin.signature,
-                      githubCheck: plugin.githubCheck,
-                    ),
-                    const SizedBox(width: 6),
-                    PluginStatusBadge(state: plugin.state),
-                    if (plugin.state == PluginState.crashed &&
-                        plugin.statusReason.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
+            const SizedBox(width: OcSpace.s12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
                         child: Text(
-                          plugin.statusReason,
-                          style: OcText.small.copyWith(
-                            color: colors.textSecondary,
+                          plugin.name,
+                          style: OcText.body.copyWith(
+                            color: colors.text,
+                            fontWeight: FontWeight.w600,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: OcSpace.s8),
+                      Text(
+                        plugin.version,
+                        style: OcText.small.copyWith(color: colors.textMuted),
+                      ),
+                      const SizedBox(width: OcSpace.s8),
+                      Text(
+                        plugin.author,
+                        style: OcText.small.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
                     ],
-                  ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      PluginSignatureBadge(
+                        signature: plugin.signature,
+                        githubCheck: plugin.githubCheck,
+                      ),
+                      const SizedBox(width: 6),
+                      PluginStatusBadge(state: plugin.state),
+                      if (plugin.state == PluginState.crashed &&
+                          plugin.statusReason.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            plugin.statusReason,
+                            style: OcText.small.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: OcSpace.s16),
+            // CPU and memory metrics
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$cpuPercent%',
+                  style: OcText.mono.copyWith(color: colors.text, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$memoryMb MB',
+                  style: OcText.mono.copyWith(
+                    color: colors.textMuted,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: OcSpace.s16),
-          // CPU and memory metrics
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$cpuPercent%',
-                style: OcText.mono.copyWith(
-                  color: colors.text,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '$memoryMb MB',
-                style: OcText.mono.copyWith(
-                  color: colors.textMuted,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: OcSpace.s16),
-          OcSwitch(
-            value: isRunningOrStarting,
-            onChanged: onToggle,
-          ),
-        ],
+            const SizedBox(width: OcSpace.s16),
+            OcSwitch(value: isRunningOrStarting, onChanged: onToggle),
+          ],
+        ),
       ),
     );
   }

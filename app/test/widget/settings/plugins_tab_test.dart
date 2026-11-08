@@ -278,18 +278,15 @@ Widget _wrap(
   return ProviderScope(
     overrides: [
       repositoryProvider.overrideWithValue(repository),
-      serverProvider(_devKey).overrideWith(
-        () => _FakeServerNotifier(_devKey, data),
-      ),
+      serverProvider(
+        _devKey,
+      ).overrideWith(() => _FakeServerNotifier(_devKey, data)),
     ],
     child: _EventRouter(
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: buildTheme(colors),
-        home: Scaffold(
-          backgroundColor: colors.chat,
-          body: child,
-        ),
+        home: Scaffold(backgroundColor: colors.chat, body: child),
       ),
     ),
   );
@@ -299,10 +296,7 @@ void main() {
   testWidgets('plugins_tab_shows_empty_state_when_no_plugins', (tester) async {
     final repo = _FakePluginsRepository(initialPlugins: []);
     await tester.pumpWidget(
-      _wrap(
-        const ServerPluginsPage(serverKey: _devKey),
-        repository: repo,
-      ),
+      _wrap(const ServerPluginsPage(serverKey: _devKey), repository: repo),
     );
     await tester.pumpAndSettle();
 
@@ -342,10 +336,7 @@ void main() {
 
     final repo = _FakePluginsRepository(initialPlugins: [running, crashed]);
     await tester.pumpWidget(
-      _wrap(
-        const ServerPluginsPage(serverKey: _devKey),
-        repository: repo,
-      ),
+      _wrap(const ServerPluginsPage(serverKey: _devKey), repository: repo),
     );
     await tester.pumpAndSettle();
 
@@ -389,17 +380,11 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _wrap(
-        const ServerPluginsPage(serverKey: _devKey),
-        repository: repo,
-      ),
+      _wrap(const ServerPluginsPage(serverKey: _devKey), repository: repo),
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Dev Echo wants to update from dev mode'),
-      findsOneWidget,
-    );
+    expect(find.text('Dev Echo wants to update from dev mode'), findsOneWidget);
     expect(find.text('Review'), findsOneWidget);
 
     await tester.tap(find.text('Review'));
@@ -441,7 +426,10 @@ void main() {
     );
 
     // Ungrantable permission note
-    expect(find.text("You don't have this permission yourself"), findsOneWidget);
+    expect(
+      find.text("You don't have this permission yourself"),
+      findsOneWidget,
+    );
 
     // Domain list
     expect(find.text('api.support.example.com'), findsOneWidget);
@@ -510,7 +498,9 @@ void main() {
     expect(find.widgetWithText(OcButton, 'Update'), findsOneWidget);
   });
 
-  testWidgets('refused_upload_or_confirm_error_shown_in_dialog', (tester) async {
+  testWidgets('refused_upload_or_confirm_error_shown_in_dialog', (
+    tester,
+  ) async {
     final review = _sampleReview(reviewId: 'rev-fail');
     final repo = _FakePluginsRepository(
       initialPlugins: [],
@@ -555,7 +545,11 @@ void main() {
               ref
                   .read(pluginReviewsProvider(_devKey).notifier)
                   .apply(PluginReviewUpdated(_devKey, review));
-              await showReviewDialog(context, serverKey: _devKey, review: review);
+              await showReviewDialog(
+                context,
+                serverKey: _devKey,
+                review: review,
+              );
               closed = true;
             },
             child: const Text('Open Dialog'),

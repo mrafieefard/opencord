@@ -170,13 +170,15 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
     ];
 
     try {
-      await ref.read(repositoryProvider).confirmPluginReview(
-        widget.serverKey,
-        rev.reviewId,
-        grantedList,
-        configValues,
-        _licenseAccepted,
-      );
+      await ref
+          .read(repositoryProvider)
+          .confirmPluginReview(
+            widget.serverKey,
+            rev.reviewId,
+            grantedList,
+            configValues,
+            _licenseAccepted,
+          );
       if (mounted) Navigator.of(context).pop();
     } on RepoException catch (e) {
       if (mounted) {
@@ -266,10 +268,7 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
       title: isUpdate ? 'Update ${plugin.name}' : 'Install ${plugin.name}',
       width: 520,
       actions: [
-        OcButton.ghost(
-          label: 'Cancel',
-          onPressed: _busy ? null : _discard,
-        ),
+        OcButton.ghost(label: 'Cancel', onPressed: _busy ? null : _discard),
         OcButton.primary(
           label: isUpdate ? 'Update' : 'Install',
           busy: _busy,
@@ -413,7 +412,9 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
                           ),
                         ),
                         OcSwitch(
-                          value: p.grantable ? (_granted[p.name] ?? false) : false,
+                          value: p.grantable
+                              ? (_granted[p.name] ?? false)
+                              : false,
                           onChanged: p.grantable
                               ? (val) => setState(() => _granted[p.name] = val)
                               : null,
@@ -435,7 +436,11 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Row(
                       children: [
-                        Icon(OcIcons.dns, size: 14, color: colors.textSecondary),
+                        Icon(
+                          OcIcons.dns,
+                          size: 14,
+                          color: colors.textSecondary,
+                        ),
                         const SizedBox(width: OcSpace.s6),
                         Text(
                           domain,
@@ -462,9 +467,7 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          field.required
-                              ? '${field.label} *'
-                              : field.label,
+                          field.required ? '${field.label} *' : field.label,
                           style: OcText.small.copyWith(
                             color: colors.textSecondary,
                             fontWeight: FontWeight.w600,
@@ -473,8 +476,7 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
                         const SizedBox(height: 4),
                         TextField(
                           controller: _configControllers[field.key],
-                          obscureText:
-                              field.kind == PluginConfigKind.secret,
+                          obscureText: field.kind == PluginConfigKind.secret,
                           decoration: ocInputDecoration(
                             context,
                             hint: field.required ? 'Required' : null,
@@ -490,9 +492,8 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
               // Licence section
               if (rev.licenseNeedsAcceptance) ...[
                 Hoverable(
-                  onTap: () => setState(
-                    () => _licenseAccepted = !_licenseAccepted,
-                  ),
+                  onTap: () =>
+                      setState(() => _licenseAccepted = !_licenseAccepted),
                   builder: (context, state) => Row(
                     children: [
                       Icon(
@@ -500,7 +501,9 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
                             ? OcIcons.checkBox
                             : OcIcons.checkBoxOutlineBlank,
                         size: 18,
-                        color: _licenseAccepted ? colors.text : colors.textMuted,
+                        color: _licenseAccepted
+                            ? colors.text
+                            : colors.textMuted,
                       ),
                       const SizedBox(width: OcSpace.s8),
                       Expanded(

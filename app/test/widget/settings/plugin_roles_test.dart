@@ -61,7 +61,9 @@ void main() {
     expect(_in(find.byIcon(OcIcons.lock)), findsWidgets);
 
     // Name field is disabled.
-    final textField = tester.widget<TextField>(_in(find.byType(TextField)).first);
+    final textField = tester.widget<TextField>(
+      _in(find.byType(TextField)).first,
+    );
     expect(textField.enabled, isFalse);
 
     // Delete role button is not present.
