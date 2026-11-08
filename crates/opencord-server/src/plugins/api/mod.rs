@@ -6,7 +6,9 @@
 //! [`async_function`]: an `Err` from a bare mlua callback would reach Lua
 //! as userdata instead.
 
+pub mod bus;
 pub mod commands;
+pub mod config;
 pub mod db;
 pub mod files;
 pub mod guild;
@@ -15,6 +17,7 @@ pub mod http;
 pub mod log;
 pub mod messages;
 pub mod plugin;
+pub mod timers;
 pub mod voice;
 
 use std::fmt;
@@ -39,6 +42,9 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     voice::install(&vm.lua, env)?;
     files::install(&vm.lua, env)?;
     hooks::install(&vm.lua, env)?;
+    timers::install(&vm.lua, env)?;
+    bus::install(&vm.lua, env)?;
+    config::install(&vm.lua, env)?;
     #[cfg(any(test, debug_assertions))]
     tests::install(&vm.lua, env)?;
     Ok(())

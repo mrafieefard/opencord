@@ -81,11 +81,80 @@ impl fmt::Display for StartError {
 
 impl std::error::Error for StartError {}
 
+#[derive(Debug, Clone)]
+pub enum ConfigValue {
+    Text(String),
+    Secret(String),
+    Number(f64),
+    Boolean(bool),
+    Role(String),
+    Channel(String),
+    User(String),
+}
+
+#[derive(Default)]
+pub struct PluginBus {
+    listeners: Mutex<HashMap<(String, String), HashSet<String>>>,
+}
+
+impl PluginBus {
+    pub fn listen(&self, receiver_id: &str, sender_id: &str, name: &str) {
+        let mut listeners = self
+            .listeners
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        listeners
+            .entry((sender_id.to_owned(), name.to_owned()))
+            .or_default()
+            .insert(receiver_id.to_owned());
+    }
+
+    pub fn unlisten_all(&self, receiver_id: &str) {
+        let mut listeners = self
+            .listeners
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        for set in listeners.values_mut() {
+            set.remove(receiver_id);
+        }
+    }
+
+    pub fn emit(&self, plugins: &Plugins, sender_id: &str, name: &str, data: serde_json::Value) {
+        let receivers: Vec<String> = {
+            let listeners = self
+                .listeners
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            listeners
+                .get(&(sender_id.to_owned(), name.to_owned()))
+                .map(|set| set.iter().cloned().collect())
+                .unwrap_or_default()
+        };
+
+        for receiver_id in receivers {
+            if let Some(handle) = plugins.get(&receiver_id)
+                && handle.takes_events()
+                && handle.holds(PluginPermission::TalkToPlugins)
+            {
+                handle.deliver(PluginEvent {
+                    name: "plugin_bus".into(),
+                    payload: serde_json::json!({
+                        "sender": sender_id,
+                        "name": name,
+                        "data": data,
+                    }),
+                    reply: None,
+                });
+            }
+        }
+    }
+}
+
 /// One plugin as the runtime keeps it, across its VM's restarts.
 pub struct PluginHandle {
     pub id: String,
     pub user_id: i64,
-    queue: EventQueue,
+    pub(crate) queue: Arc<EventQueue>,
     log: Arc<PluginLog>,
     granted: Arc<RwLock<HashSet<PluginPermission>>>,
     status: Mutex<Status>,
@@ -94,6 +163,9 @@ pub struct PluginHandle {
     stopping: watch::Sender<bool>,
     supervisor: tokio::sync::Mutex<Option<JoinHandle<()>>>,
     pub(crate) hooks: Arc<RwLock<HashSet<String>>>,
+    pub(crate) timers: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
+    pub(crate) next_timer_id: Arc<AtomicU64>,
+    pub(crate) config_values: Arc<RwLock<HashMap<String, ConfigValue>>>,
 }
 
 struct Status {
@@ -197,6 +269,22 @@ impl PluginHandle {
             .clear();
     }
 
+    pub fn clear_timers(&self) {
+        let mut timers = self.timers.lock().unwrap_or_else(PoisonError::into_inner);
+        for handle in timers.values() {
+            handle.abort();
+        }
+        timers.clear();
+    }
+
+    pub fn update_config(&self, values: HashMap<String, ConfigValue>) {
+        let mut conf = self
+            .config_values
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        *conf = values;
+    }
+
     /// Delivers `stop`, waits the grace, ends the VM. A crashed plugin
     /// stays crashed.
     async fn stop(&self) {
@@ -219,6 +307,7 @@ impl PluginHandle {
                 };
             }
         }
+        self.clear_timers();
         self.clear_hooks();
         self.queue.clear();
     }
@@ -233,6 +322,8 @@ pub struct Plugins {
     /// Uploads waiting for an admin.
     pub reviews: review::Reviews,
     pub dev_tokens: dev::DevTokens,
+    pub bus: Arc<PluginBus>,
+    log_watchers: RwLock<HashMap<String, HashSet<String>>>,
     /// Held through each install, update, uninstall and permission change,
     /// so two never interleave. Taken before the guild's write lock.
     pub(crate) changes: tokio::sync::Mutex<()>,
@@ -257,6 +348,8 @@ impl Plugins {
             clock,
             reviews: review::Reviews::default(),
             dev_tokens: dev::DevTokens::default(),
+            bus: Arc::new(PluginBus::default()),
+            log_watchers: RwLock::new(HashMap::new()),
             changes: tokio::sync::Mutex::new(()),
         }
     }
@@ -323,12 +416,56 @@ impl Plugins {
                 Some(state.config.plugins_dir().join(&installed.id)),
             ),
         };
+        let mut conn = state
+            .db
+            .acquire()
+            .await
+            .map_err(|e| StartError(e.to_string()))?;
+        let config_rows = db::plugins::config_values(&mut conn, &installed.id)
+            .await
+            .map_err(|e| StartError(e.to_string()))?;
+        drop(conn);
+
+        let mut config_map = HashMap::new();
+        for field in &installed.manifest.config {
+            if let Some(row) = config_rows.iter().find(|r| r.key == field.key) {
+                let val_str = String::from_utf8_lossy(&row.value);
+                let config_val = match field.kind {
+                    ConfigKind::Number => val_str.parse::<f64>().ok().map(ConfigValue::Number),
+                    ConfigKind::Boolean => Some(ConfigValue::Boolean(val_str == "true")),
+                    ConfigKind::Role => Some(ConfigValue::Role(val_str.into_owned())),
+                    ConfigKind::Channel => Some(ConfigValue::Channel(val_str.into_owned())),
+                    ConfigKind::User => Some(ConfigValue::User(val_str.into_owned())),
+                    ConfigKind::Secret => {
+                        let purpose = install::config_purpose(&installed.id, &field.key);
+                        match state
+                            .certificates
+                            .secrets()
+                            .open_string(&purpose, &row.value)
+                        {
+                            Ok(opened) => Some(ConfigValue::Secret(opened)),
+                            Err(err) => {
+                                tracing::warn!(plugin = %installed.id, key = %field.key, %err, "could not open plugin secret");
+                                None
+                            }
+                        }
+                    }
+                    ConfigKind::Text | ConfigKind::Choice => {
+                        Some(ConfigValue::Text(val_str.into_owned()))
+                    }
+                };
+                if let Some(cv) = config_val {
+                    config_map.insert(field.key.clone(), cv);
+                }
+            }
+        }
+
         let (stopping, stopping_receiver) = watch::channel(false);
         let handle = Arc::new(PluginHandle {
             id: installed.id.clone(),
             user_id: installed.user_id,
-            queue: EventQueue::default(),
-            log,
+            queue: Arc::new(EventQueue::default()),
+            log: log.clone(),
             granted: Arc::new(RwLock::new(installed.granted)),
             status: Mutex::new(Status {
                 state: proto::PluginState::Starting,
@@ -339,6 +476,22 @@ impl Plugins {
             stopping,
             supervisor: tokio::sync::Mutex::new(None),
             hooks: Arc::new(RwLock::new(HashSet::new())),
+            timers: Arc::new(Mutex::new(HashMap::new())),
+            next_timer_id: Arc::new(AtomicU64::new(1)),
+            config_values: Arc::new(RwLock::new(config_map)),
+        });
+
+        let (plugin_id_c, state_weak) = (installed.id.clone(), Arc::downgrade(state));
+        let mut rx = log.subscribe();
+        tokio::spawn(async move {
+            while let Ok(line) = rx.recv().await {
+                let Some(state) = state_weak.upgrade() else {
+                    break;
+                };
+                state
+                    .plugins
+                    .dispatch_log_append(&state, &plugin_id_c, line);
+            }
         });
         self.handles
             .write()
@@ -382,11 +535,85 @@ impl Plugins {
     pub async fn remove(&self, id: &str) {
         let Some(handle) = self.get(id) else { return };
         handle.stop().await;
+        self.clear_log_watchers(id);
+        self.bus.unlisten_all(id);
         self.handles
             .write()
             .unwrap_or_else(PoisonError::into_inner)
             .remove(id);
         handle.log.close().await;
+    }
+
+    pub fn watch_log(&self, plugin_id: &str, session_id: &str, watch: bool) {
+        let mut watchers = self
+            .log_watchers
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        if watch {
+            watchers
+                .entry(plugin_id.to_owned())
+                .or_default()
+                .insert(session_id.to_owned());
+        } else if let Some(set) = watchers.get_mut(plugin_id) {
+            set.remove(session_id);
+        }
+    }
+
+    pub fn clear_log_watchers(&self, plugin_id: &str) {
+        let mut watchers = self
+            .log_watchers
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
+        watchers.remove(plugin_id);
+    }
+
+    pub fn dispatch_log_append(
+        &self,
+        state: &AppState,
+        plugin_id: &str,
+        line: proto::PluginLogLine,
+    ) {
+        let watchers: Vec<String> = {
+            let watchers = self
+                .log_watchers
+                .read()
+                .unwrap_or_else(PoisonError::into_inner);
+            watchers
+                .get(plugin_id)
+                .map(|s| s.iter().cloned().collect())
+                .unwrap_or_default()
+        };
+        if watchers.is_empty() {
+            return;
+        }
+
+        let event = proto::Event {
+            kind: Some(proto::event::Kind::PluginLogAppend(
+                proto::PluginLogAppend {
+                    plugin_id: plugin_id.to_owned(),
+                    lines: vec![line],
+                },
+            )),
+        };
+        let now = std::time::Instant::now();
+        let mut gone = Vec::new();
+        for id in watchers {
+            match state.sessions.get(&id) {
+                Some(session) if !session.is_ended() => session.push_event(&event, now),
+                _ => gone.push(id),
+            }
+        }
+        if !gone.is_empty() {
+            let mut watchers = self
+                .log_watchers
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
+            if let Some(set) = watchers.get_mut(plugin_id) {
+                for id in gone {
+                    set.remove(&id);
+                }
+            }
+        }
     }
 
     pub async fn stop_all(&self) {

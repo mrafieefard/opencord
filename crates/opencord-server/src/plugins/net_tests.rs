@@ -101,6 +101,10 @@ fn env(net: PluginNet, granted: &[PluginPermission]) -> (Vm, Arc<PluginEnv>) {
         files_dir: std::path::PathBuf::new(),
         files_bytes: 5120 * 1024 * 1024,
         hooks: Arc::new(RwLock::new(HashSet::new())),
+        queue: Arc::new(crate::plugins::queue::EventQueue::default()),
+        timers: Arc::new(Mutex::new(HashMap::new())),
+        next_timer_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+        config_values: Arc::new(RwLock::new(HashMap::new())),
     });
     (vm, env)
 }

@@ -1,7 +1,8 @@
 //! The plugin's database (plan Task 11): what SQL can't reach, its limits,
 //! and how values and transactions look from Lua.
 
-use std::sync::{Arc, RwLock, Weak};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock, Weak};
 use std::time::{Duration, Instant};
 
 use opencord_plugins::sandbox::{Vm, VmLimits};
@@ -64,6 +65,10 @@ async fn plugin() -> (Vm, Arc<PluginEnv>, tempfile::TempDir) {
         files_dir: dir.path().join("files"),
         files_bytes: 5120 * 1024 * 1024,
         hooks: Arc::new(RwLock::new(std::collections::HashSet::new())),
+        queue: Arc::new(crate::plugins::queue::EventQueue::default()),
+        timers: Arc::new(Mutex::new(HashMap::new())),
+        next_timer_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+        config_values: Arc::new(RwLock::new(HashMap::new())),
     });
     vm.budget().start(Duration::from_secs(5));
     api::install(&vm, &env).unwrap();

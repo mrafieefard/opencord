@@ -210,7 +210,7 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::CreatePluginDevToken(request) => plugins::create_dev_token(ctx, request).await,
         Kind::RevokePluginDevToken(request) => plugins::revoke_dev_token(ctx, request).await,
         Kind::FetchPluginDevTokens(_) => plugins::fetch_dev_tokens(ctx).await,
-        Kind::WatchPluginLog(_) => Err(ApiError::invalid_argument("not supported yet")),
+        Kind::WatchPluginLog(request) => plugins::watch_log(ctx, request).await,
     }
 }
 

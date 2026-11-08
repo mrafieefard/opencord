@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock, Weak};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
@@ -74,6 +74,10 @@ pub struct PluginEnv {
     pub files_bytes: u64,
     /// Hook paths registered via `hooks.on`.
     pub hooks: Arc<RwLock<HashSet<String>>>,
+    pub queue: Arc<super::queue::EventQueue>,
+    pub timers: Arc<Mutex<HashMap<u64, tokio::task::JoinHandle<()>>>>,
+    pub next_timer_id: Arc<AtomicU64>,
+    pub config_values: Arc<RwLock<HashMap<String, super::ConfigValue>>>,
 }
 
 impl PluginEnv {
@@ -304,6 +308,10 @@ fn spawn_vm(
                 files_dir: spec.files_dir.clone(),
                 files_bytes: spec.files_bytes,
                 hooks: handle.hooks.clone(),
+                queue: handle.queue.clone(),
+                timers: handle.timers.clone(),
+                next_timer_id: handle.next_timer_id.clone(),
+                config_values: handle.config_values.clone(),
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));
@@ -711,6 +719,91 @@ fn dispatch(
                 failed(&env_c, &reports_c, &name_c, error, limit);
             }
         });
+        return;
+    }
+
+    if name == "timer" {
+        let timer_id = payload
+            .get("timer_id")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let repeating = payload
+            .get("repeating")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let timers_reg: Table = match vm.lua.named_registry_value(api::timers::TIMERS) {
+            Ok(t) => t,
+            Err(error) => return failed(env, reports, &name, error, limit),
+        };
+        let handler: Option<Function> = timers_reg.raw_get(timer_id).ok();
+        if !repeating {
+            timers_reg.raw_remove(timer_id).ok();
+            env.timers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&timer_id);
+        }
+        let Some(handler) = handler else {
+            return;
+        };
+        let (env_c, reports_c, name_c) = (env.clone(), reports.clone(), name.clone());
+        let call = Budgeted::new(env.budget.clone(), limit, async move {
+            handler.call_async::<()>(()).await
+        });
+        running.spawn(async move {
+            if let Err(error) = call.await {
+                failed(&env_c, &reports_c, &name_c, error, limit);
+            }
+        });
+        return;
+    }
+
+    if name == "plugin_bus" {
+        let sender = payload
+            .get("sender")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let event_name = payload
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let data_val = payload
+            .get("data")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+
+        let listeners: Table = match vm.lua.named_registry_value(api::bus::BUS_LISTENERS) {
+            Ok(t) => t,
+            Err(error) => return failed(env, reports, &name, error, limit),
+        };
+        let key = format!("{sender}:{event_name}");
+        let handlers: Vec<Function> = match listeners.raw_get::<Table>(&*key) {
+            Ok(list) => list
+                .sequence_values::<Function>()
+                .filter_map(Result::ok)
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        let options = mlua::SerializeOptions::new()
+            .serialize_none_to_null(false)
+            .serialize_unit_to_null(false)
+            .set_array_metatable(false);
+        let lua_data = match vm.lua.to_value_with(&data_val, options) {
+            Ok(v) => v,
+            Err(error) => return failed(env, reports, &name, error, limit),
+        };
+        for handler in handlers {
+            let (env_c, reports_c, name_c) = (env.clone(), reports.clone(), name.clone());
+            let data_clone = lua_data.clone();
+            let call = Budgeted::new(env.budget.clone(), limit, async move {
+                handler.call_async::<()>(data_clone).await
+            });
+            running.spawn(async move {
+                if let Err(error) = call.await {
+                    failed(&env_c, &reports_c, &name_c, error, limit);
+                }
+            });
+        }
         return;
     }
 

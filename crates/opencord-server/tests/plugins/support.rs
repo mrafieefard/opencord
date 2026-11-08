@@ -112,10 +112,18 @@ pub async fn refusal(server: &TestServer, token: &str, zip: Vec<u8>) -> proto::E
 }
 
 pub fn confirm(review: &proto::PluginReview, granted: &[&str]) -> Kind {
+    confirm_with_config(review, granted, Vec::new())
+}
+
+pub fn confirm_with_config(
+    review: &proto::PluginReview,
+    granted: &[&str],
+    config: Vec<proto::PluginConfigValue>,
+) -> Kind {
     Kind::ConfirmPluginReview(proto::ConfirmPluginReview {
         review_id: review.review_id.clone(),
         granted: granted.iter().map(|name| (*name).to_owned()).collect(),
-        config: Vec::new(),
+        config,
         accept_license: true,
     })
 }
@@ -128,8 +136,23 @@ pub async fn install(
     zip: Vec<u8>,
     granted: &[&str],
 ) -> proto::Plugin {
+    install_with_config(server, client, token, zip, granted, Vec::new()).await
+}
+
+/// Uploads and confirms `zip`, granting `granted` and submitting `config`.
+pub async fn install_with_config(
+    server: &TestServer,
+    client: &mut TestClient,
+    token: &str,
+    zip: Vec<u8>,
+    granted: &[&str],
+    config: Vec<proto::PluginConfigValue>,
+) -> proto::Plugin {
     let review = review(server, token, zip).await;
-    match client.ok(confirm(&review, granted)).await {
+    match client
+        .ok(confirm_with_config(&review, granted, config))
+        .await
+    {
         proto::response::Result::Plugin(plugin) => plugin,
         other => panic!("not installed: {other:?}"),
     }

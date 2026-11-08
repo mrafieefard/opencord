@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
 
+#[path = "plugins/bus.rs"]
+mod bus;
 #[path = "plugins/commands.rs"]
 mod commands;
 #[path = "common/mod.rs"]
 mod common;
+#[path = "plugins/config.rs"]
+mod config;
 #[path = "plugins/dev.rs"]
 mod dev;
 #[path = "plugins/event_tables.rs"]
@@ -26,6 +30,8 @@ mod roles;
 mod runtime;
 #[path = "plugins/support.rs"]
 mod support;
+#[path = "plugins/timers.rs"]
+mod timers;
 #[path = "plugins/voice.rs"]
 mod voice;
 

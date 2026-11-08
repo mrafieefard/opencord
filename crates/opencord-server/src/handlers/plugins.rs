@@ -142,3 +142,19 @@ pub async fn fetch_log(
     };
     Ok(Response::PluginLog(proto::PluginLog { lines }))
 }
+
+pub async fn watch_log(
+    ctx: &Ctx<'_>,
+    request: proto::WatchPluginLog,
+) -> Result<Response, ApiError> {
+    install::require_manager(ctx.state, ctx.user_id)?;
+    if ctx.state.plugins.get(&request.plugin_id).is_none() {
+        crate::db::plugins::plugin(&mut *ctx.state.db.acquire().await?, &request.plugin_id)
+            .await?
+            .ok_or_else(|| ApiError::not_found("plugin"))?;
+    }
+    ctx.state
+        .plugins
+        .watch_log(&request.plugin_id, ctx.session_id, request.watch);
+    Ok(ack())
+}

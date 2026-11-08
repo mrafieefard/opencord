@@ -272,7 +272,7 @@ fn grant_rows(
         .collect()
 }
 
-fn config_purpose(plugin_id: &str, key: &str) -> String {
+pub(crate) fn config_purpose(plugin_id: &str, key: &str) -> String {
     format!("plugin-config:{plugin_id}:{key}")
 }
 
@@ -862,6 +862,43 @@ pub async fn set_config(
         .collect();
     changed.sort_unstable();
     changed.dedup();
+
+    if let Some(handle) = state.plugins.get(&id) {
+        let mut map = HashMap::new();
+        for field in &manifest.config {
+            if let Some(row) = config.iter().find(|r| r.key == field.key) {
+                let val_str = String::from_utf8_lossy(&row.value);
+                let config_val = match field.kind {
+                    ConfigKind::Number => {
+                        val_str.parse::<f64>().ok().map(super::ConfigValue::Number)
+                    }
+                    ConfigKind::Boolean => Some(super::ConfigValue::Boolean(val_str == "true")),
+                    ConfigKind::Role => Some(super::ConfigValue::Role(val_str.into_owned())),
+                    ConfigKind::Channel => Some(super::ConfigValue::Channel(val_str.into_owned())),
+                    ConfigKind::User => Some(super::ConfigValue::User(val_str.into_owned())),
+                    ConfigKind::Secret => {
+                        let purpose = config_purpose(&id, &field.key);
+                        match state
+                            .certificates
+                            .secrets()
+                            .open_string(&purpose, &row.value)
+                        {
+                            Ok(opened) => Some(super::ConfigValue::Secret(opened)),
+                            Err(_) => None,
+                        }
+                    }
+                    ConfigKind::Text | ConfigKind::Choice => {
+                        Some(super::ConfigValue::Text(val_str.into_owned()))
+                    }
+                };
+                if let Some(cv) = config_val {
+                    map.insert(field.key.clone(), cv);
+                }
+            }
+        }
+        handle.update_config(map);
+    }
+
     state.plugins.deliver(
         &id,
         PluginEvent {
