@@ -16,6 +16,8 @@ mod dev;
 mod event_tables;
 #[path = "plugins/events.rs"]
 mod events;
+#[path = "plugins/example.rs"]
+mod example;
 #[path = "plugins/files.rs"]
 mod files;
 #[path = "plugins/guild.rs"]
