@@ -271,7 +271,11 @@ impl Package {
         for entry in entries {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if name.starts_with('.') {
+            if name.starts_with('.')
+                || name == "opencord.d.luau"
+                || name.ends_with(".zip")
+                || name == "signing.key"
+            {
                 continue;
             }
             let path = if prefix.is_empty() {

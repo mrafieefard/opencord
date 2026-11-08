@@ -131,12 +131,18 @@ impl PublicKey {
             .join(" ")
     }
 
-    fn of(key: &SigningKey) -> PublicKey {
+    pub fn of(key: &SigningKey) -> PublicKey {
         PublicKey(key.verifying_key().to_bytes())
     }
 
     fn verifying(&self) -> Result<VerifyingKey, SigningError> {
         VerifyingKey::from_bytes(&self.0).map_err(|_| SigningError::BadKey)
+    }
+}
+
+impl From<&SigningKey> for PublicKey {
+    fn from(key: &SigningKey) -> Self {
+        PublicKey::of(key)
     }
 }
 
@@ -292,6 +298,17 @@ fn read_rotation(content: &[u8]) -> Option<(Rotation, Signature)> {
     Some((rotation, signature))
 }
 
+/// Returns the statement content for `KEY-ROTATION`: `old` hands the plugin
+/// over to `new`.
+pub fn rotation_statement(old: &SigningKey, new: &PublicKey) -> String {
+    let old_key = PublicKey::of(old);
+    let signature = old.sign(&rotation_message(&old_key, new));
+    format!(
+        "{ROTATION_HEADER}\nold {old_key}\nnew {new}\nsig {}\n",
+        encode_signature(&signature)
+    )
+}
+
 /// Writes `KEY-ROTATION`: `old` hands the plugin over to `new`. The package
 /// is then signed by `new`.
 pub fn write_rotation(
@@ -299,12 +316,7 @@ pub fn write_rotation(
     old: &SigningKey,
     new: &PublicKey,
 ) -> Result<(), SigningError> {
-    let old_key = PublicKey::of(old);
-    let signature = old.sign(&rotation_message(&old_key, new));
-    let content = format!(
-        "{ROTATION_HEADER}\nold {old_key}\nnew {new}\nsig {}\n",
-        encode_signature(&signature)
-    );
+    let content = rotation_statement(old, new);
     package.insert(KEY_ROTATION, content.into_bytes())?;
     Ok(())
 }

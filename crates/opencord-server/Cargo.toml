@@ -58,7 +58,12 @@ symphonia.workspace = true
 audioadapter-buffers.workspace = true
 webpki-roots.workspace = true
 x509-parser.workspace = true
+tempfile = { workspace = true, optional = true }
+
+[features]
+testing = ["dep:tempfile"]
 
 [dev-dependencies]
+opencord-server = { path = ".", features = ["testing"] }
 tempfile.workspace = true
 zip.workspace = true
