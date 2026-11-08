@@ -4,10 +4,10 @@
 
 use std::sync::Arc;
 
-use mlua::{Lua, Table, Value};
+use mlua::{Lua, Value};
 use opencord_proto::v1 as proto;
 
-use super::{async_function, raise};
+use super::{async_function, raise, string_arg, string_arg_opt};
 use crate::db;
 use crate::plugins::runtime::PluginEnv;
 
@@ -35,13 +35,10 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
         "put",
         async_function(
             lua,
-            move |_lua, (path_val, data_val, options_val): (Value, Value, Option<Table>)| {
+            move |_lua, (path_val, data_val, options_val): (Value, Value, Option<Value>)| {
                 let env = Arc::clone(&put_env);
                 async move {
-                    let path = match path_val {
-                        Value::String(s) => s.to_str()?.to_owned(),
-                        _ => return Err(raise("INVALID_ARGUMENT: path must be a string")),
-                    };
+                    let path = string_arg(path_val, "path")?;
                     let data_bytes = match data_val {
                         Value::String(s) => s.as_bytes().to_vec(),
                         Value::Buffer(b) => b.to_vec(),
@@ -50,8 +47,13 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         }
                     };
                     let public = match options_val {
-                        Some(t) => t.get::<Option<bool>>("public")?.unwrap_or(false),
-                        None => false,
+                        Some(Value::Nil) | None => false,
+                        Some(Value::Table(t)) => match t.raw_get::<Value>("public")? {
+                            Value::Nil => false,
+                            Value::Boolean(b) => b,
+                            _ => return Err(raise("INVALID_ARGUMENT: public must be a boolean")),
+                        },
+                        _ => return Err(raise("INVALID_ARGUMENT: options must be a table")),
                     };
 
                     check_file_path(&path)
@@ -135,10 +137,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
         async_function(lua, move |lua, path_val: Value| {
             let env = Arc::clone(&get_env);
             async move {
-                let path = match path_val {
-                    Value::String(s) => s.to_str()?.to_owned(),
-                    _ => return Err(raise("INVALID_ARGUMENT: path must be a string")),
-                };
+                let path = string_arg(path_val, "path")?;
                 check_file_path(&path)
                     .map_err(|e| raise(format!("INVALID_ARGUMENT: {path}: {e}")))?;
                 let _permit = env
@@ -170,16 +169,14 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
         async_function(lua, move |_lua, path_val: Value| {
             let env = Arc::clone(&del_env);
             async move {
-                let path = match path_val {
-                    Value::String(s) => s.to_str()?.to_owned(),
-                    _ => return Err(raise("INVALID_ARGUMENT: path must be a string")),
-                };
+                let path = super::string_arg(path_val, "path")?;
                 check_file_path(&path)
                     .map_err(|e| raise(format!("INVALID_ARGUMENT: {path}: {e}")))?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let target_path = env.files_dir.join(&path);
                 let path_c = path.clone();
+                let _lock = env.files_lock.lock().await;
 
                 env.on_server(async move {
                     match tokio::fs::remove_file(&target_path).await {
@@ -213,9 +210,8 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = Arc::clone(&list_env);
             async move {
                 let prefix_opt = match prefix_val {
-                    Some(Value::String(s)) => Some(s.to_str()?.to_owned()),
-                    Some(Value::Nil) | None => None,
-                    _ => return Err(raise("INVALID_ARGUMENT: prefix must be a string")),
+                    Some(val) => string_arg_opt(val, "prefix")?,
+                    None => None,
                 };
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();

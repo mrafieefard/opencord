@@ -328,6 +328,14 @@ fn spawn_vm(
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));
+            handle.clear_timers();
+            handle.clear_hooks();
+            if let Some(state) = env.state.upgrade() {
+                state.plugins.bus.unlisten_all(&env.plugin_id);
+                if state.commands.remove_for_plugin(&env.plugin_id) {
+                    crate::commands::announce(&state);
+                }
+            }
             // Handlers still waiting go with the runtime. The Rust halves of
             // their calls live in Lua userdata, holding the VM: a collection
             // drops them, so the VM can close.
@@ -362,14 +370,6 @@ async fn run_vm(
     }
     report(&reports, Report::Started(started));
     if failed {
-        handle.clear_timers();
-        handle.clear_hooks();
-        if let Some(state) = env.state.upgrade() {
-            state.plugins.bus.unlisten_all(&env.plugin_id);
-            if state.commands.remove_for_plugin(&env.plugin_id) {
-                crate::commands::announce(&state);
-            }
-        }
         return;
     }
     let mut running = JoinSet::new();
@@ -394,14 +394,6 @@ async fn run_vm(
             event = handle.queue.pop() => dispatch(vm, env, spec, event, &mut running, &reports),
             Some(_) = running.join_next(), if !running.is_empty() => {}
             _ = tick.tick() => stats.sample(vm, handle),
-        }
-    }
-    handle.clear_timers();
-    handle.clear_hooks();
-    if let Some(state) = env.state.upgrade() {
-        state.plugins.bus.unlisten_all(&env.plugin_id);
-        if state.commands.remove_for_plugin(&env.plugin_id) {
-            crate::commands::announce(&state);
         }
     }
 }
@@ -561,15 +553,18 @@ fn event_table(
                     other => (other, iter.next()),
                 };
                 let content = match content_val {
-                    Some(Value::String(s)) => s.to_str()?.to_owned(),
-                    _ => return Err(raise("INVALID_ARGUMENT: content must be a string")),
+                    Some(val) => api::string_arg(val, "content")?,
+                    None => return Err(raise("INVALID_ARGUMENT: content must be a string")),
                 };
-                let mut only_you = false;
-                if let Some(Value::Table(opts)) = opts_val
-                    && let Ok(b) = opts.get::<bool>("only_you")
-                {
-                    only_you = b;
-                }
+                let only_you = match opts_val {
+                    Some(Value::Nil) | None => false,
+                    Some(Value::Table(opts)) => match opts.raw_get::<Value>("only_you")? {
+                        Value::Nil => false,
+                        Value::Boolean(b) => b,
+                        _ => return Err(raise("INVALID_ARGUMENT: only_you must be a boolean")),
+                    },
+                    _ => return Err(raise("INVALID_ARGUMENT: options must be a table")),
+                };
                 let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
                 let Some(sender) = sender else {
                     return Err(raise("INVALID_ARGUMENT: already replied"));

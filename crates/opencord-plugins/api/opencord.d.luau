@@ -49,17 +49,14 @@ export type EventName =
 export type User = {
     id: string,
     name: string,
-    display_name: string?,
-    avatar_url: string?,
-    bot: boolean,
+    plugin: string?,
 }
 
 export type Attachment = {
     id: string,
     filename: string,
-    size_bytes: number,
-    content_type: string,
-    url: string,
+    kind: string,
+    size: number,
 }
 
 export type Message = {
@@ -68,7 +65,8 @@ export type Message = {
     author: User,
     content: string,
     created_at_ms: number,
-    updated_at_ms: number?,
+    edited_at_ms: number?,
+    interaction: { user: User, command: string }?,
     attachments: { Attachment },
 }
 
@@ -138,7 +136,7 @@ export type Member = {
 }
 
 export type Ban = {
-    user: User,
+    user: { id: string, name: string },
     reason: string?,
 }
 
@@ -154,7 +152,6 @@ export type ServerInfo = {
     id: string,
     name: string,
     description: string?,
-    icon_url: string?,
     owner_id: string,
 }
 
@@ -173,16 +170,36 @@ export type MusicTrack = {
     title: string,
     artist: string,
     duration_ms: number,
-    uri: string?,
+    is_stream: boolean,
+    is_seekable: boolean,
     source: string,
+    source_display_name: string,
+    uri: string,
+    artwork_id: string,
+    local_song_id: string,
+    removable: boolean,
+}
+
+export type MusicQueueItem = {
+    item_id: string,
+    requester_id: string,
+    added_at_ms: number,
+    track: MusicTrack?,
 }
 
 export type MusicState = {
     channel_id: string,
-    playing: boolean,
-    current_track: MusicTrack?,
-    queue: { MusicTrack },
+    version: number,
+    state: "idle" | "loading" | "playing" | "paused" | "unspecified",
+    now_playing: MusicQueueItem?,
+    queue: { MusicQueueItem },
+    history: { MusicQueueItem },
     position_ms: number,
+    server_time_ms: number,
+    repeat: "off" | "queue" | "track" | "unspecified",
+    shuffle: boolean,
+    waiting_for_node: boolean,
+    paused_empty: boolean,
 }
 
 export type FileInfo = {
@@ -221,7 +238,7 @@ export type WebHookResponse = {
 }
 
 export type DbTx = {
-    exec: (sql: string, ...any) -> { rows_affected: number, last_insert_rowid: number },
+    exec: (sql: string, ...any) -> { changes: number, last_id: string },
     query: (sql: string, ...any) -> { { [string]: any } },
 }
 
@@ -254,7 +271,7 @@ declare http: {
 
 declare db: {
     --- Permission: none
-    exec: (sql: string, ...any) -> { rows_affected: number, last_insert_rowid: number },
+    exec: (sql: string, ...any) -> { changes: number, last_id: string },
     --- Permission: none
     query: (sql: string, ...any) -> { { [string]: any } },
     --- Permission: none
@@ -372,7 +389,7 @@ declare music: {
     --- Permission: read_music
     state: (channel_id: string) -> MusicState,
     --- Permission: control_music
-    add: (channel_id: string, query: string) -> { MusicTrack },
+    add: (channel_id: string, query: string) -> (),
     --- Permission: control_music
     skip: (channel_id: string) -> (),
     --- Permission: control_music
@@ -383,7 +400,7 @@ declare music: {
 
 declare files: {
     --- Permission: none
-    put: (path: string, data: string | buffer, options: { public: boolean? }?) -> FileInfo,
+    put: (path: string, data: string | buffer, options: { public: boolean? }?) -> (),
     --- Permission: none
     get: (path: string) -> buffer?,
     --- Permission: none

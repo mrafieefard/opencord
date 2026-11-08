@@ -113,7 +113,42 @@ async fn plugin_calls_and_emit_are_rate_limited() {
     let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
 
-    let _p = plugin(
+    // 1. Guild call is rate limited
+    let _p_guild = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "guild-rate-limited",
+        &["read_invites"],
+        &format!(
+            r#"
+            local hit_guild_limit = false
+            for i = 1, {} do
+                local ok, err = pcall(function()
+                    invites.list()
+                end)
+                if not ok and string.find(tostring(err), "RATE_LIMITED") then
+                    hit_guild_limit = true
+                    break
+                end
+            end
+            if hit_guild_limit then
+                log.info("guild_rate_limited_as_expected")
+            end
+            "#,
+            opencord_common::limits::REQUEST_RATE.burst + 15
+        ),
+    )
+    .await;
+    wait_for_log(
+        &mut owner,
+        "guild-rate-limited",
+        "guild_rate_limited_as_expected",
+    )
+    .await;
+
+    // 2. Plugin bus emit is rate limited
+    let _p_emit = plugin(
         &server,
         &mut owner,
         &ready,

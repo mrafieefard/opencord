@@ -7,9 +7,9 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
-use mlua::{Function, Lua, Table};
+use mlua::{Lua, Table, Value};
 
-use super::{PluginEnv, function, raise};
+use super::{PluginEnv, function, raise, string_arg};
 use crate::plugins::PluginEvent;
 
 pub const TIMERS: &str = "__opencord_timers";
@@ -286,7 +286,16 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_after = env.clone();
     timer_table.raw_set(
         "after",
-        function(lua, move |lua, (seconds, handler): (f64, Function)| {
+        function(lua, move |lua, (sec_val, fn_val): (Value, Value)| {
+            let seconds = match sec_val {
+                Value::Integer(i) => i as f64,
+                Value::Number(n) => n,
+                _ => return Err(raise("INVALID_ARGUMENT: duration must be a number")),
+            };
+            let handler = match fn_val {
+                Value::Function(f) => f,
+                _ => return Err(raise("INVALID_ARGUMENT: handler must be a function")),
+            };
             if !seconds.is_finite() || seconds < 0.0 || seconds > MAX_TIMER_SECS {
                 return Err(raise(
                     "INVALID_ARGUMENT: delay must be finite, non-negative, and at most one year",
@@ -326,7 +335,16 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_every = env.clone();
     timer_table.raw_set(
         "every",
-        function(lua, move |lua, (seconds, handler): (f64, Function)| {
+        function(lua, move |lua, (sec_val, fn_val): (Value, Value)| {
+            let seconds = match sec_val {
+                Value::Integer(i) => i as f64,
+                Value::Number(n) => n,
+                _ => return Err(raise("INVALID_ARGUMENT: interval must be a number")),
+            };
+            let handler = match fn_val {
+                Value::Function(f) => f,
+                _ => return Err(raise("INVALID_ARGUMENT: handler must be a function")),
+            };
             if !seconds.is_finite() || seconds < 1.0 || seconds > MAX_TIMER_SECS {
                 return Err(raise(
                     "INVALID_ARGUMENT: interval must be finite, at least 1 second, and at most one year",
@@ -369,7 +387,12 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_cron = env.clone();
     timer_table.raw_set(
         "cron",
-        function(lua, move |lua, (expr, handler): (String, Function)| {
+        function(lua, move |lua, (expr_val, fn_val): (Value, Value)| {
+            let expr = string_arg(expr_val, "cron expression")?;
+            let handler = match fn_val {
+                Value::Function(f) => f,
+                _ => return Err(raise("INVALID_ARGUMENT: handler must be a function")),
+            };
             let cron = CronExpr::parse(&expr).map_err(raise)?;
             let timers = env_cron
                 .timers
@@ -413,7 +436,16 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_cancel = env.clone();
     timer_table.raw_set(
         "cancel",
-        function(lua, move |lua, timer_id: u64| {
+        function(lua, move |lua, id_val: Value| {
+            let timer_id = match id_val {
+                Value::Integer(i) if i >= 0 => i as u64,
+                Value::Number(n) if n.is_finite() && n >= 0.0 && n.floor() == n => n as u64,
+                _ => {
+                    return Err(raise(
+                        "INVALID_ARGUMENT: timer_id must be a positive integer",
+                    ));
+                }
+            };
             if let Some(task) = env_cancel
                 .timers
                 .lock()
@@ -423,6 +455,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 task.abort();
             }
             if let Ok(reg) = lua.named_registry_value::<Table>(TIMERS) {
+                // Harmless if missing: the registry table or key may already have been removed during VM teardown.
                 let _ = reg.raw_remove(timer_id);
             }
             Ok(())

@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use mlua::{Lua, Table, Value};
+use mlua::{Lua, Value};
 use opencord_proto::v1 as proto;
 use proto::CommandOptionKind as Kind;
 
-use super::{function, raise};
+use super::{function, raise, string_arg};
 use crate::plugins::permissions::PluginPermission;
 use crate::plugins::runtime::PluginEnv;
 
@@ -53,9 +53,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 _ => return Err(raise("INVALID_ARGUMENT: spec must be a table")),
             };
 
-            let name: String = spec_table
-                .get("name")
-                .map_err(|_| raise("INVALID_ARGUMENT: name is required"))?;
+            let name = string_arg(spec_table.raw_get("name")?, "name")?;
             let name = name.trim_start_matches('/').to_ascii_lowercase();
             if !valid_name(&name) {
                 return Err(raise(
@@ -63,9 +61,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 ));
             }
 
-            let description: String = spec_table
-                .get("description")
-                .map_err(|_| raise("INVALID_ARGUMENT: description is required"))?;
+            let description = string_arg(spec_table.raw_get("description")?, "description")?;
             if !valid_description(&description) {
                 return Err(raise(
                     "INVALID_ARGUMENT: description must be 1 to 100 characters",
@@ -73,89 +69,139 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             }
 
             let mut options = Vec::new();
-            if let Ok(opts_table) = spec_table.get::<Table>("options") {
-                let seq = opts_table.sequence_values::<Table>();
-                for opt in seq {
-                    let opt = opt?;
-                    if options.len() >= 25 {
-                        return Err(raise("INVALID_ARGUMENT: at most 25 options"));
-                    }
-                    let opt_name: String = opt
-                        .get("name")
-                        .map_err(|_| raise("INVALID_ARGUMENT: option name is required"))?;
-                    let opt_name = opt_name.trim_start_matches('/').to_ascii_lowercase();
-                    if !valid_name(&opt_name) {
-                        return Err(raise(
-                            "INVALID_ARGUMENT: option name must match ^[a-z0-9-]{1,32}$",
-                        ));
-                    }
+            match spec_table.raw_get::<Value>("options")? {
+                Value::Nil => {}
+                Value::Table(opts_table) => {
+                    for opt_item in opts_table.sequence_values::<Value>() {
+                        let opt_val = opt_item?;
+                        if options.len() >= 25 {
+                            return Err(raise("INVALID_ARGUMENT: at most 25 options"));
+                        }
+                        let opt = match opt_val {
+                            Value::Table(t) => t,
+                            _ => return Err(raise("INVALID_ARGUMENT: option must be a table")),
+                        };
+                        let opt_name = string_arg(opt.raw_get("name")?, "option name")?;
+                        let opt_name = opt_name.trim_start_matches('/').to_ascii_lowercase();
+                        if !valid_name(&opt_name) {
+                            return Err(raise(
+                                "INVALID_ARGUMENT: option name must match ^[a-z0-9-]{1,32}$",
+                            ));
+                        }
 
-                    let opt_desc: String = opt
-                        .get("description")
-                        .map_err(|_| raise("INVALID_ARGUMENT: option description is required"))?;
-                    if !valid_description(&opt_desc) {
-                        return Err(raise(
-                            "INVALID_ARGUMENT: option description must be 1 to 100 characters",
-                        ));
-                    }
+                        let opt_desc =
+                            string_arg(opt.raw_get("description")?, "option description")?;
+                        if !valid_description(&opt_desc) {
+                            return Err(raise(
+                                "INVALID_ARGUMENT: option description must be 1 to 100 characters",
+                            ));
+                        }
 
-                    let kind_str: String = opt
-                        .get("kind")
-                        .map_err(|_| raise("INVALID_ARGUMENT: option kind is required"))?;
-                    let kind = parse_kind(&kind_str)?;
+                        let kind_str = string_arg(opt.raw_get("kind")?, "option kind")?;
+                        let kind = parse_kind(&kind_str)?;
 
-                    let required = opt.get::<bool>("required").unwrap_or(false);
-                    let autocomplete = opt.get::<bool>("autocomplete").unwrap_or(false);
-                    let min = opt.get::<i64>("min").unwrap_or(0);
-                    let max = opt.get::<i64>("max").unwrap_or(0);
-
-                    let mut choices = Vec::new();
-                    if let Ok(choices_table) = opt.get::<Table>("choices") {
-                        for choice_item in choices_table.sequence_values::<Value>() {
-                            let item = choice_item?;
-                            if choices.len() >= 25 {
-                                return Err(raise("INVALID_ARGUMENT: at most 25 choices"));
-                            }
-                            let ct = match item {
-                                Value::Table(ct) => ct,
-                                _ => {
-                                    return Err(raise("INVALID_ARGUMENT: choice must be a table"));
-                                }
-                            };
-                            let c_name: String = ct
-                                .get("name")
-                                .or_else(|_| ct.get(1))
-                                .map_err(|_| raise("INVALID_ARGUMENT: choice name required"))?;
-                            let c_val: String =
-                                ct.get("value").or_else(|_| ct.get(2)).map_err(|_| {
-                                    raise("INVALID_ARGUMENT: choice value required")
-                                })?;
-                            let c_name_len = c_name.chars().count();
-                            let c_val_len = c_val.chars().count();
-                            if !(1..=100).contains(&c_name_len) || !(1..=100).contains(&c_val_len) {
+                        let required = match opt.raw_get::<Value>("required")? {
+                            Value::Nil => false,
+                            Value::Boolean(b) => b,
+                            _ => {
                                 return Err(raise(
-                                    "INVALID_ARGUMENT: choice name and value must be 1 to 100 characters",
+                                    "INVALID_ARGUMENT: option required must be a boolean",
                                 ));
                             }
-                            choices.push(proto::CommandChoice {
-                                name: c_name,
-                                value: c_val,
-                                artwork_id: String::new(),
-                            });
-                        }
-                    }
+                        };
+                        let autocomplete = match opt.raw_get::<Value>("autocomplete")? {
+                            Value::Nil => false,
+                            Value::Boolean(b) => b,
+                            _ => {
+                                return Err(raise(
+                                    "INVALID_ARGUMENT: option autocomplete must be a boolean",
+                                ));
+                            }
+                        };
+                        let min = match opt.raw_get::<Value>("min")? {
+                            Value::Nil => 0,
+                            Value::Integer(i) => i,
+                            Value::Number(n) if n.is_finite() && n.floor() == n => n as i64,
+                            _ => {
+                                return Err(raise(
+                                    "INVALID_ARGUMENT: option min must be an integer",
+                                ));
+                            }
+                        };
+                        let max = match opt.raw_get::<Value>("max")? {
+                            Value::Nil => 0,
+                            Value::Integer(i) => i,
+                            Value::Number(n) if n.is_finite() && n.floor() == n => n as i64,
+                            _ => {
+                                return Err(raise(
+                                    "INVALID_ARGUMENT: option max must be an integer",
+                                ));
+                            }
+                        };
 
-                    options.push(proto::CommandOptionSpec {
-                        name: opt_name,
-                        description: opt_desc,
-                        kind: kind as i32,
-                        required,
-                        autocomplete,
-                        choices,
-                        min,
-                        max,
-                    });
+                        let mut choices = Vec::new();
+                        match opt.raw_get::<Value>("choices")? {
+                            Value::Nil => {}
+                            Value::Table(choices_table) => {
+                                for choice_item in choices_table.sequence_values::<Value>() {
+                                    let item = choice_item?;
+                                    if choices.len() >= 25 {
+                                        return Err(raise("INVALID_ARGUMENT: at most 25 choices"));
+                                    }
+                                    let ct = match item {
+                                        Value::Table(ct) => ct,
+                                        _ => {
+                                            return Err(raise(
+                                                "INVALID_ARGUMENT: choice must be a table",
+                                            ));
+                                        }
+                                    };
+                                    let c_name_val = match ct.raw_get::<Value>("name")? {
+                                        Value::Nil => ct.raw_get::<Value>(1)?,
+                                        v => v,
+                                    };
+                                    let c_name = string_arg(c_name_val, "choice name")?;
+                                    let c_val_val = match ct.raw_get::<Value>("value")? {
+                                        Value::Nil => ct.raw_get::<Value>(2)?,
+                                        v => v,
+                                    };
+                                    let c_val = string_arg(c_val_val, "choice value")?;
+                                    let c_name_len = c_name.chars().count();
+                                    let c_val_len = c_val.chars().count();
+                                    if !(1..=100).contains(&c_name_len)
+                                        || !(1..=100).contains(&c_val_len)
+                                    {
+                                        return Err(raise(
+                                            "INVALID_ARGUMENT: choice name and value must be 1 to 100 characters",
+                                        ));
+                                    }
+                                    choices.push(proto::CommandChoice {
+                                        name: c_name,
+                                        value: c_val,
+                                        artwork_id: String::new(),
+                                    });
+                                }
+                            }
+                            _ => {
+                                return Err(raise(
+                                    "INVALID_ARGUMENT: option choices must be a table",
+                                ));
+                            }
+                        }
+
+                        options.push(proto::CommandOptionSpec {
+                            name: opt_name,
+                            description: opt_desc,
+                            kind: kind as i32,
+                            required,
+                            autocomplete,
+                            choices,
+                            min,
+                            max,
+                        });
+                    }
                 }
+                _ => return Err(raise("INVALID_ARGUMENT: options must be a table")),
             }
 
             // Check collision
@@ -201,8 +247,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_unreg = env.clone();
     table.raw_set(
         "unregister",
-        function(lua, move |_lua, name: String| {
+        function(lua, move |_lua, name_val: Value| {
             env_unreg.require(PluginPermission::RegisterCommands)?;
+            let name = string_arg(name_val, "name")?;
             let name = name.trim_start_matches('/').to_ascii_lowercase();
             env_unreg.check_rate_limit()?;
             let state = env_unreg.state()?;

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use mlua::{Lua, Value};
 
-use super::{function, raise};
+use super::{function, raise, string_arg};
 use crate::plugins::runtime::PluginEnv;
 
 /// Key in Lua registry for the table of hook handlers: path -> Function.
@@ -22,10 +22,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     hooks.raw_set(
         "on",
         function(lua, move |_lua, (path_val, handler_val): (Value, Value)| {
-            let path = match path_val {
-                Value::String(s) => s.to_str()?.to_owned(),
-                _ => return Err(raise("INVALID_ARGUMENT: path must be a string")),
-            };
+            let path = string_arg(path_val, "path")?;
             let path = path.trim_start_matches('/').to_owned();
             if path.is_empty() {
                 return Err(raise("INVALID_ARGUMENT: path cannot be empty"));

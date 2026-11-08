@@ -8,7 +8,7 @@ use mlua::{Lua, Table, Value};
 use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
 
-use super::{async_function, id_arg, id_arg_opt, raise};
+use super::{async_function, bool_arg, id_arg, id_arg_opt, raise, string_arg};
 use crate::error::ApiError;
 use crate::handlers::Ctx;
 use crate::handlers::{music, soundboard, voice};
@@ -214,6 +214,21 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let (member_name, channel_name) = {
+                    let g = state.guild();
+                    let m_name = g
+                        .members
+                        .get(&target_user_id)
+                        .map(|m| m.user.display_name.clone())
+                        .unwrap_or_else(|| target_user_id.to_string());
+                    let c_name = g
+                        .channels
+                        .get(&destination_channel_id)
+                        .map(|c| c.name.clone())
+                        .unwrap_or_else(|| destination_channel_id.to_string());
+                    (m_name, c_name)
+                };
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     voice::move_member(
@@ -230,7 +245,7 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("moved member {target_user_id} to channel {destination_channel_id}"),
+                    &format!("moved member {member_name} to channel {channel_name}"),
                 );
 
                 Ok(())
@@ -253,6 +268,13 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let member_name = state
+                    .guild()
+                    .members
+                    .get(&target_user_id)
+                    .map(|m| m.user.display_name.clone())
+                    .unwrap_or_else(|| target_user_id.to_string());
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     voice::disconnect_member(
@@ -268,7 +290,7 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("disconnected member {target_user_id} from voice"),
+                    &format!("disconnected member {member_name} from voice"),
                 );
 
                 Ok(())
@@ -280,16 +302,24 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_mute = env.clone();
     table.raw_set(
         "mute",
-        async_function(lua, move |_lua, (uid_val, val): (Value, bool)| {
+        async_function(lua, move |_lua, (uid_val, val_val): (Value, Value)| {
             let env = env_mute.clone();
             async move {
                 env.require(PluginPermission::MuteMembers)?;
                 let target_user_id = id_arg(uid_val, "user_id")?;
+                let val = bool_arg(val_val, "value")?;
                 env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
+
+                let member_name = state
+                    .guild()
+                    .members
+                    .get(&target_user_id)
+                    .map(|m| m.user.display_name.clone())
+                    .unwrap_or_else(|| target_user_id.to_string());
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -307,7 +337,7 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("server mute member {target_user_id}: {val}"),
+                    &format!("server mute member {member_name}: {val}"),
                 );
 
                 Ok(())
@@ -319,16 +349,24 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_deafen = env.clone();
     table.raw_set(
         "deafen",
-        async_function(lua, move |_lua, (uid_val, val): (Value, bool)| {
+        async_function(lua, move |_lua, (uid_val, val_val): (Value, Value)| {
             let env = env_deafen.clone();
             async move {
                 env.require(PluginPermission::DeafenMembers)?;
                 let target_user_id = id_arg(uid_val, "user_id")?;
+                let val = bool_arg(val_val, "value")?;
                 env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
+
+                let member_name = state
+                    .guild()
+                    .members
+                    .get(&target_user_id)
+                    .map(|m| m.user.display_name.clone())
+                    .unwrap_or_else(|| target_user_id.to_string());
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -346,7 +384,7 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("server deafen member {target_user_id}: {val}"),
+                    &format!("server deafen member {member_name}: {val}"),
                 );
 
                 Ok(())
@@ -370,19 +408,19 @@ fn install_soundboard(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             async move {
                 env.require(PluginPermission::PlaySoundboard)?;
                 let channel_id = id_arg(ch_val, "channel_id")?;
-                let sound_id_str = match sid_val {
-                    Value::String(s) => s.to_str()?.to_owned(),
-                    _ => {
-                        return Err(raise(
-                            "INVALID_ARGUMENT: sound_id must be a sound id or server ref",
-                        ));
-                    }
-                };
+                let sound_id_str = string_arg(sid_val, "sound_id")?;
                 env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
+
+                let channel_name = state
+                    .guild()
+                    .channels
+                    .get(&channel_id)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| channel_id.to_string());
 
                 let sound_ref = if let Ok(id) = sound_id_str.parse::<i64>() {
                     let guild = state.guild();
@@ -417,7 +455,7 @@ fn install_soundboard(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("played sound {sound_ref} in channel {channel_id}"),
+                    &format!("played sound {sound_ref} in channel {channel_name}"),
                 );
 
                 Ok(())
@@ -472,15 +510,19 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             async move {
                 env.require(PluginPermission::ControlMusic)?;
                 let channel_id = id_arg(ch_val, "channel_id")?;
-                let query = match query_val {
-                    Value::String(s) => s.to_str()?.to_owned(),
-                    _ => return Err(raise("INVALID_ARGUMENT: query must be a string")),
-                };
+                let query = string_arg(query_val, "query")?;
                 env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
+
+                let channel_name = state
+                    .guild()
+                    .channels
+                    .get(&channel_id)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| channel_id.to_string());
 
                 let query_clone = query.clone();
                 env.on_server(async move {
@@ -527,7 +569,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("added music '{query}' to channel {channel_id}"),
+                    &format!("added music '{query}' to channel {channel_name}"),
                 );
 
                 Ok(())
@@ -550,6 +592,13 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let channel_name = state
+                    .guild()
+                    .channels
+                    .get(&channel_id)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| channel_id.to_string());
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     music::playback(
@@ -568,7 +617,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("skipped music in channel {channel_id}"),
+                    &format!("skipped music in channel {channel_name}"),
                 );
 
                 Ok(())
@@ -591,6 +640,13 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let channel_name = state
+                    .guild()
+                    .channels
+                    .get(&channel_id)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| channel_id.to_string());
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     music::playback(
@@ -609,7 +665,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("paused music in channel {channel_id}"),
+                    &format!("paused music in channel {channel_name}"),
                 );
 
                 Ok(())
@@ -632,6 +688,13 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let channel_name = state
+                    .guild()
+                    .channels
+                    .get(&channel_id)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| channel_id.to_string());
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     music::playback(
@@ -650,7 +713,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("resumed music in channel {channel_id}"),
+                    &format!("resumed music in channel {channel_name}"),
                 );
 
                 Ok(())

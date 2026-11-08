@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use mlua::{Lua, Value};
 
-use super::{PluginEnv, function};
+use super::{PluginEnv, function, string_arg};
 use crate::plugins::ConfigValue;
 
 pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
@@ -15,7 +15,8 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_get = env.clone();
     config_table.raw_set(
         "get",
-        function(lua, move |lua, key: String| {
+        function(lua, move |lua, key_val: Value| {
+            let key = string_arg(key_val, "key")?;
             let values = env_get
                 .config_values
                 .read()

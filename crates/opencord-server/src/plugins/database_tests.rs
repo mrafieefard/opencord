@@ -519,3 +519,14 @@ async fn a_huge_blob_is_refused() {
         "expected huge blob to be refused by length limit"
     );
 }
+
+#[tokio::test]
+async fn a_result_over_the_memory_cap_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open(&dir.path().join("data.sqlite"), 10 * MIB, MIB as usize)
+        .await
+        .unwrap();
+    let sql = "WITH RECURSIVE cnt(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM cnt WHERE x < 12) SELECT zeroblob(100000) FROM cnt".to_owned();
+    let result = db.query(sql, Vec::new()).await;
+    assert_eq!(result.unwrap_err(), DbError::ResultTooLarge);
+}

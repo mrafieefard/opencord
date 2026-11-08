@@ -346,3 +346,201 @@ async fn a_watch_ends_with_its_session() {
         "unwatched session should not receive PluginLogAppend"
     );
 }
+
+#[tokio::test]
+async fn log_watcher_gets_each_line_once_after_restart() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let zip = package(&[
+        (
+            "manifest.lua",
+            &manifest_with("log-watch-restart", "1.0.0", &["read_server"], ""),
+        ),
+        (
+            "server/main.luau",
+            r#"
+            opencord.on("start", function()
+                log.info("boot_done")
+            end)
+            opencord.on("server_update", function()
+                log.info("updated_line")
+            end)
+            "#,
+        ),
+    ]);
+
+    let _p = install_with_config(
+        &server,
+        &mut owner,
+        &media_token(&ready),
+        zip,
+        &["read_server"],
+        vec![],
+    )
+    .await;
+
+    wait_for_log(&mut owner, "log-watch-restart", "boot_done").await;
+
+    // Start watching log
+    owner
+        .ok(proto::request::Kind::WatchPluginLog(
+            proto::WatchPluginLog {
+                plugin_id: "log-watch-restart".to_owned(),
+                watch: true,
+            },
+        ))
+        .await;
+
+    // Restart the plugin
+    owner
+        .ok(proto::request::Kind::RestartPlugin(proto::RestartPlugin {
+            plugin_id: "log-watch-restart".to_owned(),
+        }))
+        .await;
+
+    // Trigger an update event after restart
+    owner
+        .ok(proto::request::Kind::UpdateServer(proto::UpdateServer {
+            name: Some("Server After Restart".to_owned()),
+            description: None,
+            open_join: None,
+        }))
+        .await;
+
+    // Collect all PluginLogAppend events for this plugin
+    let mut boot_count = 0;
+    let mut updated_count = 0;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
+    while tokio::time::Instant::now() < deadline {
+        let ev = tokio::select! {
+            ev = owner.next_event() => ev,
+            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => continue,
+        };
+        if let EventKind::PluginLogAppend(append) = ev
+            && append.plugin_id == "log-watch-restart"
+        {
+            for line in append.lines {
+                if line.text.contains("boot_done") {
+                    boot_count += 1;
+                }
+                if line.text.contains("updated_line") {
+                    updated_count += 1;
+                }
+            }
+        }
+        if boot_count >= 1 && updated_count >= 1 {
+            // Drain briefly to verify no duplicates arrive
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            while let Ok(ev) =
+                tokio::time::timeout(std::time::Duration::from_millis(50), owner.next_event()).await
+            {
+                if let EventKind::PluginLogAppend(append) = ev
+                    && append.plugin_id == "log-watch-restart"
+                {
+                    for line in append.lines {
+                        if line.text.contains("boot_done") {
+                            boot_count += 1;
+                        }
+                        if line.text.contains("updated_line") {
+                            updated_count += 1;
+                        }
+                    }
+                }
+            }
+            break;
+        }
+    }
+
+    assert_eq!(
+        boot_count, 1,
+        "expected boot_done exactly once after restart"
+    );
+    assert_eq!(
+        updated_count, 1,
+        "expected updated_line exactly once after restart"
+    );
+}
+
+#[tokio::test]
+async fn log_watcher_recovers_after_lagged_burst() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let zip = package(&[
+        (
+            "manifest.lua",
+            &manifest_with("log-watch-burst", "1.0.0", &["read_server"], ""),
+        ),
+        (
+            "server/main.luau",
+            r#"
+            opencord.on("start", function()
+                log.info("burst_plugin_ready")
+            end)
+            opencord.on("server_update", function()
+                for i = 1, 1200 do
+                    log.info("burst_item_" .. i)
+                end
+                log.info("after_burst_recovered")
+            end)
+            "#,
+        ),
+    ]);
+
+    let _p = install_with_config(
+        &server,
+        &mut owner,
+        &media_token(&ready),
+        zip,
+        &["read_server"],
+        vec![],
+    )
+    .await;
+
+    wait_for_log(&mut owner, "log-watch-burst", "burst_plugin_ready").await;
+
+    // Start watching log
+    owner
+        .ok(proto::request::Kind::WatchPluginLog(
+            proto::WatchPluginLog {
+                plugin_id: "log-watch-burst".to_owned(),
+                watch: true,
+            },
+        ))
+        .await;
+
+    // Trigger burst (> 1024 lines to overflow WATCH_BUFFER = 1024)
+    owner
+        .ok(proto::request::Kind::UpdateServer(proto::UpdateServer {
+            name: Some("Burst Server".to_owned()),
+            description: None,
+            open_join: None,
+        }))
+        .await;
+
+    // Verify watcher recovers from channel lag and receives after_burst_recovered
+    let mut got_after_burst = false;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    while tokio::time::Instant::now() < deadline {
+        let ev = tokio::select! {
+            ev = owner.next_event() => ev,
+            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => continue,
+        };
+        if let EventKind::PluginLogAppend(append) = ev
+            && append.plugin_id == "log-watch-burst"
+            && append
+                .lines
+                .iter()
+                .any(|l| l.text.contains("after_burst_recovered"))
+        {
+            got_after_burst = true;
+            break;
+        }
+    }
+
+    assert!(
+        got_after_burst,
+        "expected watcher to receive after_burst_recovered after broadcast buffer lag"
+    );
+}

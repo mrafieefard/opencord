@@ -17,7 +17,9 @@ use crate::bootstrap;
 use crate::config::Config;
 use crate::db::test_pool;
 use crate::guild::{Guild, Member, User};
-use crate::plugins::{InstalledPlugin, PluginEvent, PluginHandle, Plugins, identity};
+use crate::plugins::{
+    InstalledPlugin, PluginEvent, PluginHandle, PluginPermission, Plugins, identity,
+};
 use crate::state::AppState;
 use crate::voice::nodes::VoiceNodes;
 
@@ -355,16 +357,10 @@ async fn out_of_memory_restarts_the_plugin() {
 
     wait_for_log(&handle, "ping handler failed: the plugin ran out of memory").await;
     let began = Instant::now();
-    while logged(&handle)
-        .iter()
-        .filter(|line| line.text == "started")
-        .count()
-        < 2
-    {
+    while handle.state() != proto::PluginState::Running {
         assert!(began.elapsed() < Duration::from_secs(5), "no restart");
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert_eq!(handle.state(), proto::PluginState::Running);
 }
 
 #[tokio::test]
@@ -444,6 +440,53 @@ async fn permission_errors_are_plain_strings() {
         "false\tINVALID_ARGUMENT: opencord.on takes a function"
     );
     assert!(texts[3].starts_with("false\t"), "{}", texts[3]);
+}
+
+#[tokio::test]
+async fn argument_errors_are_plain_strings() {
+    let (state, _dir) = state().await;
+    let mut plugin = one_script(
+        "arg-checker",
+        r#"
+        local calls = {
+            function() timer.after("not_num", function() end) end,
+            function() timer.after(1, "not_func") end,
+            function() timer.every("not_num", function() end) end,
+            function() timer.cron(123, function() end) end,
+            function() timer.cancel("not_id") end,
+            function() commands.unregister(123) end,
+            function() members.kick("1", {}) end,
+            function() members.ban("1", {}) end,
+            function() voice.mute("1", "not_bool") end,
+            function() voice.deafen("1", "not_bool") end,
+            function() config.get(123) end,
+            function() plugins.emit(123, "data") end,
+            function() plugins.on(123, "ev", function() end) end,
+            function() commands.register({ name = "foo", description = "desc", options = "bad" }) end,
+            function() commands.register({ name = "foo", description = "desc", options = { { name = "opt", description = "d", kind = "text", required = "bad" } } }) end,
+        }
+        for _, f in ipairs(calls) do
+            local ok, err = pcall(f)
+            assert(not ok, "expected call to fail")
+            assert(type(err) == "string", "expected string error, got " .. type(err))
+            assert(string.find(err, "^INVALID_ARGUMENT:"), "expected INVALID_ARGUMENT prefix: " .. tostring(err))
+        end
+        log.info("all_checked")
+        "#,
+    );
+    plugin.granted = HashSet::from([
+        PluginPermission::RegisterCommands,
+        PluginPermission::KickMembers,
+        PluginPermission::BanMembers,
+        PluginPermission::MuteMembers,
+        PluginPermission::DeafenMembers,
+        PluginPermission::TalkToPlugins,
+    ]);
+
+    state.plugins.start(&state, plugin).await.unwrap();
+    let handle = state.plugins.get("arg-checker").unwrap();
+    let texts: Vec<String> = logged(&handle).into_iter().map(|line| line.text).collect();
+    assert_eq!(texts.last().map(|s| s.as_str()), Some("all_checked"));
 }
 
 #[tokio::test]

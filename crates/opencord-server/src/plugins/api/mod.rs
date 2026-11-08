@@ -24,7 +24,9 @@ use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
 
-use mlua::{ChunkMode, FromLuaMulti, Function, IntoLuaMulti, Lua, MaybeSend, MultiValue, Value};
+use mlua::{
+    ChunkMode, FromLuaMulti, Function, IntoLuaMulti, Lua, LuaSerdeExt, MaybeSend, MultiValue, Value,
+};
 use opencord_plugins::sandbox::Vm;
 
 use super::runtime::PluginEnv;
@@ -95,27 +97,23 @@ pub fn id_arg(val: Value, name: &str) -> mlua::Result<i64> {
 pub fn id_arg_opt(val: Value, name: &str) -> mlua::Result<Option<i64>> {
     match val {
         Value::Nil => Ok(None),
-        Value::String(s) => {
-            let bytes = s.as_bytes();
-            let s_str = s
-                .to_str()
-                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} must be a valid string")))?;
-            if s_str.is_empty() {
-                return Err(raise(format!("INVALID_ARGUMENT: {name} cannot be empty")));
-            }
-            if !bytes.iter().all(|b| b.is_ascii_digit()) {
-                return Err(raise(format!(
-                    "INVALID_ARGUMENT: {name} must be numeric digits only"
-                )));
-            }
-            s_str
-                .parse::<i64>()
-                .map(Some)
-                .map_err(|_| raise(format!("INVALID_ARGUMENT: {name} is out of range")))
-        }
-        _ => Err(raise(format!(
-            "INVALID_ARGUMENT: {name} must be a string or nil"
-        ))),
+        val => id_arg(val, name).map(Some),
+    }
+}
+
+/// Parses an optional string argument.
+pub fn string_arg_opt(val: Value, what: &str) -> mlua::Result<Option<String>> {
+    match val {
+        Value::Nil => Ok(None),
+        val => string_arg(val, what).map(Some),
+    }
+}
+
+/// Parses a boolean argument.
+pub fn bool_arg(val: Value, what: &str) -> mlua::Result<bool> {
+    match val {
+        Value::Boolean(b) => Ok(b),
+        _ => Err(raise(format!("INVALID_ARGUMENT: {what} must be a boolean"))),
     }
 }
 
@@ -239,6 +237,15 @@ pub fn string_arg(value: Value, what: &str) -> mlua::Result<String> {
             .map_err(|_| raise(format!("INVALID_ARGUMENT: {what} must be UTF-8 text"))),
         _ => Err(raise(format!("INVALID_ARGUMENT: {what} must be a string"))),
     }
+}
+
+/// Converts a serde_json::Value into an mlua::Value without userdata metatables.
+pub fn to_lua_value(lua: &Lua, val: &serde_json::Value) -> mlua::Result<Value> {
+    let options = mlua::SerializeOptions::new()
+        .serialize_none_to_null(false)
+        .serialize_unit_to_null(false)
+        .set_array_metatable(false);
+    lua.to_value_with(val, options)
 }
 
 #[cfg(any(test, debug_assertions))]

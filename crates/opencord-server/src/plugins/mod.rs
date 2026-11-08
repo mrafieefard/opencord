@@ -114,9 +114,10 @@ impl PluginBus {
             .listeners
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        for set in listeners.values_mut() {
+        listeners.retain(|_, set| {
             set.remove(receiver_id);
-        }
+            !set.is_empty()
+        });
     }
 
     pub fn emit(&self, plugins: &Plugins, sender_id: &str, name: &str, data: serde_json::Value) {

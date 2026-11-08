@@ -212,6 +212,11 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
 impl ServerHandle {
     /// Closes every connection (1001), stops listening and closes the
     /// database.
+    /// The application state, for tests.
+    pub fn state(&self) -> &Arc<AppState> {
+        &self.state
+    }
+
     /// The plugin reviews waiting, for tests that move their clock.
     pub fn plugin_reviews(&self) -> &crate::plugins::review::Reviews {
         &self.state.plugins.reviews

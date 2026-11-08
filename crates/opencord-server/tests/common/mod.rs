@@ -79,6 +79,10 @@ impl TestServer {
         Self { handle, dir }
     }
 
+    pub fn state(&self) -> &std::sync::Arc<opencord_server::state::AppState> {
+        self.handle.state()
+    }
+
     pub fn claim_token(&self) -> String {
         self.handle
             .claim_token

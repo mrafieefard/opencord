@@ -86,7 +86,7 @@ async fn an_endless_loop_does_not_delay_chat() {
 
 #[tokio::test]
 async fn a_restart_clears_timers_hooks_and_bus() {
-    let server = TestServer::start().await;
+    let server = TestServer::start_with(|c| c.plugins.memory_mb = 16).await;
     let (mut owner, ready) = owner(&server).await;
     let zip = package(&[
         (
@@ -103,13 +103,23 @@ async fn a_restart_clears_timers_hooks_and_bus() {
         (
             "server/main.luau",
             r#"
-            hooks.on("ping", function(req)
-                return { status = 200, body = "pong" }
-            end)
-            timer.every(10, function() end)
-            commands.register({ name = "ping", description = "pong" }, function() end)
-            plugins.on("other", "ev", function() end)
-            log.info("hook_registered")
+            local marker = files.get("marker")
+            if not marker then
+                files.put("marker", "1")
+                hooks.on("old", function(req)
+                    return { status = 200, body = "pong" }
+                end)
+                commands.register({ name = "ping", description = "pong" })
+                plugins.on("other", "ev", function(data)
+                    log.info("bus_received")
+                end)
+                log.info("first_run")
+                timer.after(0.05, function()
+                    local s = string.rep("x", 64 * 1024 * 1024)
+                end)
+            else
+                log.info("second_run")
+            end
             "#,
         ),
     ]);
@@ -126,40 +136,37 @@ async fn a_restart_clears_timers_hooks_and_bus() {
     )
     .await;
 
-    wait_for_log(&mut owner, "crasher", "hook_registered").await;
+    wait_for_log(&mut owner, "crasher", "first_run").await;
 
-    // Verify hook works
+    // Verify hook works on first run
     let (status, body) = server
-        .send_http("GET", "/plugins/crasher/hooks/ping", &[], b"")
+        .send_http("GET", "/plugins/crasher/hooks/old", &[], b"")
         .await;
     assert_eq!(status, 200);
     assert_eq!(body, b"pong");
 
-    // Stop the plugin
-    owner
-        .ok(Kind::SetPluginRunning(proto::SetPluginRunning {
-            plugin_id: "crasher".to_owned(),
-            running: false,
-        }))
-        .await;
+    // Verify command /ping is registered
+    assert!(server.state().commands.find_plugin("ping").is_some());
 
-    // Verify hook returns 503 when stopped
-    let (status, _) = server
-        .send_http("GET", "/plugins/crasher/hooks/ping", &[], b"")
-        .await;
-    assert_eq!(status, 503);
-
-    // Uninstall the plugin
-    owner
-        .ok(Kind::UninstallPlugin(proto::UninstallPlugin {
-            plugin_id: "crasher".to_owned(),
-            delete_data: false,
-        }))
-        .await;
+    // Wait for OOM restart and second run
+    wait_for_log(&mut owner, "crasher", "second_run").await;
 
     // Verify hook is now gone (404)
     let (status, _) = server
-        .send_http("GET", "/plugins/crasher/hooks/ping", &[], b"")
+        .send_http("GET", "/plugins/crasher/hooks/old", &[], b"")
         .await;
     assert_eq!(status, 404);
+
+    // Verify command /ping is gone
+    assert!(server.state().commands.find_plugin("ping").is_none());
+
+    // Verify bus listener is gone (emitting to it doesn't trigger log)
+    let state = server.state();
+    state
+        .plugins
+        .bus
+        .emit(&state.plugins, "other", "ev", serde_json::json!({}));
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let logs = state.plugins.get("crasher").unwrap().log().lines(None, 100);
+    assert!(!logs.iter().any(|l| l.text.contains("bus_received")));
 }

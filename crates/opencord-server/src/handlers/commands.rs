@@ -160,6 +160,16 @@ fn parse_plugin_options(
     Ok(values)
 }
 
+fn plugin_name(ctx: &Ctx<'_>, plugin_id: &str) -> String {
+    ctx.state
+        .guild()
+        .plugin_users
+        .values()
+        .find(|u| u.plugin_id == plugin_id)
+        .map(|u| u.name.clone())
+        .unwrap_or_else(|| plugin_id.to_owned())
+}
+
 pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Response, ApiError> {
     if request.nonce.chars().count() > NONCE_MAX {
         return Err(ApiError::invalid_argument("the nonce is too long"));
@@ -239,17 +249,10 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                     h.holds(crate::plugins::permissions::PluginPermission::RegisterCommands)
                 });
             if !has_reg {
-                let plugin_name = ctx
-                    .state
-                    .guild()
-                    .plugin_users
-                    .values()
-                    .find(|u| u.plugin_id == plugin_cmd.plugin_id)
-                    .map(|u| u.name.clone())
-                    .unwrap_or_else(|| plugin_cmd.plugin_id.clone());
+                let name = plugin_name(ctx, &plugin_cmd.plugin_id);
                 return Err(ApiError::new(
                     proto::ErrorCode::PluginUnavailable,
-                    format!("{plugin_name} is not permitted to handle commands"),
+                    format!("{name} is not permitted to handle commands"),
                 ));
             }
 
@@ -278,17 +281,10 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
             let answer = match tokio::time::timeout(std::time::Duration::from_secs(3), rx).await {
                 Ok(Ok(val)) => val,
                 _ => {
-                    let plugin_name = ctx
-                        .state
-                        .guild()
-                        .plugin_users
-                        .values()
-                        .find(|u| u.plugin_id == plugin_cmd.plugin_id)
-                        .map(|u| u.name.clone())
-                        .unwrap_or_else(|| plugin_cmd.plugin_id.clone());
+                    let name = plugin_name(ctx, &plugin_cmd.plugin_id);
                     return Err(ApiError::new(
                         proto::ErrorCode::PluginUnavailable,
-                        format!("{plugin_name} didn't answer"),
+                        format!("{name} didn't answer"),
                     ));
                 }
             };
@@ -300,17 +296,10 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
             let content = match opencord_common::validation::message_content(content_raw) {
                 Ok(c) => c,
                 Err(_) => {
-                    let plugin_name = ctx
-                        .state
-                        .guild()
-                        .plugin_users
-                        .values()
-                        .find(|u| u.plugin_id == plugin_cmd.plugin_id)
-                        .map(|u| u.name.clone())
-                        .unwrap_or_else(|| plugin_cmd.plugin_id.clone());
+                    let name = plugin_name(ctx, &plugin_cmd.plugin_id);
                     return Err(ApiError::new(
                         proto::ErrorCode::PluginUnavailable,
-                        format!("{plugin_name} sent an invalid reply"),
+                        format!("{name} sent an invalid reply"),
                     ));
                 }
             };

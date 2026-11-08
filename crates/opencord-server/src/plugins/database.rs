@@ -78,6 +78,8 @@ pub enum DbError {
     Full,
     #[error("PLUGIN_LIMIT: a query can return at most {DB_MAX_ROWS} rows")]
     TooManyRows,
+    #[error("PLUGIN_LIMIT: a query's result is too large")]
+    ResultTooLarge,
     #[error(
         "PLUGIN_LIMIT: a statement can run for at most {} seconds",
         DB_STATEMENT_TIME.as_secs()
@@ -153,6 +155,7 @@ pub struct PluginDb {
     pool: SqlitePool,
     /// Where the pool's connections are used.
     runtime: tokio::runtime::Handle,
+    memory_cap: usize,
 }
 
 /// Opens (creating it if needed) the database at `path`, at most
@@ -166,7 +169,7 @@ pub async fn open(path: &Path, max_bytes: u64, memory_cap: usize) -> Result<Plug
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .busy_timeout(BUSY_TIMEOUT);
-    let max_length = i32::try_from(memory_cap).unwrap_or(i32::MAX);
+    let max_length = i32::try_from(memory_cap / 8).unwrap_or(i32::MAX);
     let pool = SqlitePoolOptions::new()
         .max_connections(MAX_CONNECTIONS)
         .after_connect(move |conn, _| Box::pin(lock_down(conn, max_bytes, max_length)))
@@ -175,6 +178,7 @@ pub async fn open(path: &Path, max_bytes: u64, memory_cap: usize) -> Result<Plug
     Ok(PluginDb {
         pool,
         runtime: tokio::runtime::Handle::current(),
+        memory_cap,
     })
 }
 
@@ -192,9 +196,10 @@ impl PluginDb {
     /// The rows `sql` returns, at most [`DB_MAX_ROWS`].
     pub async fn query(&self, sql: String, params: Vec<SqlValue>) -> Result<Rows, DbError> {
         let pool = self.pool.clone();
+        let memory_cap = self.memory_cap;
         self.spawn(async move {
             let conn = &mut *pool.acquire().await?;
-            query_on(conn, &sql, params, &mut TxState::None).await
+            query_on(conn, &sql, params, &mut TxState::None, memory_cap).await
         })
         .await
     }
@@ -204,10 +209,11 @@ impl PluginDb {
     pub async fn begin(&self) -> Result<PluginTx, DbError> {
         let pool = self.pool.clone();
         let runtime = self.runtime.clone();
+        let memory_cap = self.memory_cap;
         self.spawn(async move {
             let tx = pool.begin_with("BEGIN IMMEDIATE").await?;
             let (jobs, receiver) = mpsc::unbounded_channel();
-            runtime.spawn(transaction(tx, receiver));
+            runtime.spawn(transaction(tx, receiver, memory_cap));
             Ok(PluginTx { jobs })
         })
         .await
@@ -285,6 +291,7 @@ impl PluginTx {
 async fn transaction(
     mut tx: sqlx::Transaction<'static, Sqlite>,
     mut jobs: mpsc::UnboundedReceiver<TxJob>,
+    memory_cap: usize,
 ) {
     let mut state = TxState::Open;
     // A reply nobody waits for belongs to a handler that was cancelled; the
@@ -301,7 +308,7 @@ async fn transaction(
             TxJob::Query { sql, params, reply } => {
                 let done = match state {
                     TxState::Ended => Err(DbError::Ended),
-                    _ => query_on(&mut tx, &sql, params, &mut state).await,
+                    _ => query_on(&mut tx, &sql, params, &mut state, memory_cap).await,
                 };
                 reply.send(done).ok();
             }
@@ -358,12 +365,13 @@ async fn query_on(
     sql: &str,
     params: Vec<SqlValue>,
     state: &mut TxState,
+    memory_cap: usize,
 ) -> Result<Rows, DbError> {
     let arguments = arguments(params)?;
     let deadline = Deadline::set(conn).await?;
     let rows = {
         let mut stream = sqlx::query_with(AssertSqlSafe(sql), arguments).fetch(&mut *conn);
-        collect(&mut stream).await
+        collect(&mut stream, memory_cap).await
     };
     settle(conn, deadline, state).await?;
     rows
@@ -397,8 +405,10 @@ async fn settle(
 
 async fn collect(
     stream: &mut (impl futures_util::Stream<Item = Result<SqliteRow, sqlx::Error>> + Unpin),
+    memory_cap: usize,
 ) -> Result<Rows, DbError> {
     let mut found = Rows::default();
+    let mut total_bytes = 0usize;
     while let Some(row) = stream.try_next().await? {
         if found.rows.len() == DB_MAX_ROWS {
             return Err(DbError::TooManyRows);
@@ -410,13 +420,18 @@ async fn collect(
                 .map(|column| column.name().to_owned())
                 .collect();
         }
-        found.rows.push(values(&row)?);
+        let (row_vals, row_bytes) = values(&row)?;
+        total_bytes = total_bytes.saturating_add(row_bytes);
+        if total_bytes > memory_cap {
+            return Err(DbError::ResultTooLarge);
+        }
+        found.rows.push(row_vals);
     }
     Ok(found)
 }
 
 /// A row's values by the type each one has, not its column's.
-fn values(row: &SqliteRow) -> Result<Vec<SqlValue>, DbError> {
+fn values(row: &SqliteRow) -> Result<(Vec<SqlValue>, usize), DbError> {
     fn decode<'r, T: Decode<'r, Sqlite>>(
         raw: sqlx::sqlite::SqliteValueRef<'r>,
     ) -> Result<T, DbError> {
@@ -425,21 +440,31 @@ fn values(row: &SqliteRow) -> Result<Vec<SqlValue>, DbError> {
             DbError::Internal
         })
     }
-    (0..row.len())
-        .map(|index| {
-            let raw = row.try_get_raw(index)?;
-            if raw.is_null() {
-                return Ok(SqlValue::Null);
+    let mut row_bytes = 0usize;
+    let mut vals = Vec::with_capacity(row.len());
+    for index in 0..row.len() {
+        let raw = row.try_get_raw(index)?;
+        if raw.is_null() {
+            vals.push(SqlValue::Null);
+            continue;
+        }
+        let kind = raw.type_info().name().to_owned();
+        match kind.as_str() {
+            "INTEGER" => vals.push(SqlValue::Integer(decode(raw)?)),
+            "REAL" => vals.push(SqlValue::Real(decode(raw)?)),
+            "TEXT" => {
+                let bytes: Vec<u8> = decode(raw)?;
+                row_bytes = row_bytes.saturating_add(bytes.len());
+                vals.push(SqlValue::Text(bytes));
             }
-            let kind = raw.type_info().name().to_owned();
-            Ok(match kind.as_str() {
-                "INTEGER" => SqlValue::Integer(decode(raw)?),
-                "REAL" => SqlValue::Real(decode(raw)?),
-                "TEXT" => SqlValue::Text(decode(raw)?),
-                _ => SqlValue::Blob(decode(raw)?),
-            })
-        })
-        .collect()
+            _ => {
+                let bytes: Vec<u8> = decode(raw)?;
+                row_bytes = row_bytes.saturating_add(bytes.len());
+                vals.push(SqlValue::Blob(bytes));
+            }
+        }
+    }
+    Ok((vals, row_bytes))
 }
 
 fn arguments(params: Vec<SqlValue>) -> Result<SqliteArguments, DbError> {
@@ -512,6 +537,7 @@ async fn lock_down(
     // so its null user data stays valid for the connection's life.
     let configured = unsafe {
         ffi::sqlite3_limit(db, ffi::SQLITE_LIMIT_ATTACHED, 0);
+        ffi::sqlite3_limit(db, ffi::SQLITE_LIMIT_COLUMN, 64);
         ffi::sqlite3_limit(db, ffi::SQLITE_LIMIT_LENGTH, max_length);
         let mut defensive: c_int = 0;
         let defended = ffi::sqlite3_db_config(
@@ -596,6 +622,7 @@ impl PluginDb {
         PluginDb {
             pool: SqlitePoolOptions::new().connect_lazy_with(options),
             runtime: tokio::runtime::Handle::current(),
+            memory_cap: usize::MAX,
         }
     }
 }

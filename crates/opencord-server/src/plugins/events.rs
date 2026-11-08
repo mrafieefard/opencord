@@ -229,11 +229,7 @@ pub fn user_table(guild: &Guild, user_id: i64) -> Value {
 /// A member as plugins see one, from the member as sent: `{ id, name }`.
 pub fn member_table(member: &proto::Member) -> Value {
     let user = member.user.as_ref();
-    let name = member
-        .nickname
-        .clone()
-        .or_else(|| user.map(|user| user.display_name.clone()))
-        .unwrap_or_default();
+    let name = user.map(|u| u.display_name.clone()).unwrap_or_default();
     let role_ids: Vec<Value> = member.role_ids.iter().map(|&r| id(r)).collect();
     let mut table = Map::new();
     table.insert("id".to_owned(), id(user.map_or(0, |user| user.id)));
@@ -243,56 +239,167 @@ pub fn member_table(member: &proto::Member) -> Value {
     }
     table.insert("roles".to_owned(), Value::Array(role_ids.clone()));
     table.insert("role_ids".to_owned(), Value::Array(role_ids));
+    if let Some(user) = user
+        && !user.avatar_hash.is_empty()
+    {
+        table.insert(
+            "avatar_hash".to_owned(),
+            Value::String(user.avatar_hash.clone()),
+        );
+    }
     table.insert("joined_at_ms".to_owned(), json!(member.joined_at_ms));
     Value::Object(table)
 }
 
+pub const MEMBER_PERMISSIONS: &[(opencord_common::permissions::Permissions, &str)] = &[
+    (
+        opencord_common::permissions::Permissions::VIEW_CHANNEL,
+        "view_channel",
+    ),
+    (
+        opencord_common::permissions::Permissions::SEND_MESSAGES,
+        "send_messages",
+    ),
+    (
+        opencord_common::permissions::Permissions::READ_HISTORY,
+        "read_history",
+    ),
+    (
+        opencord_common::permissions::Permissions::MANAGE_MESSAGES,
+        "manage_messages",
+    ),
+    (
+        opencord_common::permissions::Permissions::MANAGE_CHANNELS,
+        "manage_channels",
+    ),
+    (
+        opencord_common::permissions::Permissions::MANAGE_ROLES,
+        "manage_roles",
+    ),
+    (
+        opencord_common::permissions::Permissions::KICK_MEMBERS,
+        "kick_members",
+    ),
+    (
+        opencord_common::permissions::Permissions::BAN_MEMBERS,
+        "ban_members",
+    ),
+    (
+        opencord_common::permissions::Permissions::CREATE_INVITE,
+        "create_invite",
+    ),
+    (
+        opencord_common::permissions::Permissions::MANAGE_SERVER,
+        "manage_server",
+    ),
+    (
+        opencord_common::permissions::Permissions::ATTACH_FILES,
+        "attach_files",
+    ),
+    (
+        opencord_common::permissions::Permissions::MENTION_EVERYONE,
+        "mention_everyone",
+    ),
+    (
+        opencord_common::permissions::Permissions::CHANGE_NICKNAME,
+        "change_nickname",
+    ),
+    (
+        opencord_common::permissions::Permissions::MANAGE_NICKNAMES,
+        "manage_nicknames",
+    ),
+    (
+        opencord_common::permissions::Permissions::SEND_VOICE_MESSAGES,
+        "send_voice_messages",
+    ),
+    (
+        opencord_common::permissions::Permissions::MANAGE_PLUGINS,
+        "manage_plugins",
+    ),
+    (
+        opencord_common::permissions::Permissions::CONNECT,
+        "connect",
+    ),
+    (opencord_common::permissions::Permissions::SPEAK, "speak"),
+    (opencord_common::permissions::Permissions::VIDEO, "video"),
+    (
+        opencord_common::permissions::Permissions::SCREENSHARE,
+        "screenshare",
+    ),
+    (
+        opencord_common::permissions::Permissions::MUTE_MEMBERS,
+        "mute_members",
+    ),
+    (
+        opencord_common::permissions::Permissions::DEAFEN_MEMBERS,
+        "deafen_members",
+    ),
+    (
+        opencord_common::permissions::Permissions::MOVE_MEMBERS,
+        "move_members",
+    ),
+    (
+        opencord_common::permissions::Permissions::PRIORITY_SPEAKER,
+        "priority_speaker",
+    ),
+    (
+        opencord_common::permissions::Permissions::USE_VOICE_ACTIVITY,
+        "use_voice_activity",
+    ),
+    (
+        opencord_common::permissions::Permissions::USE_SOUNDBOARD,
+        "use_soundboard",
+    ),
+    (
+        opencord_common::permissions::Permissions::USE_EXTERNAL_SOUNDS,
+        "use_external_sounds",
+    ),
+    (
+        opencord_common::permissions::Permissions::MANAGE_SOUNDBOARD,
+        "manage_soundboard",
+    ),
+    (
+        opencord_common::permissions::Permissions::MUSIC_ADD,
+        "music_add",
+    ),
+    (
+        opencord_common::permissions::Permissions::MUSIC_CONTROL,
+        "music_control",
+    ),
+    (
+        opencord_common::permissions::Permissions::MUSIC_MANAGE_QUEUE,
+        "music_manage_queue",
+    ),
+    (
+        opencord_common::permissions::Permissions::MUSIC_MANAGE,
+        "music_manage",
+    ),
+    (
+        opencord_common::permissions::Permissions::MUSIC_ALL_LOCAL_SONGS,
+        "music_all_local_songs",
+    ),
+    (
+        opencord_common::permissions::Permissions::ADMINISTRATOR,
+        "administrator",
+    ),
+];
+
 /// Converts a permission bitset into a list of snake_case permission names.
 pub fn permissions_to_names(perms: opencord_common::permissions::Permissions) -> Vec<String> {
-    use opencord_common::permissions::Permissions;
-    let all = [
-        (Permissions::VIEW_CHANNEL, "view_channel"),
-        (Permissions::SEND_MESSAGES, "send_messages"),
-        (Permissions::READ_HISTORY, "read_history"),
-        (Permissions::MANAGE_MESSAGES, "manage_messages"),
-        (Permissions::MANAGE_CHANNELS, "manage_channels"),
-        (Permissions::MANAGE_ROLES, "manage_roles"),
-        (Permissions::KICK_MEMBERS, "kick_members"),
-        (Permissions::BAN_MEMBERS, "ban_members"),
-        (Permissions::CREATE_INVITE, "create_invite"),
-        (Permissions::MANAGE_SERVER, "manage_server"),
-        (Permissions::ATTACH_FILES, "attach_files"),
-        (Permissions::MENTION_EVERYONE, "mention_everyone"),
-        (Permissions::CHANGE_NICKNAME, "change_nickname"),
-        (Permissions::MANAGE_NICKNAMES, "manage_nicknames"),
-        (Permissions::SEND_VOICE_MESSAGES, "send_voice_messages"),
-        (Permissions::MANAGE_PLUGINS, "manage_plugins"),
-        (Permissions::CONNECT, "connect"),
-        (Permissions::SPEAK, "speak"),
-        (Permissions::VIDEO, "video"),
-        (Permissions::SCREENSHARE, "screenshare"),
-        (Permissions::MUTE_MEMBERS, "mute_members"),
-        (Permissions::DEAFEN_MEMBERS, "deafen_members"),
-        (Permissions::MOVE_MEMBERS, "move_members"),
-        (Permissions::PRIORITY_SPEAKER, "priority_speaker"),
-        (Permissions::USE_VOICE_ACTIVITY, "use_voice_activity"),
-        (Permissions::USE_SOUNDBOARD, "use_soundboard"),
-        (Permissions::USE_EXTERNAL_SOUNDS, "use_external_sounds"),
-        (Permissions::MANAGE_SOUNDBOARD, "manage_soundboard"),
-        (Permissions::MUSIC_ADD, "music_add"),
-        (Permissions::MUSIC_CONTROL, "music_control"),
-        (Permissions::MUSIC_MANAGE_QUEUE, "music_manage_queue"),
-        (Permissions::MUSIC_MANAGE, "music_manage"),
-        (Permissions::MUSIC_ALL_LOCAL_SONGS, "music_all_local_songs"),
-        (Permissions::ADMINISTRATOR, "administrator"),
-    ];
-    let mut names = Vec::new();
-    for (bit, name) in all {
-        if perms.contains(bit) {
-            names.push(name.to_owned());
-        }
-    }
-    names
+    MEMBER_PERMISSIONS
+        .iter()
+        .filter(|(bit, _)| perms.contains(*bit))
+        .map(|(_, name)| (*name).to_owned())
+        .collect()
+}
+
+pub fn member_permission_from_name(
+    name: &str,
+) -> Option<opencord_common::permissions::Permissions> {
+    MEMBER_PERMISSIONS
+        .iter()
+        .find(|(_, n)| *n == name)
+        .map(|(bit, _)| *bit)
 }
 
 /// A message as plugins see one: `{ id, channel_id, author, content,

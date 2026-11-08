@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use mlua::{Lua, LuaSerdeExt, Value};
+use mlua::{Lua, Value};
 use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
 
-use super::{async_function, id_arg, raise};
+use super::{async_function, id_arg, raise, to_lua_value};
 use crate::db::messages;
 use crate::error::ApiError;
 use crate::handlers::{self, Ctx};
@@ -310,12 +310,4 @@ fn parse_content_arg(value: Value, check_files: bool) -> mlua::Result<String> {
             "INVALID_ARGUMENT: content must be a string or a table",
         )),
     }
-}
-
-fn to_lua_value(lua: &Lua, val: &serde_json::Value) -> mlua::Result<Value> {
-    let options = mlua::SerializeOptions::new()
-        .serialize_none_to_null(false)
-        .serialize_unit_to_null(false)
-        .set_array_metatable(false);
-    lua.to_value_with(val, options)
 }

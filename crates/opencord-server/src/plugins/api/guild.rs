@@ -8,18 +8,14 @@ use mlua::{Lua, Table, Value};
 use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
 
-use super::{async_function, id_arg, raise};
+use super::{async_function, id_arg, id_arg_opt, raise, string_arg, string_arg_opt, to_lua_value};
 use crate::handlers::Ctx;
 use crate::handlers::{channels, invites, members, roles};
 use crate::plugins::permissions::PluginPermission;
 use crate::plugins::runtime::PluginEnv;
 
 fn get_opt_string(table: &Table, key: &'static str) -> mlua::Result<Option<String>> {
-    match table.raw_get::<Value>(key)? {
-        Value::Nil => Ok(None),
-        Value::String(s) => Ok(Some(s.to_str()?.to_owned())),
-        _ => Err(raise(format!("INVALID_ARGUMENT: {key} must be a string"))),
-    }
+    string_arg_opt(table.raw_get::<Value>(key)?, key)
 }
 
 fn get_opt_bool(table: &Table, key: &'static str) -> mlua::Result<Option<bool>> {
@@ -42,66 +38,17 @@ fn get_opt_u32(table: &Table, key: &'static str) -> mlua::Result<Option<u32>> {
 }
 
 fn get_opt_id(table: &Table, key: &'static str) -> mlua::Result<Option<i64>> {
-    match table.raw_get::<Value>(key)? {
-        Value::Nil => Ok(None),
-        val => id_arg(val, key).map(Some),
-    }
-}
-
-fn member_permission_from_name(name: &str) -> Option<Permissions> {
-    match name.to_ascii_lowercase().as_str() {
-        "view_channel" => Some(Permissions::VIEW_CHANNEL),
-        "send_messages" => Some(Permissions::SEND_MESSAGES),
-        "read_history" => Some(Permissions::READ_HISTORY),
-        "manage_messages" => Some(Permissions::MANAGE_MESSAGES),
-        "manage_channels" => Some(Permissions::MANAGE_CHANNELS),
-        "manage_roles" => Some(Permissions::MANAGE_ROLES),
-        "kick_members" => Some(Permissions::KICK_MEMBERS),
-        "ban_members" => Some(Permissions::BAN_MEMBERS),
-        "create_invite" => Some(Permissions::CREATE_INVITE),
-        "manage_server" => Some(Permissions::MANAGE_SERVER),
-        "attach_files" => Some(Permissions::ATTACH_FILES),
-        "mention_everyone" => Some(Permissions::MENTION_EVERYONE),
-        "change_nickname" => Some(Permissions::CHANGE_NICKNAME),
-        "manage_nicknames" => Some(Permissions::MANAGE_NICKNAMES),
-        "send_voice_messages" => Some(Permissions::SEND_VOICE_MESSAGES),
-        "manage_plugins" => Some(Permissions::MANAGE_PLUGINS),
-        "connect" => Some(Permissions::CONNECT),
-        "speak" => Some(Permissions::SPEAK),
-        "video" => Some(Permissions::VIDEO),
-        "screenshare" => Some(Permissions::SCREENSHARE),
-        "mute_members" => Some(Permissions::MUTE_MEMBERS),
-        "deafen_members" => Some(Permissions::DEAFEN_MEMBERS),
-        "move_members" => Some(Permissions::MOVE_MEMBERS),
-        "priority_speaker" => Some(Permissions::PRIORITY_SPEAKER),
-        "use_voice_activity" => Some(Permissions::USE_VOICE_ACTIVITY),
-        "use_soundboard" => Some(Permissions::USE_SOUNDBOARD),
-        "use_external_sounds" => Some(Permissions::USE_EXTERNAL_SOUNDS),
-        "manage_soundboard" => Some(Permissions::MANAGE_SOUNDBOARD),
-        "music_add" => Some(Permissions::MUSIC_ADD),
-        "music_control" => Some(Permissions::MUSIC_CONTROL),
-        "music_manage_queue" => Some(Permissions::MUSIC_MANAGE_QUEUE),
-        "music_manage" => Some(Permissions::MUSIC_MANAGE),
-        "music_all_local_songs" => Some(Permissions::MUSIC_ALL_LOCAL_SONGS),
-        "administrator" => Some(Permissions::ADMINISTRATOR),
-        _ => None,
-    }
+    id_arg_opt(table.raw_get::<Value>(key)?, key)
 }
 
 fn parse_permissions_table(table: Table) -> mlua::Result<Permissions> {
     let mut perms = Permissions::empty();
     for item in table.sequence_values::<Value>() {
         let val = item?;
-        match val {
-            Value::String(s) => {
-                let name = s.to_str()?;
-                let bit = member_permission_from_name(&name).ok_or_else(|| {
-                    raise(format!("INVALID_ARGUMENT: unknown permission '{name}'"))
-                })?;
-                perms |= bit;
-            }
-            _ => return Err(raise("INVALID_ARGUMENT: permission name must be a string")),
-        }
+        let name = string_arg(val, "permission name")?;
+        let bit = crate::plugins::events::member_permission_from_name(&name)
+            .ok_or_else(|| raise(format!("INVALID_ARGUMENT: unknown permission '{name}'")))?;
+        perms |= bit;
     }
     Ok(perms)
 }
@@ -145,25 +92,11 @@ fn role_table(lua: &Lua, r: &proto::Role) -> mlua::Result<Table> {
 }
 
 fn member_table(lua: &Lua, m: &proto::Member) -> mlua::Result<Table> {
-    let t = lua.create_table()?;
-    let user = m.user.as_ref();
-    let id_str = user.map_or(0, |u| u.id).to_string();
-    t.raw_set("id", id_str)?;
-    let display_name = user.map(|u| u.display_name.clone()).unwrap_or_default();
-    t.raw_set("name", display_name)?;
-    if let Some(ref nick) = m.nickname {
-        t.raw_set("nickname", nick.clone())?;
+    let json_val = crate::plugins::events::member_table(m);
+    match to_lua_value(lua, &json_val)? {
+        Value::Table(t) => Ok(t),
+        _ => Err(raise("failed to serialize member table")),
     }
-    let roles_table = lua.create_sequence_from(m.role_ids.iter().map(|id| id.to_string()))?;
-    t.raw_set("roles", roles_table.clone())?;
-    t.raw_set("role_ids", roles_table)?;
-    if let Some(user) = user
-        && !user.avatar_hash.is_empty()
-    {
-        t.raw_set("avatar_hash", user.avatar_hash.clone())?;
-    }
-    t.raw_set("joined_at_ms", m.joined_at_ms)?;
-    Ok(t)
 }
 
 fn invite_table(lua: &Lua, inv: &proto::Invite) -> mlua::Result<Table> {
@@ -382,6 +315,13 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let name = state
+                    .guild()
+                    .channels
+                    .get(&channel_id)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| channel_id.to_string());
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     channels::delete(&ctx, proto::DeleteChannel { channel_id }).await
@@ -391,7 +331,7 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("deleted channel {channel_id}"),
+                    &format!("deleted channel {name}"),
                 );
 
                 Ok(())
@@ -486,6 +426,13 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let channel_name = state
+                    .guild()
+                    .channels
+                    .get(&channel_id)
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| channel_id.to_string());
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     let req = proto::SetChannelOverwrite {
@@ -504,7 +451,7 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("set overwrite in channel {channel_id}"),
+                    &format!("set overwrite in channel {channel_name}"),
                 );
 
                 Ok(())
@@ -680,6 +627,13 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let role_name = state
+                    .guild()
+                    .roles
+                    .get(&role_id)
+                    .map(|r| r.name.clone())
+                    .unwrap_or_else(|| role_id.to_string());
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     roles::delete(&ctx, proto::DeleteRole { role_id }).await
@@ -689,7 +643,7 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("deleted role {role_id}"),
+                    &format!("deleted role {role_name}"),
                 );
 
                 Ok(())
@@ -802,6 +756,21 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let (role_name, target_name) = {
+                    let g = state.guild();
+                    let r_name = g
+                        .roles
+                        .get(&role_id)
+                        .map(|r| r.name.clone())
+                        .unwrap_or_else(|| role_id.to_string());
+                    let t_name = g
+                        .members
+                        .get(&target_user_id)
+                        .map(|m| m.user.display_name.clone())
+                        .unwrap_or_else(|| target_user_id.to_string());
+                    (r_name, t_name)
+                };
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     roles::add_to_member(
@@ -818,7 +787,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("gave @{role_id} to {target_user_id}"),
+                    &format!("gave @{role_name} to {target_name}"),
                 );
 
                 Ok(())
@@ -841,6 +810,21 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
+                let (role_name, target_name) = {
+                    let g = state.guild();
+                    let r_name = g
+                        .roles
+                        .get(&role_id)
+                        .map(|r| r.name.clone())
+                        .unwrap_or_else(|| role_id.to_string());
+                    let t_name = g
+                        .members
+                        .get(&target_user_id)
+                        .map(|m| m.user.display_name.clone())
+                        .unwrap_or_else(|| target_user_id.to_string());
+                    (r_name, t_name)
+                };
+
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
                     roles::remove_from_member(
@@ -857,7 +841,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("removed @{role_id} from {target_user_id}"),
+                    &format!("removed @{role_name} from {target_name}"),
                 );
 
                 Ok(())
@@ -874,16 +858,19 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             async move {
                 env.require(PluginPermission::ManageNicknames)?;
                 let target_user_id = id_arg(uid_val, "user_id")?;
-                let nickname = match nick_val {
-                    Value::String(s) => Some(s.to_str()?.to_owned()),
-                    Value::Nil => None,
-                    _ => return Err(raise("INVALID_ARGUMENT: nickname must be a string or nil")),
-                };
+                let nickname = string_arg_opt(nick_val, "nickname")?;
                 env.check_rate_limit()?;
 
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
+
+                let target_name = state
+                    .guild()
+                    .members
+                    .get(&target_user_id)
+                    .map(|m| m.user.display_name.clone())
+                    .unwrap_or_else(|| target_user_id.to_string());
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -901,7 +888,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 env.log.push(
                     proto::PluginLogLevel::Action,
-                    &format!("updated nickname for {target_user_id}"),
+                    &format!("updated nickname for {target_name}"),
                 );
 
                 Ok(())
@@ -913,82 +900,92 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let env_kick = env.clone();
     table.raw_set(
         "kick",
-        async_function(
-            lua,
-            move |_lua, (uid_val, reason_val): (Value, Option<String>)| {
-                let env = env_kick.clone();
-                async move {
-                    env.require(PluginPermission::KickMembers)?;
-                    let target_user_id = id_arg(uid_val, "user_id")?;
-                    env.check_rate_limit()?;
-                    let state = env.state()?;
-                    let plugin_id = env.plugin_id.clone();
-                    let user_id = env.user_id;
+        async_function(lua, move |_lua, (uid_val, reason_val): (Value, Value)| {
+            let env = env_kick.clone();
+            async move {
+                env.require(PluginPermission::KickMembers)?;
+                let target_user_id = id_arg(uid_val, "user_id")?;
+                let reason = string_arg_opt(reason_val, "reason")?;
+                env.check_rate_limit()?;
+                let state = env.state()?;
+                let plugin_id = env.plugin_id.clone();
+                let user_id = env.user_id;
 
-                    env.on_server(async move {
-                        let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
-                        members::kick(
-                            &ctx,
-                            proto::KickMember {
-                                user_id: target_user_id,
-                                reason: reason_val,
-                            },
-                        )
-                        .await
-                    })
-                    .await?
-                    .map_err(PluginEnv::api_error)?;
+                let target_name = state
+                    .guild()
+                    .members
+                    .get(&target_user_id)
+                    .map(|m| m.user.display_name.clone())
+                    .unwrap_or_else(|| target_user_id.to_string());
 
-                    env.log.push(
-                        proto::PluginLogLevel::Action,
-                        &format!("kicked {target_user_id}"),
-                    );
+                env.on_server(async move {
+                    let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
+                    members::kick(
+                        &ctx,
+                        proto::KickMember {
+                            user_id: target_user_id,
+                            reason,
+                        },
+                    )
+                    .await
+                })
+                .await?
+                .map_err(PluginEnv::api_error)?;
 
-                    Ok(())
-                }
-            },
-        )?,
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("kicked {target_name}"),
+                );
+
+                Ok(())
+            }
+        })?,
     )?;
 
     // members.ban(user_id, reason?)
     let env_ban = env.clone();
     table.raw_set(
         "ban",
-        async_function(
-            lua,
-            move |_lua, (uid_val, reason_val): (Value, Option<String>)| {
-                let env = env_ban.clone();
-                async move {
-                    env.require(PluginPermission::BanMembers)?;
-                    let target_user_id = id_arg(uid_val, "user_id")?;
-                    env.check_rate_limit()?;
-                    let state = env.state()?;
-                    let plugin_id = env.plugin_id.clone();
-                    let user_id = env.user_id;
+        async_function(lua, move |_lua, (uid_val, reason_val): (Value, Value)| {
+            let env = env_ban.clone();
+            async move {
+                env.require(PluginPermission::BanMembers)?;
+                let target_user_id = id_arg(uid_val, "user_id")?;
+                let reason = string_arg_opt(reason_val, "reason")?;
+                env.check_rate_limit()?;
+                let state = env.state()?;
+                let plugin_id = env.plugin_id.clone();
+                let user_id = env.user_id;
 
-                    env.on_server(async move {
-                        let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
-                        members::ban(
-                            &ctx,
-                            proto::BanMember {
-                                user_id: target_user_id,
-                                reason: reason_val,
-                            },
-                        )
-                        .await
-                    })
-                    .await?
-                    .map_err(PluginEnv::api_error)?;
+                let target_name = state
+                    .guild()
+                    .members
+                    .get(&target_user_id)
+                    .map(|m| m.user.display_name.clone())
+                    .unwrap_or_else(|| target_user_id.to_string());
 
-                    env.log.push(
-                        proto::PluginLogLevel::Action,
-                        &format!("banned {target_user_id}"),
-                    );
+                env.on_server(async move {
+                    let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
+                    members::ban(
+                        &ctx,
+                        proto::BanMember {
+                            user_id: target_user_id,
+                            reason,
+                        },
+                    )
+                    .await
+                })
+                .await?
+                .map_err(PluginEnv::api_error)?;
 
-                    Ok(())
-                }
-            },
-        )?,
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("banned {target_name}"),
+                );
+
+                Ok(())
+            }
+        })?,
     )?;
 
     // members.unban(user_id)
@@ -1039,6 +1036,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_bans.clone();
             async move {
                 env.require(PluginPermission::BanMembers)?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
@@ -1090,6 +1088,7 @@ fn install_invites(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_list.clone();
             async move {
                 env.require(PluginPermission::ReadInvites)?;
+                env.check_rate_limit()?;
                 let state = env.state()?;
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
