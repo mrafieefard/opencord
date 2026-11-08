@@ -6,6 +6,7 @@
 //! [`async_function`]: an `Err` from a bare mlua callback would reach Lua
 //! as userdata instead.
 
+pub mod commands;
 pub mod db;
 pub mod http;
 pub mod log;
@@ -29,6 +30,7 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     http::install(&vm.lua, env)?;
     db::install(&vm.lua, env)?;
     messages::install(&vm.lua, env)?;
+    commands::install(&vm.lua, env)?;
     #[cfg(test)]
     tests::install(&vm.lua, env)?;
     Ok(())

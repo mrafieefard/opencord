@@ -327,6 +327,11 @@ async fn run_vm(
     }
     report(&reports, Report::Started(started));
     if failed {
+        if let Some(state) = env.state.upgrade()
+            && state.commands.remove_for_plugin(&env.plugin_id)
+        {
+            crate::commands::announce(&state);
+        }
         return;
     }
     let mut running = JoinSet::new();
@@ -341,14 +346,22 @@ async fn run_vm(
                 };
                 match command {
                     Command::Run => {}
-                    Command::Stop => return stop_vm(vm, env, spec, &reports).await,
-                    Command::Kill => return,
+                    Command::Stop => {
+                        stop_vm(vm, env, spec, &reports).await;
+                        break;
+                    }
+                    Command::Kill => break,
                 }
             }
             event = handle.queue.pop() => dispatch(vm, env, spec, event, &mut running, &reports),
             Some(_) = running.join_next(), if !running.is_empty() => {}
             _ = tick.tick() => stats.sample(vm, handle),
         }
+    }
+    if let Some(state) = env.state.upgrade()
+        && state.commands.remove_for_plugin(&env.plugin_id)
+    {
+        crate::commands::announce(&state);
     }
 }
 
@@ -375,7 +388,7 @@ async fn start_vm(vm: &Vm, env: &Arc<PluginEnv>, spec: &Spec) -> Result<(), Stri
         }
         let payload = serde_json::json!({});
         for handler in handlers_for(&vm.lua, "start")? {
-            let argument = event_table(&vm.lua, &payload, None)?;
+            let argument = event_table(&vm.lua, "start", &payload, None)?;
             handler.call_async::<()>(argument).await?;
         }
         Ok::<(), VmError>(())
@@ -485,6 +498,7 @@ type ReplySlot = Arc<Mutex<Option<oneshot::Sender<serde_json::Value>>>>;
 /// The event's payload as a table, with `reply` when someone waits for one.
 fn event_table(
     lua: &Lua,
+    event_name: &str,
     payload: &serde_json::Value,
     reply: Option<&ReplySlot>,
 ) -> mlua::Result<Value> {
@@ -495,12 +509,83 @@ fn event_table(
     let value = lua.to_value_with(payload, options)?;
     if let (Value::Table(table), Some(reply)) = (&value, reply) {
         let reply = reply.clone();
-        let function = api::function(lua, move |lua, args: Variadic<Value>| {
-            let answer = to_json(lua, args)?;
-            let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
-            Ok(sender.is_some_and(|sender| sender.send(answer).is_ok()))
-        })?;
-        table.raw_set("reply", function)?;
+        if event_name == "command" {
+            let function = api::function(lua, move |_lua, args: Variadic<Value>| {
+                let mut iter = args.into_iter();
+                let first = iter.next();
+                let (content_val, opts_val) = match first {
+                    Some(Value::Table(ref t)) if t.contains_key("name")? => {
+                        (iter.next(), iter.next())
+                    }
+                    other => (other, iter.next()),
+                };
+                let content = match content_val {
+                    Some(Value::String(s)) => s.to_str()?.to_owned(),
+                    _ => return Err(raise("INVALID_ARGUMENT: content must be a string")),
+                };
+                let mut only_you = false;
+                if let Some(Value::Table(opts)) = opts_val
+                    && let Ok(b) = opts.get::<bool>("only_you")
+                {
+                    only_you = b;
+                }
+                let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
+                let Some(sender) = sender else {
+                    return Err(raise("INVALID_ARGUMENT: already replied"));
+                };
+                let _ = sender.send(serde_json::json!({
+                    "content": content,
+                    "only_you": only_you,
+                }));
+                Ok(())
+            })?;
+            table.raw_set("reply", function)?;
+        } else if event_name == "command_autocomplete" {
+            let function = api::function(lua, move |_lua, args: Variadic<Value>| {
+                let mut iter = args.into_iter();
+                let first = iter.next();
+                let choices_val = match first {
+                    Some(Value::Table(ref t)) if t.contains_key("name")? => iter.next(),
+                    other => other,
+                };
+                let choices_table = match choices_val {
+                    Some(Value::Table(t)) => t,
+                    _ => return Err(raise("INVALID_ARGUMENT: choices must be an array table")),
+                };
+                let mut choices = Vec::new();
+                for pair in choices_table.sequence_values::<Value>() {
+                    let val = pair?;
+                    if let Value::Table(item) = val {
+                        let name: String = item
+                            .get("name")
+                            .or_else(|_| item.get(1))
+                            .map_err(|_| raise("INVALID_ARGUMENT: choice name required"))?;
+                        let value: String = item
+                            .get("value")
+                            .or_else(|_| item.get(2))
+                            .map_err(|_| raise("INVALID_ARGUMENT: choice value required"))?;
+                        choices.push(serde_json::json!({ "name": name, "value": value }));
+                    }
+                }
+                if choices.len() > 25 {
+                    return Err(raise("INVALID_ARGUMENT: at most 25 choices"));
+                }
+                let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
+                let Some(sender) = sender else {
+                    return Err(raise("INVALID_ARGUMENT: already replied"));
+                };
+                let _ = sender.send(serde_json::json!({ "choices": choices }));
+                Ok(())
+            })?;
+            table.raw_set("suggest", function)?;
+        } else {
+            let function = api::function(lua, move |lua, args: Variadic<Value>| {
+                let answer = to_json(lua, args)?;
+                let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
+                Ok(sender.is_some_and(|sender| sender.send(answer).is_ok()))
+            })?;
+            table.raw_set("reply", function)?;
+        }
     }
     Ok(value)
 }
@@ -545,7 +630,7 @@ fn dispatch(
     // Without handlers the reply sender drops here, and its waiter hears.
     let reply = reply.map(|sender| Arc::new(Mutex::new(Some(sender))));
     for handler in handlers {
-        let argument = match event_table(&vm.lua, &payload, reply.as_ref()) {
+        let argument = match event_table(&vm.lua, &name, &payload, reply.as_ref()) {
             Ok(argument) => argument,
             Err(error) => return failed(env, reports, &name, error, limit),
         };
@@ -611,7 +696,7 @@ async fn stop_vm(
     let payload = serde_json::json!({});
     let mut calls = Vec::new();
     for handler in handlers {
-        match event_table(&vm.lua, &payload, None) {
+        match event_table(&vm.lua, "stop", &payload, None) {
             Ok(argument) => calls.push(Budgeted::new(
                 env.budget.clone(),
                 limit,

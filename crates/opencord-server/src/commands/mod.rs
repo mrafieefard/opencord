@@ -6,8 +6,8 @@
 //! The server parses and checks everything; clients only build the input
 //! from the specs.
 
-use std::collections::BTreeMap;
-use std::sync::RwLock;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::{PoisonError, RwLock};
 
 use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 
 use crate::db;
+use crate::error::ApiError;
 use crate::state::{AppState, Audience};
 
 pub mod music;
@@ -150,18 +151,90 @@ impl CommandSettings {
     }
 }
 
+/// A command registered by a plugin.
+#[derive(Debug, Clone)]
+pub struct PluginCommand {
+    pub plugin_id: String,
+    pub spec: proto::CommandSpec,
+}
+
 /// The settings, kept in memory and in `server_meta`.
 #[derive(Debug, Default)]
 pub struct Commands {
     settings: RwLock<CommandSettings>,
+    plugins: RwLock<HashMap<String, PluginCommand>>,
 }
 
 impl Commands {
     pub fn settings(&self) -> CommandSettings {
         self.settings
             .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(PoisonError::into_inner)
             .clone()
+    }
+
+    pub fn register_plugin(
+        &self,
+        plugin_id: &str,
+        spec: proto::CommandSpec,
+    ) -> Result<(), ApiError> {
+        let mut plugins = self.plugins.write().unwrap_or_else(PoisonError::into_inner);
+        if let Some(existing) = plugins.get(&spec.name)
+            && existing.plugin_id != plugin_id
+        {
+            return Err(ApiError::invalid_argument(format!(
+                "/{} is already taken",
+                spec.name
+            )));
+        }
+        plugins.insert(
+            spec.name.clone(),
+            PluginCommand {
+                plugin_id: plugin_id.to_owned(),
+                spec,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn unregister_plugin(&self, plugin_id: &str, name: &str) -> bool {
+        let name = name.trim_start_matches('/').to_ascii_lowercase();
+        let mut plugins = self.plugins.write().unwrap_or_else(PoisonError::into_inner);
+        if let Some(cmd) = plugins.get(&name)
+            && cmd.plugin_id == plugin_id
+        {
+            plugins.remove(&name);
+            return true;
+        }
+        false
+    }
+
+    pub fn remove_for_plugin(&self, plugin_id: &str) -> bool {
+        let mut plugins = self.plugins.write().unwrap_or_else(PoisonError::into_inner);
+        let before = plugins.len();
+        plugins.retain(|_, cmd| cmd.plugin_id != plugin_id);
+        plugins.len() < before
+    }
+
+    pub fn find_plugin(&self, name: &str) -> Option<PluginCommand> {
+        let name = name.trim_start_matches('/').to_ascii_lowercase();
+        self.plugins
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&name)
+            .cloned()
+    }
+
+    pub fn plugin_commands(&self) -> Vec<PluginCommand> {
+        let mut list: Vec<PluginCommand> = self
+            .plugins
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .cloned()
+            .collect();
+        list.sort_by(|a, b| a.spec.name.cmp(&b.spec.name));
+        list
     }
 
     pub async fn load(&self, conn: &mut SqliteConnection) -> anyhow::Result<()> {
@@ -229,12 +302,25 @@ fn feature_ready(state: &AppState, feature: &str) -> bool {
 /// What members can use (§17.1): enabled commands of features set up.
 pub fn available(state: &AppState) -> proto::Commands {
     let settings = state.commands.settings();
+    let mut commands: Vec<proto::CommandSpec> = SPECS
+        .iter()
+        .filter(|spec| settings.enabled(spec.name) && feature_ready(state, spec.feature))
+        .map(|spec| spec_proto(spec, &settings))
+        .collect();
+    for cmd in state.commands.plugin_commands() {
+        if settings.enabled(&cmd.spec.name) {
+            let mut spec = cmd.spec;
+            spec.enabled = true;
+            spec.channel_ids = settings
+                .channels
+                .get(&spec.name)
+                .cloned()
+                .unwrap_or_default();
+            commands.push(spec);
+        }
+    }
     proto::Commands {
-        commands: SPECS
-            .iter()
-            .filter(|spec| settings.enabled(spec.name) && feature_ready(state, spec.feature))
-            .map(|spec| spec_proto(spec, &settings))
-            .collect(),
+        commands,
         results_public: !settings.results_private,
     }
 }
@@ -242,11 +328,22 @@ pub fn available(state: &AppState) -> proto::Commands {
 /// Every command, on or off, for the Commands page.
 pub fn all(state: &AppState) -> proto::Commands {
     let settings = state.commands.settings();
+    let mut commands: Vec<proto::CommandSpec> = SPECS
+        .iter()
+        .map(|spec| spec_proto(spec, &settings))
+        .collect();
+    for cmd in state.commands.plugin_commands() {
+        let mut spec = cmd.spec;
+        spec.enabled = settings.enabled(&spec.name);
+        spec.channel_ids = settings
+            .channels
+            .get(&spec.name)
+            .cloned()
+            .unwrap_or_default();
+        commands.push(spec);
+    }
     proto::Commands {
-        commands: SPECS
-            .iter()
-            .map(|spec| spec_proto(spec, &settings))
-            .collect(),
+        commands,
         results_public: !settings.results_private,
     }
 }

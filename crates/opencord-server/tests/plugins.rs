@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
+#[path = "plugins/commands.rs"]
+mod commands;
 #[path = "common/mod.rs"]
 mod common;
 #[path = "plugins/dev.rs"]
