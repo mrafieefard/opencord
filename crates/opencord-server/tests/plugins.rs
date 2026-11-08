@@ -8,6 +8,8 @@ mod common;
 mod dev;
 #[path = "plugins/events.rs"]
 mod events;
+#[path = "plugins/guild.rs"]
+mod guild;
 #[path = "plugins/install.rs"]
 mod install;
 #[path = "plugins/messages.rs"]

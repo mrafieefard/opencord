@@ -8,6 +8,7 @@
 
 pub mod commands;
 pub mod db;
+pub mod guild;
 pub mod http;
 pub mod log;
 pub mod messages;
@@ -31,6 +32,7 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     db::install(&vm.lua, env)?;
     messages::install(&vm.lua, env)?;
     commands::install(&vm.lua, env)?;
+    guild::install(&vm.lua, env)?;
     #[cfg(test)]
     tests::install(&vm.lua, env)?;
     Ok(())
