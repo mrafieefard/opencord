@@ -1110,12 +1110,12 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
   );
 
   b.say(
-    welcome,
+    offTopic,
     welcomeBotUserId,
-    b.daysAgo(1, 9, 13),
-    'Welcome to Opencord Dev, <@$priya>!',
+    b.daysAgo(2, 12, 10),
+    'Electricity and semiconductors.',
   );
-  b.readAll(welcome);
+  b.readAll(offTopic);
 
   return server;
 }

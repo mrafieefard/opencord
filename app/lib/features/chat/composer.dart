@@ -580,10 +580,10 @@ class _ComposerState extends ConsumerState<Composer> {
               editing: editing != null,
               title: editing != null
                   ? 'Edit message'
-                  : 'Reply to ${data.members[about.authorId]?.displayName ?? 'Unknown user'}',
+                  : 'Reply to ${data.authorOf(about.authorId).name}',
               preview: previewText(
                 messageSummary(about),
-                user: (id) => data.members[id]?.displayName,
+                user: (id) => data.authorOf(id).name,
                 channel: (id) => data.channels[id]?.name,
               ),
               onTap: () => widget.controller.jumpToMessage(about.id),

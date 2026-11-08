@@ -139,11 +139,10 @@ class _StageState extends ConsumerState<_Stage> {
       serverProvider(channel.server).select((state) => state.data?.self.id),
     );
     final pixels = MediaQuery.devicePixelRatioOf(context);
-    final members =
-        ref.watch(
-          serverProvider(channel.server).select((state) => state.data?.members),
-        ) ??
-        const <int, Member>{};
+    final serverData = ref.watch(
+      serverProvider(channel.server).select((state) => state.data),
+    );
+    final members = serverData?.members ?? const <int, Member>{};
     final speaking = ref.watch(speakingProvider(channel.server));
     final sounds = ref.watch(soundPlaysProvider(channel.server));
     final call = ref.watch(callUserAudioProvider);
@@ -211,6 +210,7 @@ class _StageState extends ConsumerState<_Stage> {
           ),
         );
       }
+      final author = serverData?.authorOf(id.userId);
       return FlipBox(
         key: _tileKeys.putIfAbsent(id, GlobalKey.new),
         generation: generation,
@@ -218,11 +218,11 @@ class _StageState extends ConsumerState<_Stage> {
         child: VoiceTileView(
           key: ValueKey(id),
           userId: id.userId,
-          name: members[id.userId]?.displayName ?? 'Someone',
+          name: author?.name ?? 'Someone',
           picture: avatarImage(
             ref,
             widget.channel.server,
-            members[id.userId]?.user.avatarHash,
+            author?.avatarHash,
           ),
           screen: id.screen,
           muted:

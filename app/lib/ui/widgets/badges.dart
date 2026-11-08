@@ -134,3 +134,32 @@ class ConnectionDot extends StatelessWidget {
     );
   }
 }
+
+/// A label identifying a bot or plugin author: the app's existing small label style.
+class PluginBadge extends StatelessWidget {
+  const PluginBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: colors.hover,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: colors.border),
+      ),
+      child: Text(
+        'Plugin',
+        maxLines: 1,
+        style: OcText.meta.copyWith(
+          color: colors.textSecondary,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+

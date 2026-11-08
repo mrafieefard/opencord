@@ -263,7 +263,7 @@ class _MessageListState extends ConsumerState<MessageList>
     final direction = Directionality.of(context);
     const spoken = 3;
     for (final message in arrived.take(spoken)) {
-      final author = data.members[message.authorId]?.displayName ?? 'Someone';
+      final author = data.authorOf(message.authorId).name;
       final text = copyableText(
         message.content,
         user: (id) => data.members[id]?.displayName,

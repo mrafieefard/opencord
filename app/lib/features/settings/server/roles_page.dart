@@ -40,6 +40,7 @@ class RoleRules {
 
   /// @everyone included: the server wants a role above it.
   bool canManage(Role role) {
+    if (role.pluginId != null) return false;
     final context = _context;
     if (context == null || !data.can(Permissions.manageRoles)) return false;
     return context.outranksRole(role.position);
@@ -305,13 +306,19 @@ class _RoleTile extends StatelessWidget {
           children: [
             SizedBox(
               width: 22,
-              child: draggable
+              child: role.pluginId != null
                   ? Icon(
-                      OcIcons.dragIndicator,
+                      OcIcons.lock,
                       size: 16,
                       color: colors.textMuted,
                     )
-                  : null,
+                  : (draggable
+                      ? Icon(
+                          OcIcons.dragIndicator,
+                          size: 16,
+                          color: colors.textMuted,
+                        )
+                      : null),
             ),
             Expanded(
               child: EllipsisText(
@@ -569,7 +576,26 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
     final colors = context.oc;
     final role = widget.role;
     final rules = widget.rules;
+    final isPluginRole = role.pluginId != null;
     final editable = rules.canManage(role);
+    final pluginName = isPluginRole
+        ? () {
+            final plugins =
+                ref.watch(pluginsProvider(widget.serverKey)).value ?? const [];
+            final plugin =
+                plugins.where((p) => p.id == role.pluginId).firstOrNull;
+            if (plugin != null) return plugin.name;
+            final pluginUsers = ref.watch(
+              serverProvider(widget.serverKey).select(
+                (s) => s.data?.pluginUsers,
+              ),
+            );
+            final pluginUser = pluginUsers?.values
+                .where((u) => u.pluginId == role.pluginId)
+                .firstOrNull;
+            return pluginUser?.name ?? role.name;
+          }()
+        : null;
     ref.watch(
       serverProvider(widget.serverKey).select(
         (s) => (
@@ -583,7 +609,23 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!editable)
+        if (isPluginRole)
+          Padding(
+            padding: const EdgeInsets.only(bottom: OcSpace.s16),
+            child: Row(
+              children: [
+                Icon(OcIcons.lock, size: 16, color: colors.textSecondary),
+                const SizedBox(width: OcSpace.s8),
+                Expanded(
+                  child: Text(
+                    'Belongs to the plugin $pluginName. Its permissions follow the plugin\'s.',
+                    style: OcText.small.copyWith(color: colors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else if (!editable)
           Padding(
             padding: const EdgeInsets.only(bottom: OcSpace.s16),
             child: Text(
@@ -599,7 +641,7 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
               padding: const EdgeInsets.all(OcSpace.s16),
               child: OcTextField(
                 controller: _name,
-                enabled: editable && !widget.everyone,
+                enabled: editable && !widget.everyone && !isPluginRole,
                 semanticLabel: 'Role name',
                 maxLength: 100,
               ),
@@ -609,14 +651,14 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
                 title: 'Display separately',
                 subtitle: 'Its members get their own section in the list',
                 value: _hoist,
-                onChanged: editable
+                onChanged: editable && !isPluginRole
                     ? (value) => _edit(() => _hoist = value)
                     : null,
               ),
               SettingsSwitchRow(
                 title: 'Allow anyone to @mention it',
                 value: _mentionable,
-                onChanged: editable
+                onChanged: editable && !isPluginRole
                     ? (value) => _edit(() => _mentionable = value)
                     : null,
               ),
@@ -650,7 +692,7 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
                         child: OcTextField(
                           key: const Key('role-max-upload-size'),
                           controller: _limitController,
-                          enabled: editable && !_notSet,
+                          enabled: editable && !_notSet && !isPluginRole,
                           semanticLabel: 'Maximum file size',
                           hint: _notSet ? 'No limit of its own' : 'Size',
                           inputFormatters: [
@@ -658,7 +700,7 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
                           ],
                           suffix: _UnitPicker(
                             unit: _unit,
-                            enabled: editable && !_notSet,
+                            enabled: editable && !_notSet && !isPluginRole,
                             onPicked: (unit) => _edit(() => _unit = unit),
                           ),
                         ),
@@ -671,7 +713,7 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
                             OcSwitch(
                               value: _notSet,
                               semanticLabel: 'Not set',
-                              onChanged: editable
+                              onChanged: editable && !isPluginRole
                                   ? (value) => _edit(() => _notSet = value)
                                   : null,
                             ),
@@ -714,9 +756,9 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
               for (final info in infos)
                 _PermissionRow(
                   info: info,
-                  value: _permissions.has(info.bit),
-                  editable: editable,
-                  canChange: rules.canChange(info.bit),
+                  value: isPluginRole ? false : _permissions.has(info.bit),
+                  editable: editable && !isPluginRole,
+                  canChange: rules.canChange(info.bit) && !isPluginRole,
                   onChanged: (on) => _edit(
                     () => _permissions = on
                         ? _permissions | info.bit
@@ -726,7 +768,7 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
             ],
           ),
         ],
-        if (!widget.everyone && editable) ...[
+        if (!widget.everyone && editable && !isPluginRole) ...[
           const SizedBox(height: OcSpace.s24),
           Align(
             alignment: Alignment.centerLeft,

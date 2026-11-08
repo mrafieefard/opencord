@@ -56,9 +56,7 @@ class MemberAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hash = ref.watch(
       serverProvider(serverKey).select((state) {
-        final data = state.data;
-        return data?.members[userId]?.user.avatarHash ??
-            (data?.self.id == userId ? data?.self.avatarHash : null);
+        return state.data?.authorOf(userId).avatarHash;
       }),
     );
     return OcAvatar(
