@@ -189,6 +189,189 @@ class _PluginPageState extends ConsumerState<PluginPage> {
     final parentChanges = SettingsScope.changesOf(context);
     final changes = parentChanges ?? _localChanges;
 
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Crashed banner
+        if (plugin.state == PluginState.crashed) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: OcSpace.s16,
+              vertical: OcSpace.s12,
+            ),
+            margin: const EdgeInsets.only(bottom: OcSpace.s16),
+            decoration: BoxDecoration(
+              color: colors.hover,
+              borderRadius: BorderRadius.circular(OcRadius.section),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(OcIcons.error, size: 20, color: colors.text),
+                const SizedBox(width: OcSpace.s12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Plugin has crashed',
+                        style: OcText.body.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (plugin.statusReason.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          plugin.statusReason,
+                          style: OcText.small.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: OcSpace.s12),
+                OcButton(
+                  label: 'Start again',
+                  dense: true,
+                  onPressed: _restart,
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Header with icon, title and badges
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (widget.onBack != null) ...[
+              OcIconButton(
+                icon: OcIcons.arrowBack,
+                tooltip: 'Back to plugins',
+                onPressed: widget.onBack!,
+              ),
+              const SizedBox(width: OcSpace.s8),
+            ],
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: colors.hover,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colors.border),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                OcIcons.extension,
+                size: 24,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: OcSpace.s12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          plugin.name,
+                          style: OcText.title.copyWith(color: colors.text),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: OcSpace.s8),
+                      Text(
+                        plugin.version,
+                        style: OcText.body.copyWith(color: colors.textMuted),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    plugin.author,
+                    style: OcText.small.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            PluginSignatureBadge(
+              signature: plugin.signature,
+              githubCheck: plugin.githubCheck,
+            ),
+            const SizedBox(width: 6),
+            PluginStatusBadge(state: plugin.state),
+          ],
+        ),
+        const SizedBox(height: OcSpace.s20),
+
+        // Tabs
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ChoiceChips<PluginPageTab>(
+            options: const [
+              (PluginPageTab.overview, 'Overview'),
+              (PluginPageTab.permissions, 'Permissions'),
+              (PluginPageTab.settings, 'Settings'),
+              (PluginPageTab.log, 'Log'),
+              (PluginPageTab.devTokens, 'Dev tokens'),
+            ],
+            value: _tab,
+            onChanged: (tab) => setState(() => _tab = tab),
+          ),
+        ),
+        const SizedBox(height: OcSpace.s20),
+
+        // Tab contents
+        Visibility(
+          visible: _tab == PluginPageTab.overview,
+          maintainState: true,
+          child: _OverviewTab(
+            plugin: plugin,
+            onRestart: _restart,
+            onUpdate: _update,
+            onUninstall: () => _uninstall(plugin),
+          ),
+        ),
+        Visibility(
+          visible: _tab == PluginPageTab.permissions,
+          maintainState: true,
+          child: _PermissionsTab(serverKey: widget.serverKey, plugin: plugin),
+        ),
+        Visibility(
+          visible: _tab == PluginPageTab.settings,
+          maintainState: true,
+          child: _SettingsTab(serverKey: widget.serverKey, plugin: plugin),
+        ),
+        Visibility(
+          visible: _tab == PluginPageTab.log,
+          maintainState: true,
+          child: _LogTab(
+            serverKey: widget.serverKey,
+            pluginId: widget.pluginId,
+          ),
+        ),
+        Visibility(
+          visible: _tab == PluginPageTab.devTokens,
+          maintainState: true,
+          child: DevTokensSection(
+            serverKey: widget.serverKey,
+            pluginId: widget.pluginId,
+          ),
+        ),
+      ],
+    );
+
+    // The settings dialog scrolls, pads and shows the save bar itself, and
+    // gives its pages an unbounded height: a Stack can't size itself in it.
+    if (parentChanges != null) return content;
+
     return SettingsScope(
       changes: changes,
       child: Stack(
@@ -201,205 +384,15 @@ class _PluginPageState extends ConsumerState<PluginPage> {
                 OcSpace.s24,
                 OcSpace.s24 + SaveBar.height + 16,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Crashed banner
-                  if (plugin.state == PluginState.crashed) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: OcSpace.s16,
-                        vertical: OcSpace.s12,
-                      ),
-                      margin: const EdgeInsets.only(bottom: OcSpace.s16),
-                      decoration: BoxDecoration(
-                        color: colors.hover,
-                        borderRadius: BorderRadius.circular(OcRadius.section),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(OcIcons.error, size: 20, color: colors.text),
-                          const SizedBox(width: OcSpace.s12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Plugin has crashed',
-                                  style: OcText.body.copyWith(
-                                    color: colors.text,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                if (plugin.statusReason.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    plugin.statusReason,
-                                    style: OcText.small.copyWith(
-                                      color: colors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: OcSpace.s12),
-                          OcButton(
-                            label: 'Start again',
-                            dense: true,
-                            onPressed: _restart,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // Header with icon, title and badges
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      if (widget.onBack != null) ...[
-                        OcIconButton(
-                          icon: OcIcons.arrowBack,
-                          tooltip: 'Back to plugins',
-                          onPressed: widget.onBack!,
-                        ),
-                        const SizedBox(width: OcSpace.s8),
-                      ],
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: colors.hover,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: colors.border),
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(
-                          OcIcons.extension,
-                          size: 24,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: OcSpace.s12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    plugin.name,
-                                    style: OcText.title.copyWith(
-                                      color: colors.text,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: OcSpace.s8),
-                                Text(
-                                  plugin.version,
-                                  style: OcText.body.copyWith(
-                                    color: colors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              plugin.author,
-                              style: OcText.small.copyWith(
-                                color: colors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      PluginSignatureBadge(
-                        signature: plugin.signature,
-                        githubCheck: plugin.githubCheck,
-                      ),
-                      const SizedBox(width: 6),
-                      PluginStatusBadge(state: plugin.state),
-                    ],
-                  ),
-                  const SizedBox(height: OcSpace.s20),
-
-                  // Tabs
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: ChoiceChips<PluginPageTab>(
-                      options: const [
-                        (PluginPageTab.overview, 'Overview'),
-                        (PluginPageTab.permissions, 'Permissions'),
-                        (PluginPageTab.settings, 'Settings'),
-                        (PluginPageTab.log, 'Log'),
-                        (PluginPageTab.devTokens, 'Dev tokens'),
-                      ],
-                      value: _tab,
-                      onChanged: (tab) => setState(() => _tab = tab),
-                    ),
-                  ),
-                  const SizedBox(height: OcSpace.s20),
-
-                  // Tab contents
-                  Visibility(
-                    visible: _tab == PluginPageTab.overview,
-                    maintainState: true,
-                    child: _OverviewTab(
-                      plugin: plugin,
-                      onRestart: _restart,
-                      onUpdate: _update,
-                      onUninstall: () => _uninstall(plugin),
-                    ),
-                  ),
-                  Visibility(
-                    visible: _tab == PluginPageTab.permissions,
-                    maintainState: true,
-                    child: _PermissionsTab(
-                      serverKey: widget.serverKey,
-                      plugin: plugin,
-                    ),
-                  ),
-                  Visibility(
-                    visible: _tab == PluginPageTab.settings,
-                    maintainState: true,
-                    child: _SettingsTab(
-                      serverKey: widget.serverKey,
-                      plugin: plugin,
-                    ),
-                  ),
-                  Visibility(
-                    visible: _tab == PluginPageTab.log,
-                    maintainState: true,
-                    child: _LogTab(
-                      serverKey: widget.serverKey,
-                      pluginId: widget.pluginId,
-                    ),
-                  ),
-                  Visibility(
-                    visible: _tab == PluginPageTab.devTokens,
-                    maintainState: true,
-                    child: DevTokensSection(
-                      serverKey: widget.serverKey,
-                      pluginId: widget.pluginId,
-                    ),
-                  ),
-                ],
-              ),
+              child: content,
             ),
           ),
-          if (parentChanges == null)
-            Positioned(
-              left: OcSpace.s16,
-              right: OcSpace.s16,
-              bottom: OcSpace.s16,
-              child: SaveBar(changes: changes),
-            ),
+          Positioned(
+            left: OcSpace.s16,
+            right: OcSpace.s16,
+            bottom: OcSpace.s16,
+            child: SaveBar(changes: changes),
+          ),
         ],
       ),
     );
