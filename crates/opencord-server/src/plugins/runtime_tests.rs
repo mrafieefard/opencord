@@ -231,11 +231,11 @@ async fn a_failing_handler_is_logged_with_its_traceback() {
 
     state.plugins.deliver("failing", event("message_create"));
 
-    let line = wait_for_log(&handle, "ping handler failed").await;
+    let line = wait_for_log(&handle, "message_create handler failed").await;
     assert_eq!(line.level, proto::PluginLogLevel::Error as i32);
     assert!(
         line.text
-            .starts_with("ping handler failed: server/main.luau:2: boom\n"),
+            .starts_with("message_create handler failed: server/main.luau:2: boom\n"),
         "{}",
         line.text
     );
@@ -256,10 +256,10 @@ async fn an_endless_handler_stops_at_its_budget() {
 
     state.plugins.deliver("looping", event("message_create"));
 
-    let line = wait_for_log(&handle, "ping handler failed").await;
+    let line = wait_for_log(&handle, "message_create handler failed").await;
     assert_eq!(
         line.text,
-        "ping handler failed: the handler ran longer than 50 ms"
+        "message_create handler failed: the handler ran longer than 50 ms"
     );
 }
 
@@ -308,7 +308,7 @@ async fn a_plugin_that_keeps_failing_is_turned_off() {
     }
 
     let reason = "turned off after failing 5 times in an hour: \
-                  ping handler failed: server/main.luau:1: always";
+                  message_create handler failed: server/main.luau:1: always";
     assert_eq!(handle.status_reason().as_deref(), Some(reason));
     let secs = Duration::from_secs;
     assert_eq!(clock.sleeps(), [secs(1), secs(2), secs(4), secs(8)]);
@@ -357,7 +357,7 @@ async fn out_of_memory_restarts_the_plugin() {
 
     plugins.deliver("hungry", event("message_create"));
 
-    wait_for_log(&handle, "ping handler failed: the plugin ran out of memory").await;
+    wait_for_log(&handle, "message_create handler failed: the plugin ran out of memory").await;
     let began = Instant::now();
     // The restart logs "started" again, then the supervisor marks it
     // running.
