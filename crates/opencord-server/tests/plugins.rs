@@ -28,6 +28,8 @@ mod files;
 mod guild;
 #[path = "plugins/hooks.rs"]
 mod hooks;
+#[path = "plugins/images.rs"]
+mod images;
 #[path = "plugins/install.rs"]
 mod install;
 #[path = "plugins/messages.rs"]

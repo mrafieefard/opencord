@@ -719,7 +719,8 @@ async fn roll_back(state: &Arc<AppState>, previous: Previous) {
 
 /// `UninstallPlugin`: stops it and removes its role and row. With
 /// `delete_data` everything of it goes; without, its database, files and
-/// log stay for a reinstall with the same id and key.
+/// log stay for a reinstall with the same id and key (its fetched images
+/// don't).
 pub async fn uninstall(
     state: &Arc<AppState>,
     caller: i64,
@@ -758,6 +759,8 @@ pub async fn uninstall(
         review::remove_folder(&dir).await;
     } else {
         remove_versions(&dir).await;
+        // Images fetched for members aren't the plugin's data.
+        review::remove_folder(&dir.join(super::images::CACHE_FOLDER)).await;
     }
     forget_command_settings(state, &id).await?;
     tracing::info!(plugin = %id, delete_data = request.delete_data, "a plugin was uninstalled");

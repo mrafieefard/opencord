@@ -157,6 +157,11 @@ pub const IMAGE_FETCH_MAX_PIXELS: u64 = 40_000_000;
 /// Fetched images the server keeps per plugin, and for how long.
 pub const IMAGE_CACHE_MAX_BYTES: u64 = 100 * MIB;
 pub const IMAGE_CACHE_FRESH: Duration = Duration::from_secs(60 * 60);
+/// Fetched images the server keeps per plugin, however small.
+pub const IMAGE_CACHE_MAX_ENTRIES: usize = 10_000;
+/// Fetches of images not in the cache one member may cause, per period.
+pub const IMAGE_FETCHES_PER_MEMBER: u32 = 20;
+pub const IMAGE_FETCH_PERIOD: Duration = Duration::from_secs(10);
 /// A `files.token` works this long.
 pub const FILE_TOKEN_LIFETIME: Duration = Duration::from_secs(60 * 60);
 /// Live file tokens one plugin holds: each is a different file or member,

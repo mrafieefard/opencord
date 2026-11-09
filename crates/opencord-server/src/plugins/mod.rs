@@ -13,6 +13,7 @@ pub mod events;
 pub mod github;
 pub mod http;
 pub mod identity;
+pub mod images;
 pub mod install;
 pub mod logbook;
 pub mod net;
@@ -183,6 +184,8 @@ pub struct PluginHandle {
     pub(crate) files_reads: Arc<tokio::sync::Semaphore>,
     /// The installed version's `client/` and `assets/` files.
     pub(crate) client: Arc<assets::ClientFiles>,
+    /// The installed version's domains, for the images it shows.
+    pub(crate) domains: Arc<net::NetGuard>,
 }
 
 struct Status {
@@ -347,6 +350,8 @@ pub struct Plugins {
     pub file_tokens: assets::FileTokens,
     /// The open views of plugin channels.
     pub views: views::Views,
+    /// Images fetched from plugins' websites for members.
+    pub images: images::Images,
     log_watchers: RwLock<HashMap<String, HashSet<String>>>,
     /// Held through each install, update, uninstall and permission change,
     /// so two never interleave. Taken before the guild's write lock.
@@ -376,6 +381,7 @@ impl Plugins {
             channel_types: channel_types::ChannelTypes::default(),
             file_tokens: assets::FileTokens::default(),
             views: views::Views::default(),
+            images: images::Images::default(),
             log_watchers: RwLock::new(HashMap::new()),
             changes: tokio::sync::Mutex::new(()),
         }
@@ -518,6 +524,7 @@ impl Plugins {
         );
 
         let (stopping, stopping_receiver) = watch::channel(false);
+        let domains = spec.domains();
         let handle = Arc::new(PluginHandle {
             id: installed.id.clone(),
             user_id: installed.user_id,
@@ -540,6 +547,7 @@ impl Plugins {
             files_lock,
             files_reads,
             client,
+            domains,
         });
 
         if is_new_log {
@@ -603,6 +611,8 @@ impl Plugins {
         handle.stop().await;
         // After the stop: its `stop` handler may still issue one.
         self.file_tokens.forget_plugin(id);
+        // Its cache's files go with the plugin's folder.
+        self.images.forget_plugin(id);
         channel_types::stopped(state, id).await;
         self.clear_log_watchers(id);
         self.bus.unlisten_all(id);

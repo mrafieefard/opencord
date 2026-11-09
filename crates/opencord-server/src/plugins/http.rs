@@ -15,6 +15,7 @@ use serde::Deserialize;
 
 use super::assets;
 use super::dev::{self, Pushed};
+use super::images;
 use super::install;
 use super::permissions::PluginPermission;
 use crate::db;
@@ -32,6 +33,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/plugins/{id}/assets/{*path}", get(assets::get_asset))
         .route("/plugins/{id}/files/t/{token}", get(assets::get_token_file))
         .route("/plugins/{id}/files/{*path}", get(assets::get_file))
+        .route("/plugins/{id}/images", get(images::get_image))
 }
 
 pub(super) fn plugins_off() -> Response {

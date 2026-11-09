@@ -423,6 +423,16 @@ async fn serve(
             return reply_error(&ApiError::internal());
         }
     };
+    serve_open(plugin_id, file, content_type(path), headers).await
+}
+
+/// Streams `file` as `content_type`, with `nosniff` and `headers`.
+pub(super) async fn serve_open(
+    plugin_id: &str,
+    file: tokio::fs::File,
+    content_type: &str,
+    headers: Vec<(HeaderName, String)>,
+) -> Response {
     // The open file's length: replacing the file (files.put renames over
     // it) doesn't change what this handle reads.
     let size = match file.metadata().await {
@@ -436,7 +446,7 @@ async fn serve(
     (
         StatusCode::OK,
         [
-            (CONTENT_TYPE, content_type(path).to_owned()),
+            (CONTENT_TYPE, content_type.to_owned()),
             (CONTENT_LENGTH, size.to_string()),
             (X_CONTENT_TYPE_OPTIONS, "nosniff".to_owned()),
         ],

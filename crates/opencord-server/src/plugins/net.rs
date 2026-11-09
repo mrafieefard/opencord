@@ -195,13 +195,13 @@ impl Resolve for SystemResolver {
     }
 }
 
-/// Which addresses connections may go to. Only `#[cfg(test)]` code can
-/// build [`AddressPolicy::LoopbackForTests`].
+/// Which addresses connections may go to. Only test builds (`#[cfg(test)]`
+/// or the `testing` feature) can build [`AddressPolicy::LoopbackForTests`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AddressPolicy {
     Public,
     /// Public addresses and this machine's, for a test's local site.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     LoopbackForTests,
 }
 
@@ -209,7 +209,7 @@ impl AddressPolicy {
     fn allows(self, ip: IpAddr) -> bool {
         match self {
             AddressPolicy::Public => !is_forbidden(ip),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "testing"))]
             AddressPolicy::LoopbackForTests => ip.is_loopback() || !is_forbidden(ip),
         }
     }
@@ -280,6 +280,16 @@ fn build_client(
 ) -> Result<reqwest::Client, NetError> {
     let tls = crate::tls::client_config(None)
         .map_err(|error| NetError::Network(format!("could not set up TLS: {error}")))?;
+    build_client_with(guard, resolver, policy, tls)
+}
+
+/// [`build_client`] trusting what `tls` trusts.
+pub(crate) fn build_client_with(
+    guard: Arc<NetGuard>,
+    resolver: Arc<dyn Resolve>,
+    policy: AddressPolicy,
+    tls: rustls::ClientConfig,
+) -> Result<reqwest::Client, NetError> {
     let redirects = guard.clone();
     reqwest::Client::builder()
         .tls_backend_preconfigured(tls)
@@ -429,7 +439,7 @@ fn timed_out(after: Duration) -> NetError {
 /// What went wrong, from the error's causes: the guard's own refusal as it
 /// was, else the innermost cause. reqwest's own text names the URL, query
 /// string and all.
-fn failure(error: reqwest::Error) -> NetError {
+pub(crate) fn failure(error: reqwest::Error) -> NetError {
     let mut reason = None;
     let mut cause = error.source();
     while let Some(current) = cause {
@@ -452,7 +462,7 @@ fn failure(error: reqwest::Error) -> NetError {
 }
 
 /// `host[:port]/path`, as the plugin's log shows a request.
-fn shown(url: &Url) -> String {
+pub(crate) fn shown(url: &Url) -> String {
     let host = url.host_str().unwrap_or_default();
     match url.port() {
         Some(port) => format!("{host}:{port}{}", url.path()),

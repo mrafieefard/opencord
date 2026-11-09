@@ -237,6 +237,11 @@ impl Spec {
             files_bytes,
         })
     }
+
+    /// The manifest's domains.
+    pub(crate) fn domains(&self) -> Arc<NetGuard> {
+        self.domains.clone()
+    }
 }
 
 pub(super) enum Report {
