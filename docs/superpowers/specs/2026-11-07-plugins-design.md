@@ -1310,7 +1310,8 @@ the phone feel native and premium, not like a copy of the desktop.
   - **it never moves anything:** opening, filtering and closing don't
     change the message list's size or scroll position, and the composer
     doesn't move;
-  - at most 40 % of the room between the top safe area and the composer;
+  - at most 75 % of the room between the top safe area and the composer
+    (40 % left less than one row with the keyboard up; owner, 2026-11-09);
     a longer list scrolls inside it;
   - on top, a **horizontal row of sources** (Opencord, then each plugin's
     icon), shown only when there's more than one; it scrolls sideways when
@@ -1338,7 +1339,24 @@ the phone feel native and premium, not like a copy of the desktop.
 - **Replies:** private replies show with "Only you can see this" and a way
   to dismiss them; *thinking* and *no answer* as on desktop.
 
-### 26.8 Testing
+### 26.8 A share of the CPU
+
+Added by the owner on 2026-11-09. A handler stops after 100 ms, but
+nothing limited the total: a plugin running one 99 ms handler after
+another could keep a core busy.
+
+- A plugin may use **25 % of one core, averaged over 10 seconds**
+  *(Claude's numbers)*. Past that its events wait in its queue until it is
+  back under; the queue's limit and its rule for overflowing stay as they
+  are. Nothing is dropped by this and the plugin isn't stopped.
+- Plugin threads run at a **lower priority** than the server's own (`nice`
+  10 on Linux and macOS, below normal on Windows), so chat and voice come
+  first when the machine is busy.
+- A held plugin slows only itself: its commands may run out of their
+  3 seconds and show "{plugin name} didn't answer", and other plugins and
+  the server aren't touched.
+
+### 26.9 Testing
 
 - **Server:** a function per command; an error in it answers at once; an
   unknown event name raises; defer in the channel and only to the member;

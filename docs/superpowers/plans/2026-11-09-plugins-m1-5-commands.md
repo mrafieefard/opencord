@@ -46,7 +46,22 @@ These are not spelled out by §26's tests. Each has its test in the task that ow
 - [ ] **Step 3: Publish it for the owner and STOP.** No code in Tasks 2 onward starts until the owner approves. Rework from their notes until they do.
 - [ ] **Step 4: Commit** `docs: the command popup's prototype`.
 
-**Prototype results:** *(filled in at Step 2)*
+**Prototype results** (approved by the owner, 2026-11-09; the prototype's Version 3 is the authority):
+
+| | |
+|---|---|
+| Popup radius | 14, rows inside it 10 |
+| Row height | 36 (autocomplete rows with artwork 40) |
+| Height cap | 340, and never more than the room above the composer |
+| Gap above the float | 8 |
+| Rail | 52 wide, buttons 44 tall, icons 32 at radius 10, highlight 36 at radius 11 |
+| Group header | 30 tall, icon 16 at radius 5 |
+| Phone list | **75 %** of the room between the top safe area and the composer, radius 20 |
+| Phone source row | buttons 40, gap 4, icons 30 at radius 9, highlight 40 at radius 12 |
+| Phone rows | at least 56 tall, icon 32 at radius 9 |
+| Phone motion | opens 180 ms, 8 up and a fade, `cubic-bezier(.2,.8,.2,1)`; closes 120 ms, 6 down and a fade, `easeIn` |
+
+The phone keeps its bubbles; only the desktop has rows.
 
 ---
 
@@ -170,6 +185,25 @@ These are not spelled out by §26's tests. Each has its test in the task that ow
 - [ ] **Step 3: Implement.** The call keeps its start `Instant`. A failed `send` (the waiter has gone) raises and logs at `Warn`; `TooLate` from `thinking::answer` does the same. In `handlers/commands.rs` wait on `&mut rx`; after a timeout call `rx.close()` then `rx.try_recv()`, and use an answer that made it in time, so a plugin is never told it succeeded while the member saw "didn't answer".
 - [ ] **Step 4: Run the tests** and see them pass.
 - [ ] **Step 5: Commit** `feat(plugins): a late reply raises and is logged`.
+
+### Task 6a: A plugin can't take over the CPU
+
+The owner added this on 2026-11-09 (design §26.8). Each handler has a 100 ms budget, but nothing limits the total, so a plugin can keep a core busy with one 99 ms handler after another.
+
+**Files:**
+- Create: `crates/opencord-server/src/plugins/cpu_share.rs`
+- Modify: `crates/opencord-plugins/src/limits.rs`, `crates/opencord-server/src/plugins/runtime.rs`
+- Test: `crates/opencord-server/src/plugins/cpu_share.rs` (tests module), `crates/opencord-server/tests/plugins/`
+
+**Interfaces:**
+- Produces, limits: `CPU_SHARE_WINDOW = 10 s`, `CPU_SHARE_MAX_PERMILLE = 250`.
+- Produces: `struct CpuShare` with `record(now, cpu_used)` and `pause_for(now) -> Duration` (zero while under the share); `fn lower_this_threads_priority()` (best effort, a failure is logged once).
+
+- [ ] **Step 1: Write the failing tests:** `under_the_share_nothing_waits`, `over_the_share_waits_until_it_is_back_under`, `an_old_burst_leaves_the_window`, `a_plugin_spinning_in_handlers_stays_near_its_share` (integration, measured), `a_quiet_plugin_is_not_held_up`, `commands_still_answer_while_a_neighbour_is_held` (one plugin held doesn't slow another).
+- [ ] **Step 2: Run** them and see them fail.
+- [ ] **Step 3: Implement.** The VM's thread reads its own CPU time. Before each event, `pause_for` decides, and the thread sleeps that long: events wait in the queue, whose limit and overflow rule stay as they are. Lower the thread's priority when it starts (`nice` 10 on Linux and macOS, below normal on Windows).
+- [ ] **Step 4: Run the tests** and see them pass.
+- [ ] **Step 5: Commit** `feat(plugins): a share of the CPU per plugin`.
 
 ---
 
@@ -309,7 +343,7 @@ The phone lists the server's commands. `/volume` and `/music` stay desktop's: th
 - [ ] **Step 1: Write the failing tests:**
   - `commandRows`: `opencord_first_then_install_order`, `the_availability_rules_match_desktops`, `filter_by_name_and_empty_groups_drop`, `5000_rows_group_quickly`
   - `Composer`: `attach_shows_photo_file_and_commands`, `no_attach_permission_leaves_only_commands`, `no_commands_leaves_out_the_entry`, `nothing_usable_hides_the_button`, `editing_hides_the_button`, `commands_puts_a_slash_and_opens_the_list`, `typing_a_slash_opens_and_deleting_it_closes`
-  - `CommandList`: `the_source_row_shows_only_with_two_sources`, `tapping_a_source_scrolls_to_it`, `scrolling_moves_the_highlight`, `never_taller_than_40_percent_of_the_room`, `opening_filtering_and_closing_keep_the_list_and_composer_in_place` (measured), `commands_changing_while_open_keep_working` (Review Focus 3), `reduced_motion_has_no_animation`
+  - `CommandList`: `the_source_row_shows_only_with_two_sources`, `tapping_a_source_scrolls_to_it`, `scrolling_moves_the_highlight`, `never_taller_than_75_percent_of_the_room`, `opening_filtering_and_closing_keep_the_list_and_composer_in_place` (measured), `commands_changing_while_open_keep_working` (Review Focus 3), `reduced_motion_has_no_animation`
 - [ ] **Step 2: Run** them and see them fail.
 - [ ] **Step 3: Implement.** The list is absolutely positioned in `ChatPane` above the dock, using `useChatDock`'s `height` and `fieldGrowth`, so it adds nothing to `padding`. Use FlashList with sticky headers, Reanimated for the rise and fade at Task 1's timing, `expo-haptics` `selectionAsync` on pick, Android's `BackHandler` first, and close on keyboard dismiss.
 - [ ] **Step 4: Run** `yarn -s typecheck` and the tests, and see them pass.
