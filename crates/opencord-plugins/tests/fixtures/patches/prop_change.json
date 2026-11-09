@@ -1,0 +1,22 @@
+{
+  "before": {
+    "block": "column",
+    "props": { "gap": 8 },
+    "events": [],
+    "children": [
+      { "block": "text", "key": "a", "props": { "text": "A", "size": 14 }, "events": [], "children": [] }
+    ]
+  },
+  "after": {
+    "block": "column",
+    "props": { "gap": 12 },
+    "events": [],
+    "children": [
+      { "block": "text", "key": "a", "props": { "text": "A2", "size": 14 }, "events": [], "children": [] }
+    ]
+  },
+  "ops": [
+    { "op": "props", "id": 2, "set": { "text": "A2" }, "unset": [] },
+    { "op": "props", "id": 1, "set": { "gap": 12 }, "unset": [] }
+  ]
+}

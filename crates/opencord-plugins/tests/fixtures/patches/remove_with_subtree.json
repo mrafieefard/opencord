@@ -1,0 +1,32 @@
+{
+  "before": {
+    "block": "column",
+    "props": {},
+    "events": [],
+    "children": [
+      {
+        "block": "row",
+        "key": "r",
+        "props": { "gap": 4 },
+        "events": [],
+        "children": [
+          { "block": "text", "props": { "text": "x" }, "events": [], "children": [] },
+          { "block": "text", "props": { "text": "y" }, "events": [], "children": [] }
+        ]
+      },
+      { "block": "text", "key": "t", "props": { "text": "T" }, "events": [], "children": [] }
+    ]
+  },
+  "after": {
+    "block": "column",
+    "props": {},
+    "events": [],
+    "children": [
+      { "block": "text", "key": "t", "props": { "text": "T" }, "events": [], "children": [] }
+    ]
+  },
+  "ops": [
+    { "op": "children", "id": 1, "children": [5] },
+    { "op": "drop", "ids": [2, 3, 4] }
+  ]
+}
