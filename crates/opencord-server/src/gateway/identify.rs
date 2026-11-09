@@ -17,7 +17,7 @@ use crate::db::meta::ServerMeta;
 use crate::db::users::{self, UserRow};
 use crate::db::{bans, members};
 use crate::error::ApiError;
-use crate::guild::{Member, User};
+use crate::guild::{Channel, Member, User};
 use crate::random;
 use crate::state::{AppState, Audience, now_ms};
 use crate::voice::media_token;
@@ -315,7 +315,7 @@ fn open_session(
         .with_features(features),
     );
     let was_online = state.sessions.has_user(user_id);
-    let ready = ready(state, user_id, session_id, resume_token.to_vec());
+    let ready = ready(state, &session, session_id, resume_token.to_vec());
     if connection
         .outbound
         .try_send(frames::encode(Payload::Ready(Box::new(ready))))
@@ -332,10 +332,11 @@ fn open_session(
 
 fn ready(
     state: &AppState,
-    user_id: i64,
+    session: &Session,
     session_id: String,
     resume_token: Vec<u8>,
 ) -> proto::Ready {
+    let user_id = session.user_id;
     let server_addresses = state.domains.addresses(state);
     state.domains.mark_announced(&server_addresses);
     let mut presences = state.presences();
@@ -350,6 +351,13 @@ fn ready(
     }
     let guild = state.guild();
     let visible = guild.visible_channel_ids(user_id);
+    // What this app is told about: an older one never hears of plugin
+    // channels (design 2026-11-07 §14).
+    let shown: Vec<&Channel> = guild
+        .channels
+        .values()
+        .filter(|channel| visible.contains(&channel.id) && session.sees_kind(channel.kind))
+        .collect();
     let (voice_states, streams) = {
         let voice = state.voice();
         (
@@ -365,22 +373,17 @@ fn ready(
             .get(&user_id)
             .map(|member| member.user.to_proto()),
         server: Some(guild.server_info()),
-        channels: guild
-            .channels
-            .values()
-            .filter(|channel| visible.contains(&channel.id))
-            .map(|channel| channel.to_proto())
-            .collect(),
+        channels: shown.iter().map(|channel| channel.to_proto()).collect(),
         roles: guild.roles.values().map(|role| role.to_proto()).collect(),
         members: guild.members.values().map(Member::to_proto).collect(),
         presences,
         server_permissions: guild.base_permissions(user_id).bits(),
-        channel_permissions: visible
+        channel_permissions: shown
             .iter()
-            .map(|channel_id| {
+            .map(|channel| {
                 (
-                    *channel_id,
-                    guild.channel_permissions(user_id, *channel_id).bits(),
+                    channel.id,
+                    guild.channel_permissions(user_id, channel.id).bits(),
                 )
             })
             .collect(),

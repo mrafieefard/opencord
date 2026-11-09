@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
+use opencord_common::channel::ChannelKind;
 use opencord_proto::v1 as proto;
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
@@ -21,6 +22,9 @@ pub const REPLAY_MAX_AGE: Duration = Duration::from_secs(60);
 pub const RESUME_WINDOW: Duration = Duration::from_secs(60);
 /// Larger than the replay buffer, so a full replay always fits.
 pub const OUTBOUND_CAPACITY: usize = 2_048;
+/// The `Identify.features` name of apps that show plugin channels (design
+/// 2026-11-07 §14).
+pub const PLUGIN_CHANNELS: &str = "plugin_channels";
 
 /// WebSocket close codes; see docs/protocol.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,9 +176,16 @@ impl Session {
         Self { features, ..self }
     }
 
-    /// Whether the app supports this plugin feature: `"plugin_users"`.
+    /// Whether the app supports this plugin feature: `"plugin_users"` or
+    /// [`PLUGIN_CHANNELS`].
     pub fn has_feature(&self, name: &str) -> bool {
         self.features.iter().any(|feature| feature == name)
+    }
+
+    /// Whether this session is told about the channel at all: an app that
+    /// doesn't list [`PLUGIN_CHANNELS`] never hears of a plugin channel.
+    pub fn sees_kind(&self, kind: ChannelKind) -> bool {
+        kind != ChannelKind::Plugin || self.has_feature(PLUGIN_CHANNELS)
     }
 
     /// The private messages device this session registered, if any.

@@ -81,6 +81,16 @@ pub struct Channel {
     pub user_limit: u32,
     /// Voice channels only.
     pub text_in_voice: bool,
+    /// Plugin channels only, always set for them.
+    pub plugin: Option<PluginChannelRef>,
+}
+
+/// The plugin that draws a plugin channel, and the channel type it
+/// registered (design 2026-11-07 §14.2). Never changes after creation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginChannelRef {
+    pub plugin_id: String,
+    pub type_key: String,
 }
 
 #[derive(Debug, Clone)]
@@ -152,10 +162,22 @@ impl Guild {
             .await?
             .into_iter()
             .map(|row| {
+                let kind =
+                    ChannelKind::parse(&row.kind).ok_or_else(|| corrupt("channel", row.id))?;
+                let plugin = match (row.plugin_id, row.type_key) {
+                    (Some(plugin_id), Some(type_key)) if kind == ChannelKind::Plugin => {
+                        Some(PluginChannelRef {
+                            plugin_id,
+                            type_key,
+                        })
+                    }
+                    (None, None) if kind != ChannelKind::Plugin => None,
+                    _ => return Err(corrupt("channel", row.id)),
+                };
                 let channel = Channel {
                     id: row.id,
-                    kind: ChannelKind::parse(&row.kind)
-                        .ok_or_else(|| corrupt("channel", row.id))?,
+                    kind,
+                    plugin,
                     name: row.name,
                     topic: row.topic,
                     parent_id: row.parent_id,
@@ -437,6 +459,8 @@ impl Channel {
             bitrate: i64::from(self.bitrate),
             user_limit: i64::from(self.user_limit),
             text_in_voice: self.text_in_voice,
+            plugin_id: self.plugin.as_ref().map(|plugin| plugin.plugin_id.clone()),
+            type_key: self.plugin.as_ref().map(|plugin| plugin.type_key.clone()),
         }
     }
 
@@ -452,9 +476,15 @@ impl Channel {
             bitrate: self.voice(self.bitrate),
             user_limit: self.voice(self.user_limit),
             text_in_voice: self.kind == ChannelKind::Voice && self.text_in_voice,
-            plugin_id: None,
-            type_key: None,
-            plugin_state: proto::PluginChannelState::Unspecified as i32,
+            plugin_id: self.plugin.as_ref().map(|plugin| plugin.plugin_id.clone()),
+            type_key: self.plugin.as_ref().map(|plugin| plugin.type_key.clone()),
+            plugin_state: if self.plugin.is_some() {
+                // The server doesn't track registered channel types yet, so
+                // no plugin channel can be opened.
+                proto::PluginChannelState::PluginStopped
+            } else {
+                proto::PluginChannelState::Unspecified
+            } as i32,
         }
     }
 
@@ -473,6 +503,7 @@ pub fn channel_kind_to_proto(kind: ChannelKind) -> proto::ChannelKind {
         ChannelKind::Text => proto::ChannelKind::Text,
         ChannelKind::Voice => proto::ChannelKind::Voice,
         ChannelKind::Category => proto::ChannelKind::Category,
+        ChannelKind::Plugin => proto::ChannelKind::Plugin,
     }
 }
 

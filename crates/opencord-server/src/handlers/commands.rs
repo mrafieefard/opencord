@@ -18,6 +18,7 @@ use crate::commands::thinking::{self, Place, StartThinking, ThinkingId};
 use crate::commands::{self, CommandSettings};
 use crate::db::messages;
 use crate::error::ApiError;
+use crate::handlers::messages::refuse_plugin_channel;
 use crate::permissions::{require_base, require_channel};
 use crate::plugins::command_calls::CommandAnswer;
 use crate::plugins::permissions::PluginPermission;
@@ -239,12 +240,12 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
     {
         // Commands are typed where messages are (§17.1).
         let guild = ctx.state.guild();
-        require_channel(
+        refuse_plugin_channel(require_channel(
             &guild,
             ctx.user_id,
             request.channel_id,
             Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
-        )?;
+        )?)?;
     }
     let command = usable(ctx, &request.name, &request.source, request.channel_id)?;
     match command {

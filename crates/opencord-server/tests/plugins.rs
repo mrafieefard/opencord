@@ -2,6 +2,8 @@
 
 #[path = "plugins/bus.rs"]
 mod bus;
+#[path = "plugins/channels.rs"]
+mod channels;
 #[path = "plugins/commands.rs"]
 mod commands;
 #[path = "common/mod.rs"]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, kind, name, topic, parent_id, position, bitrate, user_limit, text_in_voice\n         FROM channels",
+  "query": "SELECT id, kind, name, topic, parent_id, position, bitrate, user_limit, text_in_voice,\n                plugin_id, type_key\n         FROM channels",
   "describe": {
     "columns": [
       {
@@ -101,6 +101,28 @@
             "name": "text_in_voice"
           }
         }
+      },
+      {
+        "name": "plugin_id",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "channels",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "type_key",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "channels",
+            "name": "type_key"
+          }
+        }
       }
     ],
     "parameters": {
@@ -115,8 +137,10 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "7a27f8032518f5378a7716f91d7c56fb931eeede7cfb9fdf3470248b3b6dbf70"
+  "hash": "5e9a1a81cbc6eb072f8c18635eeb1e49d15e1e09e64414a59c4db4e6cc9e3770"
 }

@@ -24,7 +24,8 @@ use crate::voice::states::VoiceStates;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Audience {
     Everyone,
-    /// Sessions whose user can view the channel.
+    /// Sessions whose user can view the channel, and whose app shows its
+    /// kind (`Session::sees_kind`).
     Channel(i64),
     /// Sessions whose user is connected to the voice channel. Never
     /// broadcast to it while holding the voice states.
@@ -184,10 +185,17 @@ impl AppState {
                 .collect(),
             _ => HashSet::new(),
         };
+        let channel_kind = match audience {
+            Audience::Channel(channel_id) => guild.channels.get(&channel_id).map(|c| c.kind),
+            _ => None,
+        };
         for session in self.sessions.all() {
             let receives = match audience {
                 Audience::Everyone => true,
-                Audience::Channel(channel_id) => guild.can_view(session.user_id, channel_id),
+                Audience::Channel(channel_id) => {
+                    guild.can_view(session.user_id, channel_id)
+                        && channel_kind.is_some_and(|kind| session.sees_kind(kind))
+                }
                 Audience::Voice(_) => in_voice.contains(&session.user_id),
                 Audience::User(user_id) => session.user_id == user_id,
                 Audience::Holding(needed) => {

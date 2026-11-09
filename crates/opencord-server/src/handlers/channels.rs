@@ -4,6 +4,7 @@ use opencord_common::limits::{
 };
 use opencord_common::permissions::{Overwrite, OverwriteTarget, Permissions};
 use opencord_common::validation;
+use opencord_plugins::manifest;
 use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
 
@@ -11,7 +12,7 @@ use super::settings::save_voice_settings;
 use super::{Ctx, ack};
 use crate::db::channels;
 use crate::error::ApiError;
-use crate::guild::{Channel, Guild, overwrite_row, overwrite_target_to_db};
+use crate::guild::{Channel, Guild, PluginChannelRef, overwrite_row, overwrite_target_to_db};
 use crate::permissions::{require_base, require_channel, require_grantable};
 use crate::state::now_ms;
 use crate::visibility::Visibility;
@@ -20,6 +21,7 @@ use crate::voice::settings::VoiceSettings;
 
 pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Response, ApiError> {
     let kind = kind_from_proto(request.kind)?;
+    let plugin = plugin_from_request(kind, request.plugin_id, request.type_key)?;
     let name = validation::channel_name(kind, &request.name)?;
     let topic = optional_topic(request.topic.as_deref())?;
     let parent_id = request.parent_id.filter(|id| *id != 0);
@@ -53,6 +55,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Resp
         bitrate: CHANNEL_BITRATE_DEFAULT,
         user_limit: 0,
         text_in_voice: true,
+        plugin,
     };
     channels::insert(
         &mut *ctx.state.db.acquire().await?,
@@ -370,8 +373,50 @@ fn kind_from_proto(kind: i32) -> Result<ChannelKind, ApiError> {
         Ok(proto::ChannelKind::Text) => Ok(ChannelKind::Text),
         Ok(proto::ChannelKind::Voice) => Ok(ChannelKind::Voice),
         Ok(proto::ChannelKind::Category) => Ok(ChannelKind::Category),
+        Ok(proto::ChannelKind::Plugin) => Ok(ChannelKind::Plugin),
         _ => Err(ApiError::invalid_argument("unknown channel kind")),
     }
+}
+
+/// A plugin channel's plugin and type, which only plugin channels have and
+/// they must (design 2026-11-07 §14.2).
+fn plugin_from_request(
+    kind: ChannelKind,
+    plugin_id: Option<String>,
+    type_key: Option<String>,
+) -> Result<Option<PluginChannelRef>, ApiError> {
+    match (kind, plugin_id, type_key) {
+        (ChannelKind::Plugin, Some(plugin_id), Some(type_key)) => {
+            if !manifest::valid_id(&plugin_id) {
+                return Err(ApiError::invalid_argument("plugin_id is not a plugin id"));
+            }
+            if !valid_type_key(&type_key) {
+                return Err(ApiError::invalid_argument(
+                    "type_key must be 1 to 40 of a-z, 0-9 and _",
+                ));
+            }
+            Ok(Some(PluginChannelRef {
+                plugin_id,
+                type_key,
+            }))
+        }
+        (ChannelKind::Plugin, _, _) => Err(ApiError::invalid_argument(
+            "a plugin channel needs its plugin_id and type_key",
+        )),
+        (_, None, None) => Ok(None),
+        _ => Err(ApiError::invalid_argument(
+            "only plugin channels have a plugin_id and type_key",
+        )),
+    }
+}
+
+/// Whether `key` is a channel type's key: `^[a-z0-9_]{1,40}$` (design
+/// 2026-11-07 §14.1).
+pub(crate) fn valid_type_key(key: &str) -> bool {
+    (1..=40).contains(&key.len())
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
 fn target_from_proto(kind: i32, id: i64) -> Result<OverwriteTarget, ApiError> {
