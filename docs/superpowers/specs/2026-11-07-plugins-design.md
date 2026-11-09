@@ -389,7 +389,7 @@ Names are the contract the plan builds and the type definitions describe.
 | Events | `opencord.on(event, fn)`, `opencord.off(event, fn)` |
 | Plugin | `opencord.id`, `opencord.version`, `opencord.has_permission(p)`, `config.get(key)`, `log.info/warn/error(...)` |
 | Messages | `messages.send(channel, { content, files? })`, `messages.edit(id, content)`, `messages.delete(id)`, `messages.fetch(channel, { before?, limit })`, `typing.start(channel)` |
-| Commands | `commands.register({ name, description, options })` (option kinds as in `commands.proto`), `commands.unregister(name)`; a command event carries `reply(content, { only_you? })` |
+| Commands | `commands.register({ name, description, options })` (option kinds as in `commands.proto`), `commands.unregister(name)`; a command event carries `reply(content, { only_you? })`. **From M1.5 (§26.2):** `commands.register(spec, fn)`, `cmd:defer({ only_you? })` |
 | Channels | `channels.list()`, `channels.get(id)`, `channels.create({ kind, name, topic?, parent?, type_key? })`, `channels.update(id, …)`, `channels.delete(id)`, `channels.reorder(…)`, `channels.set_overwrite(…)` |
 | Roles and members | `roles.list/create/update/delete/reorder`, `members.list/get`, `members.add_role/remove_role`, `members.set_nickname`, `members.kick(user, reason?)`, `members.ban/unban`, `bans.list()` |
 | Voice | `voice.states(channel?)`, `voice.move/disconnect/mute/deafen(user, …)`, `soundboard.play(channel, sound)` |
@@ -413,7 +413,7 @@ limits and events), and is rate-limited like a member (§21).
 |---|---|---|
 | Plugin | `start`, `stop`, `update` (from, to), `settings_change`, `permission_change` | — |
 | Messages | `message_create`, `message_update`, `message_delete`, `typing_start` | `read_messages` |
-| Commands | `command`, `command_autocomplete` | `register_commands` |
+| Commands | `command`, `command_autocomplete` (M1 only; M1.5 replaces them with a function per command, §26.2) | `register_commands` |
 | Channels | `channel_create`, `channel_update` (moves included), `channel_delete` | `read_channels` |
 | Your channel types | `plugin_channel_create`, `plugin_channel_delete` | — |
 | Roles | `role_create`, `role_update`, `role_delete` | `read_roles` |
@@ -936,6 +936,9 @@ The install and update reviews (§9.1, §9.2) are dialogs on this tab.
 - Commands: plugin commands use the existing command specs, with `feature`
   set to `plugin:<id>`; `CommandsUpdate` goes out when they change.
 - Permissions: `MANAGE_PLUGINS`, `START_ACTIVITIES`; the managed role.
+- From M1.5 (§26): a `source` on `ExecuteCommand`, `AutocompleteCommand`
+  and `UpdateCommandSettings`; a command state (*thinking*, *answered*,
+  *no answer*) on `MessageInteraction` and `EphemeralMessage`.
 
 ## 21. Limits
 
@@ -971,6 +974,10 @@ Defaults *(Claude's numbers)*, changeable in a `[plugins]` section of
    update and signing, the Plugins tab, storage, files, internet, web
    hooks, timers, commands, every server event, the `opencord-plugin` CLI
    with dev mode. Example: a simple moderation and welcome bot.
+1.5. **Commands** (desktop and phone; §26). A function per command,
+   "is thinking…", late replies that are never silent, the same name in
+   more than one plugin, the redesigned `/` popup on desktop, and commands
+   on the phone. Starts when the owner calls it.
 2. **Custom channels** (desktop). The client VM in the core, the redraw
    pipeline, `opencord_blocks` with every block in §12, images (§13), the
    plugin channel kind and its states. Example: the ticket system.
@@ -1045,3 +1052,296 @@ and run in integration tests.
     (§13.1).
 20. Plugin users behind plugin authors (§10.6), and plugin files on the
     server's disk (§10.5), both settled while planning.
+21. M1.5: a command's function raising an error answers the member at
+    once (§26.2); `opencord.on` refuses names that aren't events.
+22. M1.5: 15 minutes after a defer, as on Discord; at most 100 commands
+    thinking at once per plugin; the defer decides where the reply goes
+    (§26.3).
+23. M1.5: a thinking message's stored text is "… is thinking…", so older
+    apps show it, and the reply's edit isn't marked as edited (§26.3).
+24. M1.5: late autocomplete suggestions return `false` without a log line
+    (§26.4).
+25. M1.5: without a source, Opencord's command first, then the only
+    plugin's, else "pick one from the list"; uninstalling removes a
+    plugin's command settings, stopping keeps them (§26.5).
+26. M1.5: a clickable prototype of the desktop popup and the phone list,
+    approved by the owner, before building (§26.6).
+27. M1.5: Ctrl+↑/↓ jump between groups; an empty filter shows "No commands
+    match" instead of closing; rail order is install order (§26.6).
+28. M1.5: on the phone the attach button shows whenever Commands can be
+    used, even without attach permission (§26.7).
+29. M1.5: the `@`, `#` and `:` suggestions get the same new popup, without
+    the rail and groups (§26.6).
+
+## 26. Milestone 1.5: commands
+
+Added on 2026-11-08 by the owner, after M1's commands (plan Task 14) were
+built. It comes between M1 and M2, starts only when the owner calls it,
+and other changes may still join it.
+
+### 26.1 Why, and what it must and mustn't be
+
+M1's commands work, but not the way people expect from Discord:
+
+- every command arrives through one shared `command` event, so each plugin
+  checks names by hand, a typo fails silently, and two listeners can both
+  try to answer;
+- a plugin has 3 seconds and no way to say "working on it", so anything
+  that waits on the internet or a big query fails;
+- a reply that comes too late disappears without a trace;
+- the first plugin to take a name keeps it from every other plugin.
+
+The desktop `/` popup was also left behind by the floating UI: the command
+being written draws its own bordered box inside the composer float, the
+list and the option picker open with no `pop`, and the option picker is a
+separate box of its own size. The phone has no commands at all.
+
+- **Goals:** a command is a function; slow commands work; no failure is
+  silent; plugins share names the way Discord apps do; one popup that looks
+  like it belongs to the floating UI on desktop and feels native on the
+  phone.
+- **Non-goals:** buttons or menus under a reply (message components stay
+  for later); the Commands page on the phone (managing stays desktop only,
+  §18); a slash button on desktop (typing `/` stays the way in).
+- **Anti-goals:** the list pushing the chat up, resizing it or moving its
+  scroll; a long list breaking the layout; the server guessing between two
+  plugins' commands.
+
+### 26.2 A function per command
+
+```lua
+commands.register({
+  name = "roll",
+  description = "Roll a die",
+  options = {
+    { name = "sides", description = "How many sides", kind = "integer",
+      min = 2, max = 100,
+      autocomplete = function(ac)
+        ac:suggest({ { name = "d6", value = "6" }, { name = "d20", value = "20" } })
+      end },
+  },
+}, function(cmd)
+  cmd:reply("You rolled " .. math.random(1, cmd.options.sides or 6))
+end)
+```
+
+- `commands.register(spec, fn)`: `fn` is required; anything else raises
+  `"INVALID_ARGUMENT: a command needs a function"`. The rules on names,
+  descriptions, options and choices stay as M1's.
+- An option's `autocomplete` is a function, called with `ac`, instead of
+  `true`.
+- Registering a name the plugin already has replaces its spec and its
+  function.
+- The `command` and `command_autocomplete` events are gone from §10.4.
+  `opencord.on` with a name that isn't an event in §10.4 now raises
+  `"INVALID_ARGUMENT: no event called {name}"`, so a typo isn't silent
+  either *(Claude's call)*.
+- A command's function that raises an error answers the member at once
+  with "{plugin name} ran into an error" and writes the error to the
+  plugin's log; the member doesn't wait out the 3 seconds *(Claude's
+  call)*.
+
+### 26.3 "Is thinking…"
+
+```lua
+function(cmd)
+  cmd:defer()                         -- or cmd:defer({ only_you = true })
+  local res = http.request({ method = "GET", url = "https://api.example.com/weather" })
+  cmd:reply("It's " .. res.body .. " outside")
+end
+```
+
+- `cmd:defer({ only_you? })` must come within the first 3 seconds. After
+  it, the plugin has **15 minutes** to call `cmd:reply`, as on Discord. A
+  second `defer`, or one after a reply, raises
+  `"INVALID_ARGUMENT: already answered"`.
+- The member's request returns as soon as the plugin defers.
+- **In the channel:** the server posts a message from the plugin user,
+  with the command's `interaction` and the state *thinking*, whose stored
+  text is "{plugin name} is thinking…" so older apps show something
+  sensible. The reply then edits that message: the text becomes the reply
+  and the state *answered*. This edit isn't marked as edited.
+- **Only you:** an `EphemeralMessage` in the state *thinking*; the reply is
+  an `EphemeralMessage` with the same nonce, which replaces it.
+- `defer` decides where the reply goes; the reply's own `only_you` is
+  ignored after a defer. If the plugin can't post in the channel, or the
+  server sends every command's result privately (`results_private`), the
+  defer goes to the member only, by M1's rules.
+- Older apps show the *thinking* text, and for a private defer the
+  reply as a second line under it *(Claude's call: not worth gating)*.
+- **No reply within 15 minutes,** or the plugin stops while thinking: the
+  message, or the member's ephemeral line, becomes "{plugin name} didn't
+  answer" in the state *no answer*.
+- At most **100 commands thinking at once per plugin**; one more raises
+  `"PLUGIN_LIMIT: too many commands waiting"` *(Claude's number)*.
+
+### 26.4 Late replies are never silent
+
+- `cmd:reply` after the 3 seconds (no defer) or after the 15 minutes
+  raises `"TIMEOUT: too late to reply"` and writes a warning to the
+  plugin's log: "/roll answered after 4.2 s, too late".
+- `ac:suggest` after autocomplete's 1 second returns `false` and logs
+  nothing: the member has already typed on, and it would flood the log
+  *(Claude's call)*.
+
+### 26.5 The same name in more than one place
+
+- A command belongs to its **source**: Opencord itself (built-in commands
+  and the app's own, like `/volume` and `/music`), or one plugin. Its
+  name is unique only inside its source. A plugin may use a built-in's
+  name or alias, and two plugins may use the same name.
+- The source is the command spec's `feature` when it starts with
+  `plugin:`, and empty for Opencord. `ExecuteCommand`,
+  `AutocompleteCommand` and `UpdateCommandSettings` gain a `source` field.
+- **A request without a source** (an older app, or a name typed and sent
+  without picking from the list): Opencord's command runs if there is one;
+  otherwise the only plugin with that name; otherwise the member gets
+  "Two commands are called /roll. Pick one from the list."
+- **Commands settings** (off, allowed channels) are kept per source: a
+  plugin command's key is `plugin:<id>/<name>`. Built-ins keep their plain
+  names, so settings already saved carry over without a migration.
+  Uninstalling a plugin removes its keys; stopping it keeps them *(Claude's
+  call)*.
+- The Commands page groups commands by source, each group headed by the
+  plugin's icon and name.
+- 100 commands per plugin stays.
+
+### 26.6 The desktop popup
+
+Approved by the owner on 2026-11-08 in its outline; the plan starts with a
+clickable prototype that settles the pixels, approved by the owner before
+building, as the floating UI was *(Claude's call)*. Everything here
+follows the floating UI design (`2026-11-04-floating-ui-design.md`): its
+motion rules and tokens (§4) and its menu surface (§5.17).
+
+```
+┌──────┬──────────────────────────────────────────────┐
+│ [OC] │ OPENCORD                                      │
+│      │  /play     query      Play a song or playlist │
+│[dice]│ DICE BOT                                      │
+│      │  /roll     sides      Roll a die              │
+│[tix] │ TICKETS                                       │
+│      │  /roll                Roll a raffle ticket    │
+│      │  /ticket   topic      Open a support ticket   │
+└──────┴──────────────────────────────────────────────┘
+```
+
+- **Where:** above the composer float, its left edge on the float's left
+  edge, as wide as the float, a gap above it. It floats over the messages
+  and never changes their size, scroll position or anything else on
+  screen.
+- **Surface:** the menu surface of §5.17 (`elevated`, 1 px `border`, the
+  menu shadow), at the radius the prototype settles.
+- **Height:** as tall as its rows, up to a cap and never more than the
+  room above the composer; past that it scrolls inside itself. The bottom
+  edge stays put while typing filters it; only the top moves, at once,
+  with no animation.
+- **Rail:** on the left, only when the commands come from more than one
+  source. Opencord's icon first, then each plugin's icon from its
+  manifest (its initials when it has none), in the order the plugins were
+  installed. The rail scrolls when it's long. Clicking an icon scrolls the
+  list to that group; scrolling the list moves the rail's highlight
+  (150 ms `easeOut`, as the server rail's indicator). Hovering an icon
+  shows the plugin's name.
+- **Groups:** a header per source (its icon and its name, in the label
+  style of today's "COMMANDS" heading) that sticks to the top while its
+  commands scroll under it.
+- **Rows:** `/name`, its options' names in muted text, the description,
+  each on one line, ending in "…" when too long. A command that can't be
+  used here is dimmed and shows why instead of its description, as today.
+  The row under the keyboard selection or the pointer has the `selected`
+  background, changing on the plain hover timing (120 ms).
+- **Typing filters** by name and alias; empty groups and their rail icons
+  disappear. Nothing matching shows one muted row, "No commands match
+  /xyz", so a typo doesn't make the popup blink shut.
+- **Keyboard:** ↑ and ↓ move through every row across groups and wrap;
+  Ctrl+↑ and Ctrl+↓ jump to the previous or next group *(Claude's call)*;
+  Enter or Tab picks; Esc closes. The selected row stays in view.
+- **Long lists:** rows are built lazily; 50 plugins with 100 commands each
+  (5,000 rows) scroll smoothly.
+- **Motion:** opens on `pop` (§4.3's table) from its bottom-left corner;
+  closes at once (§5.17). Reduced motion: no animation.
+- **The command being written:** no box of its own; it sits in the
+  composer float where the text field was. The `/name` chip, with the
+  plugin's icon inside it when it comes from a plugin, then its options as
+  inline fields, with today's keys (Tab, Enter, Esc, and removing the
+  chip from the keyboard).
+- **Choices and autocomplete** (an option's list, `/play`'s songs with
+  their artwork): the same surface, place and motion as the `/` list,
+  not a separate box.
+- **Mentions, channels and emoji** use the same popup (surface, place,
+  rows, motion); the rail and the groups are only for commands *(Claude's
+  call)*.
+- **In the chat:** a *thinking* message shows the plugin's name and a
+  muted "is thinking…" with three dots fading in turn (off under reduced
+  motion); *no answer* shows muted with a small icon. Ephemeral messages
+  keep "Only you can see this · Dismiss".
+
+### 26.7 The phone
+
+Approved by the owner on 2026-11-08. The phone gets commands in full:
+listing, picking, filling in options, running, autocomplete, thinking and
+private replies. It follows §18's feel and the owner's standing wish that
+the phone feel native and premium, not like a copy of the desktop.
+
+- **The core:** the phone's binding (`opencord-mobile`) gains the command
+  list (it ignores `CommandsUpdate` today), running, autocomplete,
+  `EphemeralMessage`s in the chat, and the message states of §26.3. The
+  same availability rules as desktop (`commandUnavailable`).
+- **Opening it:**
+  - the attach button's menu gets a third entry, **Commands**, after Photo
+    and File;
+  - tapping it puts `/` in the field, keeps the keyboard up and opens the
+    list; typing `/` as the first character opens it too; deleting the
+    `/` closes it;
+  - the attach button shows whenever one of its entries can be used, so a
+    channel where someone can't attach files still has it, with only
+    Commands; Commands is left out when the server has no commands, and
+    the whole button is hidden while editing a message, as today.
+- **The list:**
+  - floats over the messages, just above the composer, the screen's width
+    minus its side margins;
+  - **it never moves anything:** opening, filtering and closing don't
+    change the message list's size or scroll position, and the composer
+    doesn't move;
+  - at most 40 % of the room between the top safe area and the composer;
+    a longer list scrolls inside it;
+  - on top, a **horizontal row of sources** (Opencord, then each plugin's
+    icon), shown only when there's more than one; it scrolls sideways when
+    long; tapping an icon scrolls the list to that group, and scrolling the
+    list moves the highlight;
+  - under it, the commands in groups with sticky headers; a row is the
+    source's icon, `/name`, and the description under it, each on one line
+    with "…"; unavailable rows dimmed with the reason;
+  - built lazily, like desktop's;
+  - opens with a short rise and fade with no bounce, closes faster
+    *(the prototype settles the timing)*; a light haptic on picking;
+    reduced motion turns both off;
+  - closes when the keyboard is dismissed and on Android's back gesture,
+    before anything else.
+- **After picking:** the command becomes a chip at the start of the field
+  and its options a row of chips above it, inside the composer, scrolling
+  sideways if many; tapping an option's chip edits it; required ones are
+  marked. Choice, yes/no and autocomplete options open their list in the
+  same floating spot. Send runs the command; Backspace on an empty field
+  removes the chip.
+- **Replies:** private replies show with "Only you can see this" and a way
+  to dismiss them; *thinking* and *no answer* as on desktop.
+
+### 26.8 Testing
+
+- **Server:** a function per command; an error in it answers at once; an
+  unknown event name raises; defer in the channel and only to the member;
+  the 15 minutes running out; the plugin stopping while thinking; the
+  thinking cap; a late reply raising and being logged; every row of
+  §26.5's resolution rule, older apps included; settings keys per source
+  and existing settings carried over; uninstall removing a plugin's keys.
+- **Desktop:** the rail only with two sources or more; clicking an icon
+  and scrolling the list keep each other in step; the keyboard across
+  groups; the empty row; 5,000 rows; **the message list's size and scroll
+  offset unchanged** while the popup opens, filters and closes; the
+  opening curve pinned against §4.3; goldens in light and dark.
+- **Phone:** the attach menu's entries in every case of §26.7; the list
+  not moving the messages or the composer (measured); the source row;
+  5,000 rows; picking, options, running, private replies; real-phone
+  checks of the keyboard, back gesture and haptics (human, owed).
