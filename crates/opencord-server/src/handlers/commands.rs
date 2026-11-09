@@ -1,21 +1,26 @@
 //! Chat command requests (Phase 3 plan §17.5): running a command, its
 //! autocomplete, and the Commands page.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use opencord_common::permissions::Permissions;
 use opencord_common::snowflake;
+use opencord_plugins::limits::{AUTOCOMPLETE_TIME, COMMAND_REPLY_TIME};
 use opencord_proto::v1 as proto;
 use proto::event::Kind as Event;
 use proto::response::Result as Response;
+use tokio::sync::oneshot;
 
 use super::Ctx;
 use crate::commands::music::{self, Reply};
 use crate::commands::options::Options;
+use crate::commands::thinking::{self, Place, StartThinking, ThinkingId};
 use crate::commands::{self, CommandSettings};
 use crate::db::messages;
 use crate::error::ApiError;
 use crate::permissions::{require_base, require_channel};
+use crate::plugins::command_calls::CommandAnswer;
+use crate::plugins::permissions::PluginPermission;
 use crate::state::Audience;
 
 /// Nonces are at most this long.
@@ -33,36 +38,93 @@ impl UsableCommand {
             Self::Plugin(p) => &p.spec.name,
         }
     }
+
+    fn settings_key(&self) -> String {
+        match self {
+            Self::Builtin(s) => commands::settings_key(s.feature, s.name),
+            Self::Plugin(p) => commands::settings_key(&p.spec.feature, &p.spec.name),
+        }
+    }
+}
+
+fn not_a_command(name: &str) -> ApiError {
+    ApiError::new(
+        proto::ErrorCode::CommandUnknown,
+        format!("/{name} isn't a command here"),
+    )
+}
+
+/// The command `name` in `source`. With no source (an older app, or a name
+/// typed without picking) Opencord's runs if it's set up here, then the
+/// only plugin with the name; two plugins are never guessed between.
+fn resolve(ctx: &Ctx<'_>, name: &str, source: &str) -> Result<UsableCommand, ApiError> {
+    if let Some(plugin_id) = source.strip_prefix(commands::PLUGIN_SOURCE_PREFIX) {
+        return ctx
+            .state
+            .commands
+            .find_plugin(plugin_id, name)
+            .map(UsableCommand::Plugin)
+            .ok_or_else(|| not_a_command(name));
+    }
+    if !source.is_empty() {
+        return Err(not_a_command(name));
+    }
+    let builtin = commands::find(name);
+    let mut plugins = ctx.state.commands.plugins_named(name);
+    if let Some(spec) = builtin
+        && (plugins.is_empty() || commands::feature_ready(ctx.state, spec.feature))
+    {
+        return Ok(UsableCommand::Builtin(spec));
+    }
+    match plugins.len() {
+        0 => Err(not_a_command(name)),
+        1 => Ok(UsableCommand::Plugin(plugins.remove(0))),
+        _ => Err(ApiError::new(
+            proto::ErrorCode::CommandUnknown,
+            format!("Two commands are called /{name}. Pick one from the list."),
+        )),
+    }
 }
 
 /// The command, on, and allowed in `channel_id`.
-fn usable(ctx: &Ctx<'_>, name: &str, channel_id: i64) -> Result<UsableCommand, ApiError> {
-    let name_trimmed = name.trim_start_matches('/').to_ascii_lowercase();
-    let command = if let Some(spec) = commands::find(&name_trimmed) {
-        UsableCommand::Builtin(spec)
-    } else if let Some(plugin_cmd) = ctx.state.commands.find_plugin(&name_trimmed) {
-        UsableCommand::Plugin(plugin_cmd)
-    } else {
-        return Err(ApiError::new(
-            proto::ErrorCode::CommandUnknown,
-            format!("/{name_trimmed} isn't a command here"),
-        ));
-    };
-
+fn usable(
+    ctx: &Ctx<'_>,
+    name: &str,
+    source: &str,
+    channel_id: i64,
+) -> Result<UsableCommand, ApiError> {
+    let name = name.trim_start_matches('/').to_ascii_lowercase();
+    let command = resolve(ctx, &name, source)?;
     let settings = ctx.state.commands.settings();
-    if !settings.enabled(command.name()) {
+    let key = command.settings_key();
+    if !settings.enabled(&key) {
         return Err(ApiError::new(
             proto::ErrorCode::CommandDisabled,
             format!("/{} is turned off on this server", command.name()),
         ));
     }
-    if !settings.allowed_in(command.name(), channel_id) {
+    if !settings.allowed_in(&key, channel_id) {
         return Err(ApiError::new(
             proto::ErrorCode::CommandNotAllowedHere,
             format!("/{} can't be used in this channel", command.name()),
         ));
     }
     Ok(command)
+}
+
+/// The key `name` in `source` has on the Commands page, if it exists.
+fn settings_key_of(ctx: &Ctx<'_>, name: &str, source: &str) -> Option<String> {
+    if let Some(plugin_id) = source.strip_prefix(commands::PLUGIN_SOURCE_PREFIX) {
+        let command = ctx.state.commands.find_plugin(plugin_id, name)?;
+        return Some(commands::settings_key(
+            &command.spec.feature,
+            &command.spec.name,
+        ));
+    }
+    if !source.is_empty() {
+        return None;
+    }
+    commands::find(name).map(|spec| commands::settings_key(spec.feature, spec.name))
 }
 
 fn parse_plugin_options(
@@ -184,7 +246,7 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
             Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
         )?;
     }
-    let command = usable(ctx, &request.name, request.channel_id)?;
+    let command = usable(ctx, &request.name, &request.source, request.channel_id)?;
     match command {
         UsableCommand::Builtin(spec) => {
             let options = Options::parse(spec, &request.options)?;
@@ -203,7 +265,11 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                         request.channel_id,
                         ctx.user_id,
                         &content,
-                        Some(spec.name),
+                        Some(messages::CommandRun {
+                            name: spec.name,
+                            user_id: ctx.user_id,
+                            state: proto::CommandState::Answered as i32,
+                        }),
                     )
                     .await?;
                     let message = proto::Message {
@@ -217,6 +283,7 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                         interaction: Some(proto::MessageInteraction {
                             user_id: ctx.user_id,
                             command: spec.name.to_owned(),
+                            state: proto::CommandState::Answered as i32,
                         }),
                         attachments: Vec::new(),
                     };
@@ -245,9 +312,7 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                 .state
                 .plugins
                 .get(&plugin_cmd.plugin_id)
-                .is_some_and(|h| {
-                    h.holds(crate::plugins::permissions::PluginPermission::RegisterCommands)
-                });
+                .is_some_and(|h| h.holds(PluginPermission::RegisterCommands));
             if !has_reg {
                 let name = plugin_name(ctx, &plugin_cmd.plugin_id);
                 return Err(ApiError::new(
@@ -274,120 +339,184 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
             let event = crate::plugins::PluginEvent {
                 name: "command".to_owned(),
                 payload,
-                reply: Some(tx),
+                reply: None,
+                command: Some(tx),
             };
             ctx.state.plugins.deliver(&plugin_cmd.plugin_id, event);
 
-            let answer = match tokio::time::timeout(std::time::Duration::from_secs(3), rx).await {
-                Ok(Ok(val)) => val,
-                _ => {
-                    let name = plugin_name(ctx, &plugin_cmd.plugin_id);
-                    return Err(ApiError::new(
-                        proto::ErrorCode::PluginUnavailable,
-                        format!("{name} didn't answer"),
-                    ));
-                }
-            };
-
-            let content_raw = answer
-                .get("content")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default();
-            let content = match opencord_common::validation::message_content(content_raw) {
-                Ok(c) => c,
-                Err(_) => {
-                    let name = plugin_name(ctx, &plugin_cmd.plugin_id);
-                    return Err(ApiError::new(
-                        proto::ErrorCode::PluginUnavailable,
-                        format!("{name} sent an invalid reply"),
-                    ));
-                }
-            };
-            let only_you = answer
-                .get("only_you")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-
-            let public_results = !ctx.state.commands.settings().results_private;
-            if only_you || !public_results {
-                ephemeral(ctx, request.channel_id, &request.nonce, content);
-                return Ok(Response::CommandResult(proto::CommandResult {
-                    message_id: None,
-                    ephemeral: true,
-                }));
-            }
-
-            // Check if plugin can send public messages in this channel
-            let (has_perm, can_send_in_channel, plugin_user) = {
-                let guild = ctx.state.guild();
-                let has_perm = ctx
-                    .state
-                    .plugins
-                    .get(&plugin_cmd.plugin_id)
-                    .is_some_and(|h| {
-                        h.holds(crate::plugins::permissions::PluginPermission::SendMessages)
-                    });
-                let plugin_user = guild
-                    .plugin_users
-                    .iter()
-                    .find(|(_, u)| u.plugin_id == plugin_cmd.plugin_id)
-                    .map(|(&id, _)| id);
-                let can_send_in_channel = plugin_user.is_some_and(|user_id| {
-                    guild
-                        .channel_permissions(user_id, request.channel_id)
-                        .contains(Permissions::SEND_MESSAGES)
-                });
-                (has_perm, can_send_in_channel, plugin_user)
-            };
-
-            if has_perm
-                && can_send_in_channel
-                && let Some(author_id) = plugin_user
-            {
-                let id = ctx.state.ids.next_id();
-                let mut conn = ctx.state.db.acquire().await?;
-                messages::insert_result(
-                    &mut conn,
-                    id,
-                    request.channel_id,
-                    author_id,
-                    &content,
-                    Some(&plugin_cmd.spec.name),
+            let unavailable = |what: &str| {
+                let name = plugin_name(ctx, &plugin_cmd.plugin_id);
+                ApiError::new(
+                    proto::ErrorCode::PluginUnavailable,
+                    format!("{name} {what}"),
                 )
-                .await?;
-                let message = proto::Message {
-                    id,
-                    channel_id: request.channel_id,
-                    author_id,
-                    content,
-                    created_at_ms: snowflake::timestamp_ms(id),
-                    edited_at_ms: None,
-                    nonce: None,
-                    interaction: Some(proto::MessageInteraction {
-                        user_id: ctx.user_id,
-                        command: plugin_cmd.spec.name.clone(),
-                    }),
-                    attachments: Vec::new(),
-                };
-                ctx.state.broadcast(
-                    Event::MessageCreate(proto::MessageCreate {
-                        message: Some(message),
-                    }),
-                    Audience::Channel(request.channel_id),
-                );
-                Ok(Response::CommandResult(proto::CommandResult {
-                    message_id: Some(id),
-                    ephemeral: false,
-                }))
-            } else {
-                ephemeral(ctx, request.channel_id, &request.nonce, content);
-                Ok(Response::CommandResult(proto::CommandResult {
-                    message_id: None,
-                    ephemeral: true,
-                }))
+            };
+            match wait_for_answer(rx, COMMAND_REPLY_TIME).await {
+                Some(CommandAnswer::Reply { content, only_you }) => {
+                    post_reply(ctx, &request, &plugin_cmd, content, only_you).await
+                }
+                Some(CommandAnswer::Defer { only_you, started }) => {
+                    match begin_thinking(ctx, &request, &plugin_cmd, only_you).await {
+                        Ok((id, response)) => {
+                            // A plugin that stopped meanwhile was abandoned.
+                            let _ = started.send(Ok(id));
+                            Ok(response)
+                        }
+                        Err(error) => {
+                            let _ = started.send(Err(error));
+                            Err(unavailable("ran into an error"))
+                        }
+                    }
+                }
+                Some(CommandAnswer::Failed) => Err(unavailable("ran into an error")),
+                None => Err(unavailable("didn't answer")),
             }
         }
     }
+}
+
+/// What the plugin answered within `limit`; `None` tells it nothing arrived.
+async fn wait_for_answer<T>(mut answer: oneshot::Receiver<T>, limit: Duration) -> Option<T> {
+    match tokio::time::timeout(limit, &mut answer).await {
+        Ok(result) => result.ok(),
+        Err(_) => last_chance(&mut answer),
+    }
+}
+
+/// After the wait: an answer already sent is used, and one sent from now on
+/// fails, so a plugin is never told it answered a member who saw nothing.
+fn last_chance<T>(answer: &mut oneshot::Receiver<T>) -> Option<T> {
+    answer.close();
+    answer.try_recv().ok()
+}
+
+/// Whether the plugin may post in the channel, and as which user.
+fn plugin_poster(ctx: &Ctx<'_>, plugin_id: &str, channel_id: i64) -> Option<i64> {
+    let has_permission = ctx
+        .state
+        .plugins
+        .get(plugin_id)
+        .is_some_and(|handle| handle.holds(PluginPermission::SendMessages));
+    if !has_permission {
+        return None;
+    }
+    let guild = ctx.state.guild();
+    let (&user_id, _) = guild
+        .plugin_users
+        .iter()
+        .find(|(_, user)| user.plugin_id == plugin_id)?;
+    guild
+        .channel_permissions(user_id, channel_id)
+        .contains(Permissions::SEND_MESSAGES)
+        .then_some(user_id)
+}
+
+/// A plugin's reply: in the channel when it can post there and the member
+/// is meant to share it, otherwise only to the member.
+async fn post_reply(
+    ctx: &Ctx<'_>,
+    request: &proto::ExecuteCommand,
+    plugin_cmd: &commands::PluginCommand,
+    content: String,
+    only_you: bool,
+) -> Result<Response, ApiError> {
+    let public = !only_you && !ctx.state.commands.settings().results_private;
+    let poster = if public {
+        plugin_poster(ctx, &plugin_cmd.plugin_id, request.channel_id)
+    } else {
+        None
+    };
+    let Some(author_id) = poster else {
+        ephemeral(ctx, request.channel_id, &request.nonce, content);
+        return Ok(Response::CommandResult(proto::CommandResult {
+            message_id: None,
+            ephemeral: true,
+        }));
+    };
+    let id = ctx.state.ids.next_id();
+    let state = proto::CommandState::Answered as i32;
+    let mut conn = ctx.state.db.acquire().await?;
+    messages::insert_result(
+        &mut conn,
+        id,
+        request.channel_id,
+        author_id,
+        &content,
+        Some(messages::CommandRun {
+            name: &plugin_cmd.spec.name,
+            user_id: ctx.user_id,
+            state,
+        }),
+    )
+    .await?;
+    let message = proto::Message {
+        id,
+        channel_id: request.channel_id,
+        author_id,
+        content,
+        created_at_ms: snowflake::timestamp_ms(id),
+        edited_at_ms: None,
+        nonce: None,
+        interaction: Some(proto::MessageInteraction {
+            user_id: ctx.user_id,
+            command: plugin_cmd.spec.name.clone(),
+            state,
+        }),
+        attachments: Vec::new(),
+    };
+    ctx.state.broadcast(
+        Event::MessageCreate(proto::MessageCreate {
+            message: Some(message),
+        }),
+        Audience::Channel(request.channel_id),
+    );
+    Ok(Response::CommandResult(proto::CommandResult {
+        message_id: Some(id),
+        ephemeral: false,
+    }))
+}
+
+/// Puts up the thinking line: where the reply will go is decided here.
+async fn begin_thinking(
+    ctx: &Ctx<'_>,
+    request: &proto::ExecuteCommand,
+    plugin_cmd: &commands::PluginCommand,
+    only_you: bool,
+) -> Result<(ThinkingId, Response), ApiError> {
+    let public = !only_you && !ctx.state.commands.settings().results_private;
+    let poster = if public {
+        plugin_poster(ctx, &plugin_cmd.plugin_id, request.channel_id)
+    } else {
+        None
+    };
+    let message_id = poster.map(|_| ctx.state.ids.next_id());
+    let place = match (message_id, poster) {
+        (Some(message_id), Some(author_id)) => Place::Channel {
+            message_id,
+            author_id,
+        },
+        _ => Place::OnlyYou {
+            session_id: ctx.session_id.to_owned(),
+            nonce: request.nonce.clone(),
+        },
+    };
+    let id = thinking::start(
+        ctx.state,
+        StartThinking {
+            plugin_id: plugin_cmd.plugin_id.clone(),
+            plugin_name: plugin_name(ctx, &plugin_cmd.plugin_id),
+            command: plugin_cmd.spec.name.clone(),
+            channel_id: request.channel_id,
+            member_id: ctx.user_id,
+            place,
+        },
+    )
+    .await?;
+    let response = Response::CommandResult(proto::CommandResult {
+        message_id,
+        ephemeral: message_id.is_none(),
+    });
+    Ok((id, response))
 }
 
 /// A reply only the sending session sees (§17.3); never stored.
@@ -398,6 +527,7 @@ fn ephemeral(ctx: &Ctx<'_>, channel_id: i64, nonce: &str, content: String) {
                 channel_id,
                 nonce: nonce.to_owned(),
                 content,
+                state: proto::CommandState::Answered as i32,
             })),
         };
         session.push_event(&event, Instant::now());
@@ -412,7 +542,7 @@ pub async fn autocomplete(
         .rate_limits
         .check_autocomplete(ctx.user_id)
         .map_err(ApiError::rate_limited)?;
-    let command = usable(ctx, &request.name, request.channel_id)?;
+    let command = usable(ctx, &request.name, &request.source, request.channel_id)?;
     match command {
         UsableCommand::Builtin(spec) => {
             let autocompletes = spec
@@ -452,11 +582,12 @@ pub async fn autocomplete(
                 name: "command_autocomplete".to_owned(),
                 payload,
                 reply: Some(tx),
+                command: None,
             };
             ctx.state.plugins.deliver(&plugin_cmd.plugin_id, event);
 
-            let choices = match tokio::time::timeout(std::time::Duration::from_secs(1), rx).await {
-                Ok(Ok(val)) => {
+            let choices = match wait_for_answer(rx, AUTOCOMPLETE_TIME).await {
+                Some(val) => {
                     let mut list = Vec::new();
                     if let Some(choices_arr) = val.get("choices").and_then(|c| c.as_array()) {
                         for item in choices_arr {
@@ -477,7 +608,7 @@ pub async fn autocomplete(
                     }
                     list
                 }
-                _ => Vec::new(),
+                None => Vec::new(),
             };
             Ok(Response::CommandChoices(proto::CommandChoices { choices }))
         }
@@ -498,15 +629,12 @@ pub async fn update_settings(
     let mut settings: CommandSettings = ctx.state.commands.settings();
     if !request.name.is_empty() {
         let name = request.name.trim_start_matches('/').to_ascii_lowercase();
-        let exists =
-            commands::find(&name).is_some() || ctx.state.commands.find_plugin(&name).is_some();
-        if !exists {
-            return Err(ApiError::not_found("command"));
-        }
+        let key = settings_key_of(ctx, &name, &request.source)
+            .ok_or_else(|| ApiError::not_found("command"))?;
         if let Some(enabled) = request.enabled {
-            settings.disabled.retain(|off| *off != name);
+            settings.disabled.retain(|off| *off != key);
             if !enabled {
-                settings.disabled.push(name.clone());
+                settings.disabled.push(key.clone());
             }
         }
         if let Some(channels) = request.channel_ids {
@@ -519,9 +647,9 @@ pub async fn update_settings(
                 return Err(ApiError::not_found("channel"));
             }
             if channels.ids.is_empty() {
-                settings.channels.remove(&name);
+                settings.channels.remove(&key);
             } else {
-                settings.channels.insert(name, channels.ids);
+                settings.channels.insert(key, channels.ids);
             }
         }
     }
@@ -533,4 +661,26 @@ pub async fn update_settings(
     tracing::info!(user_id = ctx.user_id, "the command settings changed");
     commands::announce(ctx.state);
     Ok(Response::Commands(commands::all(ctx.state)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_answer_arriving_as_the_wait_ends_is_used() {
+        let (sender, mut receiver) = oneshot::channel();
+        sender.send(7).unwrap();
+
+        assert_eq!(last_chance(&mut receiver), Some(7));
+    }
+
+    #[test]
+    fn an_answer_after_the_wait_ended_is_told_so() {
+        let (sender, mut receiver) = oneshot::channel::<i32>();
+
+        assert_eq!(last_chance(&mut receiver), None);
+
+        assert!(sender.send(7).is_err());
+    }
 }

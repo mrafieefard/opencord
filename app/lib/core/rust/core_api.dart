@@ -494,6 +494,7 @@ abstract interface class CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     List<core.CommandOptionValue> options,
     String nonce,
   );
@@ -502,6 +503,7 @@ abstract interface class CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     String option,
     String value,
   );
@@ -1683,12 +1685,14 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     List<core.CommandOptionValue> options,
     String nonce,
   ) => frb.commandExecute(
     serverKey: serverKey,
     channelId: channelId,
     name: name,
+    source: source,
     options: options,
     nonce: nonce,
   );
@@ -1698,12 +1702,14 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     String option,
     String value,
   ) => frb.commandAutocomplete(
     serverKey: serverKey,
     channelId: channelId,
     name: name,
+    source: source,
     option: option,
     value: value,
   );

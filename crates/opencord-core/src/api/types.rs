@@ -168,8 +168,11 @@ pub struct Message {
     pub edited_at_ms: Option<i64>,
     /// Set on messages this client sent, to match pending ones.
     pub nonce: Option<String>,
-    /// A command's public result: the command run, by the author.
+    /// A command's public result: the command run.
     pub command: Option<String>,
+    /// Who ran it; the author unless a plugin answered.
+    pub command_user_id: Option<i64>,
+    pub command_state: CommandRunState,
     /// In the order they were attached.
     pub attachments: Vec<Attachment>,
 }
@@ -1973,13 +1976,26 @@ pub struct CommandOutcome {
     pub ephemeral: bool,
 }
 
+/// Where a command's reply stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CommandRunState {
+    #[default]
+    Answered,
+    /// The plugin asked for more time; the reply will replace this.
+    Thinking,
+    /// It never came.
+    NoAnswer,
+}
+
 /// A reply only this device sees; never stored.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EphemeralMessage {
     pub channel_id: i64,
-    /// The nonce `command_execute` was given.
+    /// The nonce `command_execute` was given. A later one with the same
+    /// nonce replaces this.
     pub nonce: String,
     pub content: String,
+    pub state: CommandRunState,
 }
 
 /// Changes to a command on the Commands page; `None` stays.
@@ -1987,6 +2003,8 @@ pub struct EphemeralMessage {
 pub struct CommandSettingsChanges {
     /// Empty to change only `results_public`.
     pub name: String,
+    /// Empty for Opencord's commands, `plugin:<id>` for a plugin's.
+    pub source: String,
     pub enabled: Option<bool>,
     /// An empty list for every channel.
     pub channel_ids: Option<Vec<i64>>,

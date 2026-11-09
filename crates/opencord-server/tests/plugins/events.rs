@@ -197,7 +197,7 @@ async fn off_limits_events_never_reach_a_plugin() {
         .collect();
     let source = format!(
         r#"for _, name in ipairs({{ {} }}) do
-            opencord.on(name, function() log.info("event: " .. name) end)
+            pcall(opencord.on, name, function() log.info("event: " .. name) end)
         end"#,
         names.join(", ")
     );

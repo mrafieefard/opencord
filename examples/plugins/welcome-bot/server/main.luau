@@ -22,6 +22,24 @@ local function get_banned_words()
     return list
 end
 
+local function roll(cmd)
+    local sides = 6
+    if cmd.options and cmd.options.sides then
+        local parsed = tonumber(cmd.options.sides)
+        if parsed then
+            sides = math.floor(parsed)
+        end
+    end
+    if sides < 2 then
+        sides = 2
+    elseif sides > 1000 then
+        sides = 1000
+    end
+
+    local rolled = math.random(1, sides)
+    cmd:reply("You rolled " .. tostring(rolled) .. " (1-" .. tostring(sides) .. ")")
+end
+
 opencord.on("start", function()
     init_db()
 
@@ -36,29 +54,9 @@ opencord.on("start", function()
                 required = false,
             },
         },
-    })
+    }, roll)
 
     log.info("welcome bot started")
-end)
-
-opencord.on("command", function(cmd)
-    if cmd.name == "roll" then
-        local sides = 6
-        if cmd.options and cmd.options.sides then
-            local parsed = tonumber(cmd.options.sides)
-            if parsed then
-                sides = math.floor(parsed)
-            end
-        end
-        if sides < 2 then
-            sides = 2
-        elseif sides > 1000 then
-            sides = 1000
-        end
-
-        local rolled = math.random(1, sides)
-        cmd:reply("You rolled " .. tostring(rolled) .. " (1-" .. tostring(sides) .. ")")
-    end
 end)
 
 opencord.on("message_create", function(event)

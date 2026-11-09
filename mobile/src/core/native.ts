@@ -36,6 +36,11 @@ export const NativeCore: CoreApi = {
   typingStart: (key, channel) => native.typingStart(key, channel),
   attachmentFile: (key, attachment, variant) => native.attachmentFile(key, attachment, variant),
 
+  commandExecute: (key, channel, name, source, options, nonce) =>
+    native.commandExecute(key, channel, name, source, options, nonce),
+  commandAutocomplete: (key, channel, name, source, option, value) =>
+    native.commandAutocomplete(key, channel, name, source, option, value),
+
   voiceJoin: (key, channel) => native.voiceJoin(key, channel),
   voiceLeave: () => native.voiceLeave(),
   voiceSetMute: (muted) => native.voiceSetMute(muted),

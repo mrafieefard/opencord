@@ -768,12 +768,13 @@ pub async fn command_execute(
     server_key: String,
     channel_id: i64,
     name: String,
+    source: String,
     options: Vec<CommandOptionValue>,
     nonce: String,
 ) -> Result<CommandOutcome, CoreError> {
     on_runtime(move |client| async move {
         client
-            .command_execute(&server_key, channel_id, name, options, nonce)
+            .command_execute(&server_key, channel_id, name, source, options, nonce)
             .await
     })
     .await
@@ -784,12 +785,13 @@ pub async fn command_autocomplete(
     server_key: String,
     channel_id: i64,
     name: String,
+    source: String,
     option: String,
     value: String,
 ) -> Result<Vec<CommandChoice>, CoreError> {
     on_runtime(move |client| async move {
         client
-            .command_autocomplete(&server_key, channel_id, name, option, value)
+            .command_autocomplete(&server_key, channel_id, name, source, option, value)
             .await
     })
     .await

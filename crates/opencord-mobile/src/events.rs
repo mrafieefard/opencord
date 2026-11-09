@@ -21,6 +21,16 @@ pub const BATCH_MAX: u32 = 1024;
 
 #[derive(Debug, Clone, PartialEq, uniffi::Enum)]
 pub enum MobileEvent {
+    /// The commands this user can use changed.
+    CommandsUpdated {
+        server_key: String,
+        commands: CommandListRecord,
+    },
+    /// A reply only this device sees.
+    EphemeralReceived {
+        server_key: String,
+        note: EphemeralNoteRecord,
+    },
     Connection {
         server_key: String,
         state: ConnectionRecord,
@@ -459,6 +469,14 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             server_key,
             max_seconds: settings.voice_message_max_seconds,
         },
+        CoreEventPayload::CommandsUpdate(list) => MobileEvent::CommandsUpdated {
+            server_key,
+            commands: convert::command_list(list),
+        },
+        CoreEventPayload::EphemeralMessage(message) => MobileEvent::EphemeralReceived {
+            server_key,
+            note: convert::ephemeral_note(message),
+        },
         CoreEventPayload::PluginUsersUpdate(users) => MobileEvent::PluginUsersUpdated {
             server_key,
             plugin_users: users.into_iter().map(convert::plugin_user).collect(),
@@ -477,8 +495,6 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::LavalinkNodeRemoved { .. }
         | CoreEventPayload::LavalinkNodeEvent(_)
         | CoreEventPayload::LavalinkTestProgress(_)
-        | CoreEventPayload::CommandsUpdate(_)
-        | CoreEventPayload::EphemeralMessage(_)
         | CoreEventPayload::PrivateSettingsUpdate(_)
         | CoreEventPayload::StorageUpdate(_)
         | CoreEventPayload::VoiceRejoinFailed { .. }
@@ -599,6 +615,8 @@ mod tests {
                 edited_at_ms: None,
                 nonce: None,
                 command: None,
+                command_user_id: None,
+                command_state: core::CommandRunState::Answered,
                 attachments: Vec::new(),
             }),
         }

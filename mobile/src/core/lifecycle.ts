@@ -10,6 +10,7 @@ import { loadServers, retryDisconnected } from '@/state/actions/servers';
 import { setAppActive, toast } from '@/state/actions/ui';
 import { watchVoiceService } from '@/state/actions/voice';
 import { watchVoiceNoteAudio } from '@/state/actions/voiceMessages';
+import { reloadAfterReady } from '@/state/actions/chat';
 import { onEvents, setReadyHook, setToaster } from '@/state/store';
 
 let loop: EventLoop | null = null;
@@ -20,7 +21,10 @@ let unwatchVoiceNotes: (() => void) | null = null;
 export function startApp(): void {
   setToaster((text) => toast(text));
   setErrorShower((text) => toast(text, 'error'));
-  setReadyHook(catchUpName);
+  setReadyHook((serverKey) => {
+    catchUpName(serverKey);
+    report(reloadAfterReady(serverKey), 'reload messages');
+  });
   loadPrefs();
   loadServers();
   loop?.stop();

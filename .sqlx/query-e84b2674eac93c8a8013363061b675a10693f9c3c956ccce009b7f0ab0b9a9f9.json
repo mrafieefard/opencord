@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE messages SET command_state = $1,\n             content = (SELECT display_name FROM users WHERE users.id = messages.author_id)\n                 || ' didn''t answer'\n         WHERE command_state = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e84b2674eac93c8a8013363061b675a10693f9c3c956ccce009b7f0ab0b9a9f9"
+}

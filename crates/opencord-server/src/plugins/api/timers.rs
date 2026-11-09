@@ -320,6 +320,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     name: "timer".into(),
                     payload: serde_json::json!({ "timer_id": id, "repeating": false }),
                     reply: None,
+                    command: None,
                 });
             });
 
@@ -371,6 +372,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         name: "timer".into(),
                         payload: serde_json::json!({ "timer_id": id, "repeating": true }),
                         reply: None,
+                        command: None,
                     });
                 }
             });
@@ -420,6 +422,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         name: "timer".into(),
                         payload: serde_json::json!({ "timer_id": id, "repeating": true }),
                         reply: None,
+                        command: None,
                     });
                 }
             });

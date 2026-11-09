@@ -27,6 +27,11 @@ pub const MANIFEST_MEMORY_BYTES: usize = 4 * MIB as usize;
 /// handler time.
 pub const START_TIME_FACTOR: u32 = 10;
 
+/// A plugin may use [`CPU_SHARE_MAX_PERMILLE`] of a core, averaged over this.
+pub const CPU_SHARE_WINDOW: Duration = Duration::from_secs(10);
+/// Past this its events wait in its queue: thousandths of one core.
+pub const CPU_SHARE_MAX_PERMILLE: u32 = 250;
+
 /// Events waiting for one plugin; past this, the oldest are dropped.
 pub const EVENT_QUEUE: usize = 10_000;
 
@@ -63,6 +68,10 @@ pub const WEBHOOK_TIME: Duration = Duration::from_secs(10);
 
 /// How long a `/command` handler has to reply.
 pub const COMMAND_REPLY_TIME: Duration = Duration::from_secs(3);
+/// How long a deferred `/command` has to reply.
+pub const COMMAND_THINKING_TIME: Duration = Duration::from_secs(15 * 60);
+/// Commands one plugin has thinking at once.
+pub const COMMAND_THINKING_MAX: usize = 100;
 /// How long an autocomplete handler has to answer.
 pub const AUTOCOMPLETE_TIME: Duration = Duration::from_secs(1);
 
