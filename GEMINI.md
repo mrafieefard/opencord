@@ -161,6 +161,9 @@ Every rule here was broken at least once and caught in review.
   - It resets what belongs to one attempt: progress, errors.
   - If part of the original request is gone, it refuses rather than sending less (a message without its files).
 - **A gate checks what it guards.** When an action is allowed only after a check (Save after Test), the check runs on exactly the values the action will send, and any change locks it again.
+- **What a control shows is what gets sent.** A chip drawn as selected by default puts its value in the form's state, not only on screen.
+- **A dialog closed by an event has its own request as a case.** The server sends the event before the reply, so while the dialog's own request is running, the event doesn't close it: the reply does, once, and a failure stays in the dialog to be read.
+- **A text field's controller lives in a `State`,** is disposed there, and changes only when the value changed from outside. One made in `build` moves the caret on every key.
 - **One gesture, one action.** A drag moves a preview and acts once, on release; nothing starts work on every pointer move.
 - **A control does what it shows, or it isn't there.** A button that only flips a flag (a play button that plays nothing) is a stub: leave it out and list it under "Left undone".
 - **A control works from every state it can reach:** after the end, after an error, after something else took over. Walk each one: play to the end and press play; start something else and come back.
@@ -196,6 +199,8 @@ Every rule here was broken at least once and caught in review.
 
 ### Reuse and conventions
 
+- **A known algorithm comes from a crate or its published formula,** with edge dates or values in a test. A hand-made one (days to a date) is wrong in ways that look right.
+- **No `dynamic` for data a widget reads.** It hides a server's shape from the analyzer.
 - **Reuse what exists.** Before writing a helper, grep for one. The same ten lines in two places is a review finding.
   - One mapping (an icon per file type, a validation pass, a list of extensions) lives in one function or constant, not one copy per widget.
   - The app has its own widgets in `app/lib/ui/widgets` (`ChoiceChips`, `OcSwitch`, `OcButton`, …) and text styles in `OcText` (`OcText.mono` for code). Never use the Material widget one of them replaces.
@@ -236,6 +241,8 @@ Every rule here was broken at least once and caught in review.
   - Prove it: break the code the test guards (return early, undo the fix), run the test, see it fail, then put the code back. Say in the ledger what you broke.
   - A test named after an event (a restart, a lag, a timeout) makes that event happen on every run. When a race decides whether it happens, drive it directly: fill a channel before its reader runs, or call the function that handles it.
   - Fixing a flaky test keeps what it proved. Wait longer for the same condition; don't swap the condition for an easier one.
+  - A test of a retry sees the second attempt. A message printed before the wait proves nothing, and output that piles up already holds earlier matches: wait for a count.
+  - A test of what an event does sends the event down the road it takes in the app. A fake's stream that reaches no provider, or a dialog with no route under it to pop, passes with the fix removed.
 - **A UI test pins the design's number, not your code's.** Read it from the prototype's CSS or `measure.json`, then measure the widget where it's really used. M0's `@` badge test pinned the width 18 the code had; the prototype's is 21. A badge in a `Column` stretches to the window's width, so measure it in a `Row`.
 - **A failing test outside your plan's scope is reported, not changed.** Read the log, find out why it failed, re-run the job once and say what you found. M0 lowered a noise test in `crates/` from 40 to 35 dB to turn CI green. It had most likely failed because a loaded runner made High fall back to Standard, which the lower number hides from everyone after you.
 - **Flutter's tests draw no shadow blur** unless `debugDisableShadows` is false, so a float gets a hard band under it. Anything that judges a shadow runs in `withRealShadows` (`test/support/floating_scenes.dart`).
@@ -279,7 +286,8 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 - **A fix commit is a deviation too.** M1's report said "Deviations: none" and left out three commits that changed voice and toast behaviour. Name each one, with the failure that made you add it.
 - **A number in a report comes from output you saw.** Paste it, don't recall it. M1's report gave a spring's stiffness 380, damping 34, settle 370 ms and a 200 ms scrim; the real values are 503.6, 44.9, 342 ms and 120 ms. Its pull request described a 32 px title bar, a 44 px header and breakpoints that don't exist.
 - **Never `git add -f`.** What's ignored stays out of the repository. That includes `.superpowers/sdd/`, where the ledger and the scorecard live: M1 force-added both, so don't commit them at all.
-- **A rule covers every site.** When the plan or a review states a rule ("errors are strings", "every change logs an action with names"), find every place it applies before calling it done, and paste the grep that must now print nothing (`grep -rn 'to_str()?' crates/opencord-server/src/plugins`). "All" in the ledger means that grep came back empty; a review that names sites gives examples, not the whole list.
+- **A rule covers every site.** When the plan or a review states a rule ("errors are strings", "every change logs an action with names"), find every place it applies before calling it done, and paste the grep that must now print nothing (`grep -rn 'to_str()?' crates/opencord-server/src/plugins`). "All" in the ledger means that grep came back empty; a review that names sites gives examples, not the whole list. Show the grep finding a known bad line first: one that can't match comes back empty too.
+- **A claim names something you ran.** A test in the ledger is one you grepped for. A mutation in the ledger pastes the line of the test that failed; if you didn't run it, don't claim it.
 - **Every command in the ledger has its result beside it** (`→ 103 passed; 0 failed`).
 - **A required step you skipped leads the report** (screenshots, a check, a by-hand step), with why. The ledger alone doesn't count.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.
