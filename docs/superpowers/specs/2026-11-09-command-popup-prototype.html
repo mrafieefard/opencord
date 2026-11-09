@@ -81,6 +81,28 @@ h1 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
 .note small { color:var(--muted); font-size:11.5px; }
 .note button { color:var(--text2); text-decoration:underline; font-size:11.5px; }
 
+/* ---- The desktop's messages: rows, not bubbles ---- */
+.desk .msgs { gap:0; padding:0 0 12px; }
+.cm { display:flex; gap:12px; margin-top:16px; padding:4px 16px 2px; min-width:0; transition:background 120ms ease-out; }
+.cm.cont { margin-top:0; padding-top:2px; }
+.cm:hover { background:var(--hover); }
+.reduced .cm { transition:none; }
+.cm .av { width:36px; height:36px; margin-top:2px; font-size:13px; }
+.cm .gut { width:36px; flex:none; }
+.cm .tx { flex:1; min-width:0; overflow-wrap:anywhere; }
+.cm .hdr { display:flex; align-items:center; gap:8px; margin-bottom:1px; }
+.cm .hdr b { font-weight:600; }
+.cm time { font-size:11.5px; color:var(--muted); }
+.cline { display:flex; padding:4px 16px; min-width:0; color:var(--text2); }
+.cline > svg { width:16px; height:16px; flex:none; margin:3px 8px 0 0; color:var(--muted); }
+.cline .t { flex:1; min-width:0; overflow-wrap:anywhere; }
+.cline b { font-weight:600; color:var(--text); }
+.cline .muted { color:var(--muted); }
+.cline code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; color:var(--text); background:var(--hover); padding:1px 3px; border-radius:3px; }
+.desk .note { background:none; border-radius:10px; margin:4px 12px; padding:10px; gap:4px; color:var(--text2); }
+.desk .note.err .t { color:var(--text); }
+.desk .note small svg { width:13px; height:13px; vertical-align:-2px; margin-right:4px; }
+
 .ic { display:grid; place-items:center; color:var(--text); background:var(--shade1); font-weight:600; flex:none; overflow:hidden; }
 .ic svg { width:62%; height:62%; }
 
@@ -152,6 +174,9 @@ h1 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
 .kbd[hidden] { display:none; }
 .keys { display:flex; gap:5px; justify-content:center; }
 .keys span { flex:1; max-width:31px; height:42px; border-radius:6px; background:var(--selected); display:grid; place-items:center; font-size:15px; color:var(--text2); }
+.keys .bs { flex:1.5; max-width:46px; height:42px; border-radius:6px; background:var(--shade2); display:grid; place-items:center; font-size:16px; color:var(--text); cursor:pointer; }
+.keys .bs svg { width:22px; height:22px; }
+.pill .chip { cursor:text; }
 .kbdnote { text-align:center; font-size:11.5px; color:var(--muted); }
 .plst { position:absolute; left:8px; right:8px; background:var(--elevated); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column; z-index:5; }
 .srow { position:relative; flex:none; display:flex; gap:4px; padding:7px 8px; overflow-x:auto; border-bottom:1px solid var(--border); scrollbar-width:none; }
@@ -203,6 +228,7 @@ h1 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
         <li><b>↑ ↓</b> every row across groups · <b>Ctrl+↑ ↓</b> jump a group · <b>Enter</b> or <b>Tab</b> pick · <b>Esc</b> close</li>
         <li><b>/roll</b> from Dice Bot answers · <b>/ticket</b> thinks, then answers · <b>/close</b> thinks, then doesn't answer · <b>/queue</b> is only for you</li>
         <li><b>/play</b> then two letters shows songs in the same popup · <b>@</b> <b>#</b> <b>:</b> use it too, without the rail · Esc on <b>/roll</b>, then Enter, shows the "pick one" reply</li>
+        <li><b>Backspace</b> takes a picked command back out, from the chip or the start of its first field · in a later field it steps back one first: <b>/assign</b> has two</li>
       </ul>
     </section>
     <section class="stage phone" aria-label="Phone">
@@ -219,6 +245,7 @@ h1 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
       </div>
       <ul class="tries">
         <li>The <b>paperclip</b> has Commands as its third entry · tap the messages to put the keyboard away</li>
+        <li><b>Backspace</b> on an empty field removes the picked command, and the drawn key does too · <b>/assign</b> steps back through its fields first</li>
         <li>A light <b>haptic</b> fires on picking in the real app</li>
       </ul>
     </section>
@@ -254,6 +281,9 @@ const SVGS = {
   file:'<path d="M7 3.5h6.5L18.5 8.5v11a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-15a1 1 0 0 1 .5-1Z"/><path d="M13.5 3.5v5h5"/>',
   slash:'<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m14.5 8-5 8"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/>',
+  chev:'<path d="m9.5 6.5 5.5 5.5-5.5 5.5"/>',
+  bksp:'<path d="M9 5h10.5A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5H9l-6-7Z"/><path d="m12.5 9.5 5 5M17.5 9.5l-5 5"/>',
+  eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/>',
 };
 function svg(name) {
   const tpl = document.createElement('template');
@@ -277,6 +307,7 @@ const base = [
   { s:DICE, name:'coin', opts:[], desc:'Flip a coin and let it decide something important for you today', run:{ k:'now', text:() => (Math.random() < .5 ? 'Heads' : 'Tails') } },
   { s:TIX, name:'roll', opts:[], desc:'Roll a raffle ticket', run:{ k:'now', text:() => `Ticket ${1000 + Math.floor(Math.random() * 9000)} won` } },
   { s:TIX, name:'ticket', opts:[{ n:'topic', d:'What it is about', req:true }], desc:'Open a support ticket', run:{ k:'think', ms:2400, text:(v) => `Opened #ticket-${v.topic || 'help'}` } },
+  { s:TIX, name:'assign', opts:[{ n:'person', d:'Who takes it', req:true }, { n:'note', d:'Anything to know' }], desc:'Give this ticket to someone', run:{ k:'now', text:(v) => `Given to ${v.person}` } },
   { s:TIX, name:'close', opts:[{ n:'reason', d:'Why' }], desc:'Close this ticket', run:{ k:'none', ms:2600 } },
 ];
 const WORDS = ['Polls','Weather','Reminders','Quotes','Trivia','Starboard','Levels','Birthdays','Translate','Welcome','Giveaway','Countdown'];
@@ -341,11 +372,43 @@ function popIn(el, origin) {
 }
 
 // ---- The chat ----
+const dots = () => h('span', { class:'dots', 'aria-hidden':'true' }, h('i'), h('i'), h('i'));
+const clock = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+// The desktop draws rows as the app does now: a person's message with its
+// avatar and name, and a command's reply as one line. The phone has bubbles.
+function deskCommand(m, state) {
+  const owner = m.src.name;
+  const body = state.state === 'thinking' ? [h('b', null, owner), h('span', { class:'muted' }, ' is thinking…'), dots()]
+    : state.state === 'none' ? [h('span', { class:'noans' }, svg('clock'), `${owner} didn't answer`)]
+    : [state.text];
+  return h('div', { class:'cline' }, svg('chev'),
+    h('div', { class:'t' }, h('b', null, 'You'), h('span', { class:'muted' }, ' used '), h('code', null, `/${state.cmd}`), h('span', { class:'muted' }, ' · '), body));
+}
+function deskMessage(list, m) {
+  const who = m.own ? 'You' : m.name;
+  const first = list.lastElementChild?.dataset.who !== who;
+  return h('div', { class:`cm${first ? '' : ' cont'}`, 'data-who':who },
+    first ? h('div', { class:'av' }, initials(who)) : h('div', { class:'gut' }),
+    h('div', { class:'tx' }, first ? h('div', { class:'hdr' }, h('b', null, who), h('time', null, clock())) : null, h('div', null, m.text)));
+}
+function deskMsg(list, m) {
+  let node = m.cmd ? deskCommand(m, m) : deskMessage(list, m);
+  list.append(node);
+  list.scrollTop = list.scrollHeight;
+  return { update:(next) => {
+    const fresh = deskCommand(m, { ...m, ...next });
+    node.replaceWith(fresh);
+    node = fresh;
+    list.scrollTop = list.scrollHeight;
+  } };
+}
 function msg(list, m) {
+  if (list === dMsgs) return deskMsg(list, m);
   const node = h('div', { class:`m${m.own ? ' own' : ''}` });
   const render = (state) => {
     const body = state.state === 'thinking'
-      ? h('span', { class:'muted' }, 'is thinking…', h('span', { class:'dots', 'aria-hidden':'true' }, h('i'), h('i'), h('i')))
+      ? h('span', { class:'muted' }, 'is thinking…', dots())
       : state.state === 'none'
       ? h('span', { class:'noans' }, svg('clock'), "didn't answer")
       : state.text;
@@ -364,7 +427,7 @@ function msg(list, m) {
 function note(list, text, err) {
   const el = h('div', { class:`note${err ? ' err' : ''}` },
     h('div', { class:'t' }, text),
-    h('small', null, 'Only you can see this · ', h('button', { onclick:() => el.remove() }, 'Dismiss')));
+    h('small', null, list === dMsgs ? svg('eye') : null, 'Only you can see this · ', h('button', { onclick:() => el.remove() }, 'Dismiss')));
   list.append(el);
   list.scrollTop = list.scrollHeight;
 }
@@ -532,7 +595,7 @@ function openCommand(spec) {
     return h('span', { class:'opt' }, h('label', { for:`d-opt-${opt.n}` }, `${opt.n}:`), input);
   });
   const chip = h('span', { class:'chip', tabindex:spec.opts.length ? -1 : 0, id:'dChip' }, spec.s === OC ? null : icon(spec.s), `/${spec.name}`);
-  dFld.replaceChildren(chip, ...fields, spec.opts.length ? null : h('span', { class:'hintline' }, spec.desc));
+  dFld.replaceChildren(chip, ...fields, ...(spec.opts.length ? [] : [h('span', { class:'hintline' }, spec.desc)]));
   (dFld.querySelector('.opt input') || chip).focus();
 }
 function dPick(row) {
@@ -546,6 +609,19 @@ function dPick(row) {
     return dUpdate();
   }
   if (D.active) { D.active.input.value = row.label; D.active.input.dataset.value = row.value; showPop(null); }
+}
+// What Backspace does while writing a command, as in the app: on the chip or
+// at the start of the first field it takes the command away, at the start of
+// a later field it goes to the end of the one before, and anywhere else it's
+// the field's own. Null means the field's own.
+function dBackspace() {
+  const el = document.activeElement;
+  if (el.id === 'dChip') return clearCommand;
+  const fields = [...dFld.querySelectorAll('.opt input')];
+  const at = fields.indexOf(el);
+  if (at < 0 || el.selectionStart !== 0 || el.selectionEnd !== 0) return null;
+  if (at === 0) return clearCommand;
+  return () => { const before = fields[at - 1]; before.focus(); before.setSelectionRange(before.value.length, before.value.length); };
 }
 function moveSel(e) {
   const count = D.flat.length;
@@ -574,8 +650,8 @@ dFld.addEventListener('keydown', (e) => {
   if (D.cmd) {
     if (e.key === 'Enter') { e.preventDefault(); return dRun(); }
     if (e.key === 'Backspace') {
-      const first = dFld.querySelector('.opt input');
-      if (document.activeElement.id === 'dChip' || (document.activeElement === first && first.value === '')) { e.preventDefault(); clearCommand(); }
+      const action = dBackspace();
+      if (action) { e.preventDefault(); action(); }
     }
     return;
   }
@@ -588,6 +664,14 @@ dFld.addEventListener('keydown', (e) => {
     if (!named || !typedCommand(dMsgs, named[1].toLowerCase())) msg(dMsgs, { own:true, name:'You', text });
   }
 });
+// Clicking the composer gives the focus back to the command, so Backspace
+// still reaches it after a click somewhere else.
+dFld.addEventListener('focusin', (e) => { D.last = e.target; });
+dFloat.addEventListener('mousedown', (e) => {
+  if (!D.cmd || e.target.closest('input, button, .chip')) return;
+  e.preventDefault();
+  (D.last?.isConnected ? D.last : dFld.querySelector('.opt input') || $('dChip')).focus();
+});
 dInput.addEventListener('input', () => dUpdate());
 dInput.addEventListener('blur', () => { setTimeout(() => { if (!dFld.contains(document.activeElement) && document.activeElement?.closest('#controls') == null && !D.cmd) showPop(null); }, 120); });
 dInput.addEventListener('focus', () => dUpdate());
@@ -599,16 +683,17 @@ const pInput = h('input', { id:'pInput', placeholder:'Message #general', 'aria-l
   oninput:() => pChange(), onfocus:() => { pKbd.hidden = false; pPlace(); },
   onkeydown:(e) => {
     if (e.key === 'Enter') { e.preventDefault(); pSend(); }
-    if (e.key === 'Backspace' && P.cmd && pInput.value === '') { e.preventDefault(); pClear(); }
+    if (e.key === 'Backspace' && P.cmd && pInput.value === '') { e.preventDefault(); pBackspace(); }
   } });
 const pAttach = h('button', { class:'round', 'aria-label':'Attach', onclick:() => pToggleMenu() }, svg('clip'));
-const pChip = h('span', { class:'chip', hidden:true });
+const pChip = h('span', { class:'chip', hidden:true, onclick:() => { pKbd.hidden = false; pInput.focus(); pPlace(); } });
 const pill = h('div', { class:'pill' }, pChip, pInput);
 const pAction = h('button', { class:'round', 'aria-label':'Send', onclick:() => pSend() });
 const pCard = h('div', { class:'pcard', hidden:true });
 pDock.append(pCard, h('div', { class:'drow' }, pAttach, pill, pAction));
 for (const line of ['qwertyuiop', 'asdfghjkl', 'zxcvbnm']) pKbd.append(h('div', { class:'keys' }, [...line].map((c) => h('span', null, c))));
-pKbd.append(h('div', { class:'kbdnote' }, 'The phone\'s keyboard. Type with your own.'));
+pKbd.querySelector('.keys:last-child').append(h('button', { class:'bs', 'aria-label':'Backspace', onmousedown:(e) => e.preventDefault(), onclick:() => pBackspaceKey() }, svg('bksp')));
+pKbd.append(h('div', { class:'kbdnote' }, 'The phone\'s keyboard. Type with your own; its Backspace works here.'));
 pMsgs.addEventListener('click', () => { pKbd.hidden = true; pHideList(); pPlace(); });
 
 function pPlace() {
@@ -727,6 +812,20 @@ function pClear() {
   pHideList();
   pRenderCard();
   pSyncAction();
+}
+// Backspace on an empty field: steps back to the option before, and from the
+// first one (or a command without options) takes the command away.
+function pBackspace() {
+  const options = P.cmd.opts;
+  const at = P.editing ? options.indexOf(P.editing) : -1;
+  if (at > 0) return pEdit(options[at - 1]);
+  pClear();
+  pInput.focus();
+}
+function pBackspaceKey() {
+  pInput.focus();
+  if (pInput.value) { pInput.value = pInput.value.slice(0, -1); pChange(); return; }
+  if (P.cmd) pBackspace();
 }
 function pSend() {
   if (P.cmd) {

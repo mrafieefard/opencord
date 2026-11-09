@@ -248,9 +248,9 @@ These are not spelled out by §26's tests. Each has its test in the task that ow
 **Interfaces:**
 - Consumes: `ComposerPopup`, `PopIn`, `CommandSpec.source`.
 
-- [ ] **Step 1: Write the failing tests:** `the_command_draws_no_box_of_its_own`, `the_chip_shows_the_plugins_icon`, `autocomplete_uses_the_popups_surface_and_place`, `a_picked_commands_source_is_sent`, `autocomplete_sends_the_source`, `a_removed_command_gives_a_plain_error_and_keeps_the_text` (Review Focus 3). Keep every existing Tab, Enter, Esc and Backspace test.
+- [ ] **Step 1: Write the failing tests:** `the_command_draws_no_box_of_its_own`, `the_chip_shows_the_plugins_icon`, `autocomplete_uses_the_popups_surface_and_place`, `a_picked_commands_source_is_sent`, `autocomplete_sends_the_source`, `a_removed_command_gives_a_plain_error_and_keeps_the_text` (Review Focus 3), and so that Backspace can never leave someone stuck in a command: `backspace_with_the_popup_open_removes_the_command_and_closes_the_popup`, `holding_backspace_empties_the_field_then_removes_the_command`, `backspace_on_a_choice_or_yes_no_option_removes_the_command`, `clicking_the_composer_gives_the_focus_back_so_backspace_reaches_the_command`, `after_removing_a_command_the_field_is_empty_focused_and_sends_plain_messages`. Keep every existing Tab, Enter, Esc and Backspace test.
 - [ ] **Step 2: Run** them and see them fail.
-- [ ] **Step 3: Implement.** Remove the box at line 410 so the `Wrap` sits where the text field was, and keep the float at its 62 height for a line of options. Replace `_ChoiceList` with `ComposerPopup` (its 40-tall rows keep `/play`'s artwork), and pass `source` to run and autocomplete.
+- [ ] **Step 3: Implement.** Remove the box at line 410 so the `Wrap` sits where the text field was, and keep the float at its 62 height for a line of options. Replace `_ChoiceList` with `ComposerPopup` (its 40-tall rows keep `/play`'s artwork), and pass `source` to run and autocomplete. Keep `_backspace()`'s rule: on the chip or at the start of the first option it takes the command away, at the start of a later option it goes to the end of the one before. A click in the float outside a field focuses the field that had the focus last, so Backspace always has somewhere to land.
 - [ ] **Step 4: Run the tests** and see them pass.
 - [ ] **Step 5: Commit** `feat(app): the command being written sits in the composer float`.
 
@@ -258,16 +258,16 @@ These are not spelled out by §26's tests. Each has its test in the task that ow
 
 **Files:**
 - Create: `app/lib/features/chat/thinking_dots.dart`
-- Modify: `app/lib/features/chat/message_rows.dart`, `app/lib/features/chat/message_list.dart`, the bubble that draws a message's interaction, `app/lib/core/providers/commands_state.dart`, `app/lib/features/settings/server/commands_page.dart`
+- Modify: `app/lib/features/chat/message_rows.dart`, `app/lib/features/chat/message_list.dart`, `app/lib/features/chat/command_rows.dart` (`CommandResultLine`), `app/lib/core/providers/commands_state.dart`, `app/lib/features/settings/server/commands_page.dart`
 - Test: `app/test/widget/chat/commands_test.dart`, `app/test/unit/chat/message_rows_test.dart`
 
 **Interfaces:**
 - Consumes: `EphemeralNote.state`, `CommandSpec.source`.
 - Produces: `EphemeralNotesNotifier` removes a *thinking* note after `thinkingLimit` plus 30 s, and all *thinking* notes when the server connection comes back.
 
-- [ ] **Step 1: Write the failing tests:** `a_thinking_message_shows_three_fading_dots`, `dots_stand_still_under_reduced_motion`, `no_answer_shows_muted_with_its_icon`, `the_reply_replaces_a_thinking_note_by_nonce`, `an_edit_from_thinking_shows_no_edited_mark`, `a_thinking_note_goes_when_the_connection_returns` (Review Focus 5), `the_commands_page_groups_by_source_with_icon_and_name`, `turning_off_one_plugins_roll_leaves_the_other`.
+- [ ] **Step 1: Write the failing tests:** `a_thinking_command_is_one_line_naming_who_ran_it_and_the_plugin`, `a_thinking_message_shows_three_fading_dots`, `dots_stand_still_under_reduced_motion`, `no_answer_shows_muted_with_its_icon`, `the_reply_replaces_a_thinking_note_by_nonce`, `an_edit_from_thinking_shows_no_edited_mark`, `a_thinking_note_goes_when_the_connection_returns` (Review Focus 5), `the_commands_page_groups_by_source_with_icon_and_name`, `turning_off_one_plugins_roll_leaves_the_other`.
 - [ ] **Step 2: Run** them and see them fail.
-- [ ] **Step 3: Implement.** The Commands page keys its pending changes by source and name, and groups by `source` instead of `_features`, keeping the Music footer.
+- [ ] **Step 3: Implement.** The desktop has no bubbles (follow-ups spec §4): a message with a command is a `CommandRow`, drawn by `CommandResultLine` as one line, so *thinking* and *no answer* are states of that line: "Kai used `/ticket` · **Tickets** is thinking…" and "Kai used `/close` · Tickets didn't answer". The name is the person who ran it, from the message's interaction, not its author. The Commands page keys its pending changes by source and name, and groups by `source` instead of `_features`, keeping the Music footer.
 - [ ] **Step 4: Run** `flutter analyze` and the tests, and see them pass.
 - [ ] **Step 5: Commit** `feat(app): thinking in the chat, Commands page by source`.
 
@@ -326,9 +326,9 @@ The phone lists the server's commands. `/volume` and `/music` stay desktop's: th
 - Consumes: Tasks 12, 13.
 - Produces: `useCommandDraft(serverKey, channelId) -> { spec, source, values, active, pick, setValue, focusOption, clear, missing, run }`.
 
-- [ ] **Step 1: Write the failing tests:** `picking_makes_a_chip_and_option_chips`, `required_options_are_marked`, `tapping_a_chip_edits_that_option`, `choice_boolean_and_autocomplete_open_their_list_in_the_same_spot`, `outdated_suggestions_are_dropped`, `send_runs_with_source_and_nonce`, `a_missing_required_option_focuses_it_and_does_not_send`, `backspace_on_empty_removes_the_chip`, `a_removed_command_gives_a_plain_note_and_keeps_the_draft` (Review Focus 3), `many_options_scroll_sideways`.
+- [ ] **Step 1: Write the failing tests:** `picking_makes_a_chip_and_option_chips`, `required_options_are_marked`, `tapping_a_chip_edits_that_option`, `choice_boolean_and_autocomplete_open_their_list_in_the_same_spot`, `outdated_suggestions_are_dropped`, `send_runs_with_source_and_nonce`, `a_missing_required_option_focuses_it_and_does_not_send`, `backspace_on_empty_removes_the_chip`, `backspace_on_a_later_empty_option_steps_back_to_the_one_before`, `backspace_is_seen_through_the_text_change_alone`, `the_empty_mark_is_never_sent_or_shown`, `tapping_the_chip_brings_the_keyboard_back`, `after_removing_a_command_the_field_is_plain_and_the_keyboard_stays_up`, `a_removed_command_gives_a_plain_note_and_keeps_the_draft` (Review Focus 3), `many_options_scroll_sideways`.
 - [ ] **Step 2: Run** them and see them fail.
-- [ ] **Step 3: Implement.** The options row sits in the same card as `EditingBar` and `AttachmentChips` (`styles.card`), so the one-line slot and the list above it stay where they are.
+- [ ] **Step 3: Implement.** The options row sits in the same card as `EditingBar` and `AttachmentChips` (`styles.card`), so the one-line slot and the list above it stay where they are. Backspace mustn't depend on `onKeyPress`, which can't be trusted to report it on an empty field on every Android keyboard: while a command is being written and the field is empty, the field holds one zero-width character (`EMPTY_MARK = '​'`), and `onChangeText` losing it is the Backspace. The mark is stripped from every value, and the placeholder and Send read the stripped text. On an empty later option Backspace goes to the option before; on the first, or with no options, it removes the command and keeps the keyboard up.
 - [ ] **Step 4: Run** typecheck and the tests, and see them pass.
 - [ ] **Step 5: Commit** `feat(mobile): fill in and run a slash command`.
 
@@ -358,5 +358,5 @@ The phone lists the server's commands. `/volume` and `/music` stay desktop's: th
 - [ ] **Step 2: Render and look.** Desktop popup at every breakpoint in light and dark against the approved prototype; phone on the emulator with the keyboard up. Fix what differs.
 - [ ] **Step 3: Review the whole diff** against §26 with a fresh reviewer. Fix what is real.
 - [ ] **Step 4: Run** `df -h /`, then `.github/check.sh`. Everything passes; a failure unrelated to this work is still reported.
-- [ ] **Step 5: Push and open the pull request** with `gh pr create` into `feat/plugins` if #46 is still open, else `beta`. Its description says what changed, why and how it was tested. Owed by hand: Windows and macOS popup, keyboard, back gesture and haptics on real phones.
+- [ ] **Step 5: Push and open the pull request** with `gh pr create` into `feat/plugins` if #46 is still open, else `beta`. Its description says what changed, why and how it was tested. Owed by hand: Windows and macOS popup; the keyboard, back gesture and haptics on real phones; Backspace out of a picked command on iOS, Gboard and Samsung Keyboard.
 - [ ] **Step 6: Read every check** with `gh pr checks`, fix failures on the branch, re-run `.github/check.sh` before each push, and read `gh pr diff` once more. The owner merges.

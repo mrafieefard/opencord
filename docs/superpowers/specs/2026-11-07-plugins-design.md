@@ -1264,18 +1264,24 @@ motion rules and tokens (§4) and its menu surface (§5.17).
 - **The command being written:** no box of its own; it sits in the
   composer float where the text field was. The `/name` chip, with the
   plugin's icon inside it when it comes from a plugin, then its options as
-  inline fields, with today's keys (Tab, Enter, Esc, and removing the
-  chip from the keyboard).
+  inline fields, with today's keys (Tab, Enter, Esc). **Backspace never
+  leaves someone stuck:** on the chip or at the start of the first field
+  it removes the command and gives back an empty, focused message field;
+  at the start of a later field it goes to the end of the one before.
+  Clicking the composer gives the focus back to the command, so Backspace
+  still reaches it after a click somewhere else *(owner, 2026-11-09)*.
 - **Choices and autocomplete** (an option's list, `/play`'s songs with
   their artwork): the same surface, place and motion as the `/` list,
   not a separate box.
 - **Mentions, channels and emoji** use the same popup (surface, place,
   rows, motion); the rail and the groups are only for commands *(Claude's
   call)*.
-- **In the chat:** a *thinking* message shows the plugin's name and a
-  muted "is thinking…" with three dots fading in turn (off under reduced
-  motion); *no answer* shows muted with a small icon. Ephemeral messages
-  keep "Only you can see this · Dismiss".
+- **In the chat:** desktop messages aren't bubbles any more, so a
+  command's result is today's single line, "Kai used `/ticket` · the
+  reply". A *thinking* one reads "Kai used `/ticket` · Tickets is
+  thinking…", with the name in bold, the rest muted and three dots fading
+  in turn (off under reduced motion); *no answer* shows muted with a small
+  icon. Ephemeral messages keep "Only you can see this · Dismiss".
 
 ### 26.7 The phone
 
@@ -1323,8 +1329,12 @@ the phone feel native and premium, not like a copy of the desktop.
   and its options a row of chips above it, inside the composer, scrolling
   sideways if many; tapping an option's chip edits it; required ones are
   marked. Choice, yes/no and autocomplete options open their list in the
-  same floating spot. Send runs the command; Backspace on an empty field
-  removes the chip.
+  same floating spot. Send runs the command. **Backspace never leaves
+  someone stuck:** on an empty field it goes back to the option before,
+  and from the first one, or a command with no options, it removes the
+  command, leaves a plain field and keeps the keyboard up. It has to work
+  on every keyboard, so it doesn't rely on the phone reporting the key
+  *(owner, 2026-11-09)*. Tapping the chip brings the keyboard back.
 - **Replies:** private replies show with "Only you can see this" and a way
   to dismiss them; *thinking* and *no answer* as on desktop.
 
