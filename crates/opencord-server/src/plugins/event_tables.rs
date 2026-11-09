@@ -482,6 +482,9 @@ mod tests {
                 bitrate: 0,
                 user_limit: 0,
                 text_in_voice: false,
+                plugin_id: None,
+                type_key: None,
+                plugin_state: proto::PluginChannelState::Unspecified as i32,
             }),
         });
         let res = payload(&create, &guild);

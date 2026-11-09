@@ -656,6 +656,7 @@ pub async fn upload(
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload = match result {

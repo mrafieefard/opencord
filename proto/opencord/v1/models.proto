@@ -45,6 +45,7 @@ enum ChannelKind {
   CHANNEL_KIND_TEXT = 1;
   CHANNEL_KIND_VOICE = 2;
   CHANNEL_KIND_CATEGORY = 3;
+  CHANNEL_KIND_PLUGIN = 4;
 }
 
 enum OverwriteTarget {
@@ -77,6 +78,20 @@ message Channel {
   uint32 user_limit = 9;
   // Whether the voice channel also holds messages.
   bool text_in_voice = 10;
+  // Plugin channels only (design 2026-11-07 §14).
+  optional string plugin_id = 11;
+  optional string type_key = 12;
+  PluginChannelState plugin_state = 13;
+}
+
+// Whether a plugin channel can be opened (§14.4).
+enum PluginChannelState {
+  PLUGIN_CHANNEL_STATE_UNSPECIFIED = 0;
+  PLUGIN_CHANNEL_STATE_AVAILABLE = 1;
+  // Its plugin isn't running, or isn't installed.
+  PLUGIN_CHANNEL_STATE_PLUGIN_STOPPED = 2;
+  // Its plugin runs but no longer registers this type.
+  PLUGIN_CHANNEL_STATE_TYPE_GONE = 3;
 }
 
 message Message {

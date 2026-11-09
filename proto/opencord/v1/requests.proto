@@ -166,6 +166,10 @@ message Request {
     CreatePluginDevToken create_plugin_dev_token = 221;
     RevokePluginDevToken revoke_plugin_dev_token = 222;
     FetchPluginDevTokens fetch_plugin_dev_tokens = 223;
+    OpenView open_view = 224;
+    CloseView close_view = 225;
+    SendViewEvent send_view_event = 226;
+    ReportViewError report_view_error = 227;
   }
 }
 
@@ -228,6 +232,7 @@ message Response {
     PluginLog plugin_log = 47;
     PluginDevTokens plugin_dev_tokens = 48;
     CreatedPluginDevToken created_plugin_dev_token = 49;
+    ViewOpened view_opened = 50;
   }
 }
 
@@ -286,6 +291,8 @@ message CreateChannel {
   string name = 2;
   optional string topic = 3;
   optional int64 parent_id = 4;
+  optional string plugin_id = 5;
+  optional string type_key = 6;
 }
 
 // -> channel. Absent fields are left unchanged. An empty topic clears it,
@@ -574,6 +581,8 @@ message CreateUpload {
   optional uint32 width = 5;
   optional uint32 height = 6;
   optional uint32 duration_ms = 7;
+  // Instead of a channel: an upload for a plugin view's picker (§13.3).
+  optional int64 view_id = 8;
 }
 
 // -> ack. One's own upload that is not sent yet.

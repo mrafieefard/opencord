@@ -390,6 +390,7 @@ pub(super) async fn upload_one(
         width,
         height,
         duration_ms,
+        view_id: None,
     });
     let upload = match report.client().request(report.key(), request).await? {
         Response::Upload(upload) => upload,

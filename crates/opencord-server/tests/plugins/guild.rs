@@ -139,6 +139,8 @@ async fn channel_lists_hide_channels_the_plugin_cannot_see() {
             kind: proto::ChannelKind::Text as i32,
             topic: None,
             parent_id: None,
+            plugin_id: None,
+            type_key: None,
         }))
         .await;
 

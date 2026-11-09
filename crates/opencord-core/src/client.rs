@@ -1004,6 +1004,8 @@ impl Client {
             name,
             topic,
             parent_id,
+            plugin_id: None,
+            type_key: None,
         });
         expect_channel(self.request(key, request).await?)
     }

@@ -131,6 +131,8 @@ async fn a_hidden_channel_sends_the_plugin_nothing() {
             name: "secret".to_owned(),
             topic: None,
             parent_id: None,
+            plugin_id: None,
+            type_key: None,
         }))
         .await
     {

@@ -299,6 +299,8 @@ async fn happy_paths_for_voice_soundboard_music() {
             kind: proto::ChannelKind::Voice as i32,
             topic: None,
             parent_id: None,
+            plugin_id: None,
+            type_key: None,
         }))
         .await;
     let voice2 = match ch2_res {

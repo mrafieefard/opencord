@@ -91,6 +91,7 @@ async fn upload(
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await
     {
@@ -397,6 +398,7 @@ async fn what_is_not_a_song_is_refused() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(code(&error), proto::ErrorCode::InvalidArgument);

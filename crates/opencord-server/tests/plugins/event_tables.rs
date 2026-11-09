@@ -150,6 +150,8 @@ async fn ids_are_strings_in_every_payload() {
             kind: proto::ChannelKind::Text as i32,
             topic: Some("testing".to_owned()),
             parent_id: None,
+            plugin_id: None,
+            type_key: None,
         }))
         .await;
     let new_ch_id = match ch_res {

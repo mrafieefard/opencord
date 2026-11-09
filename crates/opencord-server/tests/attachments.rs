@@ -72,6 +72,7 @@ async fn create_upload_checks_permissions_and_size() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(error.code, proto::ErrorCode::Forbidden as i32);
@@ -95,6 +96,7 @@ async fn create_upload_checks_permissions_and_size() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(error.code, proto::ErrorCode::FileTooLarge as i32);
@@ -116,6 +118,7 @@ async fn create_upload_checks_permissions_and_size() {
                 width: None,
                 height: None,
                 duration_ms: None,
+                view_id: None,
             }))
             .await;
         match res {
@@ -134,6 +137,7 @@ async fn create_upload_checks_permissions_and_size() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(error.code, proto::ErrorCode::Conflict as i32);
@@ -157,6 +161,7 @@ async fn create_upload_checks_permissions_and_size() {
                 width: None,
                 height: None,
                 duration_ms: None,
+                view_id: None,
             }))
             .await;
         let upload_id = match res {
@@ -178,6 +183,7 @@ async fn create_upload_checks_permissions_and_size() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(error.code, proto::ErrorCode::RateLimited as i32);
@@ -203,6 +209,7 @@ async fn pieces_must_arrive_in_order_and_have_the_right_size() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload = match res {
@@ -294,6 +301,7 @@ async fn a_repeated_piece_gets_a_conflict_and_the_upload_continues() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload_id = match res {
@@ -409,6 +417,7 @@ async fn another_users_upload_is_not_found() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload_id = match res {
@@ -472,6 +481,7 @@ async fn cancel_removes_the_row_and_temp_file() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload_id = match res {
@@ -534,6 +544,7 @@ async fn a_zero_byte_file_finishes_without_a_piece() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload_id = match res {
@@ -584,6 +595,7 @@ async fn nothing_plain_reaches_the_temp_folder() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload_id = match res {
@@ -685,6 +697,7 @@ async fn a_voice_message_gets_the_server_waveform() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload = match res {
@@ -874,6 +887,7 @@ async fn a_storage_failure_fails_the_upload_cleanly() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload = match res {
@@ -969,6 +983,7 @@ async fn processing_resumes_after_a_restart() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload = match res {
@@ -1378,6 +1393,7 @@ async fn expired_uploads_are_swept() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload_id = match res {
@@ -1510,6 +1526,7 @@ async fn upload_voice_test(
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let upload = match res {
@@ -1694,6 +1711,7 @@ async fn someone_elses_or_unready_uploads_cannot_be_sent() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     let unready_id = match unready_res {
@@ -1717,6 +1735,8 @@ async fn someone_elses_or_unready_uploads_cannot_be_sent() {
             kind: proto::ChannelKind::Text.into(),
             topic: None,
             parent_id: None,
+            plugin_id: None,
+            type_key: None,
         }))
         .await;
     let ch2_id = match ch2_res {
@@ -1976,6 +1996,8 @@ async fn deleting_a_channel_deletes_its_files() {
             kind: proto::ChannelKind::Text.into(),
             topic: None,
             parent_id: None,
+            plugin_id: None,
+            type_key: None,
         }))
         .await;
     let ch_id = match ch_res {
@@ -2172,6 +2194,7 @@ async fn blocked_extensions_stop_uploads() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(err.code, proto::ErrorCode::FileTypeBlocked as i32);
@@ -2186,6 +2209,7 @@ async fn blocked_extensions_stop_uploads() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(err.code, proto::ErrorCode::FileTypeBlocked as i32);
@@ -2205,6 +2229,7 @@ async fn blocked_extensions_stop_uploads() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert!(matches!(res, Res::Upload(_)));
@@ -2219,6 +2244,7 @@ async fn blocked_extensions_stop_uploads() {
             width: None,
             height: None,
             duration_ms: Some(1000),
+            view_id: None,
         }))
         .await;
     assert!(matches!(res, Res::Upload(_)));
@@ -2270,6 +2296,7 @@ async fn role_limits_raise_members_and_respect_the_editor() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert!(matches!(res, Res::Upload(_)));
@@ -2405,6 +2432,7 @@ async fn the_owner_is_limited_only_by_the_ceiling() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(err.code, proto::ErrorCode::FileTooLarge as i32);

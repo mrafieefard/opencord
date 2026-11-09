@@ -105,6 +105,10 @@ message Event {
     PluginReviewRemove plugin_review_remove = 133;
     PluginLogAppend plugin_log_append = 134;
     PluginUsersUpdate plugin_users_update = 135;
+    ViewMessage view_message = 136;
+    ViewClosed view_closed = 137;
+    ViewScriptsUpdate view_scripts_update = 138;
+    PluginChannelTypesUpdate plugin_channel_types_update = 139;
   }
 }
 

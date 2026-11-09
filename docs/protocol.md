@@ -178,6 +178,10 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `CreatePluginDevToken { plugin_id, days }` | `created_plugin_dev_token` | Base `MANAGE_PLUGINS` |
 | `RevokePluginDevToken { token_id }` | `ack` | Base `MANAGE_PLUGINS` |
 | `FetchPluginDevTokens {}` | `plugin_dev_tokens` | Base `MANAGE_PLUGINS` |
+| `OpenView { place, platform }` | `view_opened` | `VIEW_CHANNEL` in an available plugin channel; session lists `"plugin_channels"`; at most 4 open views per session |
+| `CloseView { view_id }` | `ack` | One's own open view |
+| `SendViewEvent { view_id, name, data_json }` | `ack` | One's own open view; 30/s and 128 KiB/s per view; data <= 64 KiB |
+| `ReportViewError { view_id, text }` | `ack` | One's own open view; 1 per view per 10 s; at most 2,000 characters |
 | `ExecuteCommand { channel_id, name, options, nonce, source }` | `command_result` | `SEND_MESSAGES` in channel and command permissions |
 | `AutocompleteCommand { channel_id, name, option, value }` | `command_choices` | `SEND_MESSAGES` in channel; 5 per second |
 | `FetchCommandSettings {}` | `command_settings` | Base `MANAGE_SERVER` |
@@ -222,6 +226,10 @@ Every event goes to every session of the server, with these exceptions:
 | `PluginUpdate`, `PluginRemove`, `PluginReviewUpdate`, `PluginReviewRemove` | Sessions holding `MANAGE_PLUGINS` |
 | `PluginLogAppend` | Sessions watching that plugin's log (`WatchPluginLog`) |
 | `PluginUsersUpdate` | Every session |
+| `ViewMessage` | The one session whose view is open |
+| `ViewClosed` | The one session whose view was closed |
+| `ViewScriptsUpdate` | Sessions with an open view of that plugin |
+| `PluginChannelTypesUpdate` | Every session supporting `"plugin_channels"` |
 | `CommandsUpdate` | Every session |
 
 Other events:
@@ -676,5 +684,24 @@ Opencord plugins provide server-side scripting (bots, custom commands, moderatio
 | `/plugins/dev/{id}` | `PUT` | Bearer `ocdev_...` (valid dev token for `{id}`) | Pushes an updated package during development. Rate limited to 2 pushes per second. Auto-reloads running plugins if permissions did not change; returns `ack` or `PluginReview`. |
 | `/plugins/dev/{id}/log` | `GET` | Bearer `ocdev_...` (valid dev token for `{id}`) | Long-polls for plugin log lines after `after=<seq>` (up to 25 s). Returns protobuf `Response` containing `PluginLog`. |
 | `/plugins/{id}/hooks` / `/plugins/{id}/hooks/{*path}` | Any | None / Plugin-managed | Routes incoming web hook requests to the running plugin holding `receive_web_requests`. |
+
+### Custom Channels and Views
+
+- `Channel.kind`: `CHANNEL_KIND_PLUGIN` (4) identifies a custom plugin channel.
+- `Channel.plugin_id`: plugin identifier owning the custom channel.
+- `Channel.type_key`: custom channel type key registered by the plugin.
+- `Channel.plugin_state`: availability status (`UNSPECIFIED`, `AVAILABLE`, `PLUGIN_STOPPED`, `TYPE_GONE`).
+- `CreateChannel.plugin_id` / `CreateChannel.type_key`: specifies the plugin and type key when creating a plugin channel.
+- `CreateUpload.view_id`: associates an upload with an active plugin view instead of a channel.
+- `Ready.plugin_channel_types`: lists all available custom channel types on initial connection.
+- `Identify.features`: includes `"plugin_channels"` when the client supports custom channels and views.
+- `OpenView`: opens a client view for a channel and platform, answering `view_opened` (`ViewOpened`).
+- `CloseView`: closes an open view session, answering `ack`.
+- `SendViewEvent`: sends a client view event to the server plugin, answering `ack`.
+- `ReportViewError`: logs a client-side view Lua error to the plugin's log, answering `ack`.
+- `ViewMessage`: delivers an event from the server plugin to a specific open view.
+- `ViewClosed`: server notification that an open view was closed with a `ViewCloseReason`.
+- `ViewScriptsUpdate`: announces updated client scripts and assets for hot reload.
+- `PluginChannelTypesUpdate`: broadcasts the updated list of available plugin channel types.
 
 

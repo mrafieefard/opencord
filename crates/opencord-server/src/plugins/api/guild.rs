@@ -214,6 +214,8 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             kind,
                             topic,
                             parent_id,
+                            plugin_id: None,
+                            type_key: None,
                         };
                         channels::create(&ctx, req).await
                     })

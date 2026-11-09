@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use opencord_proto::v1::{
-    ConfirmPluginReview, CreatePluginDevToken, CreatedPluginDevToken, DiscardPluginReview,
-    ErrorCode, Event, FetchPluginDevTokens, FetchPluginLog, FetchPluginReviews, FetchPlugins,
-    GithubCheck, Identify, Plugin, PluginConfigField, PluginConfigKind, PluginConfigValue,
-    PluginDevToken, PluginDevTokens, PluginLog, PluginLogLevel, PluginLogLine,
-    PluginPermissionGrant, PluginRemove, PluginReview, PluginReviewRemove, PluginReviewUpdate,
-    PluginReviews, PluginSignature, PluginState, PluginUpdate, PluginUser, PluginUsersUpdate,
-    Plugins, Ready, Request, Response, RestartPlugin, RevokePluginDevToken, Role, SetPluginConfig,
-    SetPluginPermissions, SetPluginRunning, UninstallPlugin, WatchPluginLog, event, request,
-    response,
+    Channel, ChannelKind, CloseView, ConfirmPluginReview, CreateChannel, CreatePluginDevToken,
+    CreateUpload, CreatedPluginDevToken, DiscardPluginReview, ErrorCode, Event,
+    FetchPluginDevTokens, FetchPluginLog, FetchPluginReviews, FetchPlugins, GithubCheck, Identify,
+    OpenView, Plugin, PluginChannelState, PluginChannelType, PluginChannelTypesUpdate,
+    PluginConfigField, PluginConfigKind, PluginConfigValue, PluginDevToken, PluginDevTokens,
+    PluginFileRef, PluginLog, PluginLogLevel, PluginLogLine, PluginPermissionGrant, PluginRemove,
+    PluginReview, PluginReviewRemove, PluginReviewUpdate, PluginReviews, PluginSignature,
+    PluginState, PluginUpdate, PluginUser, PluginUsersUpdate, Plugins, Ready, ReportViewError,
+    Request, Response, RestartPlugin, RevokePluginDevToken, Role, SendViewEvent, SetPluginConfig,
+    SetPluginPermissions, SetPluginRunning, UninstallPlugin, ViewCloseReason, ViewClosed,
+    ViewMessage, ViewOpened, ViewPlace, ViewScriptsUpdate, WatchPluginLog, event, request,
+    response, view_place,
 };
 use prost::Message as _;
 
@@ -267,6 +270,142 @@ fn plugin_messages_round_trip() {
                 avatar_hash: "hash".into(),
                 installed: true,
             }],
+        }),
+    ];
+
+    for kind in events {
+        let ev = Event { kind: Some(kind) };
+        let encoded = ev.encode_to_vec();
+        let decoded = Event::decode(&encoded[..]).unwrap();
+        assert_eq!(ev, decoded);
+    }
+}
+
+#[test]
+fn plugin_channels_and_views_round_trip() {
+    let chan_type = PluginChannelType {
+        plugin_id: "tickets".into(),
+        type_key: "inbox".into(),
+        name: "Ticket Inbox".into(),
+        description: "View open support tickets".into(),
+        icon: "assets/inbox.png".into(),
+        plugin_name: "Tickets".into(),
+    };
+    let file_ref = PluginFileRef {
+        path: "client/main.luau".into(),
+        sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
+        size_bytes: 4096,
+    };
+
+    // Ready with channel types
+    let ready = Ready {
+        plugin_channel_types: vec![chan_type.clone()],
+        ..Default::default()
+    };
+    let ready_encoded = ready.encode_to_vec();
+    let ready_decoded = Ready::decode(&ready_encoded[..]).unwrap();
+    assert_eq!(ready, ready_decoded);
+    assert_eq!(&ready_encoded[..2], &[0xCA, 0x01]); // field 25
+
+    // Channel with plugin fields
+    let channel = Channel {
+        id: 100,
+        kind: ChannelKind::Plugin as i32,
+        name: "support".into(),
+        plugin_id: Some("tickets".into()),
+        type_key: Some("inbox".into()),
+        plugin_state: PluginChannelState::Available as i32,
+        ..Default::default()
+    };
+    let ch_encoded = channel.encode_to_vec();
+    let ch_decoded = Channel::decode(&ch_encoded[..]).unwrap();
+    assert_eq!(channel, ch_decoded);
+
+    // CreateChannel with plugin fields
+    let create_channel = CreateChannel {
+        kind: ChannelKind::Plugin as i32,
+        name: "support".into(),
+        plugin_id: Some("tickets".into()),
+        type_key: Some("inbox".into()),
+        ..Default::default()
+    };
+    let cc_encoded = create_channel.encode_to_vec();
+    let cc_decoded = CreateChannel::decode(&cc_encoded[..]).unwrap();
+    assert_eq!(create_channel, cc_decoded);
+
+    // CreateUpload with view_id
+    let create_upload = CreateUpload {
+        channel_id: 0,
+        filename: "test.png".into(),
+        size_bytes: 1024,
+        view_id: Some(42),
+        ..Default::default()
+    };
+    let cu_encoded = create_upload.encode_to_vec();
+    let cu_decoded = CreateUpload::decode(&cu_encoded[..]).unwrap();
+    assert_eq!(create_upload, cu_decoded);
+
+    // Requests
+    let requests = vec![
+        request::Kind::OpenView(OpenView {
+            place: Some(ViewPlace {
+                kind: Some(view_place::Kind::ChannelId(100)),
+            }),
+            platform: "desktop".into(),
+        }),
+        request::Kind::CloseView(CloseView { view_id: 42 }),
+        request::Kind::SendViewEvent(SendViewEvent {
+            view_id: 42,
+            name: "submit".into(),
+            data_json: "{\"text\":\"help\"}".into(),
+        }),
+        request::Kind::ReportViewError(ReportViewError {
+            view_id: 42,
+            text: "main.luau:10: runtime error".into(),
+        }),
+    ];
+
+    for kind in requests {
+        let req = Request { kind: Some(kind) };
+        let encoded = req.encode_to_vec();
+        let decoded = Request::decode(&encoded[..]).unwrap();
+        assert_eq!(req, decoded);
+    }
+
+    // Response
+    let view_opened = ViewOpened {
+        view_id: 42,
+        plugin_id: "tickets".into(),
+        api: 1,
+        entry: "client/main.luau".into(),
+        files: vec![file_ref.clone()],
+        show_errors: true,
+    };
+    let resp = Response {
+        result: Some(response::Result::ViewOpened(view_opened)),
+    };
+    let resp_encoded = resp.encode_to_vec();
+    let resp_decoded = Response::decode(&resp_encoded[..]).unwrap();
+    assert_eq!(resp, resp_decoded);
+
+    // Events
+    let events = vec![
+        event::Kind::ViewMessage(ViewMessage {
+            view_id: 42,
+            name: "update".into(),
+            data_json: "{\"count\":1}".into(),
+        }),
+        event::Kind::ViewClosed(ViewClosed {
+            view_id: 42,
+            reason: ViewCloseReason::PluginStopped as i32,
+        }),
+        event::Kind::ViewScriptsUpdate(ViewScriptsUpdate {
+            plugin_id: "tickets".into(),
+            entry: "client/main.luau".into(),
+            files: vec![file_ref],
+        }),
+        event::Kind::PluginChannelTypesUpdate(PluginChannelTypesUpdate {
+            types: vec![chan_type],
         }),
     ];
 

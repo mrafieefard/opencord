@@ -211,6 +211,10 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::RevokePluginDevToken(request) => plugins::revoke_dev_token(ctx, request).await,
         Kind::FetchPluginDevTokens(_) => plugins::fetch_dev_tokens(ctx).await,
         Kind::WatchPluginLog(request) => plugins::watch_log(ctx, request).await,
+        Kind::OpenView(_)
+        | Kind::CloseView(_)
+        | Kind::SendViewEvent(_)
+        | Kind::ReportViewError(_) => Err(ApiError::invalid_argument("not implemented")),
     }
 }
 

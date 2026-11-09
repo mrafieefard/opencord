@@ -452,6 +452,9 @@ impl Channel {
             bitrate: self.voice(self.bitrate),
             user_limit: self.voice(self.user_limit),
             text_in_voice: self.kind == ChannelKind::Voice && self.text_in_voice,
+            plugin_id: None,
+            type_key: None,
+            plugin_state: proto::PluginChannelState::Unspecified as i32,
         }
     }
 

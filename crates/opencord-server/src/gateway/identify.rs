@@ -412,5 +412,6 @@ fn ready(
         private_messages_v2: state.private.enabled(),
         private_settings: Some(state.private.settings_proto()),
         plugin_users: crate::plugins::identity::plugin_users_proto(&guild),
+        plugin_channel_types: vec![],
     }
 }
