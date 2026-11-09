@@ -107,6 +107,9 @@ class _FakePluginPageRepository implements OpencordRepository {
   List<String>? lastSavedPermissions;
   int? revokedTokenId;
   int? createdTokenDays;
+  bool fetchLogShouldFail = false;
+  Duration fetchLogDelay = Duration.zero;
+  void Function()? onFetchLogStarted;
 
   @override
   Stream<RepoEvent> get events => _events.stream;
@@ -203,6 +206,13 @@ class _FakePluginPageRepository implements OpencordRepository {
     int? before,
     int limit = 100,
   }) async {
+    onFetchLogStarted?.call();
+    if (fetchLogDelay > Duration.zero) {
+      await Future.delayed(fetchLogDelay);
+    }
+    if (fetchLogShouldFail) {
+      throw const RepoException(RepoErrorKind.other, 'Server unavailable');
+    }
     return [
       PluginLogLine(
         seq: 1,
@@ -605,6 +615,66 @@ void main() {
     expect(
       find.text('HTTP request timed out connecting to api.tickets.example.com'),
       findsNothing,
+    );
+  });
+
+  testWidgets('log_lines_arriving_during_the_first_fetch_are_kept', (
+    tester,
+  ) async {
+    final plugin = _samplePlugin();
+    final repo = _FakePluginPageRepository(plugin: plugin);
+    repo.fetchLogDelay = const Duration(milliseconds: 50);
+    repo.onFetchLogStarted = () {
+      repo._events.add(
+        PluginLogAppended(_devKey, plugin.id, [
+          PluginLogLine(
+            seq: 4,
+            at: _testTime,
+            level: PluginLogLevel.info,
+            text: 'Live log line arrived during fetch',
+          ),
+        ]),
+      );
+    };
+
+    await tester.pumpWidget(
+      _wrap(
+        PluginPage(
+          serverKey: _devKey,
+          pluginId: plugin.id,
+          initialTab: PluginPageTab.log,
+        ),
+        repository: repo,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Live log line arrived during fetch'), findsOneWidget);
+    expect(find.text('Plugin started successfully'), findsOneWidget);
+  });
+
+  testWidgets('a_log_that_cannot_load_says_so', (tester) async {
+    final plugin = _samplePlugin();
+    final repo = _FakePluginPageRepository(plugin: plugin);
+    repo.fetchLogShouldFail = true;
+
+    await tester.pumpWidget(
+      _wrap(
+        PluginPage(
+          serverKey: _devKey,
+          pluginId: plugin.id,
+          initialTab: PluginPageTab.log,
+        ),
+        repository: repo,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Failed to load log: Server unavailable'),
+      findsOneWidget,
     );
   });
 

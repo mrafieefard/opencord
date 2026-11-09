@@ -70,6 +70,13 @@ export type Message = {
     attachments: { Attachment },
 }
 
+export type ChannelOverwrite = {
+    target_kind: string,
+    target_id: string,
+    allow: { string },
+    deny: { string },
+}
+
 export type Channel = {
     id: string,
     name: string,
@@ -77,6 +84,10 @@ export type Channel = {
     topic: string?,
     position: number,
     parent_id: string?,
+    overwrites: { ChannelOverwrite }?,
+    bitrate: number?,
+    user_limit: number?,
+    text_in_voice: boolean?,
 }
 
 export type PermissionName =
@@ -123,6 +134,8 @@ export type Role = {
     permissions: { PermissionName },
     hoist: boolean,
     mentionable: boolean,
+    max_upload_bytes: number?,
+    plugin_id: string?,
 }
 
 export type Member = {
@@ -150,9 +163,13 @@ export type Invite = {
 
 export type ServerInfo = {
     id: string,
+    server_id: string,
     name: string,
     description: string?,
-    owner_id: string,
+    owner_id: string?,
+    open_join: boolean?,
+    everyone_role_id: string?,
+    icon_hash: string?,
 }
 
 export type VoiceState = {

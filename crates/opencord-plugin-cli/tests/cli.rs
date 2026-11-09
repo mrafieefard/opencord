@@ -201,6 +201,28 @@ async fn dev_push_refuses_a_key_inside_the_folder() {
     }
 }
 
+#[test]
+fn a_key_under_another_name_is_refused() {
+    let tmp = tempdir().unwrap();
+    let id = "notes-bot";
+    init::init(id, tmp.path()).unwrap();
+    let plugin_dir = tmp.path().join(id);
+
+    // Write a key inside sub/notes.txt (does NOT end in .key)
+    let sub = plugin_dir.join("sub");
+    fs::create_dir_all(&sub).unwrap();
+    let key_path = sub.join("notes.txt");
+    keys::keygen(Some(&key_path)).unwrap();
+
+    let output_zip = tmp.path().join("out.zip");
+    let err = pack::pack(&plugin_dir, None, Some(&output_zip)).unwrap_err();
+
+    assert!(
+        err.contains("contains a private key"),
+        "unexpected error: {err}"
+    );
+}
+
 #[derive(Clone, Default)]
 struct SharedBuffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
@@ -272,6 +294,7 @@ async fn dev_pushes_and_prints_the_log() {
         plugin_dir.join("server/main.luau"),
         r#"opencord.on("start", function()
   log.info("dev hello from test")
+  log.info("dev hello from test")
 end)
 "#,
     )
@@ -327,6 +350,15 @@ end)
         }))
         .await;
 
+    // Both identical lines from the same millisecond must be printed (Finding 10)
+    wait_for_output(&buf, "INFO dev hello from test").await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let count = buf.text().matches("INFO dev hello from test").count();
+    assert_eq!(
+        count, 2,
+        "identical log lines in same ms must not be dropped"
+    );
+
     // Edit the file to trigger re-push
     tokio::time::sleep(Duration::from_millis(50)).await;
     fs::write(
@@ -344,13 +376,12 @@ end)
     // Verify the log was polled and printed
     wait_for_output(&buf, "INFO hello after edit").await;
 
-    // Test resilience: server restarts on same port and dev reconnects
+    // Test push retry when server is down during an edit (Finding 5)
     let port = server.handle.local_addr.port();
-    let _server = server
-        .restart(|c| c.server.bind = format!("127.0.0.1:{port}").parse().unwrap())
-        .await;
+    let server_dir = server.dir;
+    server.handle.shutdown().await;
 
-    // Touch file after restart
+    // Edit while server is down
     tokio::time::sleep(Duration::from_millis(50)).await;
     fs::write(
         plugin_dir.join("server/main.luau"),
@@ -361,9 +392,49 @@ end)
     )
     .unwrap();
 
+    // Verify it attempts push, fails with connection error, and retries in 2 seconds
+    wait_for_output(&buf, "Retrying in 2 seconds...").await;
+
+    // Start server again on the same port and data directory
+    let _server = TestServer::start_in(server_dir, |c| {
+        c.server.bind = format!("127.0.0.1:{port}").parse().unwrap();
+    })
+    .await;
+
+    // Verify it automatically reconnected, pushed and installed
+    wait_for_output(&buf, "Installed 0.1.0, running").await;
     wait_for_output(&buf, "INFO hello after restart").await;
 
     // Signal stop and join task
+    let _ = stop_tx.send(true);
+    let res = dev_task.await.unwrap();
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn dev_initial_push_retries_when_server_is_down() {
+    let tmp = tempdir().unwrap();
+    let id = "offline-bot";
+    init::init(id, tmp.path()).unwrap();
+    let plugin_dir = tmp.path().join(id);
+
+    let opts = dev::DevOptions {
+        server: "127.0.0.1:49999",
+        fingerprint: None,
+        token: "fake-token",
+        folder: Box::leak(plugin_dir.into_boxed_path()),
+    };
+
+    let buf = SharedBuffer::default();
+    let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
+
+    let dev_task = tokio::spawn({
+        let buf = buf.clone();
+        async move { dev::run_dev_with(opts, buf, Some(stop_rx)).await }
+    });
+
+    wait_for_output(&buf, "Retrying in 2 seconds...").await;
+
     let _ = stop_tx.send(true);
     let res = dev_task.await.unwrap();
     assert!(res.is_ok());

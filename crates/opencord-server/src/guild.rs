@@ -348,6 +348,27 @@ impl Guild {
             icon_hash: self.meta.icon_hash.clone().unwrap_or_default(),
         }
     }
+
+    pub fn member_name(&self, user_id: i64) -> String {
+        self.members
+            .get(&user_id)
+            .map(|m| m.user.display_name.clone())
+            .unwrap_or_else(|| user_id.to_string())
+    }
+
+    pub fn channel_name(&self, channel_id: i64) -> String {
+        self.channels
+            .get(&channel_id)
+            .map(|c| c.name.clone())
+            .unwrap_or_else(|| channel_id.to_string())
+    }
+
+    pub fn role_name(&self, role_id: i64) -> String {
+        self.roles
+            .get(&role_id)
+            .map(|r| r.name.clone())
+            .unwrap_or_else(|| role_id.to_string())
+    }
 }
 
 impl User {

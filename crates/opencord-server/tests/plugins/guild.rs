@@ -537,3 +537,32 @@ async fn channel_get_matches_channel_update_event() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn server_get_matches_server_update_event() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+
+    let _p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "server-matcher",
+        &["read_server"],
+        r#"
+        opencord.on("start", function()
+            local s = server.get()
+            assert(type(s.id) == "string" and #s.id > 0, "missing id")
+            assert(s.id == s.server_id, "server_id mismatch")
+            assert(type(s.name) == "string", "missing name")
+            assert(type(s.description) == "string", "missing description")
+            assert(type(s.everyone_role_id) == "string", "missing everyone_role_id")
+            assert(type(s.open_join) == "boolean", "missing open_join")
+            log.info("server.get verified")
+        end)
+        "#,
+    )
+    .await;
+
+    wait_for_log(&mut owner, "server-matcher", "server.get verified").await;
+}

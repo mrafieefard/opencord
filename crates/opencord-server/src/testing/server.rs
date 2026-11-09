@@ -47,7 +47,7 @@ impl TestServer {
         Self::start_in(self.dir, customize).await
     }
 
-    async fn start_in(dir: tempfile::TempDir, customize: impl FnOnce(&mut Config)) -> Self {
+    pub async fn start_in(dir: tempfile::TempDir, customize: impl FnOnce(&mut Config)) -> Self {
         // The server's warnings and errors, shown with a failing test's
         // output (RUST_LOG for more).
         static LOG: std::sync::Once = std::sync::Once::new();

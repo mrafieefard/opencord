@@ -66,27 +66,8 @@ impl MediaHttp {
         body: &[u8],
         limit: usize,
     ) -> Result<HttpResponse, CoreError> {
-        let Route { address, pin } = self
-            .routes
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(key)
-            .cloned()
-            .ok_or(CoreError::NotConnected)?;
-        let mut renewed = false;
-        loop {
-            let token = media_token(&self.tokens, key).ok_or(CoreError::NotConnected)?;
-            let response = request(&address, pin, method, path, &token, body, limit)
-                .await
-                .map_err(|error| CoreError::Connection {
-                    message: error.to_string(),
-                })?;
-            if response.status != 401 || renewed {
-                return Ok(response);
-            }
-            renew_media_token(client, &self.tokens, key).await?;
-            renewed = true;
-        }
+        self.request_with_timeout(client, key, method, path, body, limit, REQUEST_TIMEOUT)
+            .await
     }
 
     /// Reads at most `limit` bytes of the answer's body with a custom timeout.
@@ -162,31 +143,6 @@ pub(crate) async fn renew_media_token(
             .insert(key.to_owned(), token.token);
     }
     Ok(())
-}
-
-/// One request to the server at `address`, whose certificate must match
-/// `pin`, or, without one, be vouched for by an authority. `bearer` goes in the Authorization header; at most `limit` bytes
-/// of body are read.
-pub async fn request(
-    address: &ServerAddress,
-    pin: Option<Fingerprint>,
-    method: &str,
-    path: &str,
-    bearer: &str,
-    body: &[u8],
-    limit: usize,
-) -> Result<HttpResponse, HttpError> {
-    request_with_timeout(
-        address,
-        pin,
-        method,
-        path,
-        bearer,
-        body,
-        limit,
-        REQUEST_TIMEOUT,
-    )
-    .await
 }
 
 /// One request with a custom timeout.

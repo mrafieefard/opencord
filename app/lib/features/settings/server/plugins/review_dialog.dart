@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -85,9 +86,14 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
     }
     for (final field in rev.plugin.configFields) {
       final existing = rev.plugin.config.where((c) => c.key == field.key);
-      _configValues[field.key] = existing.isNotEmpty
-          ? existing.first.value
-          : '';
+      final existingVal = existing.isNotEmpty ? existing.first.value : '';
+      if (field.kind == PluginConfigKind.choice &&
+          existingVal.isEmpty &&
+          field.choices.isNotEmpty) {
+        _configValues[field.key] = field.choices.first;
+      } else {
+        _configValues[field.key] = existingVal;
+      }
     }
     _armExpiry(rev);
   }
@@ -196,6 +202,7 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
   Future<void> _discard() async {
     final rev = _review;
     if (rev != null) {
+      setState(() => _busy = true);
       try {
         await ref
             .read(repositoryProvider)
@@ -262,6 +269,7 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
     ref.listen<Map<String, PluginReview>>(
       pluginReviewsProvider(widget.serverKey),
       (prev, next) {
+        if (_busy) return;
         final current = _review;
         if (current != null &&
             prev?.containsKey(current.reviewId) == true &&
@@ -323,7 +331,12 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
         ),
       ],
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 340),
+        constraints: BoxConstraints(
+          maxHeight: math.min(
+            520.0,
+            math.max(200.0, MediaQuery.sizeOf(context).height - 230.0),
+          ),
+        ),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -604,7 +617,7 @@ class _ReviewDialogState extends ConsumerState<ReviewDialog> {
                       const SizedBox(width: OcSpace.s8),
                       Expanded(
                         child: Text(
-                          'I accept the ${plugin.license.isNotEmpty ? plugin.license : "plugin's"} licence terms',
+                          'I accept the licence',
                           style: OcText.body.copyWith(color: colors.text),
                         ),
                       ),

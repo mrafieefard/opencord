@@ -314,6 +314,20 @@ pub async fn run_dev(options: DevOptions<'_>) -> Result<(), String> {
     run_dev_with(options, std::io::stdout(), None).await
 }
 
+fn say<W: std::io::Write + ?Sized>(
+    writer: &Arc<std::sync::Mutex<W>>,
+    line: impl std::fmt::Display,
+) {
+    let mut w = writer
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // Writing to stdout or test buffer: if the pipe is closed (e.g. broken pipe),
+    // dev mode cannot output elsewhere since stdout is the logging destination.
+    if writeln!(w, "{line}").is_err() {
+        // Output stream broken or closed; ignore since no other sink exists.
+    }
+}
+
 pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
     options: DevOptions<'_>,
     writer: W,
@@ -322,14 +336,13 @@ pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
     let writer = Arc::new(std::sync::Mutex::new(writer));
     let id = load_manifest_id(options.folder)?;
 
-    {
-        let mut w = writer.lock().unwrap();
-        let _ = writeln!(
-            w,
+    say(
+        &writer,
+        format_args!(
             "Watching '{}' for changes (dev mode for plugin '{id}')...",
             options.folder.display()
-        );
-    }
+        ),
+    );
 
     // Initial push with retry on connection errors
     loop {
@@ -340,20 +353,15 @@ pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
         }
         match push_once(&options).await {
             Ok(msg) => {
-                let mut w = writer.lock().unwrap();
-                let _ = writeln!(w, "{msg}");
+                say(&writer, msg);
                 break;
             }
             Err(PushError::Network(e)) => {
-                {
-                    let mut w = writer.lock().unwrap();
-                    let _ = writeln!(w, "{e}. Retrying in 2 seconds...");
-                }
+                say(&writer, format_args!("{e}. Retrying in 2 seconds..."));
                 tokio::time::sleep(Duration::from_secs(2)).await;
             }
             Err(PushError::Refused(e)) => {
-                let mut w = writer.lock().unwrap();
-                let _ = writeln!(w, "{e}");
+                say(&writer, e);
                 break;
             }
         }
@@ -387,14 +395,13 @@ pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
                         if line.seq > cursor {
                             cursor = line.seq;
                         }
-                        let key = (line.at_ms, line.level, line.text.clone());
+                        let key = (line.seq, line.at_ms, line.level, line.text.clone());
                         if seen.insert(key) {
                             if seen.len() > 2048 {
                                 seen.clear();
                             }
                             let formatted = format_log_line(&line);
-                            let mut w = log_writer.lock().unwrap();
-                            let _ = writeln!(w, "{formatted}");
+                            say(&log_writer, formatted);
                         }
                     }
                 }
@@ -403,10 +410,7 @@ pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
                     tokio::time::sleep(Duration::from_secs(2)).await;
                 }
                 Err(PollLogError::Server(e)) => {
-                    {
-                        let mut w = log_writer.lock().unwrap();
-                        let _ = writeln!(w, "{e}");
-                    }
+                    say(&log_writer, e);
                     tokio::time::sleep(Duration::from_secs(2)).await;
                 }
             }
@@ -425,10 +429,7 @@ pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
         let current_snapshot = folder_snapshot(options.folder);
         if current_snapshot != last_snapshot {
             last_snapshot = current_snapshot;
-            {
-                let mut w = writer.lock().unwrap();
-                let _ = writeln!(w, "Changes detected, packing and pushing...");
-            }
+            say(&writer, "Changes detected, packing and pushing...");
             loop {
                 if let Some(ref rx) = stop_rx
                     && *rx.borrow()
@@ -437,20 +438,15 @@ pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
                 }
                 match push_once(&options).await {
                     Ok(msg) => {
-                        let mut w = writer.lock().unwrap();
-                        let _ = writeln!(w, "{msg}");
+                        say(&writer, msg);
                         break;
                     }
                     Err(PushError::Network(e)) => {
-                        {
-                            let mut w = writer.lock().unwrap();
-                            let _ = writeln!(w, "{e}. Retrying in 2 seconds...");
-                        }
+                        say(&writer, format_args!("{e}. Retrying in 2 seconds..."));
                         tokio::time::sleep(Duration::from_secs(2)).await;
                     }
                     Err(PushError::Refused(e)) => {
-                        let mut w = writer.lock().unwrap();
-                        let _ = writeln!(w, "{e}");
+                        say(&writer, e);
                         break;
                     }
                 }

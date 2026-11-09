@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/permissions.dart';
-import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
+import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/chat/chat_row_view.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/chat/message_actions.dart';
@@ -106,6 +109,7 @@ void main() {
       surface: const Size(800, 600),
       ProviderScope(
         overrides: [
+          repositoryProvider.overrideWithValue(MockRepository()),
           clockProvider.overrideWithValue(() => _at),
           serverProvider('test').overrideWith(() => _TestServerNotifier(data)),
         ],
@@ -153,6 +157,7 @@ void main() {
       surface: const Size(800, 600),
       ProviderScope(
         overrides: [
+          repositoryProvider.overrideWithValue(MockRepository()),
           clockProvider.overrideWithValue(() => _at),
           serverProvider('test').overrideWith(() => _TestServerNotifier(data)),
         ],
@@ -228,4 +233,43 @@ void main() {
       );
     });
   }
+
+  testWidgets('a_typing_plugin_shows_its_name', (tester) async {
+    final data = _serverDataWithPluginUser(installed: true);
+    final typingState = TypingState({
+      10: {9001: _at.add(const Duration(seconds: 5))},
+    });
+
+    await pumpThemed(
+      tester,
+      colors: OcColors.dark,
+      surface: const Size(800, 200),
+      ProviderScope(
+        overrides: [
+          repositoryProvider.overrideWithValue(MockRepository()),
+          clockProvider.overrideWithValue(() => _at),
+          serverProvider('test').overrideWith(() => _TestServerNotifier(data)),
+          typingProvider(
+            'test',
+          ).overrideWith(() => _TestTypingNotifier('test', typingState)),
+        ],
+        child: Scaffold(
+          body: ChatHeader(
+            channel: (server: 'test', channel: 10),
+            onJumpTo: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Welcome Bot is typing'), findsOneWidget);
+  });
+}
+
+class _TestTypingNotifier extends TypingNotifier {
+  _TestTypingNotifier(super.serverKey, this._initial);
+  final TypingState _initial;
+  @override
+  TypingState build() => _initial;
 }

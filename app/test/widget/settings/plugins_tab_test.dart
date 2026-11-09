@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/settings/server/plugins/plugin_config_fields.dart';
 import 'package:opencord/features/settings/server/plugins/plugins_page.dart';
 import 'package:opencord/features/settings/server/plugins/review_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -16,6 +18,7 @@ import 'package:opencord/ui/theme/oc_theme.dart';
 import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
+import 'package:opencord/ui/widgets/oc_text_field.dart';
 
 import '../../support/pump.dart';
 
@@ -128,7 +131,10 @@ class _FakePluginsRepository implements OpencordRepository {
   bool? lastToggledRunning;
   bool confirmShouldFail = false;
   bool uploadShouldFail = false;
+  bool emitRemovalBeforeConfirm = false;
+  Duration confirmDelay = Duration.zero;
   String? confirmedReviewId;
+  List<PluginConfigValue>? lastConfirmedConfig;
 
   @override
   Stream<RepoEvent> get events => _events.stream;
@@ -185,6 +191,14 @@ class _FakePluginsRepository implements OpencordRepository {
     List<PluginConfigValue> config,
     bool acceptLicense,
   ) async {
+    lastConfirmedConfig = config;
+    if (emitRemovalBeforeConfirm) {
+      reviews.remove(reviewId);
+      _events.add(PluginReviewRemoved(serverKey, reviewId));
+      if (confirmDelay > Duration.zero) {
+        await Future.delayed(confirmDelay);
+      }
+    }
     if (confirmShouldFail) {
       throw const RepoException(
         RepoErrorKind.other,
@@ -198,6 +212,9 @@ class _FakePluginsRepository implements OpencordRepository {
       plugins.add(rev.plugin);
       _events.add(PluginUpdated(serverKey, rev.plugin));
       return rev.plugin;
+    }
+    if (emitRemovalBeforeConfirm) {
+      return _samplePlugin();
     }
     throw const RepoException(RepoErrorKind.other, 'Review expired');
   }
@@ -450,9 +467,7 @@ void main() {
     expect(tester.widget<OcButton>(installButton).onPressed, isNull);
 
     // Accept licence
-    final licenceFinder = find.text(
-      'I accept the Custom Commercial licence terms',
-    );
+    final licenceFinder = find.text('I accept the licence');
     await tester.ensureVisible(licenceFinder);
     await tester.pumpAndSettle();
     await tester.tap(licenceFinder);
@@ -653,6 +668,392 @@ void main() {
     expect(closed, true);
   });
 
+  testWidgets('a_confirm_that_fails_after_the_removal_event_shows_its_error', (
+    tester,
+  ) async {
+    final review = _sampleReview(
+      reviewId: 'rev-fail-removal',
+      licenseNeedsAcceptance: false,
+    );
+    final repo = _FakePluginsRepository(
+      initialPlugins: [],
+      initialReviews: [review],
+    );
+    repo.emitRemovalBeforeConfirm = true;
+    repo.confirmDelay = const Duration(milliseconds: 50);
+    repo.confirmShouldFail = true;
+
+    await tester.pumpWidget(
+      _wrap(
+        ReviewDialog(serverKey: _devKey, review: review),
+        repository: repo,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap Install
+    final installButton = find.widgetWithText(OcButton, 'Install');
+    await tester.tap(installButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    // Dialog must stay open and render the error!
+    expect(find.byType(ReviewDialog), findsOneWidget);
+    expect(
+      find.text('Signature verification failed on server'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a_confirm_closes_only_the_review_dialog', (tester) async {
+    final review = _sampleReview(
+      reviewId: 'rev-success-removal',
+      licenseNeedsAcceptance: false,
+    );
+    final repo = _FakePluginsRepository(
+      initialPlugins: [],
+      initialReviews: [review],
+    );
+    repo.emitRemovalBeforeConfirm = true;
+    repo.confirmDelay = const Duration(milliseconds: 50);
+    repo.confirmShouldFail = false;
+
+    await tester.pumpWidget(
+      _wrap(
+        Consumer(
+          builder: (context, ref, _) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  await showDialog<void>(
+                    context: context,
+                    builder: (dialogCtx) =>
+                        ReviewDialog(serverKey: _devKey, review: review),
+                  );
+                },
+                child: const Text('Open Dialog'),
+              ),
+            ),
+          ),
+        ),
+        repository: repo,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open Dialog'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReviewDialog), findsOneWidget);
+
+    final installButton = find.widgetWithText(OcButton, 'Install');
+    await tester.tap(installButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    // Review dialog closed, but base page remains (did not pop twice!)
+    expect(find.byType(ReviewDialog), findsNothing);
+    expect(find.text('Open Dialog'), findsOneWidget);
+  });
+
+  testWidgets('an_untouched_choice_sends_what_it_shows', (tester) async {
+    final plugin = _samplePlugin().copyWith(
+      configFields: const [
+        PluginConfigField(
+          key: 'log_level',
+          label: 'Log Level',
+          kind: PluginConfigKind.choice,
+          choices: ['info', 'debug', 'warn'],
+          required: true,
+        ),
+      ],
+    );
+    final review = _sampleReview(
+      reviewId: 'rev-choice',
+      plugin: plugin,
+      licenseNeedsAcceptance: false,
+    );
+    final repo = _FakePluginsRepository(
+      initialPlugins: [],
+      initialReviews: [review],
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        ReviewDialog(serverKey: _devKey, review: review),
+        repository: repo,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Chip 'info' is displayed as selected without touching it
+    expect(find.text('info'), findsOneWidget);
+
+    // Tap Install
+    await tester.tap(find.widgetWithText(OcButton, 'Install'));
+    await tester.pumpAndSettle();
+
+    // Value sent must be 'info'
+    expect(repo.lastConfirmedConfig, isNotNull);
+    final sent = repo.lastConfirmedConfig!.firstWhere(
+      (c) => c.key == 'log_level',
+    );
+    expect(sent.value, 'info');
+    expect(sent.hasValue, true);
+  });
+
+  testWidgets('config_fields_channel_picker_sends_id', (tester) async {
+    const data = ServerData(
+      self: User(id: 1000, displayName: 'Admin'),
+      info: ServerInfo(
+        serverIdHex: '01',
+        name: 'Test Server',
+        everyoneRoleId: 1,
+      ),
+      channels: {
+        101: Channel(
+          id: 101,
+          kind: ChannelKind.text,
+          name: 'general',
+          position: 0,
+        ),
+        102: Channel(
+          id: 102,
+          kind: ChannelKind.voice,
+          name: 'lobby',
+          position: 1,
+        ),
+        103: Channel(
+          id: 103,
+          kind: ChannelKind.category,
+          name: 'Headers',
+          position: 2,
+        ),
+      },
+      roles: {},
+      members: {},
+      serverPermissions: Permissions.managePlugins,
+      channelPermissions: {},
+    );
+
+    String? updatedKey;
+    String? updatedVal;
+
+    await tester.pumpWidget(
+      _wrap(
+        PluginConfigFields(
+          serverKey: _devKey,
+          fields: const [
+            PluginConfigField(
+              key: 'announcements',
+              label: 'Announcements Channel',
+              kind: PluginConfigKind.channel,
+              required: true,
+            ),
+          ],
+          values: const {},
+          onChanged: (key, val) {
+            updatedKey = key;
+            updatedVal = val;
+          },
+        ),
+        repository: _FakePluginsRepository(),
+        serverData: data,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Category 'Headers' must NOT be in the picker options
+    await tester.tap(find.text('Select channel...'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('#general'), findsOneWidget);
+    expect(find.text('#lobby'), findsOneWidget);
+    expect(find.text('#Headers'), findsNothing);
+
+    await tester.tap(find.text('#general'));
+    await tester.pumpAndSettle();
+
+    expect(updatedKey, 'announcements');
+    expect(updatedVal, '101');
+  });
+
+  testWidgets('config_fields_role_picker_sends_id', (tester) async {
+    const data = ServerData(
+      self: User(id: 1000, displayName: 'Admin'),
+      info: ServerInfo(
+        serverIdHex: '01',
+        name: 'Test Server',
+        everyoneRoleId: 1,
+      ),
+      channels: {},
+      roles: {
+        1: Role(
+          id: 1,
+          name: '@everyone',
+          color: 0,
+          position: 0,
+          permissions: Permissions.all,
+        ),
+        501: Role(
+          id: 501,
+          name: 'Moderator',
+          color: 0x00FF00,
+          position: 1,
+          permissions: Permissions.all,
+        ),
+      },
+      members: {},
+      serverPermissions: Permissions.managePlugins,
+      channelPermissions: {},
+    );
+
+    String? updatedKey;
+    String? updatedVal;
+
+    await tester.pumpWidget(
+      _wrap(
+        PluginConfigFields(
+          serverKey: _devKey,
+          fields: const [
+            PluginConfigField(
+              key: 'mod_role',
+              label: 'Mod Role',
+              kind: PluginConfigKind.role,
+              required: true,
+            ),
+          ],
+          values: const {},
+          onChanged: (key, val) {
+            updatedKey = key;
+            updatedVal = val;
+          },
+        ),
+        repository: _FakePluginsRepository(),
+        serverData: data,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Select role...'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Moderator'), findsOneWidget);
+
+    await tester.tap(find.text('Moderator'));
+    await tester.pumpAndSettle();
+
+    expect(updatedKey, 'mod_role');
+    expect(updatedVal, '501');
+  });
+
+  testWidgets('config_fields_user_picker_sends_id', (tester) async {
+    final data = ServerData(
+      self: const User(id: 1000, displayName: 'Admin'),
+      info: const ServerInfo(
+        serverIdHex: '01',
+        name: 'Test Server',
+        everyoneRoleId: 1,
+      ),
+      channels: const {},
+      roles: const {},
+      members: {
+        1000: Member(
+          user: const User(id: 1000, displayName: 'Kai'),
+          joinedAt: DateTime.fromMillisecondsSinceEpoch(0),
+          roleIds: const [1],
+        ),
+        2000: Member(
+          user: const User(id: 2000, displayName: 'Alex'),
+          joinedAt: DateTime.fromMillisecondsSinceEpoch(0),
+          roleIds: const [1],
+        ),
+      },
+      serverPermissions: Permissions.managePlugins,
+      channelPermissions: const {},
+    );
+
+    String? updatedKey;
+    String? updatedVal;
+
+    await tester.pumpWidget(
+      _wrap(
+        PluginConfigFields(
+          serverKey: _devKey,
+          fields: const [
+            PluginConfigField(
+              key: 'owner',
+              label: 'Owner User',
+              kind: PluginConfigKind.user,
+              required: true,
+            ),
+          ],
+          values: const {},
+          onChanged: (key, val) {
+            updatedKey = key;
+            updatedVal = val;
+          },
+        ),
+        repository: _FakePluginsRepository(),
+        serverData: data,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Select user...'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alex'), findsOneWidget);
+
+    await tester.tap(find.text('Alex'));
+    await tester.pumpAndSettle();
+
+    expect(updatedKey, 'owner');
+    expect(updatedVal, '2000');
+  });
+
+  testWidgets('config_fields_boolean_choice_and_number', (tester) async {
+    final values = <String, String>{'enabled': 'false', 'threshold': '42'};
+
+    await tester.pumpWidget(
+      _wrap(
+        StatefulBuilder(
+          builder: (context, setState) => PluginConfigFields(
+            serverKey: _devKey,
+            fields: const [
+              PluginConfigField(
+                key: 'enabled',
+                label: 'Enable Feature',
+                kind: PluginConfigKind.boolean,
+              ),
+              PluginConfigField(
+                key: 'threshold',
+                label: 'Threshold',
+                kind: PluginConfigKind.number,
+              ),
+            ],
+            values: values,
+            onChanged: (key, val) => setState(() => values[key] = val),
+          ),
+        ),
+        repository: _FakePluginsRepository(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Toggle boolean switch
+    await tester.tap(find.byType(OcSwitch));
+    await tester.pumpAndSettle();
+    expect(values['enabled'], 'true');
+
+    // Type invalid number
+    await tester.enterText(find.byType(OcTextField), 'not_a_number');
+    await tester.pumpAndSettle();
+    expect(values['threshold'], 'not_a_number');
+    expect(find.text('Must be a valid number'), findsOneWidget);
+  });
+
   for (final (name, colors) in themes) {
     testWidgets('plugins list in $name', (tester) async {
       final running = _samplePlugin(
@@ -685,6 +1086,10 @@ void main() {
     });
 
     testWidgets('review dialog in $name', (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
       final review = _sampleReview(
         reviewId: 'rev-golden',
         licenseNeedsAcceptance: true,
@@ -706,6 +1111,35 @@ void main() {
       await expectLater(
         find.byType(ReviewDialog),
         matchesGoldenFile('goldens/review_dialog_$name.png'),
+      );
+    });
+
+    testWidgets('review dialog narrow in $name', (tester) async {
+      tester.view.physicalSize = const Size(540, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final review = _sampleReview(
+        reviewId: 'rev-golden-narrow',
+        licenseNeedsAcceptance: true,
+      );
+      final repo = _FakePluginsRepository(
+        initialPlugins: [],
+        initialReviews: [review],
+      );
+
+      await tester.pumpWidget(
+        _wrap(
+          ReviewDialog(serverKey: _devKey, review: review),
+          repository: repo,
+          colors: colors,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(ReviewDialog),
+        matchesGoldenFile('goldens/review_dialog_narrow_$name.png'),
       );
     });
   }

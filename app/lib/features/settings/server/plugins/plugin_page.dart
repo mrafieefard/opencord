@@ -19,6 +19,7 @@ import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/choice_chips.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
+import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
@@ -638,16 +639,24 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
   };
   bool _dirty = false;
 
+  String _initialValueFor(PluginConfigField field) {
+    if (field.kind == PluginConfigKind.secret) {
+      return '';
+    }
+    final saved = _saved[field.key];
+    if (field.kind == PluginConfigKind.choice &&
+        (saved == null || saved.isEmpty) &&
+        field.choices.isNotEmpty) {
+      return field.choices.first;
+    }
+    return saved ?? '';
+  }
+
   @override
   void initState() {
     super.initState();
     for (final field in widget.plugin.configFields) {
-      if (field.kind == PluginConfigKind.secret) {
-        // Secrets start empty (§17.2, "Saved. Leave empty to keep it.")
-        _values[field.key] = '';
-      } else {
-        _values[field.key] = _saved[field.key] ?? '';
-      }
+      _values[field.key] = _initialValueFor(field);
     }
   }
 
@@ -657,11 +666,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
     if (oldWidget.plugin != widget.plugin && !unsavedChanges) {
       _saved = {for (final val in widget.plugin.config) val.key: val.value};
       for (final field in widget.plugin.configFields) {
-        if (field.kind == PluginConfigKind.secret) {
-          _values[field.key] = '';
-        } else {
-          _values[field.key] = _saved[field.key] ?? '';
-        }
+        _values[field.key] = _initialValueFor(field);
       }
     }
   }
@@ -701,11 +706,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
     if (!mounted) return;
     setState(() {
       for (final field in widget.plugin.configFields) {
-        if (field.kind == PluginConfigKind.secret) {
-          _values[field.key] = '';
-        } else {
-          _values[field.key] = _saved[field.key] ?? '';
-        }
+        _values[field.key] = _initialValueFor(field);
       }
       _dirty = false;
     });
@@ -764,6 +765,7 @@ class _LogTabState extends ConsumerState<_LogTab> {
   final List<PluginLogLine> _lines = [];
   final List<PluginLogLine> _buffered = [];
   bool _initialLoaded = false;
+  String? _error;
   StreamSubscription? _sub;
 
   late final OpencordRepository _repo;
@@ -809,6 +811,8 @@ class _LogTabState extends ConsumerState<_LogTab> {
       );
     } on RepoException catch (e) {
       appLog('Failed to watch plugin log: $e', name: 'plugins');
+      if (mounted) setState(() => _error = 'Failed to load log: ${e.message}');
+      return;
     }
 
     // 2. Fetch initial log lines
@@ -821,6 +825,8 @@ class _LogTabState extends ConsumerState<_LogTab> {
       );
     } on RepoException catch (e) {
       appLog('Failed to fetch initial plugin log: $e', name: 'plugins');
+      if (mounted) setState(() => _error = 'Failed to load log: ${e.message}');
+      return;
     }
 
     if (!mounted) return;
@@ -891,7 +897,9 @@ class _LogTabState extends ConsumerState<_LogTab> {
             borderRadius: BorderRadius.circular(OcRadius.section),
             border: Border.all(color: colors.border),
           ),
-          child: filtered.isEmpty
+          child: _error != null
+              ? Center(child: InlineError(_error!))
+              : filtered.isEmpty
               ? Center(
                   child: Text(
                     'No log entries yet.',

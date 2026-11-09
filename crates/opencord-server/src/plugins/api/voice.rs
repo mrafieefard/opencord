@@ -216,17 +216,10 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 let (member_name, channel_name) = {
                     let g = state.guild();
-                    let m_name = g
-                        .members
-                        .get(&target_user_id)
-                        .map(|m| m.user.display_name.clone())
-                        .unwrap_or_else(|| target_user_id.to_string());
-                    let c_name = g
-                        .channels
-                        .get(&destination_channel_id)
-                        .map(|c| c.name.clone())
-                        .unwrap_or_else(|| destination_channel_id.to_string());
-                    (m_name, c_name)
+                    (
+                        g.member_name(target_user_id),
+                        g.channel_name(destination_channel_id),
+                    )
                 };
 
                 env.on_server(async move {
@@ -268,12 +261,7 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let member_name = state
-                    .guild()
-                    .members
-                    .get(&target_user_id)
-                    .map(|m| m.user.display_name.clone())
-                    .unwrap_or_else(|| target_user_id.to_string());
+                let member_name = state.guild().member_name(target_user_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -314,12 +302,7 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let member_name = state
-                    .guild()
-                    .members
-                    .get(&target_user_id)
-                    .map(|m| m.user.display_name.clone())
-                    .unwrap_or_else(|| target_user_id.to_string());
+                let member_name = state.guild().member_name(target_user_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -361,12 +344,7 @@ fn install_voice(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let member_name = state
-                    .guild()
-                    .members
-                    .get(&target_user_id)
-                    .map(|m| m.user.display_name.clone())
-                    .unwrap_or_else(|| target_user_id.to_string());
+                let member_name = state.guild().member_name(target_user_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -415,12 +393,7 @@ fn install_soundboard(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let channel_name = state
-                    .guild()
-                    .channels
-                    .get(&channel_id)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| channel_id.to_string());
+                let channel_name = state.guild().channel_name(channel_id);
 
                 let sound_ref = if let Ok(id) = sound_id_str.parse::<i64>() {
                     let guild = state.guild();
@@ -517,12 +490,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let channel_name = state
-                    .guild()
-                    .channels
-                    .get(&channel_id)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| channel_id.to_string());
+                let channel_name = state.guild().channel_name(channel_id);
 
                 let query_clone = query.clone();
                 env.on_server(async move {
@@ -592,12 +560,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let channel_name = state
-                    .guild()
-                    .channels
-                    .get(&channel_id)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| channel_id.to_string());
+                let channel_name = state.guild().channel_name(channel_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -640,12 +603,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let channel_name = state
-                    .guild()
-                    .channels
-                    .get(&channel_id)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| channel_id.to_string());
+                let channel_name = state.guild().channel_name(channel_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -688,12 +646,7 @@ fn install_music(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let channel_name = state
-                    .guild()
-                    .channels
-                    .get(&channel_id)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| channel_id.to_string());
+                let channel_name = state.guild().channel_name(channel_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);

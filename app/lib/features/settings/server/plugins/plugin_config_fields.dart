@@ -54,7 +54,7 @@ class PluginConfigFields extends ConsumerWidget {
   Widget _buildField(
     BuildContext context,
     OcColors colors,
-    dynamic serverData,
+    ServerData? serverData,
     PluginConfigField field,
   ) {
     final val = values[field.key] ?? '';
@@ -105,435 +105,329 @@ class PluginConfigFields extends ConsumerWidget {
 
       case PluginConfigKind.number:
         final hasError = val.isNotEmpty && num.tryParse(val) == null;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              labelText,
-              style: OcText.small.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            TextField(
-              controller: TextEditingController.fromValue(
-                TextEditingValue(
-                  text: val,
-                  selection: TextSelection.collapsed(offset: val.length),
-                ),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (newVal) => onChanged(field.key, newVal),
-              decoration: ocInputDecoration(
-                context,
-                hint: field.required ? 'Required number' : 'Number',
-              ),
-            ),
-            if (hasError) ...[
-              const SizedBox(height: 4),
-              const InlineError('Must be a valid number'),
-            ],
-          ],
+        return _ConfigTextField(
+          field: field,
+          value: val,
+          keyboardType: TextInputType.number,
+          hint: field.required ? 'Required number' : 'Number',
+          hasError: hasError,
+          onChanged: (newVal) => onChanged(field.key, newVal),
         );
 
       case PluginConfigKind.channel:
-        final channels = serverData?.channels.values.toList() ?? [];
-        final selectedId = int.tryParse(val);
-        final selectedChannel = selectedId != null
-            ? serverData?.channels[selectedId]
-            : null;
-        final displayText = selectedChannel != null
-            ? '#${selectedChannel.name}'
-            : (val.isNotEmpty ? '#$val' : 'Select channel...');
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              labelText,
-              style: OcText.small.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+        final channels =
+            serverData?.channels.values
+                .where((c) => c.kind != ChannelKind.category)
+                .toList() ??
+            [];
+        final options = [
+          for (final ch in channels)
+            _PickerOption(
+              id: ch.id,
+              name: '#${ch.name}',
+              icon: ch.kind == ChannelKind.voice
+                  ? OcIcons.volumeUp
+                  : OcIcons.tag,
             ),
-            const SizedBox(height: 4),
-            Builder(
-              builder: (triggerContext) => Hoverable(
-                onTap: () async {
-                  final picked = await showPopover<int>(
-                    context: triggerContext,
-                    anchor: globalRectOf(triggerContext),
-                    builder: (popoverCtx) => ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 260,
-                        maxHeight: 280,
-                      ),
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final ch in channels)
-                            Hoverable(
-                              onTap: () => Navigator.of(popoverCtx).pop(ch.id),
-                              builder: (ctx, state) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: OcSpace.s12,
-                                  vertical: OcSpace.s8,
-                                ),
-                                color: state.hovered ? colors.hover : null,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      ch.kind == ChannelKind.voice
-                                          ? OcIcons.volumeUp
-                                          : OcIcons.tag,
-                                      size: 16,
-                                      color: colors.textSecondary,
-                                    ),
-                                    const SizedBox(width: OcSpace.s8),
-                                    Expanded(
-                                      child: Text(
-                                        ch.name,
-                                        style: OcText.body.copyWith(
-                                          color: colors.text,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                  if (picked != null) {
-                    onChanged(field.key, picked.toString());
-                  }
-                },
-                builder: (ctx, state) => Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: OcSpace.s12,
-                    vertical: OcSpace.s10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: state.hovered ? colors.hover : colors.surface,
-                    borderRadius: BorderRadius.circular(OcRadius.input),
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(OcIcons.tag, size: 16, color: colors.textSecondary),
-                      const SizedBox(width: OcSpace.s8),
-                      Expanded(
-                        child: Text(
-                          displayText,
-                          style: OcText.body.copyWith(
-                            color: selectedChannel != null
-                                ? colors.text
-                                : colors.textMuted,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        OcIcons.expandMore,
-                        size: 16,
-                        color: colors.textSecondary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+        ];
+        return _ConfigPicker(
+          field: field,
+          val: val,
+          options: options,
+          placeholder: 'Select channel...',
+          defaultIcon: OcIcons.tag,
+          onChanged: (newId) => onChanged(field.key, newId),
         );
 
       case PluginConfigKind.role:
-        final roles = serverData?.rolesDescending ?? [];
-        final selectedId = int.tryParse(val);
-        final selectedRole = selectedId != null
-            ? serverData?.roles[selectedId]
-            : null;
-        final displayText = selectedRole != null
-            ? selectedRole.name
-            : (val.isNotEmpty ? val : 'Select role...');
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              labelText,
-              style: OcText.small.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+        final roles = serverData?.roles.values.toList() ?? [];
+        final options = [
+          for (final r in roles)
+            _PickerOption(
+              id: r.id,
+              name: r.name,
+              color: r.color != 0 ? Color(r.color | 0xFF000000) : null,
+              icon: OcIcons.badge,
             ),
-            const SizedBox(height: 4),
-            Builder(
-              builder: (triggerContext) => Hoverable(
-                onTap: () async {
-                  final picked = await showPopover<int>(
-                    context: triggerContext,
-                    anchor: globalRectOf(triggerContext),
-                    builder: (popoverCtx) => ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 260,
-                        maxHeight: 280,
-                      ),
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final role in roles)
-                            Hoverable(
-                              onTap: () =>
-                                  Navigator.of(popoverCtx).pop(role.id),
-                              builder: (ctx, state) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: OcSpace.s12,
-                                  vertical: OcSpace.s8,
-                                ),
-                                color: state.hovered ? colors.hover : null,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      OcIcons.shieldPerson,
-                                      size: 16,
-                                      color: colors.textSecondary,
-                                    ),
-                                    const SizedBox(width: OcSpace.s8),
-                                    Expanded(
-                                      child: Text(
-                                        role.name,
-                                        style: OcText.body.copyWith(
-                                          color: colors.text,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                  if (picked != null) {
-                    onChanged(field.key, picked.toString());
-                  }
-                },
-                builder: (ctx, state) => Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: OcSpace.s12,
-                    vertical: OcSpace.s10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: state.hovered ? colors.hover : colors.surface,
-                    borderRadius: BorderRadius.circular(OcRadius.input),
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        OcIcons.shieldPerson,
-                        size: 16,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(width: OcSpace.s8),
-                      Expanded(
-                        child: Text(
-                          displayText,
-                          style: OcText.body.copyWith(
-                            color: selectedRole != null
-                                ? colors.text
-                                : colors.textMuted,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        OcIcons.expandMore,
-                        size: 16,
-                        color: colors.textSecondary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+        ];
+        return _ConfigPicker(
+          field: field,
+          val: val,
+          options: options,
+          placeholder: 'Select role...',
+          defaultIcon: OcIcons.badge,
+          onChanged: (newId) => onChanged(field.key, newId),
         );
 
       case PluginConfigKind.user:
         final members = serverData?.members.values.toList() ?? [];
-        final selectedId = int.tryParse(val);
-        final selectedName = selectedId != null
-            ? (serverData?.authorOf(selectedId).name ?? val)
-            : (val.isNotEmpty ? val : 'Select user...');
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              labelText,
-              style: OcText.small.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+        final options = [
+          for (final m in members)
+            _PickerOption(
+              id: m.user.id,
+              name: m.displayName,
+              icon: OcIcons.person,
             ),
-            const SizedBox(height: 4),
-            Builder(
-              builder: (triggerContext) => Hoverable(
-                onTap: () async {
-                  final picked = await showPopover<int>(
-                    context: triggerContext,
-                    anchor: globalRectOf(triggerContext),
-                    builder: (popoverCtx) => ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 260,
-                        maxHeight: 280,
-                      ),
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final m in members)
-                            Hoverable(
-                              onTap: () => Navigator.of(popoverCtx).pop(m.id),
-                              builder: (ctx, state) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: OcSpace.s12,
-                                  vertical: OcSpace.s8,
-                                ),
-                                color: state.hovered ? colors.hover : null,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      OcIcons.person,
-                                      size: 16,
-                                      color: colors.textSecondary,
-                                    ),
-                                    const SizedBox(width: OcSpace.s8),
-                                    Expanded(
-                                      child: Text(
-                                        m.displayName,
-                                        style: OcText.body.copyWith(
-                                          color: colors.text,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                  if (picked != null) {
-                    onChanged(field.key, picked.toString());
-                  }
-                },
-                builder: (ctx, state) => Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: OcSpace.s12,
-                    vertical: OcSpace.s10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: state.hovered ? colors.hover : colors.surface,
-                    borderRadius: BorderRadius.circular(OcRadius.input),
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        OcIcons.person,
-                        size: 16,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(width: OcSpace.s8),
-                      Expanded(
-                        child: Text(
-                          selectedName,
-                          style: OcText.body.copyWith(
-                            color: selectedId != null
-                                ? colors.text
-                                : colors.textMuted,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        OcIcons.expandMore,
-                        size: 16,
-                        color: colors.textSecondary,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+        ];
+        return _ConfigPicker(
+          field: field,
+          val: val,
+          options: options,
+          placeholder: 'Select user...',
+          defaultIcon: OcIcons.person,
+          onChanged: (newId) => onChanged(field.key, newId),
         );
 
       case PluginConfigKind.secret:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              labelText,
-              style: OcText.small.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            TextField(
-              controller: TextEditingController.fromValue(
-                TextEditingValue(
-                  text: val,
-                  selection: TextSelection.collapsed(offset: val.length),
-                ),
-              ),
-              obscureText: true,
-              onChanged: (newVal) => onChanged(field.key, newVal),
-              decoration: ocInputDecoration(
-                context,
-                hint: secretHint ?? (field.required ? 'Required secret' : null),
-              ),
-            ),
-          ],
+        return _ConfigTextField(
+          field: field,
+          value: val,
+          obscure: true,
+          hint: secretHint ?? (field.required ? 'Required secret' : null),
+          onChanged: (newVal) => onChanged(field.key, newVal),
         );
 
       case PluginConfigKind.text:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              labelText,
-              style: OcText.small.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            TextField(
-              controller: TextEditingController.fromValue(
-                TextEditingValue(
-                  text: val,
-                  selection: TextSelection.collapsed(offset: val.length),
-                ),
-              ),
-              onChanged: (newVal) => onChanged(field.key, newVal),
-              decoration: ocInputDecoration(
-                context,
-                hint: field.required ? 'Required' : null,
-              ),
-            ),
-          ],
+        return _ConfigTextField(
+          field: field,
+          value: val,
+          hint: field.required ? 'Required' : null,
+          onChanged: (newVal) => onChanged(field.key, newVal),
         );
     }
+  }
+}
+
+class _PickerOption {
+  const _PickerOption({
+    required this.id,
+    required this.name,
+    this.icon,
+    this.color,
+  });
+
+  final int id;
+  final String name;
+  final IconData? icon;
+  final Color? color;
+}
+
+class _ConfigPicker extends StatelessWidget {
+  const _ConfigPicker({
+    required this.field,
+    required this.val,
+    required this.options,
+    required this.placeholder,
+    required this.defaultIcon,
+    required this.onChanged,
+  });
+
+  final PluginConfigField field;
+  final String val;
+  final List<_PickerOption> options;
+  final String placeholder;
+  final IconData defaultIcon;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    final labelText = field.required ? '${field.label} *' : field.label;
+    final selectedId = int.tryParse(val);
+    final selected = options.where((o) => o.id == selectedId).firstOrNull;
+    final displayText = selected != null
+        ? selected.name
+        : (val.isNotEmpty ? val : placeholder);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          labelText,
+          style: OcText.small.copyWith(
+            color: colors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Builder(
+          builder: (triggerContext) => Hoverable(
+            onTap: () async {
+              final picked = await showPopover<int>(
+                context: triggerContext,
+                anchor: globalRectOf(triggerContext),
+                builder: (popoverCtx) => ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 260,
+                    maxHeight: 280,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (ctx, i) {
+                      final opt = options[i];
+                      return Hoverable(
+                        onTap: () => Navigator.of(popoverCtx).pop(opt.id),
+                        builder: (ctx, state) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: OcSpace.s12,
+                            vertical: OcSpace.s8,
+                          ),
+                          color: state.hovered ? colors.hover : null,
+                          child: Row(
+                            children: [
+                              if (opt.icon != null) ...[
+                                Icon(
+                                  opt.icon,
+                                  size: 16,
+                                  color: opt.color ?? colors.textSecondary,
+                                ),
+                                const SizedBox(width: OcSpace.s8),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  opt.name,
+                                  style: OcText.body.copyWith(
+                                    color: opt.color ?? colors.text,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+              if (picked != null) {
+                onChanged(picked.toString());
+              }
+            },
+            builder: (ctx, state) => Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: OcSpace.s12,
+                vertical: OcSpace.s10,
+              ),
+              decoration: BoxDecoration(
+                color: state.hovered ? colors.hover : colors.surface,
+                borderRadius: BorderRadius.circular(OcRadius.input),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    selected?.icon ?? defaultIcon,
+                    size: 16,
+                    color: selected?.color ?? colors.textSecondary,
+                  ),
+                  const SizedBox(width: OcSpace.s8),
+                  Expanded(
+                    child: Text(
+                      displayText,
+                      style: OcText.body.copyWith(
+                        color: selected != null
+                            ? (selected.color ?? colors.text)
+                            : colors.textMuted,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    OcIcons.expandMore,
+                    size: 16,
+                    color: colors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConfigTextField extends StatefulWidget {
+  const _ConfigTextField({
+    required this.field,
+    required this.value,
+    required this.onChanged,
+    this.obscure = false,
+    this.keyboardType,
+    this.hint,
+    this.hasError = false,
+  });
+
+  final PluginConfigField field;
+  final String value;
+  final ValueChanged<String> onChanged;
+  final bool obscure;
+  final TextInputType? keyboardType;
+  final String? hint;
+  final bool hasError;
+
+  @override
+  State<_ConfigTextField> createState() => _ConfigTextFieldState();
+}
+
+class _ConfigTextFieldState extends State<_ConfigTextField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ConfigTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: widget.value,
+        selection: TextSelection.collapsed(offset: widget.value.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.oc;
+    final labelText = widget.field.required
+        ? '${widget.field.label} *'
+        : widget.field.label;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          labelText,
+          style: OcText.small.copyWith(
+            color: colors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        OcTextField(
+          controller: _controller,
+          obscure: widget.obscure,
+          keyboardType: widget.keyboardType,
+          hint: widget.hint,
+          onChanged: widget.onChanged,
+        ),
+        if (widget.hasError) ...[
+          const SizedBox(height: 4),
+          const InlineError('Must be a valid number'),
+        ],
+      ],
+    );
   }
 }

@@ -69,6 +69,14 @@ fn role_table(lua: &Lua, r: &proto::Role) -> mlua::Result<Table> {
     }
 }
 
+fn server_info_table(lua: &Lua, s: &proto::ServerInfo) -> mlua::Result<Table> {
+    let json_val = crate::plugins::event_tables::server_info_table(s);
+    match to_lua_value(lua, &json_val)? {
+        Value::Table(t) => Ok(t),
+        _ => Err(raise("failed to serialize server info table")),
+    }
+}
+
 fn member_table(lua: &Lua, m: &proto::Member) -> mlua::Result<Table> {
     let json_val = crate::plugins::events::member_table(m);
     match to_lua_value(lua, &json_val)? {
@@ -404,12 +412,7 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let channel_name = state
-                    .guild()
-                    .channels
-                    .get(&channel_id)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| channel_id.to_string());
+                let channel_name = state.guild().channel_name(channel_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -605,12 +608,7 @@ fn install_roles(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let role_name = state
-                    .guild()
-                    .roles
-                    .get(&role_id)
-                    .map(|r| r.name.clone())
-                    .unwrap_or_else(|| role_id.to_string());
+                let role_name = state.guild().role_name(role_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -736,17 +734,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 let (role_name, target_name) = {
                     let g = state.guild();
-                    let r_name = g
-                        .roles
-                        .get(&role_id)
-                        .map(|r| r.name.clone())
-                        .unwrap_or_else(|| role_id.to_string());
-                    let t_name = g
-                        .members
-                        .get(&target_user_id)
-                        .map(|m| m.user.display_name.clone())
-                        .unwrap_or_else(|| target_user_id.to_string());
-                    (r_name, t_name)
+                    (g.role_name(role_id), g.member_name(target_user_id))
                 };
 
                 env.on_server(async move {
@@ -790,17 +778,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
 
                 let (role_name, target_name) = {
                     let g = state.guild();
-                    let r_name = g
-                        .roles
-                        .get(&role_id)
-                        .map(|r| r.name.clone())
-                        .unwrap_or_else(|| role_id.to_string());
-                    let t_name = g
-                        .members
-                        .get(&target_user_id)
-                        .map(|m| m.user.display_name.clone())
-                        .unwrap_or_else(|| target_user_id.to_string());
-                    (r_name, t_name)
+                    (g.role_name(role_id), g.member_name(target_user_id))
                 };
 
                 env.on_server(async move {
@@ -1157,20 +1135,12 @@ fn install_server(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = env_get.clone();
             async move {
                 env.require(PluginPermission::ReadServer)?;
-                let meta = {
+                let info = {
                     let state = env.state()?;
                     let guild = state.guild();
-                    guild.meta.clone()
+                    guild.server_info()
                 };
-
-                let res = lua.create_table()?;
-                let s_id = hex::encode(meta.server_id);
-                res.raw_set("id", s_id.clone())?;
-                res.raw_set("server_id", s_id)?;
-                res.raw_set("name", meta.name)?;
-                res.raw_set("description", meta.description)?;
-                res.raw_set("owner_id", meta.owner_id.unwrap_or(0).to_string())?;
-                Ok(Value::Table(res))
+                Ok(Value::Table(server_info_table(&lua, &info)?))
             }
         })?,
     )?;
