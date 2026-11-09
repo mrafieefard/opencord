@@ -1,6 +1,6 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, type ChannelAccess, type MessageRecord } from '@opencord/core-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { Alert, Text } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -10,13 +10,14 @@ import { startEditingMessage } from '@/state/actions/chat';
 import { useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
-import { Composer } from '../Composer';
+import { attachMenuActions, Composer } from '../Composer';
 import { MessageMenu } from '../MessageMenu';
 
-async function initNightOwls(accessOverrides?: Partial<ChannelAccess>) {
+async function initNightOwls(accessOverrides?: Partial<ChannelAccess>, noCommands = false) {
   freshStore();
   await settle();
   const snap = snapshot(NIGHT_OWLS);
+  if (noCommands) snap.commands = { commands: [], resultsPublic: true };
   if (accessOverrides) {
     snap.access = snap.access.map((a) =>
       a.channelId === CHANNELS.general ? { ...a, ...accessOverrides } : a,
@@ -298,5 +299,85 @@ describe('Composer and message actions', () => {
       expect.any(String),
       expect.arrayContaining([expect.objectContaining({ path: '/cache/photo.jpg', filename: 'photo.jpg' })]),
     );
+  });
+
+  describe('commands', () => {
+    const composer = () =>
+      render(
+        <GestureHandlerRootView>
+          <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+        </GestureHandlerRootView>,
+      );
+
+    const actionIds = (canAttach: boolean, hasCommands: boolean) =>
+      attachMenuActions(canAttach, hasCommands).map((action) => action.id);
+
+    it('attach_shows_photo_file_and_commands', async () => {
+      expect(actionIds(true, true)).toEqual(['photo', 'file', 'commands']);
+      expect((await composer()).getByTestId('composer-attach')).toBeTruthy();
+    });
+
+    it('no_attach_permission_leaves_only_commands', async () => {
+      await initNightOwls({ attach: false });
+
+      expect(actionIds(false, true)).toEqual(['commands']);
+      expect((await composer()).getByTestId('composer-attach')).toBeTruthy();
+    });
+
+    it('no_commands_leaves_out_the_entry', () => {
+      expect(actionIds(true, false)).toEqual(['photo', 'file']);
+    });
+
+    it('nothing_usable_hides_the_button', async () => {
+      await initNightOwls({ attach: false }, true);
+
+      expect((await composer()).queryByTestId('composer-attach')).toBeNull();
+    });
+
+    it('editing_hides_the_button', async () => {
+      const view = await composer();
+      await act(async () => {
+        startEditingMessage(NIGHT_OWLS, CHANNELS.general, 'm1', 'text');
+      });
+
+      expect(view.queryByTestId('composer-attach')).toBeNull();
+    });
+
+    it('commands_puts_a_slash_and_opens_the_list', async () => {
+      const view = await composer();
+
+      await fireEvent(view.getByTestId('composer-attach'), 'onAction', 'commands');
+
+      expect(view.getByPlaceholderText('Message #general').props.value).toBe('/');
+      expect(view.getByTestId('command-list')).toBeTruthy();
+    });
+
+    it('typing_a_slash_opens_and_deleting_it_closes', async () => {
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      await fireEvent.changeText(input, '/');
+      expect(view.getByTestId('command-list')).toBeTruthy();
+
+      await fireEvent.changeText(input, '');
+      expect(view.queryByTestId('command-list')).toBeNull();
+    });
+
+    it('typing_filters_the_list_and_says_when_nothing_matches', async () => {
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      await fireEvent.changeText(input, '/xyz');
+
+      expect(view.getByText('No commands match /xyz')).toBeTruthy();
+    });
+
+    it('a_space_after_the_name_closes_the_list', async () => {
+      const view = await composer();
+
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), '/play now');
+
+      expect(view.queryByTestId('command-list')).toBeNull();
+    });
   });
 });

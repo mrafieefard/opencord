@@ -3,7 +3,7 @@
 // button once there is something to send, else the mic for a voice
 // message (held to record; useVoiceRecorder). Each is its own glass (iOS)
 // or raised surface (Android). ChatPane keeps it on the keyboard.
-import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text as NativeText, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import * as DocumentPicker from 'expo-document-picker';
@@ -30,6 +30,8 @@ import { RecorderPill } from '@/features/voiceMessages/RecorderPill';
 import { LOCK_DISTANCE, useVoiceRecorder } from '@/features/voiceMessages/useVoiceRecorder';
 
 import { AttachmentChips } from './AttachmentChips';
+import { CommandList } from './commands/CommandList';
+import { groupCommands } from './commands/commandRows';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
 import { useTypingNotifier } from './useTypingNotifier';
@@ -48,6 +50,19 @@ const FIELD_PAD_V = (CONTROL - (typography.body.lineHeight ?? 22)) / 2;
 const FIELD_MAX = (typography.body.lineHeight ?? 22) * MAX_LINES + FIELD_PAD_V * 2;
 /** A line more or fewer: the field grows or shrinks over this, as Telegram's. */
 const GROW_MS = 160;
+
+/** The attach button's menu: empty hides the button. */
+export function attachMenuActions(canAttach: boolean, hasCommands: boolean): MenuAction[] {
+  return [
+    ...(canAttach
+      ? ([
+          { id: 'photo', title: 'Photo library', icon: 'photo' },
+          { id: 'file', title: 'Files', icon: 'file' },
+        ] as const)
+      : []),
+    ...(hasCommands ? ([{ id: 'commands', title: 'Commands', icon: 'commands' }] as const) : []),
+  ];
+}
 
 export function Composer({ serverKey, channelId }: ComposerProps) {
   const { colors } = useTheme();
@@ -94,6 +109,31 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const canSend = info ? info.access.send : true;
   const canAttach = info ? info.access.attach : true;
   const canVoice = info ? info.access.sendVoiceMessages : true;
+
+  const snapshot = useAppStore((state) => state.servers[serverKey]?.snapshot);
+  const commandList = snapshot?.commands;
+  const voiceChannelId = useAppStore((state) => (state.myVoice?.serverKey === serverKey ? state.myVoice.channelId : undefined));
+  const hasCommands = (commandList?.commands.length ?? 0) > 0;
+
+  // "/" and a word at the start of the field opens the list, until it's
+  // dismissed; typing anything else opens it again.
+  const slash = isEditing ? null : /^\/(\S*)$/.exec(text);
+  const [dismissedAt, setDismissedAt] = useState<string | null>(null);
+  const query = slash && dismissedAt !== text ? slash[1] ?? '' : null;
+  const groups = useMemo(
+    () =>
+      query === null
+        ? []
+        : groupCommands(commandList, query, {
+            channelId,
+            access: snapshot?.access ?? [],
+            pluginUsers: snapshot?.pluginUsers ?? [],
+            voiceChannelId,
+          }),
+    [query, commandList, channelId, snapshot?.access, snapshot?.pluginUsers, voiceChannelId],
+  );
+  const dismissList = useCallback(() => setDismissedAt(text), [text]);
+  const pickRow = useCallback(() => setText(''), []);
   const recorder = useVoiceRecorder(serverKey, channelId);
 
   // The field's height follows its text, eased rather than jumping. An
@@ -118,13 +158,14 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     transform: [{ translateY: Math.max(dragY.get() * 0.5, -LOCK_DISTANCE / 2) }],
   }));
 
-  const attachActions: MenuAction[] = [
-    { id: 'photo', title: 'Photo library', icon: 'photo' },
-    { id: 'file', title: 'Files', icon: 'file' },
-  ];
+  const attachActions = attachMenuActions(canAttach, hasCommands);
 
   const handleAttachAction = useCallback(async (id: string) => {
-    if (id === 'photo') {
+    if (id === 'commands') {
+      setDismissedAt(null);
+      setText('/');
+      input.current?.focus();
+    } else if (id === 'photo') {
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
@@ -206,6 +247,15 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
 
   return (
     <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
+      {query !== null && (
+        <CommandList
+          serverKey={serverKey}
+          groups={groups}
+          emptyText={`No commands match /${query}`}
+          onPick={pickRow}
+          onDismiss={dismissList}
+        />
+      )}
       {(isEditing || files.length > 0) && (
         <GlassSurface style={styles.card}>
           {isEditing && <EditingBar onCancel={handleCancelEditing} />}
@@ -219,7 +269,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
             so the hold that started recording isn't cut off. */}
         {recorder.mode === 'idle' ? (
           <>
-            {canAttach && !isEditing && (
+            {attachActions.length > 0 && !isEditing && (
               <GlassSurface interactive style={styles.round}>
                 <Menu actions={attachActions} onAction={(id) => report(handleAttachAction(id), 'attach files')} testID="composer-attach">
                   <View style={styles.control} accessible accessibilityRole="button" accessibilityLabel="Attach">

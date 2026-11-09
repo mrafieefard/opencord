@@ -117,7 +117,8 @@ describe('command actions', () => {
     useAppStore.setState(applyEvents(useAppStore.getState(), [received(note(CommandRunStateRecord.Answered, 'x'))], now));
     const [only] = notes(useAppStore.getState());
 
-    dismissEphemeral(NIGHT_OWLS, CHANNELS.general, only!);
+    if (!only) throw new Error("no note");
+    dismissEphemeral(NIGHT_OWLS, CHANNELS.general, only);
 
     expect(notes(useAppStore.getState())).toEqual([]);
   });
