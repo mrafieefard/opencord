@@ -6,6 +6,7 @@
 
 pub mod blocks;
 pub mod limits;
+pub mod lua_api;
 pub mod manifest;
 pub mod package;
 pub mod permissions;

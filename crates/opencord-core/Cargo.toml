@@ -21,8 +21,11 @@ getrandom.workspace = true
 hex.workspace = true
 hmac.workspace = true
 image.workspace = true
+# Plugin views (plugins plan M2): each runs its client script in Luau.
+mlua.workspace = true
 opencord-common.workspace = true
 opencord-media.workspace = true
+opencord-plugins.workspace = true
 opencord-proto.workspace = true
 opus.workspace = true
 prost.workspace = true
@@ -49,7 +52,6 @@ webpki-roots.workspace = true
 wsola.workspace = true
 
 [dev-dependencies]
-opencord-plugins.workspace = true
 opencord-server.workspace = true
 tempfile.workspace = true
 

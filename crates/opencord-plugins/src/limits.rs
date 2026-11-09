@@ -159,6 +159,8 @@ pub const FILE_TOKEN_LIFETIME: Duration = Duration::from_secs(60 * 60);
 pub const DEVICE_STORAGE_MAX_BYTES: usize = MIB as usize;
 pub const DEVICE_STORAGE_KEY_MAX_CHARS: usize = 200;
 
+/// Functions one view gives `app.on` and `app.listen`, together.
+pub const VIEW_MAX_LISTENERS: usize = 1_000;
 /// Timers one view has at once.
 pub const VIEW_MAX_TIMERS: usize = 100;
 /// The shortest interval of a view's repeating timer.

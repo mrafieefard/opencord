@@ -3,8 +3,9 @@
 //!
 //! Errors a plugin may catch are raised with [`raise`] and reach Lua as the
 //! plain string `"<CODE>: <message>"` through [`function`] and
-//! [`async_function`]: an `Err` from a bare mlua callback would reach Lua
-//! as userdata instead.
+//! [`async_function`] (shared with the app's core, in
+//! `opencord_plugins::lua_api`): an `Err` from a bare mlua callback would
+//! reach Lua as userdata instead.
 
 pub mod bus;
 pub mod commands;
@@ -20,12 +21,11 @@ pub mod plugin;
 pub mod timers;
 pub mod voice;
 
-use std::fmt;
-use std::future::Future;
 use std::sync::Arc;
 
-use mlua::{
-    ChunkMode, FromLuaMulti, Function, IntoLuaMulti, Lua, LuaSerdeExt, MaybeSend, MultiValue, Value,
+use mlua::{Lua, LuaSerdeExt, Value};
+pub use opencord_plugins::lua_api::{
+    Raise, async_function, async_function_passing, function, raise,
 };
 use opencord_plugins::sandbox::Vm;
 
@@ -50,24 +50,6 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     #[cfg(any(test, debug_assertions))]
     tests::install(&vm.lua, env)?;
     Ok(())
-}
-
-/// An error raised into Lua as its text alone.
-#[derive(Debug)]
-pub struct Raise(pub String);
-
-impl fmt::Display for Raise {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for Raise {}
-
-/// An error the plugin sees as `message`, which starts with its code:
-/// `raise("INVALID_ARGUMENT: name must be a string")`.
-pub fn raise(message: impl Into<String>) -> mlua::Error {
-    mlua::Error::external(Raise(message.into()))
 }
 
 /// Parses a required Snowflake ID string argument. Must consist strictly of ASCII digits and fit in an i64.
@@ -115,117 +97,6 @@ pub fn bool_arg(val: Value, what: &str) -> mlua::Result<bool> {
         Value::Boolean(b) => Ok(b),
         _ => Err(raise(format!("INVALID_ARGUMENT: {what} must be a boolean"))),
     }
-}
-
-/// The text of a [`raise`]d error under mlua's wrappers.
-fn raised(error: &mlua::Error) -> Option<&str> {
-    match error {
-        mlua::Error::ExternalError(cause) => cause.downcast_ref::<Raise>().map(|r| r.0.as_str()),
-        mlua::Error::CallbackError { cause, .. } | mlua::Error::WithContext { cause, .. } => {
-            raised(cause)
-        }
-        _ => None,
-    }
-}
-
-/// Turns `(false, message)` from the Rust half into `error(message, 0)`.
-const CHECK: &str = "local ok = ...
-if not ok then
-    error((select(2, ...)), 0)
-end
-return select(2, ...)";
-const WRAPPER: &str = "return check(inner(...))";
-const CHECK_KEY: &str = "opencord.check";
-
-fn answer<R: IntoLuaMulti>(lua: &Lua, result: mlua::Result<R>) -> mlua::Result<MultiValue> {
-    match result {
-        Ok(values) => {
-            let mut values = values.into_lua_multi(lua)?;
-            values.push_front(Value::Boolean(true));
-            Ok(values)
-        }
-        Err(error) => match raised(&error) {
-            Some(message) => (false, message).into_lua_multi(lua),
-            None => Err(error),
-        },
-    }
-}
-
-/// Wraps `inner` in Lua. Only compiles, never runs Lua, so it works
-/// outside a budget too.
-fn raising(lua: &Lua, inner: Function) -> mlua::Result<Function> {
-    let check = match lua.named_registry_value::<Option<Function>>(CHECK_KEY)? {
-        Some(check) => check,
-        None => {
-            let env = lua.create_table()?;
-            env.raw_set("error", lua.globals().get::<Function>("error")?)?;
-            env.raw_set("select", lua.globals().get::<Function>("select")?)?;
-            let check = compiled(lua, CHECK, env)?;
-            lua.set_named_registry_value(CHECK_KEY, &check)?;
-            check
-        }
-    };
-    let env = lua.create_table()?;
-    env.raw_set("check", check)?;
-    env.raw_set("inner", inner)?;
-    compiled(lua, WRAPPER, env)
-}
-
-fn compiled(lua: &Lua, source: &str, env: mlua::Table) -> mlua::Result<Function> {
-    lua.load(source)
-        .set_name("=opencord")
-        .set_mode(ChunkMode::Text)
-        .set_environment(env)
-        .into_function()
-}
-
-/// A Lua function for the API whose [`raise`]d errors reach Lua as strings.
-pub fn function<A, R, F>(lua: &Lua, f: F) -> mlua::Result<Function>
-where
-    A: FromLuaMulti,
-    R: IntoLuaMulti,
-    F: Fn(&Lua, A) -> mlua::Result<R> + MaybeSend + 'static,
-{
-    let inner = lua.create_function(move |lua, args: A| answer(lua, f(lua, args)))?;
-    raising(lua, inner)
-}
-
-/// [`function`] for calls that wait. Wrap the waiting in
-/// `opencord_plugins::sandbox::paused`, so it isn't counted as running.
-pub fn async_function<A, R, F, FR>(lua: &Lua, f: F) -> mlua::Result<Function>
-where
-    A: FromLuaMulti,
-    R: IntoLuaMulti,
-    F: Fn(Lua, A) -> FR + MaybeSend + 'static,
-    FR: Future<Output = mlua::Result<R>> + MaybeSend + 'static,
-{
-    let inner = lua.create_async_function(move |lua, args: A| {
-        let call = f(lua.clone(), args);
-        async move { answer(&lua, call.await) }
-    })?;
-    raising(lua, inner)
-}
-
-/// [`async_function`] for calls that pass a Lua error on: `Ok(Err(value))`
-/// raises `value` itself, as `error(value, 0)` does.
-pub fn async_function_passing<A, R, F, FR>(lua: &Lua, f: F) -> mlua::Result<Function>
-where
-    A: FromLuaMulti,
-    R: IntoLuaMulti,
-    F: Fn(Lua, A) -> FR + MaybeSend + 'static,
-    FR: Future<Output = mlua::Result<Result<R, Value>>> + MaybeSend + 'static,
-{
-    let inner = lua.create_async_function(move |lua, args: A| {
-        let call = f(lua.clone(), args);
-        async move {
-            match call.await {
-                Ok(Err(value)) => (false, value).into_lua_multi(&lua),
-                Ok(Ok(values)) => answer(&lua, Ok(values)),
-                Err(error) => answer::<()>(&lua, Err(error)),
-            }
-        }
-    })?;
-    raising(lua, inner)
 }
 
 /// A string argument, or `INVALID_ARGUMENT: {what} must be a string`.

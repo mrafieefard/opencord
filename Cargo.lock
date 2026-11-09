@@ -4789,6 +4789,7 @@ dependencies = [
  "irondash_texture",
  "khronos-egl",
  "libc",
+ "mlua",
  "opencord-common",
  "opencord-media",
  "opencord-plugins",

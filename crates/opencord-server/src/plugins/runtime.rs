@@ -17,14 +17,15 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock, Weak};
-use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use mlua::{ChunkMode, Function, Lua, LuaSerdeExt as _, Table, Value, Variadic};
+use mlua::{Function, Lua, LuaSerdeExt as _, Table, Value, Variadic};
 use opencord_plugins::limits::{
     FAILURE_WINDOW, FAILURES_BEFORE_RESTART, RESTART_BACKOFF_FIRST, RESTART_BACKOFF_MAX,
     RESTART_WINDOW, RESTARTS_BEFORE_OFF, START_TIME_FACTOR, STOP_GRACE,
 };
+use opencord_plugins::lua_api;
+pub(super) use opencord_plugins::sandbox::Budgeted;
 use opencord_plugins::sandbox::{Budget, Vm, VmError, VmLimits, paused};
 use opencord_proto::v1 as proto;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -50,8 +51,6 @@ const STATS_EVERY: Duration = Duration::from_secs(1);
 const CPU_SAMPLES: usize = 6;
 /// Dropped events are logged at most this often.
 const DROPS_LOGGED_EVERY: Duration = Duration::from_secs(60);
-/// The longest name `require` takes, in bytes.
-const MODULE_NAME_MAX: usize = 200;
 
 /// What a plugin's API calls run with: one per VM.
 pub struct PluginEnv {
@@ -237,36 +236,6 @@ fn report(reports: &mpsc::UnboundedSender<Report>, sent: Report) {
     // The supervisor stops listening only once it has decided the VM's
     // end, so a report it misses changes nothing.
     reports.send(sent).ok();
-}
-
-/// A future whose Lua gets `limit` of running time over all its polls.
-pub(super) struct Budgeted<F> {
-    call: Pin<Box<F>>,
-    budget: Budget,
-    left: Duration,
-}
-
-impl<F> Budgeted<F> {
-    pub(super) fn new(budget: Budget, limit: Duration, call: F) -> Self {
-        Budgeted {
-            call: Box::pin(call),
-            budget,
-            left: limit,
-        }
-    }
-}
-
-impl<F: Future> Future for Budgeted<F> {
-    type Output = F::Output;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<F::Output> {
-        let this = &mut *self;
-        this.budget.start(this.left);
-        let poll = this.call.as_mut().poll(cx);
-        this.left = this.left.saturating_sub(this.budget.used());
-        this.budget.stop();
-        poll
-    }
 }
 
 /// Starts a VM on its own thread. It reports on `reports`, whose senders
@@ -466,80 +435,9 @@ fn start_failed(env: &PluginEnv, error: VmError, limit: Duration) -> String {
 }
 
 /// `require(name)`: `server/<name>.luau` or `.lua`, run once per VM.
-const REQUIRE: &str = r#"
-local load = ...
-local loaded, loading = {}, {}
-local function finish(name, ok, ...)
-    loading[name] = nil
-    if not ok then
-        error((...), 0)
-    end
-    local module = ...
-    if module == nil then
-        module = true
-    end
-    loaded[name] = module
-    return module
-end
-return function(name)
-    local module = loaded[name]
-    if module ~= nil then
-        return module
-    end
-    local chunk = load(name)
-    if loading[name] then
-        error("INVALID_ARGUMENT: " .. name .. " requires itself", 0)
-    end
-    loading[name] = true
-    return finish(name, pcall(chunk))
-end
-"#;
-
 fn install_require(lua: &Lua, spec: &Spec) -> mlua::Result<()> {
     let sources = spec.sources.clone();
-    let load = api::function(lua, move |lua, name: Value| {
-        let name = module_name(name)?;
-        for extension in ["luau", "lua"] {
-            let path = format!("server/{name}.{extension}");
-            if let Some(source) = sources.get(&path) {
-                return lua
-                    .load(source.as_str())
-                    .set_name(format!("={path}"))
-                    .set_mode(ChunkMode::Text)
-                    .into_function()
-                    .map_err(|error| raise(format!("INVALID_ARGUMENT: {}", VmError::from(error))));
-            }
-        }
-        Err(raise(format!(
-            "NOT_FOUND: the plugin has no server/{name}.luau or server/{name}.lua"
-        )))
-    })?;
-    let require: Function = lua
-        .load(REQUIRE)
-        .set_name("=require")
-        .set_mode(ChunkMode::Text)
-        .call(load)?;
-    lua.globals().raw_set("require", require)
-}
-
-/// A module name: `/`-separated segments of letters, digits, `_` and `-`,
-/// so it can only name a file under `server/`.
-fn module_name(name: Value) -> mlua::Result<String> {
-    let bad =
-        || raise("INVALID_ARGUMENT: require takes a module name such as \"util\" or \"lib/util\"");
-    let Value::String(name) = name else {
-        return Err(bad());
-    };
-    let name = name.to_str().map_err(|_| bad())?.to_owned();
-    let fine = !name.is_empty()
-        && name.len() <= MODULE_NAME_MAX
-        && name.split('/').all(|segment| {
-            !segment.is_empty()
-                && segment
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-        });
-    if fine { Ok(name) } else { Err(bad()) }
+    lua_api::install_require(lua, "server", move |path| sources.get(path).cloned())
 }
 
 type ReplySlot = Arc<Mutex<Option<oneshot::Sender<serde_json::Value>>>>;

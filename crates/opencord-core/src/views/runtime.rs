@@ -1,0 +1,711 @@
+//! One view's thread (§11.1–§11.3): its Luau VM, its single-threaded Tokio
+//! runtime, and the loop that takes inputs in order, runs handlers and
+//! redraws.
+//!
+//! - **Start:** the API, the entry script and `init(ctx)` share the start
+//!   budget (`VIEW_START_TIME_FACTOR` handler times); the first redraw
+//!   follows.
+//! - **Handlers** (a press, a server event) run as async Lua threads with
+//!   one handler's budget over all their polls. An error in one is
+//!   reported and the view goes on.
+//! - **Redraw:** after each input or server message, if anything called
+//!   `app.set`, `render(state)` runs once, its tree is checked and diffed,
+//!   and one batch goes out with the tree's ops and then any side effects.
+//! - **Errors in start, `render` or the tree** stop the view: an `error` op,
+//!   and no more Lua until a reload. Every error goes to `report_error`.
+//! - **Reload** (dev mode) carries the state as plain data into a new VM
+//!   (Claude's call 8) and diffs the new tree against the one drawn.
+
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use futures_util::StreamExt as _;
+use mlua::{Function, Lua, LuaSerdeExt as _, Table, Value};
+use opencord_plugins::limits::{
+    VIEW_ERROR_REPORT_MAX_CHARS, VIEW_HANDLER_TIME, VIEW_MEMORY_BYTES, VIEW_START_TIME_FACTOR,
+};
+
+use super::carry::carry_state;
+use opencord_plugins::lua_api::install_require;
+use opencord_plugins::sandbox::{Budgeted, Vm, VmError, VmLimits};
+use opencord_plugins::view::{Batch, IdSource, Patch, Retained, TreeError, from_lua, reconcile};
+use serde::Deserialize;
+use tokio::sync::mpsc;
+
+use super::api_app::{self, LISTEN_KEY, ON_KEY, Phase, Shared};
+use super::api_ui;
+use super::handlers::{self, Finished, Handlers, Running};
+use super::{Command, Place, ViewContext, ViewHandle, ViewSink, ViewSpec, ViewThread, Viewer, cut};
+
+/// Luau caps its C call depth; this leaves it room, as on the server.
+const VM_STACK_BYTES: usize = 8 * 1024 * 1024;
+/// How long `close` listeners may take, waiting included.
+const CLOSE_WAIT: Duration = Duration::from_millis(500);
+/// What the viewer sees when the script fails (§11.3).
+const ERROR_MESSAGE: &str = "This plugin hit an error";
+/// `ctx.platform`: the phone (M4) will say its own.
+const PLATFORM: &str = "desktop";
+
+/// Opens a view: its thread starts the script and sends the first batch.
+/// Nothing of the script runs on the caller's thread.
+pub fn start(spec: ViewSpec, sink: Arc<dyn ViewSink>) -> ViewHandle {
+    let (commands, receiver) = mpsc::unbounded_channel();
+    let (finished, done) = std::sync::mpsc::channel::<()>();
+    let view_id = spec.view_id.clone();
+    let show_errors = spec.show_errors;
+    let thread_sink = sink.clone();
+    let spawned = std::thread::Builder::new()
+        .name(format!("view {view_id}"))
+        .stack_size(VM_STACK_BYTES)
+        .spawn(move || {
+            run_thread(spec, thread_sink, receiver);
+            // Dropped last, so `close` sees the thread done only now.
+            drop(finished);
+        });
+    let thread = match spawned {
+        Ok(join) => Some(ViewThread { join, done }),
+        Err(error) => {
+            tracing::error!(view = %view_id, %error, "could not start a view's thread");
+            let failure = Failure::host(
+                "starting the view",
+                format!("could not start its thread: {error}"),
+            );
+            sink.report_error(failure.report());
+            let batch = Batch {
+                view: view_id.clone(),
+                seq: 1,
+                ops: vec![failure.op(show_errors)],
+            };
+            send_batch(sink.as_ref(), &batch);
+            None
+        }
+    };
+    ViewHandle {
+        view_id,
+        commands,
+        thread: Mutex::new(thread),
+    }
+}
+
+fn run_thread(spec: ViewSpec, sink: Arc<dyn ViewSink>, commands: mpsc::UnboundedReceiver<Command>) {
+    let mut view = View::new(spec, sink);
+    match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime.block_on(view.run(commands)),
+        Err(error) => {
+            view.fail(Failure::host(
+                "starting the view",
+                format!("could not start its runtime: {error}"),
+            ));
+            view.flush();
+        }
+    }
+}
+
+/// An input from the renderer (the wire format's inputs). Kinds this
+/// version doesn't handle yet are read as `Other` and ignored.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum Input {
+    Event {
+        node: u64,
+        event: String,
+        #[serde(default = "no_data")]
+        data: serde_json::Value,
+    },
+    #[serde(other)]
+    Other,
+}
+
+fn no_data() -> serde_json::Value {
+    serde_json::Value::Object(serde_json::Map::new())
+}
+
+/// A VM that started: its `app` table, `json.decode` and the state.
+struct Live {
+    vm: Vm,
+    app: Table,
+    decode: Function,
+    state: Table,
+}
+
+struct View {
+    view_id: String,
+    plugin_id: String,
+    entry: String,
+    sources: Arc<BTreeMap<String, String>>,
+    context: ViewContext,
+    viewer: Viewer,
+    place: Place,
+    show_errors: bool,
+    shared: Arc<Shared>,
+    live: Option<Live>,
+    /// Set by an error in start, `render` or the tree: no Lua runs until a
+    /// reload.
+    stopped: bool,
+    retained: Option<Retained>,
+    ids: IdSource,
+    seq: u64,
+    /// The main root in the last `roots` op sent; `None` sends one again.
+    shown_root: Option<u64>,
+    handlers: Handlers,
+    running: Running,
+}
+
+impl View {
+    fn new(spec: ViewSpec, sink: Arc<dyn ViewSink>) -> View {
+        View {
+            view_id: spec.view_id,
+            plugin_id: spec.plugin_id,
+            entry: spec.entry,
+            sources: Arc::new(spec.sources),
+            context: spec.context,
+            viewer: spec.viewer,
+            place: spec.place,
+            show_errors: spec.show_errors,
+            shared: Arc::new(Shared::new(sink)),
+            live: None,
+            stopped: false,
+            retained: None,
+            ids: IdSource::new(),
+            seq: 0,
+            shown_root: None,
+            handlers: Handlers::default(),
+            running: Running::default(),
+        }
+    }
+
+    async fn run(&mut self, mut commands: mpsc::UnboundedReceiver<Command>) {
+        let began = Instant::now();
+        match self.start_vm(None) {
+            Ok(()) => tracing::info!(
+                view = %self.view_id,
+                plugin = %self.plugin_id,
+                after_ms = began.elapsed().as_millis() as u64,
+                "view started"
+            ),
+            Err(failure) => self.fail(failure),
+        }
+        self.flush();
+        loop {
+            tokio::select! {
+                biased;
+                Some(finished) = self.running.next(), if !self.running.is_empty() => {
+                    self.finished(finished);
+                }
+                command = commands.recv() => match command {
+                    Some(Command::Input(json)) => self.input(&json),
+                    Some(Command::ServerMessage { name, data_json }) => {
+                        self.server_message(&name, data_json);
+                    }
+                    Some(Command::Reload { entry, sources }) => self.reload(entry, sources),
+                    Some(Command::Close) | None => break,
+                },
+            }
+            self.flush();
+        }
+        self.close().await;
+        self.drop_vm();
+        tracing::info!(view = %self.view_id, plugin = %self.plugin_id, "view closed");
+    }
+
+    /// Makes a VM and runs the script's start: `init(ctx)`, or with
+    /// `carried` (a reload) the old state through `migrate`.
+    fn start_vm(&mut self, carried: Option<String>) -> Result<(), Failure> {
+        self.shared.set_phase(Phase::Starting);
+        let limits = VmLimits {
+            memory_bytes: VIEW_MEMORY_BYTES,
+            handler_time: VIEW_HANDLER_TIME,
+        };
+        let vm = Vm::new(&limits).map_err(|error| Failure::lua("starting the view", error))?;
+        let limit = VIEW_HANDLER_TIME * VIEW_START_TIME_FACTOR;
+        vm.budget().start(limit);
+        let started = self.prepare(&vm, carried);
+        vm.budget().stop();
+        match started {
+            Ok((app, decode, state)) => {
+                self.live = Some(Live {
+                    vm,
+                    app,
+                    decode,
+                    state,
+                });
+                self.shared.set_phase(Phase::Running);
+                self.shared.mark_dirty();
+                Ok(())
+            }
+            Err((what, error)) => {
+                dispose(vm, &self.view_id);
+                Err(match error {
+                    Started::Lua(VmError::BudgetExceeded { .. }) => Failure::host(
+                        what,
+                        format!("starting took longer than {} ms", limit.as_millis()),
+                    ),
+                    Started::Lua(error) => Failure::lua(what, error),
+                    Started::Host(message) => Failure::host(what, message),
+                })
+            }
+        }
+    }
+
+    /// The start itself, inside the start budget. An error says where.
+    fn prepare(
+        &self,
+        vm: &Vm,
+        carried: Option<String>,
+    ) -> Result<(Table, Function, Table), (String, Started)> {
+        let lua = &vm.lua;
+        let setup = |error: mlua::Error| ("starting the view".to_owned(), Started::from(error));
+        api_ui::install(lua).map_err(setup)?;
+        let app = api_app::install(lua, &self.shared).map_err(setup)?;
+        let sources = self.sources.clone();
+        install_require(lua, "client", move |path| sources.get(path).cloned()).map_err(setup)?;
+        let decode = lua
+            .globals()
+            .get::<Table>("json")
+            .and_then(|json| json.get::<Function>("decode"))
+            .map_err(setup)?;
+
+        let loading = format!("loading {}", self.entry);
+        let Some(source) = self.sources.get(&self.entry) else {
+            let missing = format!("the plugin has no {}", self.entry);
+            return Err((loading, Started::Host(missing)));
+        };
+        vm.load(&self.entry, source)
+            .and_then(|chunk| chunk.call::<()>(()).map_err(VmError::from))
+            .map_err(|error| (loading, Started::Lua(error)))?;
+
+        let state = match carried {
+            None => self.init(lua)?,
+            Some(text) => {
+                let at = |error: mlua::Error| ("migrate".to_owned(), Started::from(error));
+                let old = plain_value(decode.call::<Value>(text).map_err(at)?);
+                match global_function(lua, "migrate").map_err(at)? {
+                    Some(migrate) => {
+                        let state = migrate.call::<Value>(old).map_err(at)?;
+                        as_state(state, "migrate").map_err(|e| ("migrate".to_owned(), e))?
+                    }
+                    None => as_state(old, "the state").map_err(|e| ("reload".to_owned(), e))?,
+                }
+            }
+        };
+        api_app::set_state(&app, &state).map_err(setup)?;
+        Ok((app, decode, state))
+    }
+
+    /// `init(ctx)`: ctx holds the viewer, the place, the size, the theme
+    /// and the platform (§11.2).
+    fn init(&self, lua: &Lua) -> Result<Table, (String, Started)> {
+        let at = |error: mlua::Error| ("init".to_owned(), Started::from(error));
+        let Some(init) = global_function(lua, "init").map_err(at)? else {
+            let missing = "the client script has no init function".to_owned();
+            return Err(("init".to_owned(), Started::Host(missing)));
+        };
+        let ctx = serde_json::json!({
+            "viewer": self.viewer,
+            "place": self.place,
+            "size": { "width": self.context.width, "height": self.context.height },
+            "theme": self.context.theme,
+            "platform": PLATFORM,
+        });
+        let options = mlua::SerializeOptions::new()
+            .serialize_none_to_null(false)
+            .serialize_unit_to_null(false)
+            .set_array_metatable(false);
+        let ctx = lua.to_value_with(&ctx, options).map_err(at)?;
+        let state = init.call::<Value>(ctx).map_err(at)?;
+        as_state(state, "init").map_err(|e| ("init".to_owned(), e))
+    }
+
+    fn input(&mut self, json: &str) {
+        if self.stopped {
+            return;
+        }
+        let input = match serde_json::from_str::<Input>(json) {
+            Ok(input) => input,
+            Err(error) => {
+                // The renderer is ours, so this is a bug; the error's kind
+                // and place, never the input's data.
+                tracing::warn!(
+                    view = %self.view_id,
+                    kind = ?error.classify(),
+                    column = error.column(),
+                    "a view input couldn't be read"
+                );
+                return;
+            }
+        };
+        match input {
+            Input::Event { node, event, data } => {
+                // No handler for this node and event: ignored (§11.3).
+                let Some(handler) = self.handlers.get(node, &event) else {
+                    return;
+                };
+                let press = handlers::is_press(&event);
+                self.spawn(format!("on_{event}"), press, handler, data.to_string());
+            }
+            Input::Other => {
+                tracing::debug!(view = %self.view_id, "a view input of a kind not handled yet");
+            }
+        }
+    }
+
+    fn server_message(&mut self, name: &str, data_json: String) {
+        if self.stopped {
+            return;
+        }
+        let Some(live) = &self.live else { return };
+        let listeners = match api_app::handlers_for(&live.vm.lua, ON_KEY, name) {
+            Ok(listeners) => listeners,
+            Err(error) => {
+                tracing::warn!(view = %self.view_id, %error, "a view's app.on handlers couldn't be read");
+                return;
+            }
+        };
+        let what = format!("app.on(\"{}\")", cut(name, 64));
+        for handler in listeners {
+            self.spawn(what.clone(), false, handler, data_json.clone());
+        }
+    }
+
+    /// Starts `handler` with `data_json` decoded as its argument; it runs
+    /// at the loop's next turn, before the redraw that follows it.
+    fn spawn(&mut self, what: String, press: bool, handler: Function, data_json: String) {
+        let Some(live) = &self.live else { return };
+        let decode = live.decode.clone();
+        let call = async move {
+            let data = plain_value(decode.call::<Value>(data_json)?);
+            handler.call_async::<()>(data).await
+        };
+        let budgeted = Budgeted::new(live.vm.budget().clone(), VIEW_HANDLER_TIME, call);
+        self.running.push(handlers::handler(
+            what,
+            press,
+            self.shared.clone(),
+            budgeted,
+        ));
+    }
+
+    fn finished(&mut self, finished: Finished) {
+        let Err(error) = finished.result else { return };
+        let failure = Failure::lua(finished.what, error);
+        tracing::info!(view = %self.view_id, kind = failure.kind, "a view handler failed");
+        self.report(failure.report());
+    }
+
+    fn reload(&mut self, entry: String, sources: BTreeMap<String, String>) {
+        let began = Instant::now();
+        let carried = match self.live.as_ref().map(|live| carry_state(&live.state)) {
+            Some(Ok(text)) => Some(text),
+            Some(Err(message)) => {
+                self.report(format!(
+                    "reload: the state couldn't be kept, so init runs again: {message}"
+                ));
+                None
+            }
+            None => None,
+        };
+        self.drop_vm();
+        self.entry = entry;
+        self.sources = Arc::new(sources);
+        self.stopped = false;
+        match self.start_vm(carried) {
+            Ok(()) => tracing::info!(
+                view = %self.view_id,
+                plugin = %self.plugin_id,
+                after_ms = began.elapsed().as_millis() as u64,
+                "view reloaded"
+            ),
+            Err(failure) => self.fail(failure),
+        }
+    }
+
+    /// Redraws if anything asked to, then sends the tree's ops and the side
+    /// effects waiting, as one batch.
+    fn flush(&mut self) {
+        let mut ops = Vec::new();
+        if !self.stopped && self.shared.take_dirty() {
+            match self.redraw() {
+                Ok(tree) => ops = tree,
+                Err(failure) => self.fail(failure),
+            }
+        }
+        ops.extend(self.shared.take_effects());
+        if !ops.is_empty() {
+            self.seq += 1;
+            let batch = Batch {
+                view: self.view_id.clone(),
+                seq: self.seq,
+                ops,
+            };
+            send_batch(self.shared.sink.as_ref(), &batch);
+        }
+    }
+
+    /// `render(state)` with one handler's budget, checked, then diffed with
+    /// the tree drawn. `roots` goes before the batch's `drop`, so the
+    /// renderer never points at a node it freed.
+    fn redraw(&mut self) -> Result<Vec<Patch>, Failure> {
+        let Some(live) = &self.live else {
+            return Ok(Vec::new());
+        };
+        let Some(render) = global_function(&live.vm.lua, "render")
+            .map_err(|error| Failure::lua("render", VmError::from(error)))?
+        else {
+            return Err(Failure::host(
+                "render",
+                "the client script has no render function",
+            ));
+        };
+        self.shared.set_phase(Phase::Rendering);
+        live.vm.budget().start(VIEW_HANDLER_TIME);
+        let tree = render.call::<Value>(&live.state);
+        live.vm.budget().stop();
+        self.shared.set_phase(Phase::Running);
+        let tree = tree.map_err(|error| Failure::lua("render", VmError::from(error)))?;
+        let node = from_lua(&live.vm.lua, &tree, |handler| handler).map_err(Failure::tree)?;
+
+        let reconciled = reconcile(self.retained.as_ref(), node, &mut self.ids);
+        self.handlers.replace(reconciled.handlers);
+        let root = reconciled.tree.root();
+        self.retained = Some(reconciled.tree);
+        let mut ops = reconciled.ops;
+        if self.shown_root != Some(root) {
+            let at = match ops.last() {
+                Some(Patch::Drop { .. }) => ops.len() - 1,
+                _ => ops.len(),
+            };
+            ops.insert(
+                at,
+                Patch::Roots {
+                    main: root,
+                    modals: Vec::new(),
+                },
+            );
+            self.shown_root = Some(root);
+        }
+        Ok(ops)
+    }
+
+    /// Stops the view: the `error` op goes with the next batch, and no Lua
+    /// runs until a reload.
+    fn fail(&mut self, failure: Failure) {
+        tracing::warn!(
+            view = %self.view_id,
+            plugin = %self.plugin_id,
+            kind = failure.kind,
+            during = %failure.what,
+            "a view stopped on an error"
+        );
+        self.report(failure.report());
+        self.stopped = true;
+        self.shown_root = None;
+        self.handlers.clear();
+        self.running = Running::default();
+        self.shared.take_dirty();
+        self.shared.push_effect(failure.op(self.show_errors));
+    }
+
+    fn report(&self, text: String) {
+        self.shared
+            .sink
+            .report_error(cut(&text, VIEW_ERROR_REPORT_MAX_CHARS));
+    }
+
+    /// Runs the `close` listeners, together within one handler's budget and
+    /// [`CLOSE_WAIT`].
+    async fn close(&mut self) {
+        if self.stopped {
+            return;
+        }
+        let Some(live) = &self.live else { return };
+        let listeners = match api_app::handlers_for(&live.vm.lua, LISTEN_KEY, "close") {
+            Ok(listeners) => listeners,
+            Err(error) => {
+                tracing::warn!(view = %self.view_id, %error, "a view's close listeners couldn't be read");
+                return;
+            }
+        };
+        if listeners.is_empty() {
+            return;
+        }
+        let call = async move {
+            let mut errors = Vec::new();
+            for listener in listeners {
+                if let Err(error) = listener.call_async::<()>(()).await {
+                    errors.push(VmError::from(error));
+                }
+            }
+            errors
+        };
+        let budgeted = Budgeted::new(live.vm.budget().clone(), VIEW_HANDLER_TIME, call);
+        match tokio::time::timeout(CLOSE_WAIT, budgeted).await {
+            Ok(errors) => {
+                for error in errors {
+                    self.report(Failure::lua("close listener", error).report());
+                }
+            }
+            Err(_) => self.report(format!(
+                "close listener: still waiting after {} ms, so it was stopped",
+                CLOSE_WAIT.as_millis()
+            )),
+        }
+    }
+
+    /// Ends the VM and everything that points into it.
+    fn drop_vm(&mut self) {
+        self.handlers.clear();
+        self.running = Running::default();
+        if let Some(Live {
+            vm,
+            app,
+            decode,
+            state,
+        }) = self.live.take()
+        {
+            drop((app, decode, state));
+            dispose(vm, &self.view_id);
+        }
+    }
+}
+
+/// Drops a VM. The Rust halves of calls still waiting live in Lua userdata
+/// holding the VM; a collection drops them, so the VM can close.
+fn dispose(vm: Vm, view_id: &str) {
+    if let Err(error) = vm.lua.gc_collect() {
+        tracing::warn!(view = %view_id, %error, "could not clear a closed view's calls");
+    }
+    drop(vm);
+}
+
+fn send_batch(sink: &dyn ViewSink, batch: &Batch) {
+    match serde_json::to_string(batch) {
+        Ok(json) => sink.batch(json),
+        // Ops hold only strings, numbers and JSON values, which always
+        // write; failing here is a bug in the ops, and it's logged as one.
+        Err(error) => {
+            tracing::error!(view = %batch.view, %error, "a view's batch couldn't be written")
+        }
+    }
+}
+
+/// A global the script defined, if it's a function.
+fn global_function(lua: &Lua, name: &str) -> mlua::Result<Option<Function>> {
+    match lua.globals().get::<Value>(name)? {
+        Value::Function(function) => Ok(Some(function)),
+        _ => Ok(None),
+    }
+}
+
+/// `json.null` as nil: a handler given no data gets nil, not a value that
+/// is true in an `if`.
+fn plain_value(value: Value) -> Value {
+    match value {
+        Value::LightUserData(data) if data.0.is_null() => Value::Nil,
+        other => other,
+    }
+}
+
+/// A state is a table; `what` returned something else.
+fn as_state(value: Value, what: &str) -> Result<Table, Started> {
+    match value {
+        Value::Table(state) => Ok(state),
+        other => Err(Started::Host(format!(
+            "{what} must return the view's state, a table, not a {}",
+            other.type_name()
+        ))),
+    }
+}
+
+/// What stopped a start.
+enum Started {
+    Lua(VmError),
+    Host(String),
+}
+
+impl From<mlua::Error> for Started {
+    fn from(error: mlua::Error) -> Self {
+        Started::Lua(VmError::from(error))
+    }
+}
+
+impl From<VmError> for Started {
+    fn from(error: VmError) -> Self {
+        Started::Lua(error)
+    }
+}
+
+/// An error in the script, or in starting it, and where it happened.
+struct Failure {
+    /// `init`, `render`, `on_press`…
+    what: String,
+    message: String,
+    traceback: Option<String>,
+    /// For the log: `budget`, `memory`, `lua`, `tree` or `host`.
+    kind: &'static str,
+}
+
+impl Failure {
+    fn lua(what: impl Into<String>, error: VmError) -> Failure {
+        let kind = match &error {
+            VmError::BudgetExceeded { .. } => "budget",
+            VmError::OutOfMemory => "memory",
+            VmError::Lua { .. } => "lua",
+        };
+        let (message, traceback) = match error {
+            VmError::Lua { message, traceback } => (message, traceback),
+            other => (other.to_string(), None),
+        };
+        Failure {
+            what: what.into(),
+            message,
+            traceback,
+            kind,
+        }
+    }
+
+    fn tree(error: TreeError) -> Failure {
+        Failure {
+            what: "render".to_owned(),
+            message: error.to_string(),
+            traceback: None,
+            kind: "tree",
+        }
+    }
+
+    fn host(what: impl Into<String>, message: impl Into<String>) -> Failure {
+        Failure {
+            what: what.into(),
+            message: message.into(),
+            traceback: None,
+            kind: "host",
+        }
+    }
+
+    /// The error and its traceback: what a developer needs.
+    fn details(&self) -> String {
+        match &self.traceback {
+            Some(traceback) => format!("{}\n{traceback}", self.message),
+            None => self.message.clone(),
+        }
+    }
+
+    /// The text for the plugin's log.
+    fn report(&self) -> String {
+        format!("{}: {}", self.what, self.details())
+    }
+
+    fn op(&self, show_errors: bool) -> Patch {
+        Patch::Error {
+            message: ERROR_MESSAGE.to_owned(),
+            details: show_errors.then(|| cut(&self.details(), VIEW_ERROR_REPORT_MAX_CHARS)),
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "runtime_tests.rs"]
+mod tests;

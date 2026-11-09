@@ -10,8 +10,10 @@ use std::cell::RefCell;
 use std::fmt;
 use std::future::Future;
 use std::io::Write as _;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use mlua::{ChunkMode, Function, Lua, LuaOptions, StdLib, Table, Value, Variadic, VmState};
@@ -324,6 +326,38 @@ impl Drop for PauseGuard {
 pub async fn paused<F: Future>(budget: &Budget, f: F) -> F::Output {
     let _resume = budget.pause_guard();
     f.await
+}
+
+/// A future whose Lua gets `limit` of running time over all its polls.
+/// Each poll starts the VM's budget with what is left, so waiting between
+/// polls doesn't count, and futures polled in turn each keep their own time.
+pub struct Budgeted<F> {
+    call: Pin<Box<F>>,
+    budget: Budget,
+    left: Duration,
+}
+
+impl<F> Budgeted<F> {
+    pub fn new(budget: Budget, limit: Duration, call: F) -> Self {
+        Budgeted {
+            call: Box::pin(call),
+            budget,
+            left: limit,
+        }
+    }
+}
+
+impl<F: Future> Future for Budgeted<F> {
+    type Output = F::Output;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<F::Output> {
+        let this = &mut *self;
+        this.budget.start(this.left);
+        let poll = this.call.as_mut().poll(cx);
+        this.left = this.left.saturating_sub(this.budget.used());
+        this.budget.stop();
+        poll
+    }
 }
 
 type PrintHook = Arc<RwLock<Option<Arc<dyn Fn(String) + Send + Sync>>>>;
