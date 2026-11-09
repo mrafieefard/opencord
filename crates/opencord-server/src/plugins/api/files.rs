@@ -2,14 +2,72 @@
 
 //! Files API for plugins (design 2026-11-07 §10.3, §13.1).
 
+use std::path::Path;
 use std::sync::Arc;
 
 use mlua::{Lua, Value};
 use opencord_proto::v1 as proto;
 
-use super::{async_function, raise, string_arg, string_arg_opt};
+use super::{async_function, id_arg, raise, string_arg, string_arg_opt};
+use crate::attachments::view_uploads;
 use crate::db;
+use crate::db::attachments::AttachmentRow;
+use crate::plugins::permissions::PluginPermission;
 use crate::plugins::runtime::PluginEnv;
+use crate::state::AppState;
+
+/// What `files.put` was given: bytes, or the `file` of a `file_uploaded`
+/// event (§13.3), by its id.
+enum Source {
+    Bytes(Vec<u8>),
+    Upload(i64),
+}
+
+/// `files.put`'s data: a string, a buffer, or an uploaded file's table,
+/// which needs `accept_uploads`.
+fn source(env: &PluginEnv, data: Value) -> mlua::Result<Source> {
+    match data {
+        Value::String(text) => Ok(Source::Bytes(text.as_bytes().to_vec())),
+        Value::Buffer(buffer) => Ok(Source::Bytes(buffer.to_vec())),
+        Value::Table(file) => {
+            env.require(PluginPermission::AcceptUploads)?;
+            Ok(Source::Upload(id_arg(file.raw_get("id")?, "file.id")?))
+        }
+        _ => Err(raise(
+            "INVALID_ARGUMENT: data must be a string, a buffer or an uploaded file",
+        )),
+    }
+}
+
+/// What gets saved: the bytes, or a view upload the plugin may keep.
+enum Content {
+    Bytes(Vec<u8>),
+    Upload(Box<AttachmentRow>),
+}
+
+impl Content {
+    fn len(&self) -> i64 {
+        match self {
+            Content::Bytes(bytes) => bytes.len() as i64,
+            Content::Upload(row) => row.size_bytes,
+        }
+    }
+
+    /// Writes it all to `path`.
+    async fn write(&self, state: &AppState, path: &Path) -> Result<(), String> {
+        match self {
+            Content::Bytes(bytes) => tokio::fs::write(path, bytes)
+                .await
+                .map_err(|error| error.to_string()),
+            Content::Upload(row) => {
+                let mut file = tokio::fs::File::create(path)
+                    .await
+                    .map_err(|error| error.to_string())?;
+                view_uploads::copy_to(state, row, &mut file).await
+            }
+        }
+    }
+}
 
 /// Validates that a file path follows package path rules without the folder rule:
 /// at most 200 bytes, segments of `[A-Za-z0-9._-]`, not starting with `.`.
@@ -39,13 +97,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let env = Arc::clone(&put_env);
                 async move {
                     let path = string_arg(path_val, "path")?;
-                    let data_bytes = match data_val {
-                        Value::String(s) => s.as_bytes().to_vec(),
-                        Value::Buffer(b) => b.to_vec(),
-                        _ => {
-                            return Err(raise("INVALID_ARGUMENT: data must be a string or buffer"));
-                        }
-                    };
+                    let source = source(&env, data_val)?;
                     let public = match options_val {
                         Some(Value::Nil) | None => false,
                         Some(Value::Table(t)) => match t.raw_get::<Value>("public")? {
@@ -61,7 +113,6 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     let state = env.state()?;
                     let plugin_id = env.plugin_id.clone();
                     let files_dir = env.files_dir.clone();
-                    let data_len = data_bytes.len() as i64;
                     let files_bytes_quota = env.files_bytes;
                     let files_lock = env.files_lock.clone();
                     let path_for_server = path.clone();
@@ -73,6 +124,21 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             .acquire()
                             .await
                             .map_err(|e| raise(format!("INTERNAL: {e}")))?;
+                        let content = match source {
+                            Source::Bytes(bytes) => Content::Bytes(bytes),
+                            Source::Upload(upload_id) => view_uploads::keepable(
+                                &state,
+                                &mut conn,
+                                &plugin_id,
+                                upload_id,
+                                crate::state::now_ms(),
+                            )
+                            .await
+                            .map_err(|e| raise(format!("INTERNAL: {e}")))?
+                            .map(|row| Content::Upload(Box::new(row)))
+                            .ok_or_else(|| raise("NOT_FOUND: no upload with that id"))?,
+                        };
+                        let data_len = content.len();
                         let total = db::plugins::files_bytes(&mut conn, &plugin_id)
                             .await
                             .map_err(|e| raise(format!("INTERNAL: {e}")))?;
@@ -97,7 +163,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             hex::encode(crate::random::bytes::<8>())
                         );
                         let temp_path = target_path.parent().unwrap_or(&files_dir).join(temp_name);
-                        if let Err(e) = tokio::fs::write(&temp_path, &data_bytes).await {
+                        if let Err(e) = content.write(&state, &temp_path).await {
                             if let Err(rm_err) = tokio::fs::remove_file(&temp_path).await {
                                 tracing::debug!(path = %temp_path.display(), error = %rm_err, "failed to clean up temp file");
                             }
@@ -120,6 +186,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         )
                         .await
                         .map_err(|e| raise(format!("INTERNAL: {e}")))?;
+                        if let Content::Upload(row) = &content {
+                            view_uploads::kept(&state, &mut conn, row.id).await;
+                        }
 
                         Ok::<(), mlua::Error>(())
                     })

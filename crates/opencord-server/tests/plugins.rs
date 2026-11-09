@@ -42,6 +42,8 @@ mod runtime;
 mod support;
 #[path = "plugins/timers.rs"]
 mod timers;
+#[path = "plugins/uploads.rs"]
+mod uploads;
 #[path = "plugins/views.rs"]
 mod views;
 #[path = "plugins/voice.rs"]

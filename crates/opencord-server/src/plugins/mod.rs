@@ -613,6 +613,8 @@ impl Plugins {
         self.file_tokens.forget_plugin(id);
         // Its cache's files go with the plugin's folder.
         self.images.forget_plugin(id);
+        // Its views' unkept uploads go with the sweep.
+        state.attachments.view_uploads().forget_plugin(id);
         channel_types::stopped(state, id).await;
         self.clear_log_watchers(id);
         self.bus.unlisten_all(id);

@@ -10,6 +10,7 @@ pub mod range;
 pub mod settings;
 pub mod storage;
 pub mod temp;
+pub mod view_uploads;
 pub mod voice;
 
 use std::collections::HashMap;
@@ -44,6 +45,7 @@ pub struct Attachments {
     hold_processing: AtomicBool, // test hook
     http: reqwest::Client,
     mover: move_job::Mover,
+    view_uploads: view_uploads::ViewUploads,
 }
 
 impl Attachments {
@@ -64,11 +66,17 @@ impl Attachments {
             hold_processing: AtomicBool::new(false),
             http,
             mover: move_job::Mover::default(),
+            view_uploads: view_uploads::ViewUploads::default(),
         }
     }
 
     pub fn mover(&self) -> &move_job::Mover {
         &self.mover
+    }
+
+    /// Which plugin view each view upload is for.
+    pub fn view_uploads(&self) -> &view_uploads::ViewUploads {
+        &self.view_uploads
     }
 
     /// Builds the S3 backends and restores the active one. A storage that

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 
-//! Running a plugin's view handlers: `view_open`, `view_close` and the
-//! named events its views send to `ui.on` (plan M2 Task 10).
+//! Running a plugin's view handlers: `view_open`, `view_close`, the named
+//! events its views send to `ui.on` (plan M2 Task 10) and `file_uploaded`
+//! (Task 12).
 //!
 //! A VM hears each open view's `view_open` once: when its start finishes
 //! it announces every view already open, and a `view_open` waiting in the
 //! queue for one of them is then skipped. It hears `view_close` only for a
-//! view it heard open, and a client's event only while its view is open.
+//! view it heard open, and a client's event or upload only while its view
+//! is open.
 
 use std::sync::{Arc, PoisonError};
 use std::time::Duration;
@@ -23,7 +25,7 @@ use super::runtime::{Budgeted, PluginEnv, Report, failed, payload_value};
 use super::views::ViewInfo;
 
 /// The events this module runs.
-pub const NAMES: [&str; 3] = ["view_open", "view_close", "view_event"];
+pub const NAMES: [&str; 4] = ["view_open", "view_close", "view_event", "file_uploaded"];
 /// Past this many, views no longer open are dropped from what a VM heard.
 const HEARD_PRUNE_AT: usize = 256;
 
@@ -114,15 +116,24 @@ fn calls(vm: &Vm, env: &PluginEnv, event: &PluginEvent) -> mlua::Result<Calls> {
             Some(argument) => with_each(handlers_for(lua, "view_close")?, &[argument]),
             None => Ok(Vec::new()),
         },
+        "file_uploaded" => {
+            let Some(view) = open_view(env, &event.payload).filter(|view| was_heard(env, view))
+            else {
+                return Ok(Vec::new());
+            };
+            let argument = lua.create_table()?;
+            argument.raw_set("view", view_table(lua, &view_json(env, &view)?)?)?;
+            argument.raw_set("file", payload_value(lua, &event.payload["file"])?)?;
+            with_each(
+                handlers_for(lua, "file_uploaded")?,
+                &[Value::Table(argument)],
+            )
+        }
         _ => {
             let Some(view) = open_view(env, &event.payload) else {
                 return Ok(Vec::new());
             };
-            let heard = env
-                .views_heard
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .contains(&view.id);
+            let heard = was_heard(env, &view);
             let name = event.payload["name"].as_str().unwrap_or_default();
             let registry: Table = lua.named_registry_value(UI_HANDLERS)?;
             let Some(handlers) = registry.raw_get::<Option<Table>>(name)?.filter(|_| heard) else {
@@ -171,6 +182,14 @@ fn open_view(env: &PluginEnv, payload: &serde_json::Value) -> Option<ViewInfo> {
         .views
         .info(view_id)
         .filter(|view| view.plugin_id == env.plugin_id)
+}
+
+/// Whether this VM heard `view` open (and not yet close).
+fn was_heard(env: &PluginEnv, view: &ViewInfo) -> bool {
+    env.views_heard
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains(&view.id)
 }
 
 /// Records that this VM heard `view` open: false if it already had.
