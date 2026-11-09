@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use futures_util::StreamExt as _;
-use mlua::{Function, Lua, LuaSerdeExt as _, Table, Value};
+use mlua::{Compiler, Function, Lua, LuaSerdeExt as _, Table, Value};
 use opencord_plugins::limits::{
     VIEW_ERROR_REPORT_MAX_CHARS, VIEW_HANDLER_TIME, VIEW_MEMORY_BYTES, VIEW_START_TIME_FACTOR,
 };
@@ -35,17 +35,18 @@ use tokio::sync::mpsc;
 
 use super::api_app::{self, LISTEN_KEY, ON_KEY, Phase, Shared};
 use super::api_ui;
+use super::context::{self, PLATFORM};
 use super::draw::{Drawing, Failure, Scene};
-use super::handlers::{self, Finished, Handlers, Running};
+use super::frames;
+use super::handlers::{self, Finished, HandlerKind, Handlers, Running};
 use super::modals;
+use super::timers;
 use super::{Command, Place, ViewContext, ViewHandle, ViewSink, ViewSpec, ViewThread, Viewer, cut};
 
 /// Luau caps its C call depth; this leaves it room, as on the server.
 const VM_STACK_BYTES: usize = 8 * 1024 * 1024;
 /// How long `close` listeners may take, waiting included.
 const CLOSE_WAIT: Duration = Duration::from_millis(500);
-/// `ctx.platform`: the phone (M4) will say its own.
-const PLATFORM: &str = "desktop";
 
 /// Opens a view: its thread starts the script and sends the first batch.
 /// Nothing of the script runs on the caller's thread.
@@ -131,8 +132,57 @@ enum Input {
     ModalDismiss {
         name: String,
     },
+    Frame {
+        dt: f64,
+        /// The last batch the renderer has drawn.
+        seq: u64,
+    },
+    SoundEnd {
+        id: u64,
+    },
+    Context(ViewContext),
+    Lifecycle {
+        event: Lifecycle,
+    },
+    Key {
+        event: KeyEvent,
+        key: String,
+        code: String,
+        shift: bool,
+        ctrl: bool,
+        alt: bool,
+        meta: bool,
+        repeat: bool,
+    },
     #[serde(other)]
     Other,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Lifecycle {
+    Pause,
+    Resume,
+    Focus,
+    Blur,
+    ConnectionLost,
+    ConnectionBack,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum KeyEvent {
+    KeyDown,
+    KeyUp,
+}
+
+impl KeyEvent {
+    fn name(self) -> &'static str {
+        match self {
+            KeyEvent::KeyDown => "key_down",
+            KeyEvent::KeyUp => "key_up",
+        }
+    }
 }
 
 fn no_data() -> serde_json::Value {
@@ -165,6 +215,11 @@ struct View {
     seq: u64,
     handlers: Handlers,
     running: Running,
+    /// Hidden: timers and frames wait. Kept across a reload, as is the
+    /// context: both are the renderer's, not the script's.
+    paused: bool,
+    /// The last save failed and that was reported; it's retried each turn.
+    storage_failing: bool,
 }
 
 impl View {
@@ -178,13 +233,15 @@ impl View {
             viewer: spec.viewer,
             place: spec.place,
             show_errors: spec.show_errors,
-            shared: Arc::new(Shared::new(sink)),
+            shared: Arc::new(Shared::new(sink, spec.storage_dir)),
             live: None,
             stopped: false,
             drawing: Drawing::default(),
             seq: 0,
             handlers: Handlers::default(),
             running: Running::default(),
+            paused: false,
+            storage_failing: false,
         }
     }
 
@@ -201,6 +258,7 @@ impl View {
         }
         self.flush();
         loop {
+            let due = self.shared.timers.next_due();
             tokio::select! {
                 biased;
                 Some(finished) = self.running.next(), if !self.running.is_empty() => {
@@ -214,10 +272,12 @@ impl View {
                     Some(Command::Reload { entry, sources }) => self.reload(entry, sources),
                     Some(Command::Close) | None => break,
                 },
+                () = timers::wait(due) => self.fire_timer(),
             }
             self.flush();
         }
         self.close().await;
+        self.save_storage();
         self.drop_vm();
         tracing::info!(view = %self.view_id, plugin = %self.plugin_id, "view closed");
     }
@@ -268,9 +328,13 @@ impl View {
         carried: Option<String>,
     ) -> Result<(Table, Function, Table), (String, Started)> {
         let lua = &vm.lua;
+        // Luau otherwise resolves `app.theme` when a chunk loads and keeps
+        // the value in its bytecode; `app`'s context fields change after.
+        lua.set_compiler(Compiler::new().set_mutable_globals(["app"]));
         let setup = |error: mlua::Error| ("starting the view".to_owned(), Started::from(error));
         api_ui::install(lua).map_err(setup)?;
         let app = api_app::install(lua, &self.shared).map_err(setup)?;
+        context::install(lua, &app, &self.viewer, &self.place, &self.context).map_err(setup)?;
         let sources = self.sources.clone();
         install_require(lua, "client", move |path| sources.get(path).cloned()).map_err(setup)?;
         let decode = lua
@@ -331,9 +395,6 @@ impl View {
     }
 
     fn input(&mut self, json: &str) {
-        if self.stopped {
-            return;
-        }
         let input = match serde_json::from_str::<Input>(json) {
             Ok(input) => input,
             Err(error) => {
@@ -349,13 +410,25 @@ impl View {
             }
         };
         match input {
+            // These two are the renderer's facts: a stopped view keeps them
+            // for its reload.
+            Input::Context(next) => self.set_context(next),
+            Input::Lifecycle { event } => self.lifecycle(event),
+            input if !self.stopped => self.script_input(input),
+            _ => {}
+        }
+    }
+
+    /// An input a running script handles.
+    fn script_input(&mut self, input: Input) {
+        match input {
             Input::Event { node, event, data } => {
                 // No handler for this node and event: ignored (§11.3).
                 let Some(handler) = self.handlers.get(node, &event) else {
                     return;
                 };
-                let press = handlers::is_press(&event);
-                self.spawn(format!("on_{event}"), press, handler, data.to_string());
+                let kind = HandlerKind::of_event(&event);
+                self.spawn(format!("on_{event}"), kind, handler, data.to_string());
             }
             Input::Range { node, start, end } => {
                 if self.drawing.set_range(node, start, end) {
@@ -368,8 +441,159 @@ impl View {
                 }
             }
             Input::ModalDismiss { name } => self.dismiss(name),
+            Input::Frame { dt, seq } => self.frame(dt, seq),
+            Input::SoundEnd { id } => self.sound_end(id),
+            Input::Key {
+                event,
+                key,
+                code,
+                shift,
+                ctrl,
+                alt,
+                meta,
+                repeat,
+            } => {
+                let fields = serde_json::json!({
+                    "key": key, "code": code, "shift": shift, "ctrl": ctrl,
+                    "alt": alt, "meta": meta, "repeat": repeat,
+                });
+                self.notify(event.name(), fields.to_string());
+            }
             Input::Other => {
                 tracing::debug!(view = %self.view_id, "a view input of a kind not handled yet");
+            }
+            // Handled by `input`.
+            Input::Context(_) | Input::Lifecycle { .. } => {}
+        }
+    }
+
+    /// A `context` input: `app`'s fields follow it, a redraw shows it, and
+    /// the script hears what changed.
+    fn set_context(&mut self, next: ViewContext) {
+        if next == self.context {
+            return;
+        }
+        let resized = next.width != self.context.width || next.height != self.context.height;
+        let themed = next.theme != self.context.theme;
+        self.context = next;
+        if let Some(live) = &self.live
+            && let Err(error) = context::update(&live.vm.lua, &live.app, &self.context)
+        {
+            tracing::warn!(view = %self.view_id, %error, "a view's context couldn't be set");
+            return;
+        }
+        self.shared.mark_dirty();
+        if resized {
+            let size = serde_json::json!({
+                "width": self.context.width,
+                "height": self.context.height,
+                "breakpoint": context::breakpoint(self.context.width),
+            });
+            self.notify("resize", size.to_string());
+        }
+        if themed {
+            let theme = serde_json::Value::from(self.context.theme.name());
+            self.notify("theme_change", theme.to_string());
+        }
+    }
+
+    fn lifecycle(&mut self, event: Lifecycle) {
+        match event {
+            Lifecycle::Pause => {
+                if self.set_paused(true) {
+                    self.notify("pause", "null".to_owned());
+                }
+            }
+            Lifecycle::Resume => {
+                if self.set_paused(false) {
+                    self.notify("resume", "null".to_owned());
+                }
+            }
+            Lifecycle::Focus => self.notify("focus", "null".to_owned()),
+            Lifecycle::Blur => self.notify("blur", "null".to_owned()),
+            Lifecycle::ConnectionLost => {
+                let change = serde_json::json!({ "connected": false });
+                self.notify("connection_change", change.to_string());
+            }
+            Lifecycle::ConnectionBack => {
+                let change = serde_json::json!({ "connected": true });
+                self.notify("connection_change", change.to_string());
+            }
+        }
+    }
+
+    /// Hidden or shown again; `false` when that's no change.
+    fn set_paused(&mut self, paused: bool) -> bool {
+        if self.paused == paused {
+            return false;
+        }
+        self.paused = paused;
+        let now = tokio::time::Instant::now();
+        if paused {
+            self.shared.timers.pause(now);
+        } else {
+            self.shared.timers.resume(now);
+        }
+        self.shared.frames.set_paused(paused);
+        true
+    }
+
+    fn fire_timer(&mut self) {
+        let now = tokio::time::Instant::now();
+        let Some(fired) = self.shared.timers.take_due(now) else {
+            return;
+        };
+        let Some(live) = &self.live else { return };
+        match timers::handler(&live.vm.lua, &fired) {
+            Ok(Some(handler)) => {
+                let what = if fired.repeating {
+                    "app.every"
+                } else {
+                    "app.after"
+                };
+                self.spawn(
+                    what.to_owned(),
+                    HandlerKind::Plain,
+                    handler,
+                    "null".to_owned(),
+                );
+            }
+            Ok(None) => {}
+            Err(error) => {
+                tracing::warn!(view = %self.view_id, %error, "a view's timer couldn't be read");
+            }
+        }
+    }
+
+    /// A `frame` input: the script's frame function, unless the renderer is
+    /// behind the batches sent, so a slow one never queues frames.
+    fn frame(&mut self, dt: f64, seq: u64) {
+        if self.paused || seq < self.seq {
+            return;
+        }
+        let Some(live) = &self.live else { return };
+        match frames::handler(&live.vm.lua) {
+            Ok(Some(handler)) => {
+                let what = "app.on_frame".to_owned();
+                self.spawn(what, HandlerKind::Frame, handler, dt.to_string());
+            }
+            Ok(None) => {}
+            Err(error) => {
+                tracing::warn!(view = %self.view_id, %error, "a view's frame function couldn't be read");
+            }
+        }
+    }
+
+    fn sound_end(&mut self, id: u64) {
+        let Some(live) = &self.live else { return };
+        match api_app::take_on_end(&live.vm.lua, &self.shared, id) {
+            Ok(Some(on_end)) => {
+                let what = "on_end".to_owned();
+                self.spawn(what, HandlerKind::Plain, on_end, "null".to_owned());
+            }
+            Ok(None) => {}
+            Err(error) => {
+                tracing::warn!(view = %self.view_id, %error, "a sound's on_end couldn't be read");
             }
         }
     }
@@ -378,43 +602,84 @@ impl View {
         if self.stopped {
             return;
         }
+        let what = format!("app.on(\"{}\")", cut(name, 64));
+        self.run_listeners(ON_KEY, name, what, data_json);
+    }
+
+    /// Runs the functions `app.listen(name, fn)` was given.
+    fn notify(&mut self, name: &str, data_json: String) {
+        if self.stopped {
+            return;
+        }
+        let what = format!("app.listen(\"{name}\")");
+        self.run_listeners(LISTEN_KEY, name, what, data_json);
+    }
+
+    fn run_listeners(&mut self, key: &str, name: &str, what: String, data_json: String) {
         let Some(live) = &self.live else { return };
-        let listeners = match api_app::handlers_for(&live.vm.lua, ON_KEY, name) {
+        let listeners = match api_app::handlers_for(&live.vm.lua, key, name) {
             Ok(listeners) => listeners,
             Err(error) => {
-                tracing::warn!(view = %self.view_id, %error, "a view's app.on handlers couldn't be read");
+                tracing::warn!(view = %self.view_id, %error, "a view's listeners couldn't be read");
                 return;
             }
         };
-        let what = format!("app.on(\"{}\")", cut(name, 64));
         for handler in listeners {
-            self.spawn(what.clone(), false, handler, data_json.clone());
+            self.spawn(what.clone(), HandlerKind::Plain, handler, data_json.clone());
         }
     }
 
     /// Starts `handler` with `data_json` decoded as its argument; it runs
     /// at the loop's next turn, before the redraw that follows it.
-    fn spawn(&mut self, what: String, press: bool, handler: Function, data_json: String) {
+    fn spawn(&mut self, what: String, kind: HandlerKind, handler: Function, data_json: String) {
         let Some(live) = &self.live else { return };
         let decode = live.decode.clone();
         let call = async move {
             let data = plain_value(decode.call::<Value>(data_json)?);
             handler.call_async::<()>(data).await
         };
-        let budgeted = Budgeted::new(live.vm.budget().clone(), VIEW_HANDLER_TIME, call);
-        self.running.push(handlers::handler(
-            what,
-            press,
-            self.shared.clone(),
-            budgeted,
-        ));
+        let budgeted = Budgeted::new(live.vm.budget().clone(), kind.limit(), call);
+        self.running
+            .push(handlers::handler(what, kind, self.shared.clone(), budgeted));
     }
 
     fn finished(&mut self, finished: Finished) {
         let Err(error) = finished.result else { return };
+        if finished.kind == HandlerKind::Frame
+            && matches!(error, VmError::BudgetExceeded { .. })
+            && let Some(live) = &self.live
+            && let Err(error) = frames::stop(&live.vm.lua, &self.shared)
+        {
+            tracing::warn!(view = %self.view_id, %error, "a view's frame function couldn't be cleared");
+        }
         let failure = Failure::lua(finished.what, error);
         tracing::info!(view = %self.view_id, kind = failure.kind, "a view handler failed");
         self.report(failure.report());
+    }
+
+    /// Writes the plugin's storage if anything changed. A failure is
+    /// reported once; the next turn tries again.
+    fn save_storage(&mut self) {
+        let began = Instant::now();
+        match self.shared.storage.save() {
+            Ok(()) => self.storage_failing = false,
+            Err(error) => {
+                if !self.storage_failing {
+                    self.storage_failing = true;
+                    tracing::warn!(
+                        view = %self.view_id,
+                        plugin = %self.plugin_id,
+                        kind = ?error.kind(),
+                        after_ms = began.elapsed().as_millis() as u64,
+                        "a view's device storage couldn't be saved"
+                    );
+                    self.report(format!(
+                        "app.storage: the device storage couldn't be saved: {:?}",
+                        error.kind()
+                    ));
+                }
+            }
+        }
     }
 
     fn reload(&mut self, entry: String, sources: BTreeMap<String, String>) {
@@ -455,6 +720,8 @@ impl View {
             }
         }
         ops.extend(self.shared.take_effects());
+        ops.extend(self.shared.frames.change());
+        self.save_storage();
         if !ops.is_empty() {
             self.seq += 1;
             let batch = Batch {
@@ -503,7 +770,12 @@ impl View {
         match modals::dismisser(&live.vm.lua) {
             Ok(dismiss) => {
                 let data = serde_json::Value::String(name).to_string();
-                self.spawn("modal_dismiss".to_owned(), false, dismiss, data);
+                self.spawn(
+                    "modal_dismiss".to_owned(),
+                    HandlerKind::Plain,
+                    dismiss,
+                    data,
+                );
             }
             Err(error) => {
                 tracing::warn!(view = %self.view_id, %error, "a view's modal dismiss couldn't be read");
@@ -523,6 +795,7 @@ impl View {
         );
         self.report(failure.report());
         self.stopped = true;
+        self.shared.forget_vm();
         self.drawing.forget_shown();
         self.handlers.clear();
         self.running = Running::default();
@@ -578,6 +851,7 @@ impl View {
 
     /// Ends the VM and everything that points into it.
     fn drop_vm(&mut self) {
+        self.shared.forget_vm();
         self.handlers.clear();
         self.running = Running::default();
         if let Some(Live {
@@ -662,3 +936,9 @@ impl From<VmError> for Started {
 #[cfg(test)]
 #[path = "runtime_tests.rs"]
 mod tests;
+
+// A child of this module to reach `View`, which its paused clock runs in
+// the test's own runtime.
+#[cfg(test)]
+#[path = "timers_tests.rs"]
+mod timers_tests;

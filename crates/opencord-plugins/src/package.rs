@@ -171,6 +171,11 @@ pub(crate) fn check_path(path: &str) -> Result<(), PackageError> {
     Ok(())
 }
 
+/// Whether `path` is one a package may hold in `assets/`.
+pub fn is_asset_path(path: &str) -> bool {
+    path.starts_with("assets/") && check_path(path).is_ok()
+}
+
 /// Reads at most `limit + 1` bytes of `reader`, so a file over the limit is
 /// seen without holding more of it.
 pub(crate) fn unpack(reader: impl Read, limit: u64) -> io::Result<Vec<u8>> {

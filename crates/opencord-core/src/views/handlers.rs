@@ -9,9 +9,11 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use futures_util::stream::FuturesUnordered;
 use mlua::Function;
+use opencord_plugins::limits::{VIEW_FRAME_TIME, VIEW_HANDLER_TIME};
 use opencord_plugins::sandbox::{Budgeted, VmError};
 
 use super::api_app::Shared;
@@ -43,14 +45,39 @@ impl Handlers {
     }
 }
 
-pub(super) fn is_press(event: &str) -> bool {
-    PRESSES.contains(&event)
+/// What a running handler is for: what it may do, and how long it has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum HandlerKind {
+    Plain,
+    /// `app.copy` works during it.
+    Press,
+    /// `app.on_frame`'s function, with the frame budget.
+    Frame,
+}
+
+impl HandlerKind {
+    /// The kind of a handler for a tree's `event`.
+    pub(super) fn of_event(event: &str) -> HandlerKind {
+        if PRESSES.contains(&event) {
+            HandlerKind::Press
+        } else {
+            HandlerKind::Plain
+        }
+    }
+
+    pub(super) fn limit(self) -> Duration {
+        match self {
+            HandlerKind::Plain | HandlerKind::Press => VIEW_HANDLER_TIME,
+            HandlerKind::Frame => VIEW_FRAME_TIME,
+        }
+    }
 }
 
 /// A handler that ended, and how.
 pub(super) struct Finished {
     /// What ran, for the error report: `on_press`, `app.on("count")`.
     pub(super) what: String,
+    pub(super) kind: HandlerKind,
     pub(super) result: Result<(), VmError>,
 }
 
@@ -59,10 +86,10 @@ pub(super) struct Finished {
 pub(super) type Running = FuturesUnordered<Pin<Box<dyn Future<Output = Finished>>>>;
 
 /// Wraps a handler's call: Lua gets the handler's budget over all its
-/// polls, and `app.copy` works during them when `press` is set.
+/// polls, and `app.copy` works during them for a press.
 pub(super) fn handler<F>(
     what: String,
-    press: bool,
+    kind: HandlerKind,
     shared: Arc<Shared>,
     budgeted: Budgeted<F>,
 ) -> Pin<Box<dyn Future<Output = Finished>>>
@@ -72,11 +99,11 @@ where
     let call = Pressing {
         call: budgeted,
         shared,
-        press,
+        press: kind == HandlerKind::Press,
     };
     Box::pin(async move {
         let result = call.await.map_err(VmError::from);
-        Finished { what, result }
+        Finished { what, kind, result }
     })
 }
 

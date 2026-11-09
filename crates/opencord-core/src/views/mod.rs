@@ -12,16 +12,21 @@
 mod api_app;
 mod api_ui;
 mod carry;
+mod context;
 mod dialogs;
 mod draw;
+mod frames;
 mod handlers;
 mod lists;
 mod modals;
 mod runtime;
+mod storage;
 #[cfg(test)]
 mod test_support;
+mod timers;
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
@@ -50,6 +55,9 @@ pub struct ViewSpec {
     /// Whether an `error` op carries the Lua error and its traceback (dev
     /// mode, or a viewer who manages plugins).
     pub show_errors: bool,
+    /// This plugin's folder on this device, for `app.storage`:
+    /// `<core data dir>/plugins/<server key hash>/<plugin id>`.
+    pub storage_dir: PathBuf,
 }
 
 /// The plugin area the view is drawn in, as the renderer's `context`

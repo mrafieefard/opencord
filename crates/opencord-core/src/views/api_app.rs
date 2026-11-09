@@ -5,15 +5,23 @@
 //! Lua tables in the registry, never in Rust: a Rust value the API's
 //! callbacks hold that held Lua functions would keep the VM alive forever.
 
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use mlua::{ChunkMode, Function, Lua, Table, Value};
-use opencord_plugins::limits::{VIEW_EVENT_MAX_BYTES, VIEW_MAX_LISTENERS, VIEW_MAX_TEXT_CHARS};
+use opencord_plugins::limits::{
+    VIEW_EVENT_MAX_BYTES, VIEW_LINK_MAX_CHARS, VIEW_MAX_EFFECTS, VIEW_MAX_LISTENERS,
+    VIEW_MAX_SOUNDS, VIEW_MAX_TEXT_CHARS,
+};
 use opencord_plugins::lua_api::{function, raise};
+use opencord_plugins::package::is_asset_path;
 use opencord_plugins::view::Patch;
 
 use super::dialogs::Waits;
+use super::frames::Frames;
+use super::storage::{self, Store};
+use super::timers::Timers;
 use super::{ViewSink, cut};
 
 /// Registry keys of the tables `app.on` and `app.listen` fill: name → list
@@ -21,9 +29,24 @@ use super::{ViewSink, cut};
 pub(super) const ON_KEY: &str = "opencord.view.on";
 pub(super) const LISTEN_KEY: &str = "opencord.view.listen";
 
-/// What `app.listen` takes. Task 5 adds the surroundings, lifecycle and
-/// keyboard events.
-const LISTEN_NAMES: &[&str] = &["close"];
+/// Registry keys of what `app.on_back` was given, and of the table of
+/// `on_end` functions by sound id.
+const BACK_KEY: &str = "opencord.view.back";
+const SOUNDS_KEY: &str = "opencord.view.sounds";
+
+/// What `app.listen` takes (Claude's call 3).
+const LISTEN_NAMES: &[&str] = &[
+    "close",
+    "pause",
+    "resume",
+    "resize",
+    "theme_change",
+    "connection_change",
+    "focus",
+    "blur",
+    "key_down",
+    "key_up",
+];
 
 /// The longest event name `app.send` and `app.on` take, in bytes.
 const EVENT_NAME_MAX: usize = 64;
@@ -52,10 +75,25 @@ pub(super) struct Shared {
     effects: Mutex<Vec<Patch>>,
     /// Handlers paused on a quick dialog or `app.modal.ask`.
     pub(super) waits: Waits,
+    pub(super) timers: Timers,
+    pub(super) frames: Frames,
+    pub(super) storage: Arc<Store>,
+    sounds: Sounds,
+}
+
+/// Sounds played; their `on_end` functions are in the registry. An entry
+/// leaves on its `sound_end` and with the VM.
+#[derive(Default)]
+struct Sounds {
+    /// Never reset, so a late `sound_end` can't name a new sound.
+    last_id: AtomicU64,
+    /// How many have an `on_end` waiting.
+    waiting: AtomicUsize,
 }
 
 impl Shared {
-    pub(super) fn new(sink: Arc<dyn ViewSink>) -> Shared {
+    /// Opens the plugin's storage, reading its file: on the view's thread.
+    pub(super) fn new(sink: Arc<dyn ViewSink>, storage_dir: PathBuf) -> Shared {
         Shared {
             sink,
             dirty: AtomicBool::new(false),
@@ -63,7 +101,18 @@ impl Shared {
             in_press: AtomicBool::new(false),
             effects: Mutex::new(Vec::new()),
             waits: Waits::default(),
+            timers: Timers::default(),
+            frames: Frames::default(),
+            storage: storage::open(storage_dir),
+            sounds: Sounds::default(),
         }
+    }
+
+    /// What called into a VM that's gone or stopped.
+    pub(super) fn forget_vm(&self) {
+        self.timers.clear();
+        self.frames.forget();
+        self.sounds.waiting.store(0, Ordering::Relaxed);
     }
 
     pub(super) fn set_phase(&self, phase: Phase) {
@@ -103,6 +152,18 @@ impl Shared {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(op);
+    }
+
+    /// [`Self::push_effect`] for what a script asks for, counted.
+    fn queue_effect(&self, op: Patch) -> mlua::Result<()> {
+        let mut effects = self.effects.lock().unwrap_or_else(PoisonError::into_inner);
+        if effects.len() >= VIEW_MAX_EFFECTS {
+            return Err(raise(format!(
+                "PLUGIN_LIMIT: at most {VIEW_MAX_EFFECTS} side effects at once"
+            )));
+        }
+        effects.push(op);
+        Ok(())
     }
 
     pub(super) fn take_effects(&self) -> Vec<Patch> {
@@ -205,8 +266,7 @@ pub(super) fn install(lua: &Lua, shared: &Arc<Shared>) -> mlua::Result<Table> {
                 "INVALID_ARGUMENT: app.copy takes at most {VIEW_MAX_TEXT_CHARS} characters"
             )));
         }
-        copier.push_effect(Patch::Copy { text });
-        Ok(())
+        copier.queue_effect(Patch::Copy { text })
     })?;
     let check_listen = function(lua, |_, name: Value| {
         let known = match &name {
@@ -252,9 +312,158 @@ pub(super) fn install(lua: &Lua, shared: &Arc<Shared>) -> mlua::Result<Table> {
         ))?;
     super::modals::install(lua, &app, shared)?;
     super::dialogs::install(lua, &app, shared)?;
+    super::timers::install(lua, &app, shared)?;
+    super::frames::install(lua, &app, shared)?;
+    storage::install(lua, &app, shared)?;
+    install_effects(lua, &app, shared)?;
     app.set_readonly(true);
     lua.globals().raw_set("app", &app)?;
     Ok(app)
+}
+
+/// Sets `app.on_back` and the calls that only send the renderer an op.
+fn install_effects(lua: &Lua, app: &Table, shared: &Arc<Shared>) -> mlua::Result<()> {
+    lua.set_named_registry_value(SOUNDS_KEY, lua.create_table()?)?;
+    // Nothing calls it until the phone's back gesture (M4).
+    let on_back = function(lua, |lua, handler: Value| match handler {
+        Value::Function(handler) => lua.set_named_registry_value(BACK_KEY, handler),
+        _ => Err(raise("INVALID_ARGUMENT: app.on_back takes a function")),
+    })?;
+    let linker = shared.clone();
+    let open_link = function(lua, move |_, url: Value| {
+        let url = link(&url)?;
+        linker.queue_effect(Patch::OpenLink { url })
+    })?;
+    let opener = shared.clone();
+    let open_channel = function(lua, move |_, id: Value| {
+        let channel_id = channel_id(&id)?;
+        opener.queue_effect(Patch::OpenChannel { channel_id })
+    })?;
+    let player = shared.clone();
+    let play_sound = function(lua, move |lua, (asset, options): (Value, Value)| {
+        let asset = asset_path(&asset)?;
+        let (volume, on_end) = sound_options(&options)?;
+        let sounds = &player.sounds;
+        if on_end.is_some() && sounds.waiting.load(Ordering::Relaxed) >= VIEW_MAX_SOUNDS {
+            return Err(raise(format!(
+                "PLUGIN_LIMIT: at most {VIEW_MAX_SOUNDS} sounds can wait for on_end"
+            )));
+        }
+        let id = sounds.last_id.fetch_add(1, Ordering::Relaxed) + 1;
+        player.queue_effect(Patch::Sound { id, asset, volume })?;
+        if let Some(on_end) = on_end {
+            let table: Table = lua.named_registry_value(SOUNDS_KEY)?;
+            table.raw_set(id, on_end)?;
+            sounds.waiting.fetch_add(1, Ordering::Relaxed);
+        }
+        Ok(())
+    })?;
+    app.raw_set("on_back", on_back)?;
+    app.raw_set("open_link", open_link)?;
+    app.raw_set("open_channel", open_channel)?;
+    app.raw_set("play_sound", play_sound)
+}
+
+/// A `sound_end` input: the sound's `on_end`, if it has one still waiting.
+pub(super) fn take_on_end(lua: &Lua, shared: &Shared, id: u64) -> mlua::Result<Option<Function>> {
+    let table: Table = lua.named_registry_value(SOUNDS_KEY)?;
+    let on_end = table.raw_get::<Option<Function>>(id)?;
+    if on_end.is_some() {
+        // Not `raw_remove`: on a number key that shifts the entries after it.
+        table.raw_set(id, Value::Nil)?;
+        shared.sounds.waiting.fetch_sub(1, Ordering::Relaxed);
+    }
+    Ok(on_end)
+}
+
+/// A link as the parser wrote it: http or https, at most
+/// [`VIEW_LINK_MAX_CHARS`] characters.
+fn link(url: &Value) -> mlua::Result<String> {
+    let bad = || raise("INVALID_ARGUMENT: app.open_link takes an http or https address");
+    let long = || {
+        raise(format!(
+            "INVALID_ARGUMENT: a link is at most {VIEW_LINK_MAX_CHARS} characters"
+        ))
+    };
+    let Value::String(url) = url else {
+        return Err(bad());
+    };
+    let url = url.to_str().map_err(|_| bad())?.to_owned();
+    if url.chars().count() > VIEW_LINK_MAX_CHARS {
+        return Err(long());
+    }
+    let parsed = reqwest::Url::parse(&url).map_err(|_| bad())?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(bad());
+    }
+    // The parser percent-encodes, which can only lengthen it.
+    if parsed.as_str().len() > VIEW_LINK_MAX_CHARS {
+        return Err(long());
+    }
+    Ok(parsed.into())
+}
+
+/// A channel id: a decimal string that fits a `u64`.
+fn channel_id(id: &Value) -> mlua::Result<String> {
+    match id {
+        Value::String(id)
+            if id.as_bytes().iter().all(u8::is_ascii_digit)
+                && id.to_str().is_ok_and(|id| id.parse::<u64>().is_ok()) =>
+        {
+            Ok(id.to_string_lossy())
+        }
+        _ => Err(raise("INVALID_ARGUMENT: channel_id must be an id string")),
+    }
+}
+
+fn asset_path(asset: &Value) -> mlua::Result<String> {
+    let path = match asset {
+        Value::String(asset) => asset.to_str().ok().map(|asset| asset.to_owned()),
+        _ => None,
+    };
+    path.filter(|path| is_asset_path(path))
+        .ok_or_else(|| raise("INVALID_ARGUMENT: app.play_sound takes a file in assets/"))
+}
+
+/// `app.play_sound`'s options: the volume (1 unless given) and `on_end`.
+fn sound_options(options: &Value) -> mlua::Result<(f64, Option<Function>)> {
+    let options = match options {
+        Value::Nil => return Ok((1.0, None)),
+        Value::Table(options) => options,
+        _ => {
+            return Err(raise(
+                "INVALID_ARGUMENT: app.play_sound's options must be a table",
+            ));
+        }
+    };
+    let volume = match options.raw_get::<Value>("volume")? {
+        Value::Nil => 1.0,
+        volume => finite(&volume, "volume")?,
+    };
+    if !(0.0..=1.0).contains(&volume) {
+        return Err(raise("INVALID_ARGUMENT: volume must be from 0 to 1"));
+    }
+    match options.raw_get::<Value>("on_end")? {
+        Value::Nil => Ok((volume, None)),
+        Value::Function(on_end) => Ok((volume, Some(on_end))),
+        _ => Err(raise("INVALID_ARGUMENT: on_end must be a function")),
+    }
+}
+
+/// A number from Lua that's checked for being finite before use.
+pub(super) fn finite(value: &Value, name: &str) -> mlua::Result<f64> {
+    let number = match value {
+        Value::Integer(number) => *number as f64,
+        Value::Number(number) => *number,
+        _ => f64::NAN,
+    };
+    if number.is_finite() {
+        Ok(number)
+    } else {
+        Err(raise(format!(
+            "INVALID_ARGUMENT: {name} must be a finite number"
+        )))
+    }
 }
 
 /// Sets `app.state`, which scripts read but can't replace.

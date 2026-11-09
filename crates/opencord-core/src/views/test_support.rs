@@ -109,6 +109,46 @@ impl Seen {
         found.unwrap_or_else(|| panic!("no dialog op in {:#?}", self.batches))
     }
 
+    /// Every `frames` op, in order.
+    pub(super) fn frames(&self) -> Vec<bool> {
+        let ops = self.ops();
+        ops.filter_map(|op| match op {
+            Patch::Frames { on } => Some(*on),
+            _ => None,
+        })
+        .collect()
+    }
+
+    /// Every `open_link` op's address, in order.
+    pub(super) fn links(&self) -> Vec<String> {
+        let ops = self.ops();
+        ops.filter_map(|op| match op {
+            Patch::OpenLink { url } => Some(url.clone()),
+            _ => None,
+        })
+        .collect()
+    }
+
+    /// Every `open_channel` op's id, in order.
+    pub(super) fn channels(&self) -> Vec<String> {
+        let ops = self.ops();
+        ops.filter_map(|op| match op {
+            Patch::OpenChannel { channel_id } => Some(channel_id.clone()),
+            _ => None,
+        })
+        .collect()
+    }
+
+    /// Every `sound` op's id, asset and volume, in order.
+    pub(super) fn sounds(&self) -> Vec<(u64, String, f64)> {
+        let ops = self.ops();
+        ops.filter_map(|op| match op {
+            Patch::Sound { id, asset, volume } => Some((*id, asset.clone(), *volume)),
+            _ => None,
+        })
+        .collect()
+    }
+
     /// The ids every batch dropped.
     pub(super) fn dropped(&self) -> Vec<u64> {
         let mut ids = Vec::new();
@@ -218,6 +258,9 @@ pub(super) fn spec(source: &str) -> ViewSpec {
             channel_id: "42".into(),
         },
         show_errors: false,
+        // Nothing is written here unless a script saves; tests that do
+        // give a folder of their own.
+        storage_dir: std::env::temp_dir().join("opencord-view-tests-unused"),
     }
 }
 

@@ -170,6 +170,15 @@ pub const VIEW_MAX_LISTENERS: usize = 1_000;
 pub const VIEW_MAX_TIMERS: usize = 100;
 /// The shortest interval of a view's repeating timer.
 pub const VIEW_TIMER_MIN_EVERY: Duration = Duration::from_millis(100);
+/// The longest delay of a view's timer, as on the server.
+pub const VIEW_TIMER_MAX: Duration = Duration::from_secs(365 * 24 * 60 * 60);
+/// Sounds of one view waiting to call their `on_end`.
+pub const VIEW_MAX_SOUNDS: usize = 100;
+/// Side effects (links, sounds, copies) waiting for one view's next batch:
+/// they're Rust's memory, not under the VM's cap.
+pub const VIEW_MAX_EFFECTS: usize = 1_000;
+/// An `app.open_link` address.
+pub const VIEW_LINK_MAX_CHARS: usize = 2_000;
 
 /// Channel types one plugin registers.
 pub const CHANNEL_TYPES_PER_PLUGIN: usize = 20;
