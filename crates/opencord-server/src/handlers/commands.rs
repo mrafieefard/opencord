@@ -1,7 +1,7 @@
 //! Chat command requests (Phase 3 plan §17.5): running a command, its
 //! autocomplete, and the Commands page.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use opencord_common::permissions::Permissions;
 use opencord_common::snowflake;
@@ -9,6 +9,7 @@ use opencord_plugins::limits::{AUTOCOMPLETE_TIME, COMMAND_REPLY_TIME};
 use opencord_proto::v1 as proto;
 use proto::event::Kind as Event;
 use proto::response::Result as Response;
+use tokio::sync::oneshot;
 
 use super::Ctx;
 use crate::commands::music::{self, Reply};
@@ -350,11 +351,11 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                     format!("{name} {what}"),
                 )
             };
-            match tokio::time::timeout(COMMAND_REPLY_TIME, rx).await {
-                Ok(Ok(CommandAnswer::Reply { content, only_you })) => {
+            match wait_for_answer(rx, COMMAND_REPLY_TIME).await {
+                Some(CommandAnswer::Reply { content, only_you }) => {
                     post_reply(ctx, &request, &plugin_cmd, content, only_you).await
                 }
-                Ok(Ok(CommandAnswer::Defer { only_you, started })) => {
+                Some(CommandAnswer::Defer { only_you, started }) => {
                     match begin_thinking(ctx, &request, &plugin_cmd, only_you).await {
                         Ok((id, response)) => {
                             // A plugin that stopped meanwhile was abandoned.
@@ -367,11 +368,26 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                         }
                     }
                 }
-                Ok(Ok(CommandAnswer::Failed)) => Err(unavailable("ran into an error")),
-                _ => Err(unavailable("didn't answer")),
+                Some(CommandAnswer::Failed) => Err(unavailable("ran into an error")),
+                None => Err(unavailable("didn't answer")),
             }
         }
     }
+}
+
+/// What the plugin answered within `limit`; `None` tells it nothing arrived.
+async fn wait_for_answer<T>(mut answer: oneshot::Receiver<T>, limit: Duration) -> Option<T> {
+    match tokio::time::timeout(limit, &mut answer).await {
+        Ok(result) => result.ok(),
+        Err(_) => last_chance(&mut answer),
+    }
+}
+
+/// After the wait: an answer already sent is used, and one sent from now on
+/// fails, so a plugin is never told it answered a member who saw nothing.
+fn last_chance<T>(answer: &mut oneshot::Receiver<T>) -> Option<T> {
+    answer.close();
+    answer.try_recv().ok()
 }
 
 /// Whether the plugin may post in the channel, and as which user.
@@ -570,8 +586,8 @@ pub async fn autocomplete(
             };
             ctx.state.plugins.deliver(&plugin_cmd.plugin_id, event);
 
-            let choices = match tokio::time::timeout(AUTOCOMPLETE_TIME, rx).await {
-                Ok(Ok(val)) => {
+            let choices = match wait_for_answer(rx, AUTOCOMPLETE_TIME).await {
+                Some(val) => {
                     let mut list = Vec::new();
                     if let Some(choices_arr) = val.get("choices").and_then(|c| c.as_array()) {
                         for item in choices_arr {
@@ -592,7 +608,7 @@ pub async fn autocomplete(
                     }
                     list
                 }
-                _ => Vec::new(),
+                None => Vec::new(),
             };
             Ok(Response::CommandChoices(proto::CommandChoices { choices }))
         }
@@ -645,4 +661,26 @@ pub async fn update_settings(
     tracing::info!(user_id = ctx.user_id, "the command settings changed");
     commands::announce(ctx.state);
     Ok(Response::Commands(commands::all(ctx.state)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_answer_arriving_as_the_wait_ends_is_used() {
+        let (sender, mut receiver) = oneshot::channel();
+        sender.send(7).unwrap();
+
+        assert_eq!(last_chance(&mut receiver), Some(7));
+    }
+
+    #[test]
+    fn an_answer_after_the_wait_ended_is_told_so() {
+        let (sender, mut receiver) = oneshot::channel::<i32>();
+
+        assert_eq!(last_chance(&mut receiver), None);
+
+        assert!(sender.send(7).is_err());
+    }
 }

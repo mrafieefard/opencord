@@ -1502,3 +1502,138 @@ async fn a_restart_turns_thinking_into_no_answer() {
     assert_eq!(state_of(swept), NO_ANSWER);
     assert_eq!(swept.content, "Test plugin didn't answer");
 }
+
+#[tokio::test]
+async fn a_reply_after_3_seconds_raises_and_logs() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "",
+        r#"timer.after(3.1, function()
+            local ok, err = pcall(function() cmd:reply("late") end)
+            log.info("late reply: " .. tostring(err))
+        end)"#,
+    )
+    .await;
+
+    let error = owner.error(run(ch, "slow", &[])).await;
+    assert!(error.message.contains("didn't answer"), "{}", error.message);
+
+    wait_for_log(
+        &mut owner,
+        "slowpoke",
+        "late reply: TIMEOUT: too late to reply",
+    )
+    .await;
+    let lines = crate::support::log_lines(&mut owner, "slowpoke").await;
+    let warning = lines
+        .iter()
+        .find(|line| line.starts_with("/slow answered after"))
+        .unwrap_or_else(|| panic!("no warning in {lines:#?}"));
+    assert!(warning.ends_with(" s, too late"), "{warning}");
+}
+
+#[tokio::test]
+async fn a_defer_after_3_seconds_raises_too() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "",
+        r#"timer.after(3.1, function()
+            local ok, err = pcall(function() cmd:defer() end)
+            log.info("late defer: " .. tostring(err))
+        end)"#,
+    )
+    .await;
+
+    owner.error(run(ch, "slow", &[])).await;
+
+    wait_for_log(
+        &mut owner,
+        "slowpoke",
+        "late defer: TIMEOUT: too late to reply",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_reply_after_15_minutes_raises_and_logs() {
+    let server = TestServer::start_with(|config| config.plugins.thinking_secs = 1).await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "cmd:defer()",
+        r#"timer.after(1.3, function()
+            local ok, err = pcall(function() cmd:reply("late") end)
+            log.info("late reply: " .. tostring(err))
+        end)"#,
+    )
+    .await;
+
+    owner.ok(run(ch, "slow", &[])).await;
+    updated_in_state(&mut owner, NO_ANSWER).await;
+
+    wait_for_log(
+        &mut owner,
+        "slowpoke",
+        "late reply: TIMEOUT: too late to reply",
+    )
+    .await;
+    wait_for_log(&mut owner, "slowpoke", "/slow answered after 1.").await;
+}
+
+#[tokio::test]
+async fn a_late_suggest_returns_false_and_logs_nothing() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "late-ac",
+        r#"commands.register({ name = "x", description = "d", options = {
+            { name = "a", description = "d", kind = "text", autocomplete = function(ac)
+                timer.after(1.2, function()
+                    log.info("suggest said " .. tostring(ac:suggest({ { name = "n", value = "v" } })))
+                end)
+            end },
+        } }, function() end)"#,
+    )
+    .await;
+
+    let answer = owner
+        .ok(Kind::AutocompleteCommand(proto::AutocompleteCommand {
+            source: String::new(),
+            channel_id: ch,
+            name: "x".to_owned(),
+            option: "a".to_owned(),
+            value: "h".to_owned(),
+        }))
+        .await;
+    let Response::CommandChoices(choices) = answer else {
+        panic!("expected choices, got {answer:?}");
+    };
+    assert!(choices.choices.is_empty());
+
+    wait_for_log(&mut owner, "late-ac", "suggest said false").await;
+    let lines = crate::support::log_lines(&mut owner, "late-ac").await;
+    assert!(
+        !lines.iter().any(|line| line.contains("too late")),
+        "{lines:#?}"
+    );
+}

@@ -2,17 +2,18 @@
 //! option's autocomplete function gets, and where their answers go (§26.2).
 
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use mlua::{Lua, Table, Value, Variadic};
 use opencord_plugins::sandbox::{Vm, paused};
+use opencord_proto::v1 as proto;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinSet;
 
 use super::PluginEvent;
 use super::api::{self, commands as registry, raise};
 use super::runtime::{Budgeted, PluginEnv, Report, failed, payload_value};
-use crate::commands::thinking::{self, GaveUp, ThinkingId};
+use crate::commands::thinking::{self, GaveUp, ThinkingId, TooLate};
 use crate::error::ApiError;
 
 /// A plugin's answer to the member waiting on a command.
@@ -45,13 +46,30 @@ enum CallState {
 /// The one answer a command may give.
 struct CommandCall {
     state: Mutex<CallState>,
+    command: String,
+    started: Instant,
 }
 
 impl CommandCall {
-    fn new(waiting: Option<oneshot::Sender<CommandAnswer>>) -> Arc<Self> {
+    fn new(command: &str, waiting: Option<oneshot::Sender<CommandAnswer>>) -> Arc<Self> {
         Arc::new(Self {
             state: Mutex::new(waiting.map_or(CallState::Done, CallState::Waiting)),
+            command: command.to_owned(),
+            started: Instant::now(),
         })
+    }
+
+    /// The answer came after the wait: the plugin hears and its log says so.
+    fn too_late(&self, env: &PluginEnv) -> mlua::Error {
+        env.log.push(
+            proto::PluginLogLevel::Warn,
+            &format!(
+                "/{} answered after {}, too late",
+                self.command,
+                waited_text(self.started.elapsed())
+            ),
+        );
+        raise("TIMEOUT: too late to reply")
     }
 
     fn replace(&self, next: CallState) -> CallState {
@@ -94,7 +112,7 @@ pub(super) fn run_command(
         Ok(None) => return,
         Err(error) => return failed(env, reports, "command", error, limit),
     };
-    let call = CommandCall::new(event.command);
+    let call = CommandCall::new(name, event.command);
     let argument = match command_table(&vm.lua, &event.payload, &call, env) {
         Ok(argument) => argument,
         Err(error) => {
@@ -151,6 +169,16 @@ pub(super) fn run_autocomplete(
     });
 }
 
+/// How long a command took, as its log line says it.
+fn waited_text(waited: Duration) -> String {
+    let seconds = waited.as_secs();
+    if seconds < 60 {
+        format!("{:.1} s", waited.as_secs_f64())
+    } else {
+        format!("{} min {} s", seconds / 60, seconds % 60)
+    }
+}
+
 fn text_of<'a>(payload: &'a serde_json::Value, key: &str) -> &'a str {
     payload
         .get(key)
@@ -198,24 +226,14 @@ async fn reply(
     let content = reply_content(content)?;
     let only_you = only_you_option(options)?;
     match call.replace(CallState::Done) {
-        CallState::Waiting(sender) => {
-            if sender
-                .send(CommandAnswer::Reply { content, only_you })
-                .is_err()
-            {
-                tracing::debug!("a command's reply came after its member stopped waiting");
-            }
-            Ok(())
-        }
+        CallState::Waiting(sender) => sender
+            .send(CommandAnswer::Reply { content, only_you })
+            .map_err(|_| call.too_late(env)),
         CallState::Thinking(id) => {
             let state = env.state()?;
-            let answered = env
-                .on_server(async move { thinking::answer(&state, id, content).await })
-                .await?;
-            if answered.is_err() {
-                tracing::debug!("a deferred command's time ran out before its reply");
-            }
-            Ok(())
+            env.on_server(async move { thinking::answer(&state, id, content).await })
+                .await?
+                .map_err(|_: TooLate| call.too_late(env))
         }
         other @ CallState::Deferring => {
             call.replace(other);
@@ -245,8 +263,7 @@ async fn defer(
         .is_err()
     {
         call.replace(CallState::Done);
-        tracing::debug!("a command deferred after its member stopped waiting");
-        return Ok(());
+        return Err(call.too_late(env));
     }
     match paused(&env.budget, line_up).await {
         Ok(Ok(id)) => {
@@ -310,13 +327,10 @@ fn autocomplete_table(
         let choices = suggestions(choices)?;
         let sender = slot.lock().unwrap_or_else(PoisonError::into_inner).take();
         let sender = sender.ok_or_else(|| raise("INVALID_ARGUMENT: already answered"))?;
-        if sender
+        // Past its second the member has typed on: false, and nothing logged.
+        Ok(sender
             .send(serde_json::json!({ "choices": choices }))
-            .is_err()
-        {
-            tracing::debug!("autocomplete's choices came after its member stopped waiting");
-        }
-        Ok(())
+            .is_ok())
     })?;
     table.raw_set("suggest", suggest)?;
     Ok(table)
@@ -354,4 +368,17 @@ fn suggestion(item: &Table) -> mlua::Result<serde_json::Value> {
         ));
     }
     Ok(serde_json::json!({ "name": name, "value": value }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn waited_text_reads_well() {
+        assert_eq!(waited_text(Duration::from_millis(4_210)), "4.2 s");
+        assert_eq!(waited_text(Duration::from_millis(59_940)), "59.9 s");
+        assert_eq!(waited_text(Duration::from_secs(60)), "1 min 0 s");
+        assert_eq!(waited_text(Duration::from_secs(15 * 60 + 2)), "15 min 2 s");
+    }
 }
