@@ -117,9 +117,18 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
       ]}
     >
       {showAuthor && !own && (
-        <Text variant="subhead" numberOfLines={1} style={mediaOnly && styles.mediaInset}>
-          {authorName}
-        </Text>
+        <View style={[styles.authorRow, mediaOnly && styles.mediaInset]}>
+          <Text variant="subhead" numberOfLines={1}>
+            {authorName}
+          </Text>
+          {member?.isPlugin && (
+            <View style={[styles.pluginBadge, { backgroundColor: colors.selected }]}>
+              <Text variant="badge" color="textMuted">
+                Plugin
+              </Text>
+            </View>
+          )}
+        </View>
       )}
 
       {hasText && (
@@ -246,6 +255,16 @@ const styles = StyleSheet.create({
   metaRow: {
     alignSelf: 'flex-end',
     marginTop: 2,
+  },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  pluginBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
   },
   failed: {
     alignSelf: 'flex-end',

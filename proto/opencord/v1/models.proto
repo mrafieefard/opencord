@@ -36,6 +36,8 @@ message Role {
   bool hoist = 6;
   bool mentionable = 7;
   optional uint64 max_upload_bytes = 8;
+  // Set for a plugin's role (design 2026-11-07).
+  optional string plugin_id = 9;
 }
 
 enum ChannelKind {
@@ -210,6 +212,13 @@ enum ErrorCode {
   ERROR_CODE_PRIVATE_MESSAGES_UNAVAILABLE = 52;
   // The server relays private messages only between friends.
   ERROR_CODE_FRIENDS_ONLY = 53;
+  // Plugins (design 2026-11-07).
+  ERROR_CODE_PLUGIN_PACKAGE_INVALID = 54;
+  ERROR_CODE_PLUGIN_SIGNATURE_INVALID = 55;
+  ERROR_CODE_PLUGIN_NOT_SAME_AUTHOR = 56;
+  ERROR_CODE_PLUGIN_LIMIT = 57;
+  ERROR_CODE_PLUGIN_UNAVAILABLE = 58;
+  ERROR_CODE_PERMISSION_DENIED = 59;
 }
 
 message Error {

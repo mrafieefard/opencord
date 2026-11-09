@@ -14,7 +14,9 @@ use sqlx::SqliteConnection;
 use crate::db::channels::{ChannelRow, OverwriteRow};
 use crate::db::meta::ServerMeta;
 use crate::db::roles::RoleRow;
-use crate::db::{channels, members, permissions_from_db, permissions_to_db, roles, sounds};
+use crate::db::{
+    channels, members, permissions_from_db, permissions_to_db, plugins, roles, sounds,
+};
 use crate::soundboard::Sound;
 use crate::voice::settings::VoiceSettings;
 
@@ -46,6 +48,22 @@ pub struct Role {
     pub hoist: bool,
     pub mentionable: bool,
     pub max_upload_bytes: Option<u64>,
+    /// Set for a plugin's managed role (design 2026-11-07 §8.2).
+    pub plugin_id: Option<String>,
+}
+
+/// The user a plugin acts as (design 2026-11-07). Never a member: it
+/// doesn't appear in member lists, counts or presences.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginUser {
+    pub plugin_id: String,
+    /// Its managed role; 0 once uninstalled.
+    pub role_id: i64,
+    pub name: String,
+    pub avatar_hash: Option<String>,
+    /// False once the plugin is uninstalled: it then holds no permissions,
+    /// and its old messages keep its name.
+    pub installed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,6 +90,8 @@ pub struct Guild {
     pub roles: HashMap<i64, Role>,
     pub channels: HashMap<i64, Channel>,
     pub members: HashMap<i64, Member>,
+    /// Every plugin user, installed or not, by user id.
+    pub plugin_users: HashMap<i64, PluginUser>,
     /// Soundboard sounds, oldest first.
     pub sounds: BTreeMap<i64, Sound>,
     pub upload_settings: crate::attachments::settings::UploadSettings,
@@ -106,6 +126,7 @@ impl Guild {
                         .map(u64::try_from)
                         .transpose()
                         .map_err(|_| corrupt("role", row.id))?,
+                    plugin_id: row.plugin_id,
                 };
                 Ok((role.id, role))
             })
@@ -175,6 +196,20 @@ impl Guild {
                 (member.user.id, member)
             })
             .collect();
+        let plugin_users = plugins::plugin_users(conn)
+            .await?
+            .into_iter()
+            .map(|row| {
+                let user = PluginUser {
+                    plugin_id: row.plugin_id,
+                    role_id: row.role_id.unwrap_or(0),
+                    name: row.display_name,
+                    avatar_hash: row.avatar_hash,
+                    installed: row.role_id.is_some(),
+                };
+                (row.user_id, user)
+            })
+            .collect();
 
         let sounds = sounds::list(conn)
             .await?
@@ -193,6 +228,7 @@ impl Guild {
             roles,
             channels,
             members,
+            plugin_users,
             sounds,
             upload_settings: crate::attachments::settings::UploadSettings::load(conn).await?,
         })
@@ -268,9 +304,19 @@ impl Guild {
         user_id: i64,
         f: impl FnOnce(&MemberContext<'_>) -> R,
     ) -> Option<R> {
-        let member = self.members.get(&user_id)?;
-        let roles: Vec<RoleRef> = member
-            .role_ids
+        let (role_ids, is_owner) = match self.members.get(&user_id) {
+            Some(member) => (member.role_ids.as_slice(), self.is_owner(user_id)),
+            // A plugin acts through its managed role alone, never as the
+            // owner, and not at all once uninstalled.
+            None => {
+                let plugin = self
+                    .plugin_users
+                    .get(&user_id)
+                    .filter(|plugin| plugin.installed)?;
+                (std::slice::from_ref(&plugin.role_id), false)
+            }
+        };
+        let roles: Vec<RoleRef> = role_ids
             .iter()
             .filter_map(|role_id| self.roles.get(role_id))
             .map(|role| RoleRef {
@@ -281,7 +327,7 @@ impl Guild {
             .collect();
         let context = MemberContext {
             user_id,
-            is_owner: self.is_owner(user_id),
+            is_owner,
             everyone_role_id: self.meta.everyone_role_id,
             everyone: self
                 .everyone_role()
@@ -301,6 +347,27 @@ impl Guild {
             everyone_role_id: self.meta.everyone_role_id,
             icon_hash: self.meta.icon_hash.clone().unwrap_or_default(),
         }
+    }
+
+    pub fn member_name(&self, user_id: i64) -> String {
+        self.members
+            .get(&user_id)
+            .map(|m| m.user.display_name.clone())
+            .unwrap_or_else(|| user_id.to_string())
+    }
+
+    pub fn channel_name(&self, channel_id: i64) -> String {
+        self.channels
+            .get(&channel_id)
+            .map(|c| c.name.clone())
+            .unwrap_or_else(|| channel_id.to_string())
+    }
+
+    pub fn role_name(&self, role_id: i64) -> String {
+        self.roles
+            .get(&role_id)
+            .map(|r| r.name.clone())
+            .unwrap_or_else(|| role_id.to_string())
     }
 }
 
@@ -337,6 +404,7 @@ impl Role {
             hoist: self.hoist,
             mentionable: self.mentionable,
             max_upload_bytes: self.max_upload_bytes,
+            plugin_id: self.plugin_id.clone(),
         }
     }
 }
@@ -352,6 +420,7 @@ impl Role {
             hoist: self.hoist,
             mentionable: self.mentionable,
             max_upload_bytes: self.max_upload_bytes.map(|b| b as i64),
+            plugin_id: self.plugin_id.clone(),
         }
     }
 }
@@ -447,10 +516,12 @@ pub(crate) mod tests {
     use crate::db::test_pool;
     use opencord_common::snowflake::SnowflakeGenerator;
 
-    const OWNER: i64 = 1;
-    const ALICE: i64 = 2;
-    const OUTSIDER: i64 = 3;
-    const MOD_ROLE: i64 = 50;
+    pub(crate) const OWNER: i64 = 1;
+    pub(crate) const ALICE: i64 = 2;
+    pub(crate) const OUTSIDER: i64 = 3;
+    pub(crate) const MOD_ROLE: i64 = 50;
+    const PLUGIN_USER: i64 = 4;
+    const PLUGIN_ROLE: i64 = 60;
 
     fn user(id: i64) -> User {
         User {
@@ -490,6 +561,7 @@ pub(crate) mod tests {
                 hoist: true,
                 mentionable: false,
                 max_upload_bytes: None,
+                plugin_id: None,
             },
         );
         guild.members.insert(OWNER, member(OWNER, vec![]));
@@ -589,5 +661,153 @@ pub(crate) mod tests {
         assert_eq!(guild.upload_limit(BOB, CEILING), 200 * MIB);
         assert_eq!(guild.upload_limit(ALICE, CEILING), 50 * MIB);
         assert_eq!(guild.upload_limit(OWNER, CEILING), CEILING);
+    }
+
+    /// A plugin user acting through PLUGIN_ROLE at `position`.
+    fn add_plugin(guild: &mut Guild, permissions: Permissions, position: i32, installed: bool) {
+        guild.roles.insert(
+            PLUGIN_ROLE,
+            Role {
+                id: PLUGIN_ROLE,
+                name: "Plugin: Bot".to_owned(),
+                color: 0,
+                position,
+                permissions,
+                hoist: false,
+                mentionable: false,
+                max_upload_bytes: None,
+                plugin_id: Some("bot".to_owned()),
+            },
+        );
+        guild.plugin_users.insert(
+            PLUGIN_USER,
+            PluginUser {
+                plugin_id: "bot".to_owned(),
+                role_id: PLUGIN_ROLE,
+                name: "Bot".to_owned(),
+                avatar_hash: None,
+                installed,
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn an_installed_plugin_user_has_its_roles_permissions() {
+        // Catches: a plugin user resolved as a stranger (no permissions,
+        // so every handler refuses it) or as the owner (everything).
+        let mut guild = sample_guild().await;
+        let general = channel_named(&guild, "general");
+        add_plugin(
+            &mut guild,
+            Permissions::VIEW_CHANNEL | Permissions::KICK_MEMBERS,
+            2,
+            true,
+        );
+
+        let permissions = guild.base_permissions(PLUGIN_USER);
+
+        assert!(permissions.contains(Permissions::KICK_MEMBERS | Permissions::VIEW_CHANNEL));
+        assert!(!permissions.contains(Permissions::BAN_MEMBERS));
+        assert!(!permissions.contains(Permissions::ADMINISTRATOR));
+        assert!(guild.can_view(PLUGIN_USER, general));
+        assert_eq!(guild.highest_position(PLUGIN_USER), 2);
+    }
+
+    #[tokio::test]
+    async fn an_uninstalled_plugin_user_has_none() {
+        // Catches: an uninstalled plugin's user still acting through the
+        // role it had.
+        let mut guild = sample_guild().await;
+        let general = channel_named(&guild, "general");
+        add_plugin(&mut guild, Permissions::all(), 2, false);
+
+        assert_eq!(guild.base_permissions(PLUGIN_USER), Permissions::empty());
+        assert!(!guild.can_view(PLUGIN_USER, general));
+        assert!(guild.visible_channel_ids(PLUGIN_USER).is_empty());
+        assert_eq!(guild.highest_position(PLUGIN_USER), 0);
+    }
+
+    #[tokio::test]
+    async fn channel_overwrites_apply_to_the_plugin_role() {
+        // Catches: a plugin seeing a channel an admin hid from its role.
+        let mut guild = sample_guild().await;
+        let general = channel_named(&guild, "general");
+        let voice = channel_named(&guild, "General");
+        add_plugin(&mut guild, Permissions::VIEW_CHANNEL, 1, true);
+        guild.channels.get_mut(&general).unwrap().overwrites = vec![Overwrite {
+            target: OverwriteTarget::Role(PLUGIN_ROLE),
+            allow: Permissions::empty(),
+            deny: Permissions::VIEW_CHANNEL,
+        }];
+
+        assert!(!guild.can_view(PLUGIN_USER, general));
+        assert!(guild.can_view(PLUGIN_USER, voice));
+        assert!(guild.can_view(ALICE, general));
+    }
+
+    #[tokio::test]
+    async fn plugin_users_are_never_members() {
+        // Catches: loading plugin users as members, so they'd show in the
+        // member list, its count and presences.
+        let (pool, _dir) = test_pool().await;
+        let ids = SnowflakeGenerator::new(0).unwrap();
+        let bootstrap = bootstrap::initialize(&pool, "Test", &ids, 0).await.unwrap();
+        for statement in [
+            "INSERT INTO users (id, public_key, display_name, avatar_hash, created_at, plugin_id)
+             VALUES (4, X'04', 'Bot', 'abc', 0, 'bot'), (5, X'05', 'Gone', NULL, 0, 'gone')",
+            "INSERT INTO roles (id, name, color, position, permissions, hoist, mentionable, plugin_id)
+             VALUES (60, 'Plugin: Bot', 0, 1, 1, FALSE, FALSE, 'bot')",
+            "INSERT INTO plugins (id, user_id, role_id, version, folder, manifest, signature,
+                                  running, installed_at, updated_at)
+             VALUES ('bot', 4, 60, '1.0.0', 'v1', '{}', 'unsigned', 1, 0, 0)",
+        ] {
+            sqlx::query(statement).execute(&pool).await.unwrap();
+        }
+        let mut conn = pool.acquire().await.unwrap();
+
+        let guild = Guild::load(&mut conn, bootstrap.meta).await.unwrap();
+
+        assert!(guild.members.is_empty());
+        assert_eq!(
+            guild.plugin_users.get(&4),
+            Some(&PluginUser {
+                plugin_id: "bot".to_owned(),
+                role_id: 60,
+                name: "Bot".to_owned(),
+                avatar_hash: Some("abc".to_owned()),
+                installed: true,
+            })
+        );
+        assert_eq!(
+            guild.plugin_users.get(&5),
+            Some(&PluginUser {
+                plugin_id: "gone".to_owned(),
+                role_id: 0,
+                name: "Gone".to_owned(),
+                avatar_hash: None,
+                installed: false,
+            })
+        );
+        assert_eq!(guild.roles[&60].plugin_id.as_deref(), Some("bot"));
+        assert_eq!(
+            guild.roles[&60].to_proto().plugin_id.as_deref(),
+            Some("bot")
+        );
+        // @everyone's and its role's, as for any member.
+        assert_eq!(guild.base_permissions(4), Permissions::DEFAULT_EVERYONE);
+        assert_eq!(guild.base_permissions(5), Permissions::empty());
+    }
+
+    #[tokio::test]
+    async fn a_plugin_cannot_outrank_the_owner() {
+        // Catches: a plugin user resolved as the owner, or one whose top
+        // role and ADMINISTRATOR let it kick or ban the owner.
+        let mut guild = sample_guild().await;
+        add_plugin(&mut guild, Permissions::ADMINISTRATOR, 100, true);
+
+        assert_eq!(guild.base_permissions(PLUGIN_USER), Permissions::all());
+        assert!(crate::permissions::require_outranks_member(&guild, PLUGIN_USER, OWNER).is_err());
+        assert!(crate::permissions::require_outranks_member(&guild, PLUGIN_USER, ALICE).is_ok());
+        assert!(crate::permissions::require_outranks_member(&guild, OWNER, PLUGIN_USER).is_ok());
     }
 }

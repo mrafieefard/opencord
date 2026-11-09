@@ -7,6 +7,7 @@ use std::time::Instant;
 use opencord_proto::v1 as proto;
 use proto::event::Kind;
 
+use crate::plugins::events::Scope;
 use crate::state::AppState;
 
 #[derive(Debug)]
@@ -15,14 +16,16 @@ pub struct Visibility {
 }
 
 impl Visibility {
-    /// Visible channels of every user with a session. Take it before
-    /// changing anything; the guild must not be locked by the caller.
+    /// Visible channels of every user with a session, and of every plugin
+    /// taking events. Take it before changing anything; the guild must not
+    /// be locked by the caller.
     pub fn capture(state: &AppState) -> Self {
         let users: HashSet<i64> = state
             .sessions
             .all()
             .iter()
             .map(|session| session.user_id)
+            .chain(state.plugins.listening_user_ids())
             .collect();
         let guild = state.guild();
         Self {
@@ -87,6 +90,16 @@ impl Visibility {
                             }),
                         ));
                     }
+                }
+            }
+        }
+        {
+            let guild = state.guild();
+            for (user_id, kind) in &deliveries {
+                if guild.plugin_users.contains_key(user_id) {
+                    state
+                        .plugins
+                        .observe_in(&guild, kind, Scope::User(*user_id));
                 }
             }
         }

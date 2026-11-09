@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO plugin_dev_tokens (id, plugin_id, token_hash, created_by, created_at,\n                                        expires_at, last_used_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "f0271cb262cb1d5f368b08dff459a8bf3a4ed788f345ffe6cc18044ddae80196"
+}

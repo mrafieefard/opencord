@@ -242,6 +242,7 @@ Role roleFrom(core.Role role) => Role(
   hoist: role.hoist,
   mentionable: role.mentionable,
   maxUploadBytes: role.maxUploadBytes?.toInt(),
+  pluginId: role.pluginId,
 );
 
 ServerInfo serverInfoFrom(core.ServerInfo info) => ServerInfo(
@@ -368,6 +369,7 @@ ReadySnapshot snapshotFrom(
   uploadSettings: uploadSettingsFrom(ready.uploadSettings),
   privateMessages: ready.privateMessages,
   privateSettings: privateSettingsFrom(ready.privateSettings),
+  pluginUsers: [for (final user in ready.pluginUsers) pluginUserFrom(user)],
 );
 
 ServerPrivateSettings privateSettingsFrom(core.PrivateSettings s) =>
@@ -780,3 +782,132 @@ HotkeySupport hotkeySupportFrom(core.HotkeySupport support) =>
       core.HotkeySupport_FocusedOnly(:final reason, :final settingsUrl) =>
         HotkeySupport.focusedOnly(reason, settingsUrl: settingsUrl),
     };
+
+PluginState pluginStateFrom(core.PluginState state) => switch (state) {
+  core.PluginState.starting => PluginState.starting,
+  core.PluginState.running => PluginState.running,
+  core.PluginState.stopped => PluginState.stopped,
+  core.PluginState.crashed => PluginState.crashed,
+};
+
+PluginSignature pluginSignatureFrom(core.PluginSignature sig) => switch (sig) {
+  core.PluginSignature.unsigned => PluginSignature.unsigned,
+  core.PluginSignature.signed => PluginSignature.signed,
+  core.PluginSignature.dev => PluginSignature.dev,
+};
+
+GithubCheck githubCheckFrom(core.GithubCheck check) => switch (check) {
+  core.GithubCheck.unspecified => GithubCheck.unspecified,
+  core.GithubCheck.verified => GithubCheck.verified,
+  core.GithubCheck.mismatch => GithubCheck.mismatch,
+  core.GithubCheck.failed => GithubCheck.failed,
+};
+
+PluginConfigKind pluginConfigKindFrom(core.PluginConfigKind kind) =>
+    switch (kind) {
+      core.PluginConfigKind.text => PluginConfigKind.text,
+      core.PluginConfigKind.secret => PluginConfigKind.secret,
+      core.PluginConfigKind.number => PluginConfigKind.number,
+      core.PluginConfigKind.boolean => PluginConfigKind.boolean,
+      core.PluginConfigKind.choice => PluginConfigKind.choice,
+      core.PluginConfigKind.role => PluginConfigKind.role,
+      core.PluginConfigKind.channel => PluginConfigKind.channel,
+      core.PluginConfigKind.user => PluginConfigKind.user,
+    };
+
+PluginLogLevel pluginLogLevelFrom(core.PluginLogLevel level) => switch (level) {
+  core.PluginLogLevel.info => PluginLogLevel.info,
+  core.PluginLogLevel.warn => PluginLogLevel.warn,
+  core.PluginLogLevel.error => PluginLogLevel.error,
+  core.PluginLogLevel.action => PluginLogLevel.action,
+};
+
+PluginConfigField pluginConfigFieldFrom(core.PluginConfigField f) =>
+    PluginConfigField(
+      key: f.key,
+      label: f.label,
+      kind: pluginConfigKindFrom(f.kind),
+      choices: f.choices,
+      required: f.required_,
+    );
+
+PluginConfigValue pluginConfigValueFrom(core.PluginConfigValue v) =>
+    PluginConfigValue(key: v.key, value: v.value, hasValue: v.hasValue);
+
+core.PluginConfigValue pluginConfigValueTo(PluginConfigValue v) =>
+    core.PluginConfigValue(key: v.key, value: v.value, hasValue: v.hasValue);
+
+PluginPermissionGrant pluginPermissionGrantFrom(core.PluginPermissionGrant g) =>
+    PluginPermissionGrant(
+      name: g.name,
+      granted: g.granted,
+      grantable: g.grantable,
+    );
+
+PluginUser pluginUserFrom(core.PluginUser u) => PluginUser(
+  userId: u.userId.toInt(),
+  pluginId: u.pluginId,
+  name: u.name,
+  avatarHash: u.avatarHash,
+  installed: u.installed,
+);
+
+Plugin pluginFrom(core.Plugin p) => Plugin(
+  id: p.id,
+  name: p.name,
+  version: p.version,
+  author: p.author,
+  description: p.description,
+  github: p.github,
+  license: p.license,
+  signature: pluginSignatureFrom(p.signature),
+  keyFingerprint: p.keyFingerprint,
+  githubCheck: githubCheckFrom(p.githubCheck),
+  state: pluginStateFrom(p.state),
+  statusReason: p.statusReason,
+  permissions: [for (final g in p.permissions) pluginPermissionGrantFrom(g)],
+  domains: p.domains,
+  configFields: [for (final f in p.configFields) pluginConfigFieldFrom(f)],
+  config: [for (final v in p.config) pluginConfigValueFrom(v)],
+  userId: p.userId.toInt(),
+  roleId: p.roleId.toInt(),
+  installedAt: _time(p.installedAtMs.toInt()),
+  updatedAt: _time(p.updatedAtMs.toInt()),
+  cpuPermille: p.cpuPermille,
+  memoryBytes: p.memoryBytes.toInt(),
+  databaseBytes: p.databaseBytes.toInt(),
+  filesBytes: p.filesBytes.toInt(),
+);
+
+PluginReview pluginReviewFrom(core.PluginReview r) => PluginReview(
+  reviewId: r.reviewId,
+  plugin: pluginFrom(r.plugin),
+  installed: r.installed != null ? pluginFrom(r.installed!) : null,
+  newPermissions: r.newPermissions,
+  licenseNeedsAcceptance: r.licenseNeedsAcceptance,
+  expiresAt: _time(r.expiresAtMs.toInt()),
+  dev: r.dev,
+);
+
+PluginLogLine pluginLogLineFrom(core.PluginLogLine l) => PluginLogLine(
+  seq: l.seq.toInt(),
+  at: _time(l.atMs.toInt()),
+  level: pluginLogLevelFrom(l.level),
+  text: l.text,
+);
+
+PluginDevToken pluginDevTokenFrom(core.PluginDevToken t) => PluginDevToken(
+  id: t.id.toInt(),
+  pluginId: t.pluginId,
+  createdBy: t.createdBy.toInt(),
+  createdAt: _time(t.createdAtMs.toInt()),
+  expiresAt: _time(t.expiresAtMs.toInt()),
+  lastUsedAt: t.lastUsedAtMs != null ? _time(t.lastUsedAtMs!.toInt()) : null,
+);
+
+CreatedPluginDevToken createdPluginDevTokenFrom(core.CreatedPluginDevToken c) =>
+    CreatedPluginDevToken(
+      token: pluginDevTokenFrom(c.token),
+      secret: c.secret,
+      serverFingerprint: c.serverFingerprint,
+    );

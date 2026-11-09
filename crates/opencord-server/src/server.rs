@@ -130,6 +130,9 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     state.commands.load(&mut *state.db.acquire().await?).await?;
     crate::lavalink::start(&state).await?;
     crate::attachments::start(&state).await?;
+    // Reviews live in memory, so their files can't outlive a restart.
+    crate::plugins::review::remove_folder(&crate::plugins::review::folder(&state)).await;
+    crate::plugins::start_all(&state).await;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -167,6 +170,7 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     };
     let reaper = tokio::spawn(reap_sessions(Arc::clone(&state)));
     tokio::spawn(sweep_private_messages(Arc::clone(&state)));
+    tokio::spawn(crate::plugins::review::sweep_reviews(Arc::clone(&state)));
     state.network.set_listening(
         local_addr.port(),
         Listening {
@@ -206,9 +210,26 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
 }
 
 impl ServerHandle {
+    /// The application state, for tests.
+    pub fn state(&self) -> &Arc<AppState> {
+        &self.state
+    }
+
+    /// The plugin reviews waiting, for tests that move their clock.
+    pub fn plugin_reviews(&self) -> &crate::plugins::review::Reviews {
+        &self.state.plugins.reviews
+    }
+
+    /// The dev tokens' clock, for tests that move it.
+    pub fn plugin_dev_tokens(&self) -> &crate::plugins::dev::DevTokens {
+        &self.state.plugins.dev_tokens
+    }
+
     /// Closes every connection (1001), stops listening and closes the
     /// database.
     pub async fn shutdown(self) {
+        // While the server still works, so `stop` handlers can use it.
+        self.state.plugins.stop_all().await;
         if let Some(node) = self.state.voice_nodes.embedded() {
             node.shutdown();
         }

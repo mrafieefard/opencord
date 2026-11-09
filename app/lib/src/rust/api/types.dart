@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
 
 class AcmeAccount {
   /// An account exists with the CA in use.
@@ -1179,6 +1179,46 @@ sealed class CoreEventPayload with _$CoreEventPayload {
     required bool done,
     String? error,
   }) = CoreEventPayload_DownloadProgress;
+  const factory CoreEventPayload.pluginUpdate(Plugin field0) =
+      CoreEventPayload_PluginUpdate;
+  const factory CoreEventPayload.pluginRemove({required String pluginId}) =
+      CoreEventPayload_PluginRemove;
+  const factory CoreEventPayload.pluginReviewUpdate(PluginReview field0) =
+      CoreEventPayload_PluginReviewUpdate;
+  const factory CoreEventPayload.pluginReviewRemove({
+    required String reviewId,
+  }) = CoreEventPayload_PluginReviewRemove;
+  const factory CoreEventPayload.pluginLogAppend({
+    required String pluginId,
+    required List<PluginLogLine> lines,
+  }) = CoreEventPayload_PluginLogAppend;
+  const factory CoreEventPayload.pluginUsersUpdate(List<PluginUser> field0) =
+      CoreEventPayload_PluginUsersUpdate;
+}
+
+class CreatedPluginDevToken {
+  final PluginDevToken token;
+  final String secret;
+  final String serverFingerprint;
+
+  const CreatedPluginDevToken({
+    required this.token,
+    required this.secret,
+    required this.serverFingerprint,
+  });
+
+  @override
+  int get hashCode =>
+      token.hashCode ^ secret.hashCode ^ serverFingerprint.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CreatedPluginDevToken &&
+          runtimeType == other.runtimeType &&
+          token == other.token &&
+          secret == other.secret &&
+          serverFingerprint == other.serverFingerprint;
 }
 
 /// A sound every client has (plan §11.8), played as `default:<id>`.
@@ -1536,6 +1576,8 @@ class GeneratedIdentity {
           secret == other.secret &&
           info == other.info;
 }
+
+enum GithubCheck { unspecified, verified, mismatch, failed }
 
 /// What a global hotkey does (Phase 2 plan §7.13).
 enum HotkeyAction {
@@ -3227,6 +3269,362 @@ sealed class PlaybackItem with _$PlaybackItem {
       PlaybackItem_Draft;
 }
 
+class Plugin {
+  final String id;
+  final String name;
+  final String version;
+  final String author;
+  final String description;
+  final String github;
+  final String license;
+  final PluginSignature signature;
+  final String keyFingerprint;
+  final GithubCheck githubCheck;
+  final PluginState state;
+  final String statusReason;
+  final List<PluginPermissionGrant> permissions;
+  final List<String> domains;
+  final List<PluginConfigField> configFields;
+  final List<PluginConfigValue> config;
+  final PlatformInt64 userId;
+  final PlatformInt64 roleId;
+  final PlatformInt64 installedAtMs;
+  final PlatformInt64 updatedAtMs;
+  final int cpuPermille;
+  final BigInt memoryBytes;
+  final BigInt databaseBytes;
+  final BigInt filesBytes;
+
+  const Plugin({
+    required this.id,
+    required this.name,
+    required this.version,
+    required this.author,
+    required this.description,
+    required this.github,
+    required this.license,
+    required this.signature,
+    required this.keyFingerprint,
+    required this.githubCheck,
+    required this.state,
+    required this.statusReason,
+    required this.permissions,
+    required this.domains,
+    required this.configFields,
+    required this.config,
+    required this.userId,
+    required this.roleId,
+    required this.installedAtMs,
+    required this.updatedAtMs,
+    required this.cpuPermille,
+    required this.memoryBytes,
+    required this.databaseBytes,
+    required this.filesBytes,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      version.hashCode ^
+      author.hashCode ^
+      description.hashCode ^
+      github.hashCode ^
+      license.hashCode ^
+      signature.hashCode ^
+      keyFingerprint.hashCode ^
+      githubCheck.hashCode ^
+      state.hashCode ^
+      statusReason.hashCode ^
+      permissions.hashCode ^
+      domains.hashCode ^
+      configFields.hashCode ^
+      config.hashCode ^
+      userId.hashCode ^
+      roleId.hashCode ^
+      installedAtMs.hashCode ^
+      updatedAtMs.hashCode ^
+      cpuPermille.hashCode ^
+      memoryBytes.hashCode ^
+      databaseBytes.hashCode ^
+      filesBytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Plugin &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          version == other.version &&
+          author == other.author &&
+          description == other.description &&
+          github == other.github &&
+          license == other.license &&
+          signature == other.signature &&
+          keyFingerprint == other.keyFingerprint &&
+          githubCheck == other.githubCheck &&
+          state == other.state &&
+          statusReason == other.statusReason &&
+          permissions == other.permissions &&
+          domains == other.domains &&
+          configFields == other.configFields &&
+          config == other.config &&
+          userId == other.userId &&
+          roleId == other.roleId &&
+          installedAtMs == other.installedAtMs &&
+          updatedAtMs == other.updatedAtMs &&
+          cpuPermille == other.cpuPermille &&
+          memoryBytes == other.memoryBytes &&
+          databaseBytes == other.databaseBytes &&
+          filesBytes == other.filesBytes;
+}
+
+class PluginConfigField {
+  final String key;
+  final String label;
+  final PluginConfigKind kind;
+  final List<String> choices;
+  final bool required_;
+
+  const PluginConfigField({
+    required this.key,
+    required this.label,
+    required this.kind,
+    required this.choices,
+    required this.required_,
+  });
+
+  @override
+  int get hashCode =>
+      key.hashCode ^
+      label.hashCode ^
+      kind.hashCode ^
+      choices.hashCode ^
+      required_.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginConfigField &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          label == other.label &&
+          kind == other.kind &&
+          choices == other.choices &&
+          required_ == other.required_;
+}
+
+enum PluginConfigKind {
+  text,
+  secret,
+  number,
+  boolean,
+  choice,
+  role,
+  channel,
+  user,
+}
+
+class PluginConfigValue {
+  final String key;
+  final String value;
+  final bool hasValue;
+
+  const PluginConfigValue({
+    required this.key,
+    required this.value,
+    required this.hasValue,
+  });
+
+  @override
+  int get hashCode => key.hashCode ^ value.hashCode ^ hasValue.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginConfigValue &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          value == other.value &&
+          hasValue == other.hasValue;
+}
+
+class PluginDevToken {
+  final PlatformInt64 id;
+  final String pluginId;
+  final PlatformInt64 createdBy;
+  final PlatformInt64 createdAtMs;
+  final PlatformInt64 expiresAtMs;
+  final PlatformInt64? lastUsedAtMs;
+
+  const PluginDevToken({
+    required this.id,
+    required this.pluginId,
+    required this.createdBy,
+    required this.createdAtMs,
+    required this.expiresAtMs,
+    this.lastUsedAtMs,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      pluginId.hashCode ^
+      createdBy.hashCode ^
+      createdAtMs.hashCode ^
+      expiresAtMs.hashCode ^
+      lastUsedAtMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginDevToken &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          pluginId == other.pluginId &&
+          createdBy == other.createdBy &&
+          createdAtMs == other.createdAtMs &&
+          expiresAtMs == other.expiresAtMs &&
+          lastUsedAtMs == other.lastUsedAtMs;
+}
+
+enum PluginLogLevel { info, warn, error, action }
+
+class PluginLogLine {
+  final BigInt seq;
+  final PlatformInt64 atMs;
+  final PluginLogLevel level;
+  final String text;
+
+  const PluginLogLine({
+    required this.seq,
+    required this.atMs,
+    required this.level,
+    required this.text,
+  });
+
+  @override
+  int get hashCode =>
+      seq.hashCode ^ atMs.hashCode ^ level.hashCode ^ text.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginLogLine &&
+          runtimeType == other.runtimeType &&
+          seq == other.seq &&
+          atMs == other.atMs &&
+          level == other.level &&
+          text == other.text;
+}
+
+class PluginPermissionGrant {
+  final String name;
+  final bool granted;
+  final bool grantable;
+
+  const PluginPermissionGrant({
+    required this.name,
+    required this.granted,
+    required this.grantable,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ granted.hashCode ^ grantable.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginPermissionGrant &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          granted == other.granted &&
+          grantable == other.grantable;
+}
+
+class PluginReview {
+  final String reviewId;
+  final Plugin plugin;
+  final Plugin? installed;
+  final List<String> newPermissions;
+  final bool licenseNeedsAcceptance;
+  final PlatformInt64 expiresAtMs;
+  final bool dev;
+
+  const PluginReview({
+    required this.reviewId,
+    required this.plugin,
+    this.installed,
+    required this.newPermissions,
+    required this.licenseNeedsAcceptance,
+    required this.expiresAtMs,
+    required this.dev,
+  });
+
+  @override
+  int get hashCode =>
+      reviewId.hashCode ^
+      plugin.hashCode ^
+      installed.hashCode ^
+      newPermissions.hashCode ^
+      licenseNeedsAcceptance.hashCode ^
+      expiresAtMs.hashCode ^
+      dev.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginReview &&
+          runtimeType == other.runtimeType &&
+          reviewId == other.reviewId &&
+          plugin == other.plugin &&
+          installed == other.installed &&
+          newPermissions == other.newPermissions &&
+          licenseNeedsAcceptance == other.licenseNeedsAcceptance &&
+          expiresAtMs == other.expiresAtMs &&
+          dev == other.dev;
+}
+
+enum PluginSignature { unsigned, signed, dev }
+
+enum PluginState { starting, running, stopped, crashed }
+
+class PluginUser {
+  final PlatformInt64 userId;
+  final String pluginId;
+  final String name;
+  final String avatarHash;
+  final bool installed;
+
+  const PluginUser({
+    required this.userId,
+    required this.pluginId,
+    required this.name,
+    required this.avatarHash,
+    required this.installed,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      pluginId.hashCode ^
+      name.hashCode ^
+      avatarHash.hashCode ^
+      installed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginUser &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          pluginId == other.pluginId &&
+          name == other.name &&
+          avatarHash == other.avatarHash &&
+          installed == other.installed;
+}
+
 enum PortProtocol { tcp, udp }
 
 enum PortPurpose { main, voice, music, acmeHttp, localProxy }
@@ -3672,6 +4070,7 @@ class ReadySnapshot {
   final UploadSettings uploadSettings;
   final bool privateMessages;
   final PrivateSettings privateSettings;
+  final List<PluginUser> pluginUsers;
 
   const ReadySnapshot({
     required this.selfUser,
@@ -3692,6 +4091,7 @@ class ReadySnapshot {
     required this.uploadSettings,
     required this.privateMessages,
     required this.privateSettings,
+    required this.pluginUsers,
   });
 
   @override
@@ -3713,7 +4113,8 @@ class ReadySnapshot {
       commands.hashCode ^
       uploadSettings.hashCode ^
       privateMessages.hashCode ^
-      privateSettings.hashCode;
+      privateSettings.hashCode ^
+      pluginUsers.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3737,7 +4138,8 @@ class ReadySnapshot {
           commands == other.commands &&
           uploadSettings == other.uploadSettings &&
           privateMessages == other.privateMessages &&
-          privateSettings == other.privateSettings;
+          privateSettings == other.privateSettings &&
+          pluginUsers == other.pluginUsers;
 }
 
 class Role {
@@ -3754,6 +4156,7 @@ class Role {
   /// The largest file its members may upload; `None` leaves it to their
   /// other roles.
   final BigInt? maxUploadBytes;
+  final String? pluginId;
 
   const Role({
     required this.id,
@@ -3764,6 +4167,7 @@ class Role {
     required this.hoist,
     required this.mentionable,
     this.maxUploadBytes,
+    this.pluginId,
   });
 
   @override
@@ -3775,7 +4179,8 @@ class Role {
       permissions.hashCode ^
       hoist.hashCode ^
       mentionable.hashCode ^
-      maxUploadBytes.hashCode;
+      maxUploadBytes.hashCode ^
+      pluginId.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -3789,7 +4194,8 @@ class Role {
           permissions == other.permissions &&
           hoist == other.hoist &&
           mentionable == other.mentionable &&
-          maxUploadBytes == other.maxUploadBytes;
+          maxUploadBytes == other.maxUploadBytes &&
+          pluginId == other.pluginId;
 }
 
 class RoleChanges {

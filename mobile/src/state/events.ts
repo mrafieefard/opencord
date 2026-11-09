@@ -54,6 +54,7 @@ export function newServer(entry: ServerEntry): ServerState {
     voice: {},
     nowPlaying: {},
     musicSettings: null,
+    pluginUsers: {},
   };
 }
 
@@ -214,7 +215,11 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.Connection:
       return withServer(state, event.inner.serverKey, (current) => ({ ...current, connection: event.inner.state }));
     case MobileEvent_Tags.Ready:
-      return withServer(state, event.inner.snapshot.serverKey, (current) => ({ ...current, snapshot: event.inner.snapshot }));
+      return withServer(state, event.inner.snapshot.serverKey, (current) => ({
+        ...current,
+        snapshot: event.inner.snapshot,
+        pluginUsers: Object.fromEntries((event.inner.snapshot.pluginUsers ?? []).map((u) => [u.userId, u])),
+      }));
     case MobileEvent_Tags.MessageCreated:
       return messageCreated(state, event.inner.serverKey, event.inner.message);
     case MobileEvent_Tags.MessageUpdated:
@@ -383,6 +388,12 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.Notice:
       // Shown, not kept: store.ts turns these into toasts.
       return state;
+    case MobileEvent_Tags.PluginUsersUpdated:
+      return withServer(state, event.inner.serverKey, (current) => ({
+        ...current,
+        snapshot: current.snapshot ? { ...current.snapshot, pluginUsers: event.inner.pluginUsers } : null,
+        pluginUsers: Object.fromEntries(event.inner.pluginUsers.map((u) => [u.userId, u])),
+      }));
   }
 }
 

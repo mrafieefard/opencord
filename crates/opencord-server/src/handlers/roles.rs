@@ -60,6 +60,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateRole) -> Result<Respons
         hoist: request.hoist,
         mentionable: request.mentionable,
         max_upload_bytes,
+        plugin_id: None,
     };
     let mut tx = ctx.state.db.begin().await?;
     for moved in &shifted {
@@ -103,6 +104,11 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateRole) -> Result<Respons
         let permissions = match request.permissions {
             Some(bits) => {
                 let permissions = Permissions::from_bits_truncate(bits);
+                if role.plugin_id.is_some() && permissions != role.permissions {
+                    return Err(ApiError::forbidden(
+                        "a plugin's role follows the plugin's permissions",
+                    ));
+                }
                 require_grantable(held, permissions.symmetric_difference(role.permissions))?;
                 permissions
             }
@@ -146,6 +152,7 @@ pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteRole) -> Result<Respons
         if role.id == guild.meta.everyone_role_id {
             return Err(ApiError::invalid_argument("@everyone cannot be deleted"));
         }
+        require_not_plugins(role)?;
         require_base(&guild, ctx.user_id, Permissions::MANAGE_ROLES)?;
         require_outranks_role(&guild, ctx.user_id, role.position)?;
         let holders: Vec<i64> = guild
@@ -282,6 +289,7 @@ async fn change_member_role(
                 "every member has @everyone; it cannot be added or removed",
             ));
         }
+        require_not_plugins(role)?;
         require_outranks_role(&guild, ctx.user_id, role.position)?;
         if add {
             require_grantable(held, role.permissions)?;
@@ -335,6 +343,16 @@ fn existing_role(guild: &Guild, role_id: i64) -> Result<&Role, ApiError> {
         .roles
         .get(&role_id)
         .ok_or_else(|| ApiError::not_found("role"))
+}
+
+/// A plugin's managed role is never given to members or deleted by hand
+/// (design 2026-11-07 §8.2).
+fn require_not_plugins(role: &Role) -> Result<(), ApiError> {
+    if role.plugin_id.is_some() {
+        Err(ApiError::forbidden("this role belongs to a plugin"))
+    } else {
+        Ok(())
+    }
 }
 
 fn valid_color(color: u32) -> Result<u32, ApiError> {
@@ -397,4 +415,91 @@ pub(super) fn broadcast_member_update(ctx: &Ctx<'_>, member: &Member) {
         }),
         Audience::Everyone,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plugins::identity::ensure;
+    use crate::plugins::identity::tests::{ADMIN, OWNER, state};
+
+    #[tokio::test]
+    async fn a_plugins_role_stays_the_plugins() {
+        // Catches: a member given a plugin's role (and with it what the
+        // plugin was granted), the role deleted under a running plugin, or
+        // its permissions edited away from the plugin's.
+        let (state, _dir) = state().await;
+        let role_id = ensure(&state, "tickets", "Tickets", None, OWNER, &HashSet::new())
+            .await
+            .unwrap()
+            .role_id;
+        let ctx = Ctx {
+            state: &state,
+            user_id: OWNER,
+            session_id: "",
+            session: None,
+            plugin_id: None,
+        };
+        let belongs = ApiError::forbidden("this role belongs to a plugin");
+        let follows = ApiError::forbidden("a plugin's role follows the plugin's permissions");
+
+        let given = add_to_member(
+            &ctx,
+            proto::AddMemberRole {
+                user_id: ADMIN,
+                role_id,
+            },
+        )
+        .await;
+        let taken = remove_from_member(
+            &ctx,
+            proto::RemoveMemberRole {
+                user_id: ADMIN,
+                role_id,
+            },
+        );
+        let deleted = delete(&ctx, proto::DeleteRole { role_id }).await;
+        let edited = update(
+            &ctx,
+            proto::UpdateRole {
+                role_id,
+                permissions: Some(Permissions::all().bits()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+        assert_eq!(given.unwrap_err(), belongs);
+        assert_eq!(taken.await.unwrap_err(), belongs);
+        assert_eq!(deleted.unwrap_err(), belongs);
+        assert_eq!(edited.unwrap_err(), follows);
+        assert!(!state.guild().members[&ADMIN].role_ids.contains(&role_id));
+        assert_eq!(
+            state.guild().roles[&role_id].permissions,
+            Permissions::VIEW_CHANNEL
+        );
+
+        // Its name and colour may change, and the same permissions sent
+        // back by an edit form are no change.
+        let renamed = update(
+            &ctx,
+            proto::UpdateRole {
+                role_id,
+                name: Some("Bots".to_owned()),
+                color: Some(0x11_22_33),
+                permissions: Some(Permissions::VIEW_CHANNEL.bits()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let Response::Role(renamed) = renamed else {
+            panic!("{renamed:?}");
+        };
+        assert_eq!(renamed.name, "Bots");
+        assert_eq!(renamed.color, 0x11_22_33);
+        assert_eq!(renamed.plugin_id.as_deref(), Some("tickets"));
+        assert_eq!(state.guild().roles[&role_id].name, "Bots");
+    }
 }

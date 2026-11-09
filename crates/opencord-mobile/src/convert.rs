@@ -172,6 +172,20 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
             .map(soundboard_sound)
             .collect(),
         voice_message_max_seconds: ready.upload_settings.voice_message_max_seconds,
+        plugin_users: ready.plugin_users.into_iter().map(plugin_user).collect(),
+    }
+}
+
+pub(crate) fn plugin_user(u: core::PluginUser) -> PluginUserRecord {
+    PluginUserRecord {
+        user_id: id(u.user_id),
+        plugin_id: u.plugin_id,
+        name: u.name,
+        avatar_hash: if u.avatar_hash.is_empty() {
+            None
+        } else {
+            Some(u.avatar_hash)
+        },
     }
 }
 

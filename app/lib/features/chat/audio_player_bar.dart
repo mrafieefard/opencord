@@ -24,8 +24,8 @@ String audioEntryTitle(WidgetRef ref, AudioEntry entry) {
   final author = ref
       .watch(serverProvider(entry.serverKey))
       .data
-      ?.members[entry.authorId]
-      ?.displayName;
+      ?.authorOf(entry.authorId)
+      .name;
   return '${author ?? 'Someone'} · Voice message';
 }
 

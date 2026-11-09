@@ -116,6 +116,8 @@ pub struct Session {
     inner: Mutex<Inner>,
     /// The private messages device this session registered, if any.
     private_device: Mutex<Option<[u8; 16]>>,
+    /// The plugin features the app supports (`Identify.features`).
+    features: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -160,7 +162,19 @@ impl Session {
                 ended: false,
             }),
             private_device: Mutex::new(None),
+            features: Vec::new(),
         }
+    }
+
+    /// The plugin features the app said it supports when it identified.
+    #[must_use]
+    pub fn with_features(self, features: Vec<String>) -> Self {
+        Self { features, ..self }
+    }
+
+    /// Whether the app supports this plugin feature: `"plugin_users"`.
+    pub fn has_feature(&self, name: &str) -> bool {
+        self.features.iter().any(|feature| feature == name)
     }
 
     /// The private messages device this session registered, if any.
@@ -580,6 +594,17 @@ mod tests {
             session.resume(TOKEN, 0, client(2, 16).connection, Instant::now()),
             Err(ResumeError::Unknown)
         );
+    }
+
+    #[test]
+    fn a_session_knows_the_features_its_app_listed() {
+        let plain = Session::new("a".into(), 7, TOKEN, client(1, 16).connection);
+        let listed = Session::new("b".into(), 7, TOKEN, client(2, 16).connection)
+            .with_features(vec!["plugin_users".to_owned()]);
+
+        assert!(!plain.has_feature("plugin_users"));
+        assert!(listed.has_feature("plugin_users"));
+        assert!(!listed.has_feature("plugin_channels"));
     }
 
     #[test]

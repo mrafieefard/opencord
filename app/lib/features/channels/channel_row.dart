@@ -68,13 +68,13 @@ class ChannelRow extends ConsumerWidget {
       if (last == null) return 'No messages yet';
       final author = last.authorId == data.self.id
           ? 'You'
-          : data.members[last.authorId]?.displayName ?? 'Someone';
+          : data.authorOf(last.authorId).name;
       return switch (last.systemEvent) {
         SystemEvent.memberJoined => '$author joined the server',
         SystemEvent.channelCreated => '$author created the channel',
         SystemEvent.messagePinned => '$author pinned a message',
         null =>
-          '$author: ${previewText(messageSummary(last), user: (id) => data.members[id]?.displayName, channel: (id) => data.channels[id]?.name)}',
+          '$author: ${previewText(messageSummary(last), user: (id) => data.authorOf(id).name, channel: (id) => data.channels[id]?.name)}',
       };
     }
 

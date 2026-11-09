@@ -25,11 +25,11 @@ Client                                         Server
   |                                             |  heartbeat_interval_ms, protocol_version
   |  -------------- Identify --------------->   |  public_key, signature, timestamp_ms,
   |                                             |  display_name, invite_code?, claim_token?,
-  |                                             |  protocol_version
+  |                                             |  protocol_version, features?
   |  <------------- Ready -------------------   |  session_id, resume_token, self_user,
   |                                             |  server, channels, roles, members,
   |                                             |  presences, server_permissions,
-  |                                             |  channel_permissions
+  |                                             |  channel_permissions, plugin_users?
 ```
 
 1. The server sends `Hello` right after the upgrade, with a fresh random `nonce`.
@@ -55,6 +55,8 @@ Client                                         Server
    - **Valid claim token:** the user becomes the server **owner**, and the token is invalidated.
    - **Existing member:** `display_name` is ignored; use `UpdateProfile` to change it.
 6. `Ready` contains only the channels the user can view. `channel_permissions` maps each of those channels to the user's resolved permissions there.
+7. `Identify.features` advertises client capabilities, such as `"plugin_users"`.
+8. `Ready.plugin_users` lists all server plugin bot identities (`user_id`, `plugin_id`, `name`, `avatar_hash`, `installed`), allowing clients to resolve messages and actions authored by plugins.
 
 Identify attempts are limited to 5 per minute per IP address. Over the limit, the server sends `RATE_LIMITED` and closes the connection (4008).
 
@@ -162,6 +164,24 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `CancelFriendRequest { request_id }` | `ack` | The creator of the pending request |
 | `RemoveFriend { user_id }` | `ack` | Any member |
 | `UpdatePrivateSettings { enabled?, friends_only? }` | `private_settings` | Manage server; `enabled: true` is refused with `INVALID_ARGUMENT` when the config file turns private messages off |
+| `FetchPlugins {}` | `plugins` | Base `MANAGE_PLUGINS` |
+| `FetchPluginReviews {}` | `plugin_reviews` | Base `MANAGE_PLUGINS` |
+| `ConfirmPluginReview { review_id, granted, config, accept_license }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `DiscardPluginReview { review_id }` | `ack` | Base `MANAGE_PLUGINS` |
+| `SetPluginPermissions { plugin_id, granted }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `SetPluginConfig { plugin_id, config }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `SetPluginRunning { plugin_id, running }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `RestartPlugin { plugin_id }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `UninstallPlugin { plugin_id, delete_data }` | `ack` | Base `MANAGE_PLUGINS` |
+| `FetchPluginLog { plugin_id, before?, limit }` | `plugin_log` | Base `MANAGE_PLUGINS` |
+| `WatchPluginLog { plugin_id, watch }` | `ack` | Base `MANAGE_PLUGINS` |
+| `CreatePluginDevToken { plugin_id, days }` | `created_plugin_dev_token` | Base `MANAGE_PLUGINS` |
+| `RevokePluginDevToken { token_id }` | `ack` | Base `MANAGE_PLUGINS` |
+| `FetchPluginDevTokens {}` | `plugin_dev_tokens` | Base `MANAGE_PLUGINS` |
+| `ExecuteCommand { channel_id, name, options, nonce }` | `command_result` | `SEND_MESSAGES` in channel and command permissions |
+| `AutocompleteCommand { channel_id, name, option, value }` | `command_choices` | `SEND_MESSAGES` in channel; 5 per second |
+| `FetchCommandSettings {}` | `command_settings` | Base `MANAGE_SERVER` |
+| `UpdateCommandSettings { command_name, enabled?, channel_ids? }` | `command_settings` | Base `MANAGE_SERVER` |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -199,6 +219,10 @@ Every event goes to every session of the server, with these exceptions:
 | `PendingEvent` | The session(s) holding that registered device |
 | `PrivateTypingStart` | The recipient's active sessions; never stored |
 | `PrivateSettingsUpdate` | Every session |
+| `PluginUpdate`, `PluginRemove`, `PluginReviewUpdate`, `PluginReviewRemove` | Sessions holding `MANAGE_PLUGINS` |
+| `PluginLogAppend` | Sessions watching that plugin's log (`WatchPluginLog`) |
+| `PluginUsersUpdate` | Every session |
+| `CommandsUpdate` | Every session |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
@@ -243,6 +267,16 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 | `DEVICE_LIST_CHANGED` | The recipient's or caller's device set changed since the message was encrypted |
 | `PRIVATE_MESSAGES_UNAVAILABLE` | Private messages are disabled on this server, or the device is not registered |
 | `FRIENDS_ONLY` | The server relays private messages only between friends, and the two don't both list each other |
+| `COMMAND_UNKNOWN` | The requested chat command does not exist |
+| `COMMAND_DISABLED` | The command is disabled on this server |
+| `COMMAND_NOT_ALLOWED_HERE` | The command cannot be used in this channel |
+| `COMMAND_INVALID_OPTIONS` | Command options failed validation |
+| `PLUGIN_PACKAGE_INVALID` | The plugin package or manifest is corrupt, incomplete or exceeds limits |
+| `PLUGIN_SIGNATURE_INVALID` | Plugin signature verification failed |
+| `PLUGIN_NOT_SAME_AUTHOR` | An update's key does not match the installed version's key without valid key rotation |
+| `PLUGIN_LIMIT` | The server has reached its limit of installed plugins |
+| `PLUGIN_UNAVAILABLE` | Plugins are turned off on this server |
+| `PERMISSION_DENIED` | Missing required server or plugin permission |
 
 ## Close codes
 
@@ -282,7 +316,7 @@ The bits are listed below.
 | 12 | `CHANGE_NICKNAME` | 28 | `MUSIC_ADD` |
 | 13 | `MANAGE_NICKNAMES` | 29 | `MUSIC_CONTROL` |
 | 14 | `SEND_VOICE_MESSAGES` | 30 | `MUSIC_MANAGE_QUEUE` |
-| | | 31 | `MUSIC_MANAGE` |
+| 15 | `MANAGE_PLUGINS` | 31 | `MUSIC_MANAGE` |
 | | | 32 | `MUSIC_ALL_LOCAL_SONGS` (search every uploaded song, not only one's own) |
 | | | 63 | `ADMINISTRATOR` |
 
@@ -629,4 +663,18 @@ Inside Olm message ciphertexts, the decrypted plaintext is a protobuf `PrivatePa
   - `RelayMoved`: `server_id` (16 bytes), `server_name` (string).
   - `RequestAccepted`: `{}`.
   - `SessionReset`: `{}`.
+
+## Plugins
+
+Opencord plugins provide server-side scripting (bots, custom commands, moderation, web hooks) using Luau. Plugins run in sandboxed virtual machines with isolated SQLite storage and file quotas.
+
+### HTTP Endpoints
+
+| Endpoint | Method | Authentication | Description |
+|---|---|---|---|
+| `/plugins/packages` | `POST` | Bearer `<media_token>` (`MANAGE_PLUGINS`) | Uploads a plugin zip package (up to `plugins.max_package_mb`). Validates manifest and signature, creates a pending `PluginReview`, and returns a protobuf `Response` containing `PluginReview`. |
+| `/plugins/dev/{id}` | `PUT` | Bearer `ocdev_...` (valid dev token for `{id}`) | Pushes an updated package during development. Rate limited to 2 pushes per second. Auto-reloads running plugins if permissions did not change; returns `ack` or `PluginReview`. |
+| `/plugins/dev/{id}/log` | `GET` | Bearer `ocdev_...` (valid dev token for `{id}`) | Long-polls for plugin log lines after `after=<seq>` (up to 25 s). Returns protobuf `Response` containing `PluginLog`. |
+| `/plugins/{id}/hooks` / `/plugins/{id}/hooks/{*path}` | Any | None / Plugin-managed | Routes incoming web hook requests to the running plugin holding `receive_web_requests`. |
+
 

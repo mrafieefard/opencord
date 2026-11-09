@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, name, color, position, permissions,\n                  hoist AS \"hoist: bool\", mentionable AS \"mentionable: bool\",\n                  max_upload_bytes\n           FROM roles",
+  "query": "SELECT id, name, color, position, permissions,\n                  hoist AS \"hoist: bool\", mentionable AS \"mentionable: bool\",\n                  max_upload_bytes, plugin_id\n           FROM roles",
   "describe": {
     "columns": [
       {
@@ -90,6 +90,17 @@
             "name": "max_upload_bytes"
           }
         }
+      },
+      {
+        "name": "plugin_id",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "roles",
+            "name": "plugin_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -103,8 +114,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "664ca50a6219e77c275e94f8de021f61f075d79574cce398675166f0ef66a471"
+  "hash": "0990cc0b85bd2bbeddbea127ba0d7b4311e1dd1732f7eef5282c13630eb64d9e"
 }

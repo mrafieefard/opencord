@@ -4,12 +4,14 @@ use opencord_proto::v1 as proto;
 
 use crate::api::types::{
     Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress,
-    CoreError, CoreEventPayload, EphemeralMessage, ErrorCode, Invite, Member, Message,
-    OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus, PrivateSettings,
-    ReadySnapshot, Role, S3Config, ScreenShareResolution, ScreenStream, ServerAddresses,
-    ServerInfo, SoundEffect, SoundboardSound, StorageBackend, StorageInfo, StorageKind,
-    StorageMove, StorageTestResult, StorageTestStep, StreamSourceKind, UploadSettings, User,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    CoreError, CoreEventPayload, CreatedPluginDevToken, EphemeralMessage, ErrorCode, GithubCheck,
+    Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite, Plugin, PluginConfigField,
+    PluginConfigKind, PluginConfigValue, PluginDevToken, PluginLogLevel, PluginLogLine,
+    PluginPermissionGrant, PluginReview, PluginSignature, PluginState, PluginUser, Presence,
+    PresenceStatus, PrivateSettings, ReadySnapshot, Role, S3Config, ScreenShareResolution,
+    ScreenStream, ServerAddresses, ServerInfo, SoundEffect, SoundboardSound, StorageBackend,
+    StorageInfo, StorageKind, StorageMove, StorageTestResult, StorageTestStep, StreamSourceKind,
+    UploadSettings, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -51,6 +53,7 @@ pub fn role(role: proto::Role) -> Role {
         hoist: role.hoist,
         mentionable: role.mentionable,
         max_upload_bytes: role.max_upload_bytes,
+        plugin_id: role.plugin_id,
     }
 }
 
@@ -445,6 +448,7 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
         upload_settings: upload_settings(ready.upload_settings.unwrap_or_default()),
         private_messages: ready.private_messages_v2,
         private_settings: private_settings(ready.private_settings.unwrap_or_default()),
+        plugin_users: ready.plugin_users.into_iter().map(plugin_user).collect(),
     }
 }
 
@@ -602,6 +606,25 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
             CoreEventPayload::PrivateSettingsUpdate(private_settings(update.settings?))
         }
         Kind::StorageUpdate(update) => CoreEventPayload::StorageUpdate(storage(update.storage?)),
+        Kind::PluginUpdate(event) => {
+            CoreEventPayload::PluginUpdate(plugin(event.plugin?))
+        }
+        Kind::PluginRemove(event) => CoreEventPayload::PluginRemove {
+            plugin_id: event.plugin_id,
+        },
+        Kind::PluginReviewUpdate(event) => {
+            CoreEventPayload::PluginReviewUpdate(plugin_review(event.review?))
+        }
+        Kind::PluginReviewRemove(event) => CoreEventPayload::PluginReviewRemove {
+            review_id: event.review_id,
+        },
+        Kind::PluginLogAppend(event) => CoreEventPayload::PluginLogAppend {
+            plugin_id: event.plugin_id,
+            lines: event.lines.into_iter().map(plugin_log_line).collect(),
+        },
+        Kind::PluginUsersUpdate(event) => CoreEventPayload::PluginUsersUpdate(
+            event.users.into_iter().map(plugin_user).collect(),
+        ),
         // With the server's clock: `music::event`.
         Kind::MusicSnapshot(_)
         | Kind::MusicUpdate(_)
@@ -683,6 +706,168 @@ pub fn error(error: proto::Error) -> CoreError {
         retry_after_ms: error
             .retry_after_ms
             .map(|ms| u32::try_from(ms).unwrap_or(u32::MAX)),
+    }
+}
+
+pub fn plugin_state(state: i32) -> PluginState {
+    match proto::PluginState::try_from(state) {
+        Ok(proto::PluginState::Starting) => PluginState::Starting,
+        Ok(proto::PluginState::Running) => PluginState::Running,
+        Ok(proto::PluginState::Stopped) => PluginState::Stopped,
+        Ok(proto::PluginState::Crashed) => PluginState::Crashed,
+        _ => PluginState::Starting,
+    }
+}
+
+pub fn plugin_signature(sig: i32) -> PluginSignature {
+    match proto::PluginSignature::try_from(sig) {
+        Ok(proto::PluginSignature::Signed) => PluginSignature::Signed,
+        Ok(proto::PluginSignature::Dev) => PluginSignature::Dev,
+        _ => PluginSignature::Unsigned,
+    }
+}
+
+pub fn github_check(check: i32) -> GithubCheck {
+    match proto::GithubCheck::try_from(check) {
+        Ok(proto::GithubCheck::Verified) => GithubCheck::Verified,
+        Ok(proto::GithubCheck::Mismatch) => GithubCheck::Mismatch,
+        Ok(proto::GithubCheck::Failed) => GithubCheck::Failed,
+        _ => GithubCheck::Unspecified,
+    }
+}
+
+pub fn plugin_config_kind(kind: i32) -> PluginConfigKind {
+    match proto::PluginConfigKind::try_from(kind) {
+        Ok(proto::PluginConfigKind::Secret) => PluginConfigKind::Secret,
+        Ok(proto::PluginConfigKind::Number) => PluginConfigKind::Number,
+        Ok(proto::PluginConfigKind::Boolean) => PluginConfigKind::Boolean,
+        Ok(proto::PluginConfigKind::Choice) => PluginConfigKind::Choice,
+        Ok(proto::PluginConfigKind::Role) => PluginConfigKind::Role,
+        Ok(proto::PluginConfigKind::Channel) => PluginConfigKind::Channel,
+        Ok(proto::PluginConfigKind::User) => PluginConfigKind::User,
+        _ => PluginConfigKind::Text,
+    }
+}
+
+pub fn plugin_log_level(level: i32) -> PluginLogLevel {
+    match proto::PluginLogLevel::try_from(level) {
+        Ok(proto::PluginLogLevel::Warn) => PluginLogLevel::Warn,
+        Ok(proto::PluginLogLevel::Error) => PluginLogLevel::Error,
+        Ok(proto::PluginLogLevel::Action) => PluginLogLevel::Action,
+        _ => PluginLogLevel::Info,
+    }
+}
+
+pub fn plugin_config_field(f: proto::PluginConfigField) -> PluginConfigField {
+    PluginConfigField {
+        key: f.key,
+        label: f.label,
+        kind: plugin_config_kind(f.kind),
+        choices: f.choices,
+        required: f.required,
+    }
+}
+
+pub fn plugin_config_value(v: proto::PluginConfigValue) -> PluginConfigValue {
+    PluginConfigValue {
+        key: v.key,
+        value: v.value,
+        has_value: v.has_value,
+    }
+}
+
+pub fn plugin_permission_grant(g: proto::PluginPermissionGrant) -> PluginPermissionGrant {
+    PluginPermissionGrant {
+        name: g.name,
+        granted: g.granted,
+        grantable: g.grantable,
+    }
+}
+
+pub fn plugin_user(u: proto::PluginUser) -> PluginUser {
+    PluginUser {
+        user_id: u.user_id,
+        plugin_id: u.plugin_id,
+        name: u.name,
+        avatar_hash: u.avatar_hash,
+        installed: u.installed,
+    }
+}
+
+pub fn plugin(p: proto::Plugin) -> Plugin {
+    Plugin {
+        id: p.id,
+        name: p.name,
+        version: p.version,
+        author: p.author,
+        description: p.description,
+        github: p.github,
+        license: p.license,
+        signature: plugin_signature(p.signature),
+        key_fingerprint: p.key_fingerprint,
+        github_check: github_check(p.github_check),
+        state: plugin_state(p.state),
+        status_reason: p.status_reason,
+        permissions: p
+            .permissions
+            .into_iter()
+            .map(plugin_permission_grant)
+            .collect(),
+        domains: p.domains,
+        config_fields: p
+            .config_fields
+            .into_iter()
+            .map(plugin_config_field)
+            .collect(),
+        config: p.config.into_iter().map(plugin_config_value).collect(),
+        user_id: p.user_id,
+        role_id: p.role_id,
+        installed_at_ms: p.installed_at_ms,
+        updated_at_ms: p.updated_at_ms,
+        cpu_permille: p.cpu_permille,
+        memory_bytes: p.memory_bytes,
+        database_bytes: p.database_bytes,
+        files_bytes: p.files_bytes,
+    }
+}
+
+pub fn plugin_review(r: proto::PluginReview) -> PluginReview {
+    PluginReview {
+        review_id: r.review_id,
+        plugin: plugin(r.plugin.unwrap_or_default()),
+        installed: r.installed.map(plugin),
+        new_permissions: r.new_permissions,
+        license_needs_acceptance: r.license_needs_acceptance,
+        expires_at_ms: r.expires_at_ms,
+        dev: r.dev,
+    }
+}
+
+pub fn plugin_log_line(l: proto::PluginLogLine) -> PluginLogLine {
+    PluginLogLine {
+        seq: l.seq,
+        at_ms: l.at_ms,
+        level: plugin_log_level(l.level),
+        text: l.text,
+    }
+}
+
+pub fn plugin_dev_token(t: proto::PluginDevToken) -> PluginDevToken {
+    PluginDevToken {
+        id: t.id,
+        plugin_id: t.plugin_id,
+        created_by: t.created_by,
+        created_at_ms: t.created_at_ms,
+        expires_at_ms: t.expires_at_ms,
+        last_used_at_ms: t.last_used_at_ms,
+    }
+}
+
+pub fn created_plugin_dev_token(c: proto::CreatedPluginDevToken) -> CreatedPluginDevToken {
+    CreatedPluginDevToken {
+        token: plugin_dev_token(c.token.unwrap_or_default()),
+        secret: c.secret,
+        server_fingerprint: c.server_fingerprint,
     }
 }
 

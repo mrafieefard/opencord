@@ -139,11 +139,10 @@ class _StageState extends ConsumerState<_Stage> {
       serverProvider(channel.server).select((state) => state.data?.self.id),
     );
     final pixels = MediaQuery.devicePixelRatioOf(context);
-    final members =
-        ref.watch(
-          serverProvider(channel.server).select((state) => state.data?.members),
-        ) ??
-        const <int, Member>{};
+    final serverData = ref.watch(
+      serverProvider(channel.server).select((state) => state.data),
+    );
+    final members = serverData?.members ?? const <int, Member>{};
     final speaking = ref.watch(speakingProvider(channel.server));
     final sounds = ref.watch(soundPlaysProvider(channel.server));
     final call = ref.watch(callUserAudioProvider);
@@ -211,6 +210,7 @@ class _StageState extends ConsumerState<_Stage> {
           ),
         );
       }
+      final author = serverData?.authorOf(id.userId);
       return FlipBox(
         key: _tileKeys.putIfAbsent(id, GlobalKey.new),
         generation: generation,
@@ -218,12 +218,8 @@ class _StageState extends ConsumerState<_Stage> {
         child: VoiceTileView(
           key: ValueKey(id),
           userId: id.userId,
-          name: members[id.userId]?.displayName ?? 'Someone',
-          picture: avatarImage(
-            ref,
-            widget.channel.server,
-            members[id.userId]?.user.avatarHash,
-          ),
+          name: author?.name ?? 'Someone',
+          picture: avatarImage(ref, widget.channel.server, author?.avatarHash),
           screen: id.screen,
           muted:
               participant != null &&
@@ -292,7 +288,7 @@ class _StageState extends ConsumerState<_Stage> {
                 }
               : null,
           viewers: id.screen && own && ownShare != null ? viewers.length : null,
-          onViewers: () => _showViewers(context, viewers, members),
+          onViewers: () => _showViewers(context, viewers, serverData),
         ),
       );
     }
@@ -321,7 +317,7 @@ class _StageState extends ConsumerState<_Stage> {
   void _showViewers(
     BuildContext context,
     List<int> viewers,
-    Map<int, Member> members,
+    ServerData? serverData,
   ) {
     final colors = context.oc;
     showPopover<void>(
@@ -345,13 +341,13 @@ class _StageState extends ConsumerState<_Stage> {
                           MemberAvatar(
                             serverKey: widget.channel.server,
                             userId: id,
-                            name: members[id]?.displayName ?? 'Someone',
+                            name: serverData?.authorOf(id).name ?? 'Someone',
                             size: 24,
                           ),
                           const SizedBox(width: OcSpace.s8),
                           Expanded(
                             child: Text(
-                              members[id]?.displayName ?? 'Someone',
+                              serverData?.authorOf(id).name ?? 'Someone',
                               overflow: TextOverflow.ellipsis,
                               style: OcText.body.copyWith(color: colors.text),
                             ),
