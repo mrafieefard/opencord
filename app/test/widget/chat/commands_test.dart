@@ -12,6 +12,10 @@ import 'package:opencord/features/chat/command_input.dart';
 import 'package:opencord/features/chat/command_rows.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/popup/composer_popup.dart';
+import 'package:opencord/core/model/commands.dart';
+import 'package:opencord/core/model/plugins.dart';
+import 'package:opencord/core/repository/events.dart';
+import 'package:opencord/features/chat/popup/source_icon.dart';
 import 'package:opencord/features/settings/server/commands_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
@@ -331,4 +335,335 @@ void main() {
     expect(commands.resultsPublic, isFalse);
     await app.dispose(tester);
   });
+
+  // The command being written (§26.6). --------------------------------------
+
+  /// Adds a plugin's commands to the server the app shows.
+  Future<void> addPluginCommands(
+    WidgetTester tester,
+    MockApp app,
+    List<CommandSpec> specs,
+  ) async {
+    final server = app.repository.mockServer(_server);
+    server.commands = CommandList(
+      commands: [...server.commands.commands, ...specs],
+    );
+    server.pluginUsers[900] = const PluginUser(
+      userId: 900,
+      pluginId: 'dice',
+      name: 'Dice Bot',
+    );
+    app.repository.emit(
+      PluginUsersUpdated(_server, server.pluginUsers.values.toList()),
+    );
+    app.repository.emit(CommandsChanged(_server, server.availableCommands));
+    await _settle(tester);
+  }
+
+  const roll = CommandSpec(
+    name: 'roll',
+    description: 'Roll a die',
+    feature: 'plugin:dice',
+    options: [
+      CommandOptionSpec(
+        name: 'sides',
+        description: 'How many',
+        kind: CommandOptionKind.text,
+        autocomplete: true,
+      ),
+    ],
+  );
+  const assign = CommandSpec(
+    name: 'assign',
+    description: 'Give it away',
+    feature: 'plugin:dice',
+    options: [
+      CommandOptionSpec(
+        name: 'person',
+        description: 'Who',
+        kind: CommandOptionKind.text,
+      ),
+      CommandOptionSpec(
+        name: 'note',
+        description: 'Why',
+        kind: CommandOptionKind.text,
+      ),
+    ],
+  );
+  const flag = CommandSpec(
+    name: 'flag',
+    description: 'A switch',
+    feature: 'plugin:dice',
+    options: [
+      CommandOptionSpec(
+        name: 'on',
+        description: 'Yes or no',
+        kind: CommandOptionKind.boolean,
+      ),
+    ],
+  );
+
+  Future<MockApp> withPlugin(WidgetTester tester) async {
+    final app = await MockApp.pump(tester);
+    await _open(tester, app, 'general');
+    await addPluginCommands(tester, app, const [roll, assign, flag]);
+    return app;
+  }
+
+  testWidgets('the_command_draws_no_box_of_its_own', (tester) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'roll');
+
+    final boxes = tester
+        .widgetList<Container>(
+          find.descendant(
+            of: find.byType(CommandInput),
+            matching: find.byType(Container),
+          ),
+        )
+        .where(
+          (box) => switch (box.decoration) {
+            BoxDecoration(:final border) => border != null,
+            _ => false,
+          },
+        );
+    expect(boxes, isEmpty);
+    await app.dispose(tester);
+  });
+
+  testWidgets('the_chip_shows_the_plugins_icon', (tester) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'roll');
+    expect(
+      find.descendant(
+        of: find.byType(CommandInput),
+        matching: find.byType(CommandSourceIcon),
+      ),
+      findsOneWidget,
+    );
+    await _press(tester, LogicalKeyboardKey.escape);
+    await _settle(tester);
+
+    await _choose(tester, 'music');
+    expect(
+      find.descendant(
+        of: find.byType(CommandInput),
+        matching: find.byType(CommandSourceIcon),
+      ),
+      findsNothing,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('autocomplete_uses_the_popups_surface_and_place', (tester) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'roll');
+
+    await tester.enterText(_option('sides').first, 'ab');
+    await _settle(tester);
+    await tester.pump(suggestAfter);
+    await _settle(tester);
+
+    expect(find.byType(ComposerPopup), findsOneWidget);
+    expect(find.text('SIDES'), findsOneWidget);
+    final composer = tester.getRect(find.byType(Composer));
+    final popup = tester.getRect(find.byType(ComposerPopup));
+    expect(popup.left, composer.left);
+    expect(popup.width, composer.width);
+    expect(popup.bottom, composer.top - PopupMetrics.gap);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_picked_commands_source_is_sent', (tester) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'roll');
+    await _press(tester, LogicalKeyboardKey.enter);
+    await _settle(tester);
+
+    expect(app.repository.commandSources, ['plugin:dice']);
+    await app.dispose(tester);
+  });
+
+  testWidgets('autocomplete_sends_the_source', (tester) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'roll');
+    await tester.enterText(_option('sides').first, 'ab');
+    await _settle(tester);
+    await tester.pump(suggestAfter);
+    await _settle(tester);
+
+    expect(app.repository.autocompleteSources, ['plugin:dice']);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_removed_command_gives_a_plain_error_and_keeps_the_text', (
+    tester,
+  ) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'assign');
+    await tester.enterText(_option('person').first, 'kept');
+    final server = app.repository.mockServer(_server);
+    server.commands = CommandList(
+      commands: [
+        for (final spec in server.commands.commands)
+          if (spec.name != 'assign') spec,
+      ],
+    );
+    app.repository.emit(CommandsChanged(_server, server.availableCommands));
+    await _settle(tester);
+
+    await _press(tester, LogicalKeyboardKey.enter);
+    await _settle(tester);
+
+    final note = tester.widget<EphemeralLine>(find.byType(EphemeralLine));
+    expect(note.note.content, "/assign isn't a command here");
+    expect(note.note.error, isTrue);
+    expect(
+      tester.widget<TextField>(_option('person').first).controller!.text,
+      'kept',
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets(
+    'backspace_with_the_popup_open_removes_the_command_and_closes_the_popup',
+    (tester) async {
+      final app = await withPlugin(tester);
+      await _choose(tester, 'roll');
+      final sides = _option('sides').first;
+      await tester.enterText(sides, 'ab');
+      await _settle(tester);
+      await tester.pump(suggestAfter);
+      await _settle(tester);
+      expect(find.byType(ComposerPopup), findsOneWidget);
+      tester.widget<TextField>(sides).controller!.selection =
+          const TextSelection.collapsed(offset: 0);
+      await tester.pump();
+
+      await _press(tester, LogicalKeyboardKey.backspace);
+      await tester.pump();
+
+      expect(find.byType(CommandInput), findsNothing);
+      expect(find.byType(ComposerPopup), findsNothing);
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets('holding_backspace_empties_the_field_then_removes_the_command', (
+    tester,
+  ) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'roll');
+    await tester.enterText(_option('sides').first, 'ab');
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsOneWidget);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsOneWidget);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.backspace);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.backspace);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('backspace_steps_back_through_a_commands_fields', (tester) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'assign');
+    await tester.tap(_option('note').at(1));
+    await tester.pump();
+
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsOneWidget);
+    expect(
+      tester.widget<TextField>(_option('person').first).focusNode!.hasFocus,
+      isTrue,
+    );
+
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('backspace_on_a_choice_or_yes_no_option_removes_the_command', (
+    tester,
+  ) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'flag');
+
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets(
+    'clicking_the_composer_gives_the_focus_back_so_backspace_reaches_the_command',
+    (tester) async {
+      final app = await withPlugin(tester);
+      await _choose(tester, 'roll');
+      final field = tester.widget<TextField>(_option('sides').first);
+      field.focusNode!.unfocus();
+      await tester.pump();
+      expect(field.focusNode!.hasFocus, isFalse);
+
+      await tester.tapAt(
+        tester.getTopRight(find.byType(CommandInput)) + const Offset(-20, 8),
+      );
+      await tester.pump();
+      expect(field.focusNode!.hasFocus, isTrue);
+
+      await _press(tester, LogicalKeyboardKey.backspace);
+      await tester.pump();
+      expect(find.byType(CommandInput), findsNothing);
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets('clicking_the_chip_then_backspace_removes_the_command', (
+    tester,
+  ) async {
+    final app = await withPlugin(tester);
+    await _choose(tester, 'roll');
+    await tester.tap(find.text('/roll'));
+    await tester.pump();
+
+    await _press(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+
+    expect(find.byType(CommandInput), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets(
+    'after_removing_a_command_the_field_is_empty_focused_and_sends_plain_messages',
+    (tester) async {
+      final app = await withPlugin(tester);
+      await _choose(tester, 'flag');
+      await _press(tester, LogicalKeyboardKey.backspace);
+      await tester.pump();
+      await tester.pump();
+
+      final field = tester.widget<TextField>(_input);
+      expect(field.controller!.text, '');
+      expect(field.focusNode!.hasFocus, isTrue);
+
+      await tester.enterText(_input, 'just a message');
+      await tester.pump();
+      await _press(tester, LogicalKeyboardKey.enter);
+      await _settle(tester);
+
+      expect(find.text('just a message'), findsWidgets);
+      expect(app.repository.commandsRun, isEmpty);
+      await app.dispose(tester);
+    },
+  );
 }

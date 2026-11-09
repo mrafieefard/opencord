@@ -814,6 +814,9 @@ class _ComposerState extends ConsumerState<Composer> {
           serverKey: _channel.server,
           channelId: _channel.channel,
           spec: spec,
+          popupLink: _field,
+          popupWidth: _frameWidth,
+          popupMaxHeight: _roomAbove,
           onClose: () {
             setState(() => _command = null);
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -852,7 +855,7 @@ class _ComposerState extends ConsumerState<Composer> {
     MemberSuggestion() => 'Members',
     ChannelSuggestion() => 'Channels',
     EmojiSuggestion() => 'Emoji',
-    CommandSuggestion() || null => '',
+    CommandSuggestion() || ChoiceSuggestion() || null => '',
   };
 
   RenderBox? get _frame {

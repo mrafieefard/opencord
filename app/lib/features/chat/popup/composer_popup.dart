@@ -7,6 +7,7 @@ import 'package:opencord/features/chat/popup/popup_rail.dart';
 import 'package:opencord/features/chat/popup/popup_rows.dart';
 import 'package:opencord/features/chat/popup/source_icon.dart';
 import 'package:opencord/features/chat/suggestions.dart';
+import 'package:opencord/features/music/music_artwork.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
@@ -425,7 +426,7 @@ class ComposerPopupRow extends StatelessWidget {
               color: selected ? colors.selected : Colors.transparent,
               borderRadius: BorderRadius.circular(PopupMetrics.radius - 4),
             ),
-            child: _RowContent(suggestion: suggestion),
+            child: _RowContent(serverKey: serverKey, suggestion: suggestion),
           ),
         ),
       ),
@@ -434,8 +435,9 @@ class ComposerPopupRow extends StatelessWidget {
 }
 
 class _RowContent extends StatelessWidget {
-  const _RowContent({required this.suggestion});
+  const _RowContent({required this.serverKey, required this.suggestion});
 
+  final String serverKey;
   final Suggestion suggestion;
 
   @override
@@ -504,6 +506,18 @@ class _RowContent extends StatelessWidget {
           Icon(OcIcons.tag, size: OcSize.iconRow, color: colors.textSecondary),
           const SizedBox(width: OcSpace.s10),
           Flexible(child: oneLine(channel.name, name)),
+        ],
+        ChoiceSuggestion(:final choice) => [
+          if (choice.artworkId.isNotEmpty || choice.name.contains(' · ')) ...[
+            MusicArtwork(
+              serverKey: serverKey,
+              artworkId: choice.artworkId,
+              size: 28,
+              radius: 4,
+            ),
+            const SizedBox(width: OcSpace.s8),
+          ],
+          Expanded(child: oneLine(choice.name, name)),
         ],
         EmojiSuggestion(:final emoji) => [
           SizedBox(

@@ -2339,6 +2339,10 @@ class MockRepository implements OpencordRepository {
   /// Commands the mock ran, by name, for tests.
   final List<String> commandsRun = [];
 
+  /// Each run's source and each autocomplete's, for tests.
+  final List<String> commandSources = [];
+  final List<String> autocompleteSources = [];
+
   @override
   Future<CommandOutcome> executeCommand(
     String serverKey,
@@ -2370,6 +2374,7 @@ class MockRepository implements OpencordRepository {
       );
     }
     commandsRun.add(spec.name);
+    commandSources.add(source);
     if (spec.pluginId != null) {
       _emit(
         EphemeralMessageReceived(
@@ -2479,6 +2484,10 @@ class MockRepository implements OpencordRepository {
     String value, {
     String source = '',
   }) async {
+    autocompleteSources.add(source);
+    if (source.isNotEmpty) {
+      return [CommandChoice(name: 'From plugin', value: value)];
+    }
     final server = _server(serverKey);
     final voice = _voice;
     if (name != 'play' ||
