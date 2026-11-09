@@ -204,19 +204,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 _ => return Err(raise("INVALID_ARGUMENT: options must be a table")),
             }
 
-            // Check collision
-            if crate::commands::find(&name).is_some() {
-                return Err(raise(format!("INVALID_ARGUMENT: /{name} is already taken")));
-            }
-
             env_reg.check_rate_limit()?;
 
             let state = env_reg.state()?;
-            if let Some(other) = state.commands.find_plugin(&name)
-                && other.plugin_id != env_reg.plugin_id
-            {
-                return Err(raise(format!("INVALID_ARGUMENT: /{name} is already taken")));
-            }
 
             let spec = proto::CommandSpec {
                 name: name.clone(),

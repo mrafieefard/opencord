@@ -51,6 +51,8 @@ pub struct InstalledPlugin {
     pub manifest: Manifest,
     pub package: Package,
     pub granted: HashSet<PluginPermission>,
+    /// When it was first installed, in ms: lists show plugins in this order.
+    pub installed_at: i64,
 }
 
 /// An event for a plugin's handlers. Ids in the payload are strings.
@@ -155,6 +157,7 @@ impl PluginBus {
 pub struct PluginHandle {
     pub id: String,
     pub user_id: i64,
+    pub installed_at: i64,
     pub(crate) queue: Arc<EventQueue>,
     log: Arc<PluginLog>,
     granted: Arc<RwLock<HashSet<PluginPermission>>>,
@@ -450,6 +453,7 @@ impl Plugins {
         let handle = Arc::new(PluginHandle {
             id: installed.id.clone(),
             user_id: installed.user_id,
+            installed_at: installed.installed_at,
             queue: Arc::new(EventQueue::default()),
             log: log.clone(),
             granted: Arc::new(RwLock::new(installed.granted)),
@@ -711,6 +715,7 @@ async fn installed(
         manifest,
         package,
         granted,
+        installed_at: row.installed_at,
     })
 }
 

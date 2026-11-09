@@ -33,36 +33,93 @@ impl UsableCommand {
             Self::Plugin(p) => &p.spec.name,
         }
     }
+
+    fn settings_key(&self) -> String {
+        match self {
+            Self::Builtin(s) => commands::settings_key(s.feature, s.name),
+            Self::Plugin(p) => commands::settings_key(&p.spec.feature, &p.spec.name),
+        }
+    }
+}
+
+fn not_a_command(name: &str) -> ApiError {
+    ApiError::new(
+        proto::ErrorCode::CommandUnknown,
+        format!("/{name} isn't a command here"),
+    )
+}
+
+/// The command `name` in `source`. With no source (an older app, or a name
+/// typed without picking) Opencord's runs if it's set up here, then the
+/// only plugin with the name; two plugins are never guessed between.
+fn resolve(ctx: &Ctx<'_>, name: &str, source: &str) -> Result<UsableCommand, ApiError> {
+    if let Some(plugin_id) = source.strip_prefix(commands::PLUGIN_SOURCE_PREFIX) {
+        return ctx
+            .state
+            .commands
+            .find_plugin(plugin_id, name)
+            .map(UsableCommand::Plugin)
+            .ok_or_else(|| not_a_command(name));
+    }
+    if !source.is_empty() {
+        return Err(not_a_command(name));
+    }
+    let builtin = commands::find(name);
+    let mut plugins = ctx.state.commands.plugins_named(name);
+    if let Some(spec) = builtin
+        && (plugins.is_empty() || commands::feature_ready(ctx.state, spec.feature))
+    {
+        return Ok(UsableCommand::Builtin(spec));
+    }
+    match plugins.len() {
+        0 => Err(not_a_command(name)),
+        1 => Ok(UsableCommand::Plugin(plugins.remove(0))),
+        _ => Err(ApiError::new(
+            proto::ErrorCode::CommandUnknown,
+            format!("Two commands are called /{name}. Pick one from the list."),
+        )),
+    }
 }
 
 /// The command, on, and allowed in `channel_id`.
-fn usable(ctx: &Ctx<'_>, name: &str, channel_id: i64) -> Result<UsableCommand, ApiError> {
-    let name_trimmed = name.trim_start_matches('/').to_ascii_lowercase();
-    let command = if let Some(spec) = commands::find(&name_trimmed) {
-        UsableCommand::Builtin(spec)
-    } else if let Some(plugin_cmd) = ctx.state.commands.find_plugin(&name_trimmed) {
-        UsableCommand::Plugin(plugin_cmd)
-    } else {
-        return Err(ApiError::new(
-            proto::ErrorCode::CommandUnknown,
-            format!("/{name_trimmed} isn't a command here"),
-        ));
-    };
-
+fn usable(
+    ctx: &Ctx<'_>,
+    name: &str,
+    source: &str,
+    channel_id: i64,
+) -> Result<UsableCommand, ApiError> {
+    let name = name.trim_start_matches('/').to_ascii_lowercase();
+    let command = resolve(ctx, &name, source)?;
     let settings = ctx.state.commands.settings();
-    if !settings.enabled(command.name()) {
+    let key = command.settings_key();
+    if !settings.enabled(&key) {
         return Err(ApiError::new(
             proto::ErrorCode::CommandDisabled,
             format!("/{} is turned off on this server", command.name()),
         ));
     }
-    if !settings.allowed_in(command.name(), channel_id) {
+    if !settings.allowed_in(&key, channel_id) {
         return Err(ApiError::new(
             proto::ErrorCode::CommandNotAllowedHere,
             format!("/{} can't be used in this channel", command.name()),
         ));
     }
     Ok(command)
+}
+
+/// The key `name` in `source` has on the Commands page, if it exists.
+fn settings_key_of(ctx: &Ctx<'_>, name: &str, source: &str) -> Option<String> {
+    if let Some(plugin_id) = source.strip_prefix(commands::PLUGIN_SOURCE_PREFIX) {
+        let command = ctx.state.commands.find_plugin(plugin_id, name)?;
+        return Some(commands::settings_key(
+            &command.spec.feature,
+            &command.spec.name,
+        ));
+    }
+    if !source.is_empty() {
+        return None;
+    }
+    commands::find(name).map(|spec| commands::settings_key(spec.feature, spec.name))
 }
 
 fn parse_plugin_options(
@@ -184,7 +241,7 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
             Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
         )?;
     }
-    let command = usable(ctx, &request.name, request.channel_id)?;
+    let command = usable(ctx, &request.name, &request.source, request.channel_id)?;
     match command {
         UsableCommand::Builtin(spec) => {
             let options = Options::parse(spec, &request.options)?;
@@ -423,7 +480,7 @@ pub async fn autocomplete(
         .rate_limits
         .check_autocomplete(ctx.user_id)
         .map_err(ApiError::rate_limited)?;
-    let command = usable(ctx, &request.name, request.channel_id)?;
+    let command = usable(ctx, &request.name, &request.source, request.channel_id)?;
     match command {
         UsableCommand::Builtin(spec) => {
             let autocompletes = spec
@@ -509,15 +566,12 @@ pub async fn update_settings(
     let mut settings: CommandSettings = ctx.state.commands.settings();
     if !request.name.is_empty() {
         let name = request.name.trim_start_matches('/').to_ascii_lowercase();
-        let exists =
-            commands::find(&name).is_some() || ctx.state.commands.find_plugin(&name).is_some();
-        if !exists {
-            return Err(ApiError::not_found("command"));
-        }
+        let key = settings_key_of(ctx, &name, &request.source)
+            .ok_or_else(|| ApiError::not_found("command"))?;
         if let Some(enabled) = request.enabled {
-            settings.disabled.retain(|off| *off != name);
+            settings.disabled.retain(|off| *off != key);
             if !enabled {
-                settings.disabled.push(name.clone());
+                settings.disabled.push(key.clone());
             }
         }
         if let Some(channels) = request.channel_ids {
@@ -530,9 +584,9 @@ pub async fn update_settings(
                 return Err(ApiError::not_found("channel"));
             }
             if channels.ids.is_empty() {
-                settings.channels.remove(&name);
+                settings.channels.remove(&key);
             } else {
-                settings.channels.insert(name, channels.ids);
+                settings.channels.insert(key, channels.ids);
             }
         }
     }

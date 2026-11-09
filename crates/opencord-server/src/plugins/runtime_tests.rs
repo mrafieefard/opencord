@@ -93,6 +93,7 @@ fn installed(id: &str, user_id: i64, scripts: &[&str], files: &[(&str, &str)]) -
         manifest,
         package,
         granted: HashSet::new(),
+        installed_at: 0,
     }
 }
 

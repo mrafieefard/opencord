@@ -9,6 +9,7 @@ use proto::event::Kind as Event;
 use proto::request::Kind;
 use proto::response::Result as Response;
 
+use crate::common::music::{Room, room};
 use crate::common::{
     TestClient, TestServer, channel_id, invite, join, media_token, owner, self_id,
 };
@@ -223,65 +224,299 @@ async fn a_plugin_that_does_not_answer_times_out_in_3_seconds() {
     );
 }
 
+fn run_from(channel_id: i64, name: &str, source: &str) -> Kind {
+    Kind::ExecuteCommand(proto::ExecuteCommand {
+        source: source.to_owned(),
+        channel_id,
+        name: name.to_owned(),
+        options: Vec::new(),
+        nonce: "n1".to_owned(),
+    })
+}
+
+/// A plugin with one command that answers `text` to whoever runs it.
+async fn answering(
+    server: &TestServer,
+    owner: &mut TestClient,
+    ready: &proto::Ready,
+    id: &str,
+    command: &str,
+    text: &str,
+) -> proto::Plugin {
+    let source = format!(
+        r#"commands.register({{ name = "{command}", description = "From {id}" }})
+        opencord.on("command", function(cmd)
+            cmd:reply("{text}", {{ only_you = true }})
+        end)
+        log.info("registered")"#
+    );
+    let installed = plugin(server, owner, ready, id, &["register_commands"], &source).await;
+    wait_for_log(owner, id, "registered").await;
+    installed
+}
+
+async fn only_you_reply(client: &mut TestClient) -> String {
+    client
+        .wait_for(|event| match event {
+            Event::EphemeralMessage(message) => Some(message.content.clone()),
+            _ => None,
+        })
+        .await
+}
+
+fn turn_off(source: &str, name: &str) -> Kind {
+    Kind::UpdateCommandSettings(proto::UpdateCommandSettings {
+        source: source.to_owned(),
+        name: name.to_owned(),
+        enabled: Some(false),
+        channel_ids: None,
+        results_public: None,
+    })
+}
+
+async fn command_page(owner: &mut TestClient) -> Vec<proto::CommandSpec> {
+    match owner
+        .ok(Kind::FetchCommandSettings(proto::FetchCommandSettings {}))
+        .await
+    {
+        Response::Commands(list) => list.commands,
+        other => panic!("not the commands: {other:?}"),
+    }
+}
+
+fn enabled_in(page: &[proto::CommandSpec], feature: &str, name: &str) -> bool {
+    page.iter()
+        .find(|spec| spec.feature == feature && spec.name == name)
+        .unwrap_or_else(|| panic!("{feature}/{name} isn't listed"))
+        .enabled
+}
+
 #[tokio::test]
-async fn a_taken_name_is_refused() {
+async fn two_plugins_may_use_one_name_and_each_runs_its_own() {
     let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
-
-    // 1. Collides with built-in command
-    let _p1 = plugin(
+    let ch = channel_id(&ready, "general");
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+    answering(
         &server,
         &mut owner,
         &ready,
-        "collider",
-        &["register_commands"],
-        r#"local ok, err = pcall(function()
-            commands.register({ name = "play", description = "collides with play" })
-        end)
-        log.info("builtin collision: " .. tostring(ok) .. " " .. tostring(err))"#,
+        "tickets",
+        "roll",
+        "from tickets",
     )
     .await;
 
-    wait_for_log(
+    owner.ok(run_from(ch, "roll", "plugin:dice")).await;
+    assert_eq!(only_you_reply(&mut owner).await, "from dice");
+
+    owner.ok(run_from(ch, "roll", "plugin:tickets")).await;
+    assert_eq!(only_you_reply(&mut owner).await, "from tickets");
+}
+
+#[tokio::test]
+async fn a_plugin_may_use_a_builtin_name_and_no_source_runs_the_builtin() {
+    let Room {
+        server,
+        mut owner,
+        mut member,
+        media_token,
+        ..
+    } = room().await;
+    let mut ready_client = TestClient::connect(&server, crate::common::key(1)).await;
+    let ready = ready_client.identify("Owner", None, None).await.unwrap();
+    let ch = channel_id(&ready, "general");
+    let source = r#"commands.register({ name = "skip", description = "A plugin's skip" })
+        opencord.on("command", function(cmd) cmd:reply("from the plugin", { only_you = true }) end)
+        log.info("registered")"#;
+    let zip = package(&[
+        ("manifest.lua", &manifest("skipper", &["register_commands"])),
+        ("server/main.luau", source),
+    ]);
+    install(
+        &server,
         &mut owner,
-        "collider",
-        "builtin collision: false INVALID_ARGUMENT: /play is already taken",
+        &media_token,
+        zip,
+        &["register_commands"],
     )
     .await;
+    wait_for_log(&mut owner, "skipper", "registered").await;
 
-    // 2. Collides with another plugin
-    let _p2 = plugin(
+    member.ok(run_from(ch, "skip", "")).await;
+    assert_eq!(
+        only_you_reply(&mut member).await,
+        "Join a voice channel to use music commands"
+    );
+
+    member.ok(run_from(ch, "skip", "plugin:skipper")).await;
+    assert_eq!(only_you_reply(&mut member).await, "from the plugin");
+}
+
+#[tokio::test]
+async fn no_source_runs_the_only_plugin_with_the_name() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+
+    owner.ok(run_from(ch, "roll", "")).await;
+    assert_eq!(only_you_reply(&mut owner).await, "from dice");
+}
+
+#[tokio::test]
+async fn no_source_with_two_plugins_asks_to_pick() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+    answering(
         &server,
         &mut owner,
         &ready,
-        "first-plugin",
-        &["register_commands"],
-        r#"commands.register({ name = "unique-cmd", description = "first" })
-        log.info("first registered")"#,
+        "tickets",
+        "roll",
+        "from tickets",
     )
     .await;
 
-    wait_for_log(&mut owner, "first-plugin", "first registered").await;
+    let error = owner.error(run_from(ch, "roll", "")).await;
+    assert_eq!(error.code, proto::ErrorCode::CommandUnknown as i32);
+    assert_eq!(
+        error.message,
+        "Two commands are called /roll. Pick one from the list."
+    );
+}
 
-    let _p3 = plugin(
+#[tokio::test]
+async fn an_unknown_source_is_command_unknown() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+
+    for source in ["plugin:nobody", "nonsense"] {
+        let error = owner.error(run_from(ch, "roll", source)).await;
+        assert_eq!(
+            error.code,
+            proto::ErrorCode::CommandUnknown as i32,
+            "{source}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn no_source_prefers_a_plugin_when_the_builtin_feature_is_not_set_up() {
+    let server = TestServer::start_with(|config| config.music.enabled = false).await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    answering(
         &server,
         &mut owner,
         &ready,
-        "second-plugin",
-        &["register_commands"],
-        r#"local ok, err = pcall(function()
-            commands.register({ name = "unique-cmd", description = "second" })
-        end)
-        log.info("plugin collision: " .. tostring(ok) .. " " .. tostring(err))"#,
+        "my-music",
+        "play",
+        "from the plugin",
     )
     .await;
 
-    wait_for_log(
+    owner.ok(run_from(ch, "play", "")).await;
+    assert_eq!(only_you_reply(&mut owner).await, "from the plugin");
+}
+
+#[tokio::test]
+async fn settings_are_kept_per_source() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+    answering(
+        &server,
         &mut owner,
-        "second-plugin",
-        "plugin collision: false INVALID_ARGUMENT: /unique-cmd is already taken",
+        &ready,
+        "tickets",
+        "roll",
+        "from tickets",
     )
     .await;
+
+    owner.ok(turn_off("plugin:dice", "roll")).await;
+
+    let error = owner.error(run_from(ch, "roll", "plugin:dice")).await;
+    assert_eq!(error.code, proto::ErrorCode::CommandDisabled as i32);
+    owner.ok(run_from(ch, "roll", "plugin:tickets")).await;
+    assert_eq!(only_you_reply(&mut owner).await, "from tickets");
+
+    let page = command_page(&mut owner).await;
+    assert!(!enabled_in(&page, "plugin:dice", "roll"));
+    assert!(enabled_in(&page, "plugin:tickets", "roll"));
+}
+
+#[tokio::test]
+async fn uninstall_removes_only_that_plugins_settings() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+    answering(
+        &server,
+        &mut owner,
+        &ready,
+        "tickets",
+        "roll",
+        "from tickets",
+    )
+    .await;
+    owner.ok(turn_off("plugin:dice", "roll")).await;
+    owner.ok(turn_off("plugin:tickets", "roll")).await;
+
+    owner
+        .ok(Kind::UninstallPlugin(proto::UninstallPlugin {
+            plugin_id: "dice".to_owned(),
+            delete_data: true,
+        }))
+        .await;
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+
+    let page = command_page(&mut owner).await;
+    assert!(enabled_in(&page, "plugin:dice", "roll"));
+    assert!(!enabled_in(&page, "plugin:tickets", "roll"));
+}
+
+#[tokio::test]
+async fn stopping_keeps_them() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    answering(&server, &mut owner, &ready, "dice", "roll", "from dice").await;
+    owner.ok(turn_off("plugin:dice", "roll")).await;
+
+    for running in [false, true] {
+        owner
+            .ok(Kind::SetPluginRunning(proto::SetPluginRunning {
+                plugin_id: "dice".to_owned(),
+                running,
+            }))
+            .await;
+    }
+    wait_for_log(&mut owner, "dice", "registered").await;
+
+    let page = command_page(&mut owner).await;
+    assert!(!enabled_in(&page, "plugin:dice", "roll"));
+}
+
+#[tokio::test]
+async fn plugins_are_listed_in_install_order() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    answering(&server, &mut owner, &ready, "zebra", "aaa", "z").await;
+    answering(&server, &mut owner, &ready, "apple", "bbb", "a").await;
+
+    let page = command_page(&mut owner).await;
+    let sources: Vec<&str> = page
+        .iter()
+        .filter(|spec| spec.feature.starts_with("plugin:"))
+        .map(|spec| spec.feature.as_str())
+        .collect();
+    assert_eq!(sources, ["plugin:zebra", "plugin:apple"]);
 }
 
 #[tokio::test]
@@ -435,7 +670,7 @@ async fn disabled_plugin_commands_are_refused() {
     // Disable the command via update command settings
     owner
         .ok(Kind::UpdateCommandSettings(proto::UpdateCommandSettings {
-            source: String::new(),
+            source: "plugin:custom-feature".to_owned(),
             name: "toggleable".to_owned(),
             enabled: Some(false),
             channel_ids: None,

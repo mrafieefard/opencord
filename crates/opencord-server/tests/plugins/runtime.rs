@@ -143,7 +143,13 @@ async fn a_restart_clears_timers_hooks_and_bus() {
     assert_eq!(body, b"pong");
 
     // Verify command /ping is registered
-    assert!(server.state().commands.find_plugin("ping").is_some());
+    assert!(
+        server
+            .state()
+            .commands
+            .find_plugin("crasher", "ping")
+            .is_some()
+    );
 
     // Wait for OOM restart and second run
     wait_for_log(&mut owner, "crasher", "second_run").await;
@@ -155,7 +161,13 @@ async fn a_restart_clears_timers_hooks_and_bus() {
     assert_eq!(status, 404);
 
     // Verify command /ping is gone
-    assert!(server.state().commands.find_plugin("ping").is_none());
+    assert!(
+        server
+            .state()
+            .commands
+            .find_plugin("crasher", "ping")
+            .is_none()
+    );
     // The bus entry left by a restart can't be seen from outside: the new
     // VM has no Lua listener for it.
 }

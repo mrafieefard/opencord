@@ -26,6 +26,38 @@ use proto::CommandOptionKind as Kind;
 /// Where the settings are kept, in `server_meta`.
 const SETTINGS_KEY: &str = "commands.settings";
 
+/// Commands one plugin may have.
+const PLUGIN_COMMANDS_MAX: usize = 100;
+
+/// A plugin command's feature starts with this.
+pub const PLUGIN_SOURCE_PREFIX: &str = "plugin:";
+
+/// A command's name as typed, in the form it is stored.
+fn plain_name(name: &str) -> String {
+    name.trim_start_matches('/').to_ascii_lowercase()
+}
+
+/// A command's key in [`CommandSettings`]. Built-ins keep their plain names,
+/// so settings saved before plugins existed carry over.
+pub fn settings_key(feature: &str, name: &str) -> String {
+    if feature.starts_with(PLUGIN_SOURCE_PREFIX) {
+        format!("{feature}/{name}")
+    } else {
+        name.to_owned()
+    }
+}
+
+/// `settings` without anything an uninstalled plugin's commands left.
+pub fn remove_settings_for_plugin(
+    mut settings: CommandSettings,
+    plugin_id: &str,
+) -> CommandSettings {
+    let prefix = format!("{PLUGIN_SOURCE_PREFIX}{plugin_id}/");
+    settings.disabled.retain(|key| !key.starts_with(&prefix));
+    settings.channels.retain(|key, _| !key.starts_with(&prefix));
+    settings
+}
+
 /// A command's option, as specs describe it.
 #[derive(Debug, Clone, Copy)]
 pub struct OptionSpec {
@@ -162,7 +194,8 @@ pub struct PluginCommand {
 #[derive(Debug, Default)]
 pub struct Commands {
     settings: RwLock<CommandSettings>,
-    plugins: RwLock<HashMap<String, PluginCommand>>,
+    /// By (plugin id, command name): a name is unique only inside its plugin.
+    plugins: RwLock<HashMap<(String, String), PluginCommand>>,
 }
 
 impl Commands {
@@ -179,26 +212,16 @@ impl Commands {
         spec: proto::CommandSpec,
     ) -> Result<(), ApiError> {
         let mut plugins = self.plugins.write().unwrap_or_else(PoisonError::into_inner);
-        if let Some(existing) = plugins.get(&spec.name)
-            && existing.plugin_id != plugin_id
-        {
-            return Err(ApiError::invalid_argument(format!(
-                "/{} is already taken",
-                spec.name
-            )));
-        }
-        let count = plugins
-            .values()
-            .filter(|cmd| cmd.plugin_id == plugin_id)
-            .count();
-        if !plugins.contains_key(&spec.name) && count >= 100 {
+        let key = (plugin_id.to_owned(), spec.name.clone());
+        let count = plugins.keys().filter(|(id, _)| id == plugin_id).count();
+        if !plugins.contains_key(&key) && count >= PLUGIN_COMMANDS_MAX {
             return Err(ApiError::new(
                 proto::ErrorCode::PluginLimit,
                 "at most 100 commands",
             ));
         }
         plugins.insert(
-            spec.name.clone(),
+            key,
             PluginCommand {
                 plugin_id: plugin_id.to_owned(),
                 spec,
@@ -208,43 +231,48 @@ impl Commands {
     }
 
     pub fn unregister_plugin(&self, plugin_id: &str, name: &str) -> bool {
-        let name = name.trim_start_matches('/').to_ascii_lowercase();
-        let mut plugins = self.plugins.write().unwrap_or_else(PoisonError::into_inner);
-        if let Some(cmd) = plugins.get(&name)
-            && cmd.plugin_id == plugin_id
-        {
-            plugins.remove(&name);
-            return true;
-        }
-        false
+        self.plugins
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&(plugin_id.to_owned(), plain_name(name)))
+            .is_some()
     }
 
     pub fn remove_for_plugin(&self, plugin_id: &str) -> bool {
         let mut plugins = self.plugins.write().unwrap_or_else(PoisonError::into_inner);
         let before = plugins.len();
-        plugins.retain(|_, cmd| cmd.plugin_id != plugin_id);
+        plugins.retain(|(id, _), _| id != plugin_id);
         plugins.len() < before
     }
 
-    pub fn find_plugin(&self, name: &str) -> Option<PluginCommand> {
-        let name = name.trim_start_matches('/').to_ascii_lowercase();
+    /// One plugin's command called `name`.
+    pub fn find_plugin(&self, plugin_id: &str, name: &str) -> Option<PluginCommand> {
         self.plugins
             .read()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(&name)
+            .get(&(plugin_id.to_owned(), plain_name(name)))
             .cloned()
     }
 
+    /// Every plugin's command called `name`.
+    pub fn plugins_named(&self, name: &str) -> Vec<PluginCommand> {
+        let name = plain_name(name);
+        self.plugins
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .filter(|((_, each), _)| *each == name)
+            .map(|(_, command)| command.clone())
+            .collect()
+    }
+
     pub fn plugin_commands(&self) -> Vec<PluginCommand> {
-        let mut list: Vec<PluginCommand> = self
-            .plugins
+        self.plugins
             .read()
             .unwrap_or_else(PoisonError::into_inner)
             .values()
             .cloned()
-            .collect();
-        list.sort_by(|a, b| a.spec.name.cmp(&b.spec.name));
-        list
+            .collect()
     }
 
     pub async fn load(&self, conn: &mut SqliteConnection) -> anyhow::Result<()> {
@@ -302,11 +330,37 @@ fn spec_proto(spec: &Spec, settings: &CommandSettings) -> proto::CommandSpec {
 }
 
 /// Whether a feature is set up here.
-fn feature_ready(state: &AppState, feature: &str) -> bool {
+pub fn feature_ready(state: &AppState, feature: &str) -> bool {
     match feature {
         "music" => crate::music::configured(state),
         _ => true,
     }
+}
+
+/// Every plugin's commands with their settings, a plugin's together, the
+/// first installed first.
+fn plugin_specs(state: &AppState, settings: &CommandSettings) -> Vec<proto::CommandSpec> {
+    let mut list = state.commands.plugin_commands();
+    list.sort_by_cached_key(|command| {
+        let installed = state
+            .plugins
+            .get(&command.plugin_id)
+            .map_or(i64::MAX, |handle| handle.installed_at);
+        (
+            installed,
+            command.plugin_id.clone(),
+            command.spec.name.clone(),
+        )
+    });
+    list.into_iter()
+        .map(|command| {
+            let mut spec = command.spec;
+            let key = settings_key(&spec.feature, &spec.name);
+            spec.enabled = settings.enabled(&key);
+            spec.channel_ids = settings.channels.get(&key).cloned().unwrap_or_default();
+            spec
+        })
+        .collect()
 }
 
 /// What members can use (§17.1): enabled commands of features set up.
@@ -317,18 +371,11 @@ pub fn available(state: &AppState) -> proto::Commands {
         .filter(|spec| settings.enabled(spec.name) && feature_ready(state, spec.feature))
         .map(|spec| spec_proto(spec, &settings))
         .collect();
-    for cmd in state.commands.plugin_commands() {
-        if settings.enabled(&cmd.spec.name) {
-            let mut spec = cmd.spec;
-            spec.enabled = true;
-            spec.channel_ids = settings
-                .channels
-                .get(&spec.name)
-                .cloned()
-                .unwrap_or_default();
-            commands.push(spec);
-        }
-    }
+    commands.extend(
+        plugin_specs(state, &settings)
+            .into_iter()
+            .filter(|spec| spec.enabled),
+    );
     proto::Commands {
         commands,
         results_public: !settings.results_private,
@@ -342,16 +389,7 @@ pub fn all(state: &AppState) -> proto::Commands {
         .iter()
         .map(|spec| spec_proto(spec, &settings))
         .collect();
-    for cmd in state.commands.plugin_commands() {
-        let mut spec = cmd.spec;
-        spec.enabled = settings.enabled(&spec.name);
-        spec.channel_ids = settings
-            .channels
-            .get(&spec.name)
-            .cloned()
-            .unwrap_or_default();
-        commands.push(spec);
-    }
+    commands.extend(plugin_specs(state, &settings));
     proto::Commands {
         commands,
         results_public: !settings.results_private,
@@ -382,6 +420,54 @@ mod tests {
         let count = names.len();
         names.dedup();
         assert_eq!(names.len(), count);
+    }
+
+    #[test]
+    fn settings_keys_are_per_source_and_builtins_stay_plain() {
+        assert_eq!(settings_key("plugin:dice", "roll"), "plugin:dice/roll");
+        assert_eq!(settings_key("music", "play"), "play");
+        assert_eq!(settings_key("", "play"), "play");
+    }
+
+    #[test]
+    fn removing_a_plugins_settings_leaves_the_rest() {
+        let settings = CommandSettings {
+            disabled: vec![
+                "play".to_owned(),
+                "plugin:dice/roll".to_owned(),
+                "plugin:dice-two/roll".to_owned(),
+            ],
+            channels: BTreeMap::from([
+                ("plugin:dice/roll".to_owned(), vec![1]),
+                ("skip".to_owned(), vec![2]),
+            ]),
+            results_private: true,
+        };
+
+        let left = remove_settings_for_plugin(settings, "dice");
+
+        assert_eq!(left.disabled, ["play", "plugin:dice-two/roll"]);
+        assert_eq!(left.channels.keys().collect::<Vec<_>>(), ["skip"]);
+        assert!(left.results_private);
+    }
+
+    #[test]
+    fn plugin_commands_are_per_plugin() {
+        let commands = Commands::default();
+        let spec = |id: &str| proto::CommandSpec {
+            name: "roll".to_owned(),
+            feature: format!("plugin:{id}"),
+            ..Default::default()
+        };
+        commands.register_plugin("a", spec("a")).unwrap();
+        commands.register_plugin("b", spec("b")).unwrap();
+
+        assert_eq!(commands.find_plugin("b", "/ROLL").unwrap().plugin_id, "b");
+        assert!(commands.find_plugin("c", "roll").is_none());
+        assert_eq!(commands.plugins_named("roll").len(), 2);
+
+        assert!(commands.unregister_plugin("a", "roll"));
+        assert_eq!(commands.plugins_named("roll").len(), 1);
     }
 
     #[test]
