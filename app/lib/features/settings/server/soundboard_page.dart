@@ -209,7 +209,7 @@ class _ServerSoundboardPageState extends ConsumerState<ServerSoundboardPage>
             _SoundRow(
               sound: sound,
               uploader: switch (sound.uploaderId) {
-                final id? => data?.members[id]?.displayName,
+                final id? => data?.authorOf(id).name,
                 null => null,
               },
               onPreview: () => _preview(sound),

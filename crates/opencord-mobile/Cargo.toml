@@ -27,6 +27,7 @@ uniffi.workspace = true
 image.workspace = true
 opencord-server.workspace = true
 tempfile.workspace = true
+zip.workspace = true
 
 # The Java VM and Context cpal's Android back end reads (src/android_context.rs).
 [target.'cfg(target_os = "android")'.dependencies]

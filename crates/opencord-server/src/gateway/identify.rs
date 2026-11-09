@@ -114,8 +114,27 @@ pub async fn identify(
             .get(&joined.user_id)
             .map(Member::to_proto);
         state.broadcast(
-            proto::event::Kind::MemberJoin(proto::MemberJoin { member }),
+            proto::event::Kind::MemberJoin(proto::MemberJoin {
+                member: member.clone(),
+            }),
             Audience::Everyone,
+        );
+        let mut table = serde_json::Map::new();
+        if let Some(m) = &member {
+            table.insert("member".to_owned(), crate::plugins::events::member_table(m));
+        }
+        if let Some(code) = &joined.invite_code {
+            table.insert(
+                "invite_code".to_owned(),
+                serde_json::Value::String(code.clone()),
+            );
+        }
+        crate::plugins::events::emit(
+            state,
+            "member_join",
+            crate::plugins::permissions::PluginPermission::ReadMembers,
+            None,
+            serde_json::Value::Object(table),
         );
     }
     if joined.claimed {
@@ -125,7 +144,12 @@ pub async fn identify(
             Audience::Everyone,
         );
     }
-    Ok(open_session(state, joined.user_id, connection))
+    Ok(open_session(
+        state,
+        joined.user_id,
+        identify.features,
+        connection,
+    ))
 }
 
 pub fn resume(
@@ -152,6 +176,7 @@ struct Joined {
     user_id: i64,
     newly_joined: bool,
     claimed: bool,
+    invite_code: Option<String>,
 }
 
 /// Decides whether the key may join, and records the membership.
@@ -227,6 +252,7 @@ async fn admit(
             user
         }
     };
+    let invite_code = invite.as_ref().map(|inv| inv.code.clone());
     if let Some(invite) = &invite {
         invites::increment_uses(&mut tx, &invite.code).await?;
     }
@@ -267,18 +293,27 @@ async fn admit(
         user_id: user.id,
         newly_joined: !is_member,
         claimed,
+        invite_code,
     })
 }
 
-fn open_session(state: &AppState, user_id: i64, connection: &Connection) -> Arc<Session> {
+fn open_session(
+    state: &AppState,
+    user_id: i64,
+    features: Vec<String>,
+    connection: &Connection,
+) -> Arc<Session> {
     let session_id = hex::encode(random::bytes::<16>());
     let resume_token = random::bytes::<32>();
-    let session = Arc::new(Session::new(
-        session_id.clone(),
-        user_id,
-        &resume_token,
-        connection.clone(),
-    ));
+    let session = Arc::new(
+        Session::new(
+            session_id.clone(),
+            user_id,
+            &resume_token,
+            connection.clone(),
+        )
+        .with_features(features),
+    );
     let was_online = state.sessions.has_user(user_id);
     let ready = ready(state, user_id, session_id, resume_token.to_vec());
     if connection
@@ -376,5 +411,6 @@ fn ready(
         private_messages: false,
         private_messages_v2: state.private.enabled(),
         private_settings: Some(state.private.settings_proto()),
+        plugin_users: crate::plugins::identity::plugin_users_proto(&guild),
     }
 }

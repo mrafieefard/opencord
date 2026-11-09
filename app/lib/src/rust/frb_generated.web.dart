@@ -9,6 +9,7 @@
 import 'api/attachments.dart';
 import 'api/client.dart';
 import 'api/logs.dart';
+import 'api/plugins.dart';
 import 'api/private.dart';
 import 'api/system.dart';
 import 'api/types.dart';
@@ -188,6 +189,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlaybackItem dco_decode_box_autoadd_playback_item(dynamic raw);
 
   @protected
+  Plugin dco_decode_box_autoadd_plugin(dynamic raw);
+
+  @protected
+  PluginReview dco_decode_box_autoadd_plugin_review(dynamic raw);
+
+  @protected
   Presence dco_decode_box_autoadd_presence(dynamic raw);
 
   @protected
@@ -358,6 +365,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CommandOutcome dco_decode_command_outcome(dynamic raw);
 
   @protected
+  CommandRunState dco_decode_command_run_state(dynamic raw);
+
+  @protected
   CommandSettingsChanges dco_decode_command_settings_changes(dynamic raw);
 
   @protected
@@ -380,6 +390,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoreEventPayload dco_decode_core_event_payload(dynamic raw);
+
+  @protected
+  CreatedPluginDevToken dco_decode_created_plugin_dev_token(dynamic raw);
 
   @protected
   DefaultSound dco_decode_default_sound(dynamic raw);
@@ -419,6 +432,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GeneratedIdentity dco_decode_generated_identity(dynamic raw);
+
+  @protected
+  GithubCheck dco_decode_github_check(dynamic raw);
 
   @protected
   HotkeyAction dco_decode_hotkey_action(dynamic raw);
@@ -578,6 +594,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PermissionOverwrite> dco_decode_list_permission_overwrite(dynamic raw);
+
+  @protected
+  List<Plugin> dco_decode_list_plugin(dynamic raw);
+
+  @protected
+  List<PluginConfigField> dco_decode_list_plugin_config_field(dynamic raw);
+
+  @protected
+  List<PluginConfigValue> dco_decode_list_plugin_config_value(dynamic raw);
+
+  @protected
+  List<PluginDevToken> dco_decode_list_plugin_dev_token(dynamic raw);
+
+  @protected
+  List<PluginLogLine> dco_decode_list_plugin_log_line(dynamic raw);
+
+  @protected
+  List<PluginPermissionGrant> dco_decode_list_plugin_permission_grant(
+    dynamic raw,
+  );
+
+  @protected
+  List<PluginReview> dco_decode_list_plugin_review(dynamic raw);
+
+  @protected
+  List<PluginUser> dco_decode_list_plugin_user(dynamic raw);
 
   @protected
   List<PortStatus> dco_decode_list_port_status(dynamic raw);
@@ -762,6 +804,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MusicRepeat? dco_decode_opt_box_autoadd_music_repeat(dynamic raw);
 
   @protected
+  Plugin? dco_decode_opt_box_autoadd_plugin(dynamic raw);
+
+  @protected
   S3Config? dco_decode_opt_box_autoadd_s_3_config(dynamic raw);
 
   @protected
@@ -819,6 +864,42 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaybackItem dco_decode_playback_item(dynamic raw);
+
+  @protected
+  Plugin dco_decode_plugin(dynamic raw);
+
+  @protected
+  PluginConfigField dco_decode_plugin_config_field(dynamic raw);
+
+  @protected
+  PluginConfigKind dco_decode_plugin_config_kind(dynamic raw);
+
+  @protected
+  PluginConfigValue dco_decode_plugin_config_value(dynamic raw);
+
+  @protected
+  PluginDevToken dco_decode_plugin_dev_token(dynamic raw);
+
+  @protected
+  PluginLogLevel dco_decode_plugin_log_level(dynamic raw);
+
+  @protected
+  PluginLogLine dco_decode_plugin_log_line(dynamic raw);
+
+  @protected
+  PluginPermissionGrant dco_decode_plugin_permission_grant(dynamic raw);
+
+  @protected
+  PluginReview dco_decode_plugin_review(dynamic raw);
+
+  @protected
+  PluginSignature dco_decode_plugin_signature(dynamic raw);
+
+  @protected
+  PluginState dco_decode_plugin_state(dynamic raw);
+
+  @protected
+  PluginUser dco_decode_plugin_user(dynamic raw);
 
   @protected
   PortProtocol dco_decode_port_protocol(dynamic raw);
@@ -1247,6 +1328,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Plugin sse_decode_box_autoadd_plugin(SseDeserializer deserializer);
+
+  @protected
+  PluginReview sse_decode_box_autoadd_plugin_review(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Presence sse_decode_box_autoadd_presence(SseDeserializer deserializer);
 
   @protected
@@ -1459,6 +1548,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CommandOutcome sse_decode_command_outcome(SseDeserializer deserializer);
 
   @protected
+  CommandRunState sse_decode_command_run_state(SseDeserializer deserializer);
+
+  @protected
   CommandSettingsChanges sse_decode_command_settings_changes(
     SseDeserializer deserializer,
   );
@@ -1485,6 +1577,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CoreEventPayload sse_decode_core_event_payload(SseDeserializer deserializer);
+
+  @protected
+  CreatedPluginDevToken sse_decode_created_plugin_dev_token(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DefaultSound sse_decode_default_sound(SseDeserializer deserializer);
@@ -1524,6 +1621,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GeneratedIdentity sse_decode_generated_identity(SseDeserializer deserializer);
+
+  @protected
+  GithubCheck sse_decode_github_check(SseDeserializer deserializer);
 
   @protected
   HotkeyAction sse_decode_hotkey_action(SseDeserializer deserializer);
@@ -1729,6 +1829,42 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<PermissionOverwrite> sse_decode_list_permission_overwrite(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<Plugin> sse_decode_list_plugin(SseDeserializer deserializer);
+
+  @protected
+  List<PluginConfigField> sse_decode_list_plugin_config_field(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PluginConfigValue> sse_decode_list_plugin_config_value(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PluginDevToken> sse_decode_list_plugin_dev_token(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PluginLogLine> sse_decode_list_plugin_log_line(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PluginPermissionGrant> sse_decode_list_plugin_permission_grant(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PluginReview> sse_decode_list_plugin_review(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PluginUser> sse_decode_list_plugin_user(SseDeserializer deserializer);
 
   @protected
   List<PortStatus> sse_decode_list_port_status(SseDeserializer deserializer);
@@ -1957,6 +2093,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Plugin? sse_decode_opt_box_autoadd_plugin(SseDeserializer deserializer);
+
+  @protected
   S3Config? sse_decode_opt_box_autoadd_s_3_config(SseDeserializer deserializer);
 
   @protected
@@ -2028,6 +2167,48 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlaybackItem sse_decode_playback_item(SseDeserializer deserializer);
+
+  @protected
+  Plugin sse_decode_plugin(SseDeserializer deserializer);
+
+  @protected
+  PluginConfigField sse_decode_plugin_config_field(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PluginConfigKind sse_decode_plugin_config_kind(SseDeserializer deserializer);
+
+  @protected
+  PluginConfigValue sse_decode_plugin_config_value(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PluginDevToken sse_decode_plugin_dev_token(SseDeserializer deserializer);
+
+  @protected
+  PluginLogLevel sse_decode_plugin_log_level(SseDeserializer deserializer);
+
+  @protected
+  PluginLogLine sse_decode_plugin_log_line(SseDeserializer deserializer);
+
+  @protected
+  PluginPermissionGrant sse_decode_plugin_permission_grant(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PluginReview sse_decode_plugin_review(SseDeserializer deserializer);
+
+  @protected
+  PluginSignature sse_decode_plugin_signature(SseDeserializer deserializer);
+
+  @protected
+  PluginState sse_decode_plugin_state(SseDeserializer deserializer);
+
+  @protected
+  PluginUser sse_decode_plugin_user(SseDeserializer deserializer);
 
   @protected
   PortProtocol sse_decode_port_protocol(SseDeserializer deserializer);
@@ -2539,6 +2720,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_plugin(Plugin self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_plugin_review(
+    PluginReview self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_presence(Presence self, SseSerializer serializer);
 
   @protected
@@ -2824,6 +3014,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_command_run_state(
+    CommandRunState self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_command_settings_changes(
     CommandSettingsChanges self,
     SseSerializer serializer,
@@ -2859,6 +3055,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_core_event_payload(
     CoreEventPayload self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_created_plugin_dev_token(
+    CreatedPluginDevToken self,
     SseSerializer serializer,
   );
 
@@ -2906,6 +3108,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     GeneratedIdentity self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_github_check(GithubCheck self, SseSerializer serializer);
 
   @protected
   void sse_encode_hotkey_action(HotkeyAction self, SseSerializer serializer);
@@ -3168,6 +3373,51 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_permission_overwrite(
     List<PermissionOverwrite> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin(List<Plugin> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_plugin_config_field(
+    List<PluginConfigField> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin_config_value(
+    List<PluginConfigValue> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin_dev_token(
+    List<PluginDevToken> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin_log_line(
+    List<PluginLogLine> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin_permission_grant(
+    List<PluginPermissionGrant> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin_review(
+    List<PluginReview> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_plugin_user(
+    List<PluginUser> self,
     SseSerializer serializer,
   );
 
@@ -3460,6 +3710,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_plugin(
+    Plugin? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_s_3_config(
     S3Config? self,
     SseSerializer serializer,
@@ -3551,6 +3807,63 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_playback_item(PlaybackItem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin(Plugin self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin_config_field(
+    PluginConfigField self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_config_kind(
+    PluginConfigKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_config_value(
+    PluginConfigValue self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_dev_token(
+    PluginDevToken self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_log_level(
+    PluginLogLevel self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_log_line(PluginLogLine self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin_permission_grant(
+    PluginPermissionGrant self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_review(PluginReview self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin_signature(
+    PluginSignature self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_state(PluginState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin_user(PluginUser self, SseSerializer serializer);
 
   @protected
   void sse_encode_port_protocol(PortProtocol self, SseSerializer serializer);

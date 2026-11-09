@@ -25,11 +25,11 @@ Client                                         Server
   |                                             |  heartbeat_interval_ms, protocol_version
   |  -------------- Identify --------------->   |  public_key, signature, timestamp_ms,
   |                                             |  display_name, invite_code?, claim_token?,
-  |                                             |  protocol_version
+  |                                             |  protocol_version, features?
   |  <------------- Ready -------------------   |  session_id, resume_token, self_user,
   |                                             |  server, channels, roles, members,
   |                                             |  presences, server_permissions,
-  |                                             |  channel_permissions
+  |                                             |  channel_permissions, plugin_users?
 ```
 
 1. The server sends `Hello` right after the upgrade, with a fresh random `nonce`.
@@ -55,6 +55,8 @@ Client                                         Server
    - **Valid claim token:** the user becomes the server **owner**, and the token is invalidated.
    - **Existing member:** `display_name` is ignored; use `UpdateProfile` to change it.
 6. `Ready` contains only the channels the user can view. `channel_permissions` maps each of those channels to the user's resolved permissions there.
+7. `Identify.features` advertises client capabilities, such as `"plugin_users"`.
+8. `Ready.plugin_users` lists all server plugin bot identities (`user_id`, `plugin_id`, `name`, `avatar_hash`, `installed`), allowing clients to resolve messages and actions authored by plugins.
 
 Identify attempts are limited to 5 per minute per IP address. Over the limit, the server sends `RATE_LIMITED` and closes the connection (4008).
 
@@ -162,6 +164,24 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `CancelFriendRequest { request_id }` | `ack` | The creator of the pending request |
 | `RemoveFriend { user_id }` | `ack` | Any member |
 | `UpdatePrivateSettings { enabled?, friends_only? }` | `private_settings` | Manage server; `enabled: true` is refused with `INVALID_ARGUMENT` when the config file turns private messages off |
+| `FetchPlugins {}` | `plugins` | Base `MANAGE_PLUGINS` |
+| `FetchPluginReviews {}` | `plugin_reviews` | Base `MANAGE_PLUGINS` |
+| `ConfirmPluginReview { review_id, granted, config, accept_license }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `DiscardPluginReview { review_id }` | `ack` | Base `MANAGE_PLUGINS` |
+| `SetPluginPermissions { plugin_id, granted }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `SetPluginConfig { plugin_id, config }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `SetPluginRunning { plugin_id, running }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `RestartPlugin { plugin_id }` | `plugin` | Base `MANAGE_PLUGINS` |
+| `UninstallPlugin { plugin_id, delete_data }` | `ack` | Base `MANAGE_PLUGINS` |
+| `FetchPluginLog { plugin_id, before?, limit }` | `plugin_log` | Base `MANAGE_PLUGINS` |
+| `WatchPluginLog { plugin_id, watch }` | `ack` | Base `MANAGE_PLUGINS` |
+| `CreatePluginDevToken { plugin_id, days }` | `created_plugin_dev_token` | Base `MANAGE_PLUGINS` |
+| `RevokePluginDevToken { token_id }` | `ack` | Base `MANAGE_PLUGINS` |
+| `FetchPluginDevTokens {}` | `plugin_dev_tokens` | Base `MANAGE_PLUGINS` |
+| `ExecuteCommand { channel_id, name, options, nonce, source }` | `command_result` | `SEND_MESSAGES` in channel and command permissions |
+| `AutocompleteCommand { channel_id, name, option, value }` | `command_choices` | `SEND_MESSAGES` in channel; 5 per second |
+| `FetchCommandSettings {}` | `command_settings` | Base `MANAGE_SERVER` |
+| `UpdateCommandSettings { command_name, enabled?, channel_ids? }` | `command_settings` | Base `MANAGE_SERVER` |
 
 Details:
 - **Messages:** the content is trimmed and must be 1–4 000 characters. Only text channels accept messages.
@@ -199,6 +219,10 @@ Every event goes to every session of the server, with these exceptions:
 | `PendingEvent` | The session(s) holding that registered device |
 | `PrivateTypingStart` | The recipient's active sessions; never stored |
 | `PrivateSettingsUpdate` | Every session |
+| `PluginUpdate`, `PluginRemove`, `PluginReviewUpdate`, `PluginReviewRemove` | Sessions holding `MANAGE_PLUGINS` |
+| `PluginLogAppend` | Sessions watching that plugin's log (`WatchPluginLog`) |
+| `PluginUsersUpdate` | Every session |
+| `CommandsUpdate` | Every session |
 
 Other events:
 - `RoleCreate`, `RoleUpdate`, `RoleDelete`, `ServerUpdate` and `PresenceUpdate` behave as their names say.
@@ -243,6 +267,16 @@ When roles, member roles or overwrites change, the server recomputes visibility 
 | `DEVICE_LIST_CHANGED` | The recipient's or caller's device set changed since the message was encrypted |
 | `PRIVATE_MESSAGES_UNAVAILABLE` | Private messages are disabled on this server, or the device is not registered |
 | `FRIENDS_ONLY` | The server relays private messages only between friends, and the two don't both list each other |
+| `COMMAND_UNKNOWN` | The requested chat command does not exist |
+| `COMMAND_DISABLED` | The command is disabled on this server |
+| `COMMAND_NOT_ALLOWED_HERE` | The command cannot be used in this channel |
+| `COMMAND_INVALID_OPTIONS` | Command options failed validation |
+| `PLUGIN_PACKAGE_INVALID` | The plugin package or manifest is corrupt, incomplete or exceeds limits |
+| `PLUGIN_SIGNATURE_INVALID` | Plugin signature verification failed |
+| `PLUGIN_NOT_SAME_AUTHOR` | An update's key does not match the installed version's key without valid key rotation |
+| `PLUGIN_LIMIT` | The server has reached its limit of installed plugins |
+| `PLUGIN_UNAVAILABLE` | Plugins are turned off on this server |
+| `PERMISSION_DENIED` | Missing required server or plugin permission |
 
 ## Close codes
 
@@ -282,7 +316,7 @@ The bits are listed below.
 | 12 | `CHANGE_NICKNAME` | 28 | `MUSIC_ADD` |
 | 13 | `MANAGE_NICKNAMES` | 29 | `MUSIC_CONTROL` |
 | 14 | `SEND_VOICE_MESSAGES` | 30 | `MUSIC_MANAGE_QUEUE` |
-| | | 31 | `MUSIC_MANAGE` |
+| 15 | `MANAGE_PLUGINS` | 31 | `MUSIC_MANAGE` |
 | | | 32 | `MUSIC_ALL_LOCAL_SONGS` (search every uploaded song, not only one's own) |
 | | | 63 | `ADMINISTRATOR` |
 
@@ -502,7 +536,7 @@ Phase 3 (`network.proto`). The owner's settings page asks for `NetworkInfo` with
 
 - **Lavalink nodes.** `FetchLavalinkNodes`, `CreateLavalinkNode`, `UpdateLavalinkNode` (settings, password and `draining`, each optional), `DeleteLavalinkNode` and `TestLavalinkNode` need Manage server and answer `LavalinkNodes`: the nodes, the bridge checklist (`LavalinkBridge`), the last 50 node events and the channels playing. Passwords are never returned; at most 20 nodes. With `FetchLavalinkNodes.watch` the session gets `LavalinkNodeStatus` (a node changed, or `removed`) and `LavalinkNodeEvent` until it asks with `watch` false. `TestLavalinkNode` answers `Ack`; its three steps (`REST`, `WEBSOCKET`, `BRIDGE`, each `WAITING`, `RUNNING`, `PASSED`, `FAILED` or `SKIPPED` with a detail in plain words) arrive as `LavalinkTestProgress` to that session only, the last with `done`. When every enabled node is unavailable, members with Manage server get a `ServerNotice` keyed `music.nodes`. `MoveLavalinkPlayers { from_node_id, to_node_id? }` (Manage server) moves a node's channels now and answers `LavalinkNodes`. `LavalinkBridge` also carries the bridge's counters (`LavalinkBridgeStats`: connections, packets, decrypt failures, dropped, jitter) and `node_bridges`, the external voice nodes running a bridge.
 - **Music.** Every music request names a voice channel the member can see. `MusicSubscribe { channel_id, subscribe }` answers `MusicSession` and starts (or stops) the session's events for that gateway session; members connected to the channel get them anyway. The events are a whole `MusicSnapshot` when someone joins the channel, and otherwise a `MusicUpdate` per change: `base_version` and `version`, the state, position, modes and votes in full, `now_playing` when another item plays, and for the queue and history the ids removed, then placements in order (an item before another, or at the end; new items whole, others by id). A client applies an update only to the session at `base_version`, ignores one no newer than what it holds, and otherwise asks `FetchMusicSession { channel_id }` (anyone who can see the channel; answers `MusicSession`, subscribes to nothing). The diff and apply are `opencord_proto::music_sync`. A `MusicSession` has a `version` that grows with every change, the state (`IDLE`, `LOADING`, `PLAYING`, `PAUSED`), what plays, the queue, the last 50 played, the position at a server time, repeat and shuffle, whether it waits for a node or for listeners, and `skip_votes` (members who voted to skip) with `skip_votes_needed`. `MusicSearch { channel_id, query, source }` (Add music) answers `MusicSearchResults`: up to 15 results, or a playlist's, each with an opaque `result_id` good for 15 minutes and only for the member who searched. `MusicEnqueue { channel_id, result_ids, before_item_id?, placement, history_item_ids }` (search results, or recently played tracks by their item ids; Add music; a position, `NEXT` or `NOW` need Manage the queue), `MusicPlayback { channel_id, action, position_ms?, expected_item_id? }` (`PAUSE`, `RESUME`, `NEXT`, `PREVIOUS`, `SEEK` need Control playback, `NEXT` on one's own track only Add music, `STOP` Manage music), `MusicVoteSkip { channel_id, expected_item_id }` (connected listeners; callers with Control playback or own-track Add music skip immediately; others add their vote, advancing the track when `skip_votes_needed` is reached), `MusicSetMode`, `MusicQueueMove { item_id, before_item_id? }` and `MusicQueueClear` (Manage the queue) and `MusicQueueRemove` (one's own with Add music, others' with Manage the queue) answer the `MusicSession` after the change. With `expected_item_id`, `NEXT`, `PREVIOUS`, `SEEK` and `MusicVoteSkip` fail with `MUSIC_STALE` when another item plays. Controlling music needs being connected to the channel unless the member holds Manage music. Rate limits: 10 searches, 10 enqueues and 20 other changes per 10 seconds. `MusicNotice` lines go to a channel's subscribers, `MusicNowPlaying` (with the source's name, for the now-playing card) to everyone who can see the channel. `FetchMusicSettings` (anyone) and `UpdateMusicSettings` (Manage music; fields left out stay) answer `MusicSettings`, which also carries the sources a healthy node offers now, `supported`, `configured` (supported and on: clients show music), `has_nodes` (a Lavalink node is added) and `local_songs` (the server takes uploaded songs; servers from before them leave it false, and answer `MusicFindLocal` with `INVALID_ARGUMENT` "the request is empty"); changes, and nodes added or deleted, reach everyone as `MusicSettingsUpdate`. `FetchMusicBlocks` and `MusicBlockMember { user_id, blocked, reason }` (Manage music; blocking needs a higher role) answer `MusicBlocks`. Uploaded songs play without a node: see below. Errors: `MUSIC_NOT_CONFIGURED`, `MUSIC_NODE_UNAVAILABLE`, `MUSIC_NOT_IN_CHANNEL`, `MUSIC_BLOCKED`, `MUSIC_QUEUE_FULL`, `MUSIC_MEMBER_LIMIT`, `MUSIC_TRACK_TOO_LONG`, `MUSIC_STREAMS_NOT_ALLOWED`, `MUSIC_SOURCE_NOT_ALLOWED`, `MUSIC_LINK_NOT_ALLOWED`, `MUSIC_STALE`. Encoded tracks and Lavalink identifiers never reach clients.
-- **Commands.** `ExecuteCommand { channel_id, name, options, nonce }` executes a built-in slash command (Phase 3 §17). Public results appear as a message by whoever ran the command (`kind = command_result`, with `interaction { user_id, command }`); "only you" replies and errors are ephemeral, sent to that session only (`EphemeralMessage { channel_id, nonce, content }`). `AutocompleteCommand { channel_id, name, option, value }` answers up to 10 choices (rate limited to 5 per second). `CommandsUpdate` announces the available commands when settings or feature states change. `FetchCommandSettings` and `UpdateCommandSettings` (Manage server) configure disabled commands, allowed channels per command, and whether results are private by default (`results_private`). Errors: `COMMAND_UNKNOWN`, `COMMAND_DISABLED`, `COMMAND_NOT_ALLOWED_HERE`, `COMMAND_INVALID_OPTIONS`.
+- **Commands.** `ExecuteCommand { channel_id, name, options, nonce }` executes a built-in slash command (Phase 3 §17). Public results appear as a message by whoever ran the command (`kind = command_result`, with `interaction { user_id, command }`); "only you" replies and errors are ephemeral, sent to that session only (`EphemeralMessage { channel_id, nonce, content }`). `AutocompleteCommand { channel_id, name, option, value, source }` answers up to 10 choices (rate limited to 5 per second). `source` says whose command it is: empty for Opencord's, `plugin:<id>` for a plugin's. Without one, Opencord's command runs if there is one, then the only plugin with that name; two plugins answer `COMMAND_UNKNOWN` asking to pick. `MessageInteraction.state` and `EphemeralMessage.state` say where a reply stands (`ANSWERED`, `THINKING`, `NO_ANSWER`): a deferred command's message is edited when the reply comes, with no edited mark, and a private one is replaced by the `EphemeralMessage` with the same nonce. `CommandsUpdate` announces the available commands when settings or feature states change. `FetchCommandSettings` and `UpdateCommandSettings` (Manage server) configure disabled commands, allowed channels per command, and whether results are private by default (`results_private`). Errors: `COMMAND_UNKNOWN`, `COMMAND_DISABLED`, `COMMAND_NOT_ALLOWED_HERE`, `COMMAND_INVALID_OPTIONS`.
 
 ### Uploaded songs
 
@@ -629,4 +663,18 @@ Inside Olm message ciphertexts, the decrypted plaintext is a protobuf `PrivatePa
   - `RelayMoved`: `server_id` (16 bytes), `server_name` (string).
   - `RequestAccepted`: `{}`.
   - `SessionReset`: `{}`.
+
+## Plugins
+
+Opencord plugins provide server-side scripting (bots, custom commands, moderation, web hooks) using Luau. Plugins run in sandboxed virtual machines with isolated SQLite storage and file quotas.
+
+### HTTP Endpoints
+
+| Endpoint | Method | Authentication | Description |
+|---|---|---|---|
+| `/plugins/packages` | `POST` | Bearer `<media_token>` (`MANAGE_PLUGINS`) | Uploads a plugin zip package (up to `plugins.max_package_mb`). Validates manifest and signature, creates a pending `PluginReview`, and returns a protobuf `Response` containing `PluginReview`. |
+| `/plugins/dev/{id}` | `PUT` | Bearer `ocdev_...` (valid dev token for `{id}`) | Pushes an updated package during development. Rate limited to 2 pushes per second. Auto-reloads running plugins if permissions did not change; returns `ack` or `PluginReview`. |
+| `/plugins/dev/{id}/log` | `GET` | Bearer `ocdev_...` (valid dev token for `{id}`) | Long-polls for plugin log lines after `after=<seq>` (up to 25 s). Returns protobuf `Response` containing `PluginLog`. |
+| `/plugins/{id}/hooks` / `/plugins/{id}/hooks/{*path}` | Any | None / Plugin-managed | Routes incoming web hook requests to the running plugin holding `receive_web_requests`. |
+
 

@@ -1,0 +1,906 @@
+<title>Command Popup Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* The app's own tokens, value for value (oc_colors.dart, tokens.ts), so the
+   prototype settles real pixels. Layout: desktop stage beside phone stage. */
+:root {
+  --rail:#E9E9EC; --sidebar:#FFFFFF; --chat:#F3F3F5; --surface:#FFFFFF; --elevated:#FFFFFF;
+  --hover:#F2F2F4; --selected:#E7E7EA; --border:#E3E3E7; --text:#111114; --text2:#55555C;
+  --muted:#8A8A92; --accent:#111114; --on-accent:#FFFFFF; --bubble-in:#FFFFFF; --bubble-out:#E4E4E8;
+  --mention:#E2E2E6; --shade1:#D9D9DE; --shade2:#CDCDD3; --shade3:#C1C1C8; --recording:#DC3E42;
+  --shadow:0 8px 24px rgba(17,17,20,.14), 0 1px 3px rgba(17,17,20,.08);
+  --font:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --r:14px; --row:36px; --pop-max:340px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --rail:#0A0A0B; --sidebar:#121214; --chat:#0E0E10; --surface:#18181B; --elevated:#1F1F23;
+  --hover:#1C1C20; --selected:#27272C; --border:#222226; --text:#EDEDEF; --text2:#A1A1A8;
+  --muted:#6E6E76; --accent:#EDEDEF; --on-accent:#0E0E10; --bubble-in:#1A1A1E; --bubble-out:#2A2A30;
+  --mention:#26262B; --shade1:#2B2B30; --shade2:#34343A; --shade3:#3E3E45; --recording:#F2555A;
+  --shadow:0 8px 24px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.4); color-scheme:dark;
+} }
+:root[data-theme="dark"] {
+  --rail:#0A0A0B; --sidebar:#121214; --chat:#0E0E10; --surface:#18181B; --elevated:#1F1F23;
+  --hover:#1C1C20; --selected:#27272C; --border:#222226; --text:#EDEDEF; --text2:#A1A1A8;
+  --muted:#6E6E76; --accent:#EDEDEF; --on-accent:#0E0E10; --bubble-in:#1A1A1E; --bubble-out:#2A2A30;
+  --mention:#26262B; --shade1:#2B2B30; --shade2:#34343A; --shade3:#3E3E45; --recording:#F2555A;
+  --shadow:0 8px 24px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.4); color-scheme:dark;
+}
+* { box-sizing:border-box; }
+body { background:var(--rail); color:var(--text); font:14px/1.4 var(--font);
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:20px 32px; }
+button, input { font:inherit; color:inherit; }
+button { background:none; border:0; padding:0; cursor:pointer; }
+:focus-visible { outline:2px solid var(--text2); outline-offset:1px; }
+.wrap { max-width:1280px; margin:0 auto; display:grid; gap:16px; }
+h1 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.lead { margin:2px 0 0; color:var(--text2); max-width:70ch; }
+
+.controls { display:flex; flex-wrap:wrap; gap:8px 18px; }
+.ctl { display:flex; align-items:center; gap:7px; min-width:0; }
+.ctl > span { color:var(--muted); font-size:12.5px; white-space:nowrap; }
+.seg { display:inline-flex; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:2px; }
+.seg button { padding:3px 9px; border-radius:6px; font-size:12.5px; color:var(--text2); transition:background 120ms ease-out, color 120ms ease-out; }
+.seg button:hover { background:var(--hover); }
+.seg button[aria-pressed="true"] { background:var(--selected); color:var(--text); font-weight:500; }
+
+.stages { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; }
+.stage { display:grid; gap:8px; min-width:0; }
+.stage.desk { flex:1 1 560px; }
+.stage.phone { flex:0 1 360px; max-width:100%; }
+.stage h2 { margin:0; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.tries { margin:0; padding:0; list-style:none; color:var(--text2); font-size:12.5px; display:grid; gap:3px; }
+.tries b { font-weight:500; color:var(--text); }
+
+/* ---- The chat, shared by both stages ---- */
+.msgs { overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:12px 14px; }
+.msgs::before { content:""; margin-top:auto; }
+.m { display:flex; gap:9px; min-width:0; }
+.m.own { flex-direction:row-reverse; }
+.av { width:30px; height:30px; flex:none; border-radius:50%; background:var(--shade2); color:var(--text); display:grid; place-items:center; font-size:11px; font-weight:600; overflow:hidden; }
+.m .col { min-width:0; display:grid; gap:2px; max-width:82%; }
+.via { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.via b { font-weight:500; color:var(--text2); }
+.b { background:var(--bubble-in); padding:7px 11px; border-radius:16px; overflow-wrap:anywhere; justify-self:start; }
+.m.own .b { background:var(--bubble-out); justify-self:end; }
+.who { font-size:13px; font-weight:600; margin-right:4px; }
+.b .muted { color:var(--muted); }
+.noans { color:var(--muted); }
+.noans svg { width:14px; height:14px; vertical-align:-2px; margin-right:4px; }
+.dots { display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle; }
+.dots i { width:5px; height:5px; border-radius:50%; background:var(--muted); animation:fade 1.1s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay:.18s; } .dots i:nth-child(3) { animation-delay:.36s; }
+@keyframes fade { 0%,70%,100% { opacity:.25; } 30% { opacity:1; } }
+.reduced .dots i { animation:none; opacity:.6; }
+.note { align-self:stretch; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:7px 11px; display:grid; gap:2px; }
+.note.err .t { color:var(--recording); }
+.note small { color:var(--muted); font-size:11.5px; }
+.note button { color:var(--text2); text-decoration:underline; font-size:11.5px; }
+
+/* ---- The desktop's messages: rows, not bubbles ---- */
+.desk .msgs { gap:0; padding:0 0 12px; }
+.cm { display:flex; gap:12px; margin-top:16px; padding:4px 16px 2px; min-width:0; transition:background 120ms ease-out; }
+.cm.cont { margin-top:0; padding-top:2px; }
+.cm:hover { background:var(--hover); }
+.reduced .cm { transition:none; }
+.cm .av { width:36px; height:36px; margin-top:2px; font-size:13px; }
+.cm .gut { width:36px; flex:none; }
+.cm .tx { flex:1; min-width:0; overflow-wrap:anywhere; }
+.cm .hdr { display:flex; align-items:center; gap:8px; margin-bottom:1px; }
+.cm .hdr b { font-weight:600; }
+.cm time { font-size:11.5px; color:var(--muted); }
+.cline { display:flex; padding:4px 16px; min-width:0; color:var(--text2); }
+.cline > svg { width:16px; height:16px; flex:none; margin:3px 8px 0 0; color:var(--muted); }
+.cline .t { flex:1; min-width:0; overflow-wrap:anywhere; }
+.cline b { font-weight:600; color:var(--text); }
+.cline .muted { color:var(--muted); }
+.cline code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; color:var(--text); background:var(--hover); padding:1px 3px; border-radius:3px; }
+.desk .note { background:none; border-radius:10px; margin:4px 12px; padding:10px; gap:4px; color:var(--text2); }
+.desk .note.err .t { color:var(--text); }
+.desk .note small svg { width:13px; height:13px; vertical-align:-2px; margin-right:4px; }
+
+.ic { display:grid; place-items:center; color:var(--text); background:var(--shade1); font-weight:600; flex:none; overflow:hidden; }
+.ic svg { width:62%; height:62%; }
+
+/* ---- Desktop ---- */
+.frame { background:var(--rail); border:1px solid var(--border); border-radius:14px; padding:8px; }
+.area { position:relative; display:grid; gap:8px; }
+.main { background:var(--chat); border-radius:16px; height:500px; display:flex; flex-direction:column; overflow:hidden; }
+.hd { height:52px; flex:none; display:flex; align-items:center; gap:6px; padding:0 16px; font-weight:600; border-bottom:1px solid var(--border); }
+.hd span { color:var(--muted); font-weight:400; }
+.main .msgs { flex:1; min-height:0; }
+.float { background:var(--sidebar); border-radius:16px; min-height:62px; display:flex; align-items:center; gap:2px; padding:0 8px; }
+.ibtn { width:36px; height:36px; flex:none; border-radius:10px; display:grid; place-items:center; color:var(--text2); transition:background 120ms ease-out; }
+.ibtn:hover { background:var(--hover); }
+.ibtn svg { width:20px; height:20px; }
+.fld { flex:1; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:8px; }
+.fld input.txt { flex:1; min-width:60px; background:none; border:0; outline:0; }
+.fld input::placeholder, .ph input::placeholder { color:var(--muted); }
+.chip { display:inline-flex; align-items:center; gap:5px; height:26px; padding:0 8px; background:var(--accent); color:var(--on-accent); border-radius:6px; font-weight:600; white-space:nowrap; }
+.chip .ic { border-radius:5px; width:16px; height:16px; background:var(--on-accent); color:var(--accent); font-size:7.5px; }
+.opt { display:inline-flex; align-items:center; gap:4px; min-width:0; }
+.opt label { font-size:12.5px; color:var(--text2); white-space:nowrap; }
+.opt input { background:none; border:0; outline:0; padding:4px 0; width:150px; max-width:100%; field-sizing:content; min-width:60px; }
+.hintline { color:var(--muted); font-size:12.5px; }
+
+.pop { position:absolute; left:0; right:0; display:flex; background:var(--elevated); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden; transform-origin:0 100%; z-index:5; }
+.prail { position:relative; width:52px; flex:none; overflow-y:auto; max-height:var(--pop-max); padding:6px 0; border-right:1px solid var(--border); scrollbar-width:none; }
+.prail::-webkit-scrollbar { display:none; }
+.prail .hl { position:absolute; left:8px; top:10px; width:36px; height:36px; border-radius:11px; background:var(--selected); transition:transform 150ms ease-out; }
+.reduced .prail .hl, .reduced .srow .hl { transition:none; }
+.prail button { position:relative; display:grid; place-items:center; width:52px; height:44px; }
+.prail .ic { width:32px; height:32px; border-radius:10px; font-size:11px; }
+.plist { flex:1; min-width:0; overflow-y:auto; max-height:var(--pop-max); padding:0 4px 4px; position:relative; }
+.gh { position:sticky; top:0; z-index:1; display:flex; align-items:center; gap:6px; height:30px; padding:0 8px; background:var(--elevated); font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.gh .ic { width:16px; height:16px; border-radius:5px; font-size:7.5px; letter-spacing:0; }
+.row { display:flex; align-items:center; gap:10px; height:var(--row); padding:0 8px; border-radius:calc(var(--r) - 4px); cursor:pointer; transition:background 120ms ease-out; min-width:0; }
+.reduced .row { transition:none; }
+.row.sel { background:var(--selected); }
+.row .n { font-weight:600; white-space:nowrap; }
+.row .o { font-size:12.5px; color:var(--muted); white-space:nowrap; }
+.row .d { flex:1; min-width:0; font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.row.dim .n, .row.dim .o { opacity:.5; }
+.row .art { width:28px; height:28px; border-radius:4px; flex:none; }
+.row.tall { height:40px; }
+.empty { padding:10px 8px; color:var(--muted); font-size:13px; }
+.toast { position:absolute; left:50%; bottom:78px; transform:translateX(-50%); background:var(--accent); color:var(--on-accent); padding:6px 12px; border-radius:8px; font-size:12.5px; z-index:9; white-space:nowrap; max-width:90%; overflow:hidden; text-overflow:ellipsis; }
+
+/* ---- Phone ---- */
+.ph { position:relative; width:100%; max-width:360px; height:720px; background:var(--chat); border:1px solid var(--border); border-radius:34px; overflow:hidden; display:flex; flex-direction:column; font-size:15px; }
+.ph .top { height:88px; flex:none; display:flex; align-items:flex-end; padding:0 16px 10px; font-weight:600; font-size:17px; border-bottom:1px solid var(--border); }
+.ph .top span { color:var(--muted); font-weight:400; margin-right:3px; }
+.ph .msgs { flex:1; min-height:0; }
+.ph .bottom { flex:none; }
+.dock { padding:0 8px 8px; display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+.pcard { background:var(--elevated); border:1px solid var(--border); border-radius:22px; padding:7px; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; }
+.pcard::-webkit-scrollbar { display:none; }
+.ochip { flex:none; height:32px; padding:0 11px; border-radius:16px; background:var(--surface); border:1px solid var(--border); display:inline-flex; align-items:center; gap:4px; font-size:13px; color:var(--text2); white-space:nowrap; }
+.ochip.on { background:var(--selected); color:var(--text); }
+.ochip b { font-weight:500; color:var(--text); }
+.ochip i { width:5px; height:5px; border-radius:50%; background:var(--recording); }
+.drow { display:flex; align-items:flex-end; gap:8px; }
+.round { width:44px; height:44px; flex:none; border-radius:50%; display:grid; place-items:center; background:var(--elevated); border:1px solid var(--border); color:var(--text); }
+.round svg { width:22px; height:22px; }
+.round.send { background:var(--accent); color:var(--on-accent); border-color:transparent; }
+.pill { flex:1; min-width:0; min-height:44px; border-radius:22px; background:var(--elevated); border:1px solid var(--border); display:flex; align-items:center; gap:7px; padding:0 14px; }
+.pill .chip { height:28px; font-size:14px; }
+.pill input { flex:1; min-width:0; background:none; border:0; outline:0; font-size:16px; }
+.kbd { height:252px; background:var(--surface); border-top:1px solid var(--border); display:grid; align-content:center; gap:9px; padding:0 6px; }
+.kbd[hidden] { display:none; }
+.keys { display:flex; gap:5px; justify-content:center; }
+.keys span { flex:1; max-width:31px; height:42px; border-radius:6px; background:var(--selected); display:grid; place-items:center; font-size:15px; color:var(--text2); }
+.keys .bs { flex:1.5; max-width:46px; height:42px; border-radius:6px; background:var(--shade2); display:grid; place-items:center; font-size:16px; color:var(--text); cursor:pointer; }
+.keys .bs svg { width:22px; height:22px; }
+.pill .chip { cursor:text; }
+.kbdnote { text-align:center; font-size:11.5px; color:var(--muted); }
+.plst { position:absolute; left:8px; right:8px; background:var(--elevated); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column; z-index:5; }
+.srow { position:relative; flex:none; display:flex; gap:4px; padding:7px 8px; overflow-x:auto; border-bottom:1px solid var(--border); scrollbar-width:none; }
+.srow::-webkit-scrollbar { display:none; }
+.srow .hl { position:absolute; top:7px; left:8px; width:40px; height:40px; border-radius:12px; background:var(--selected); transition:transform 150ms ease-out; }
+.srow button { position:relative; flex:none; width:40px; height:40px; display:grid; place-items:center; }
+.srow .ic { width:30px; height:30px; border-radius:9px; font-size:11px; }
+.pscroll { flex:1; min-height:0; overflow-y:auto; position:relative; }
+.pgh { position:sticky; top:0; z-index:1; background:var(--elevated); padding:7px 14px 5px; font-size:12px; font-weight:600; color:var(--muted); }
+.prow { display:flex; align-items:center; gap:11px; min-height:56px; padding:7px 14px; width:100%; text-align:left; }
+.prow:active { background:var(--selected); }
+.prow .ic { width:32px; height:32px; border-radius:9px; font-size:11px; }
+.prow .tx { min-width:0; flex:1; display:grid; }
+.prow .n { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.prow .d { font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.prow.dim .n { opacity:.5; }
+.menu { position:absolute; left:8px; background:var(--elevated); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); padding:5px; z-index:6; transform-origin:0 100%; width:208px; }
+.menu button { display:flex; align-items:center; gap:11px; height:44px; width:100%; padding:0 11px; border-radius:11px; text-align:left; }
+.menu button:hover { background:var(--hover); }
+.menu svg { width:20px; height:20px; color:var(--text2); }
+.ph .toast { bottom:330px; }
+@media (max-width:640px) { .main { height:440px; } }
+</style>
+
+<div class="wrap" id="app">
+  <header>
+    <h1>Command popup prototype</h1>
+    <p class="lead">The desktop popup and the phone list from milestone 1.5, in the app's real colours and sizes. Both respond: click into a field and type <b>/</b>, or use the controls to try the numbers still open.</p>
+  </header>
+  <div class="controls" id="controls"></div>
+  <div class="stages">
+    <section class="stage desk" aria-label="Desktop">
+      <h2>Desktop</h2>
+      <div class="frame">
+        <div class="area" id="dArea">
+          <div class="main">
+            <div class="hd"><span>#</span>general</div>
+            <div class="msgs" id="dMsgs"></div>
+          </div>
+          <div class="float" id="dFloat">
+            <button class="ibtn" aria-label="Attach" id="dAttach"></button>
+            <div class="fld" id="dFld"></div>
+            <button class="ibtn" aria-label="Emoji" id="dEmoji"></button>
+          </div>
+          <div class="pop" id="dPop" role="listbox" aria-label="Suggestions" hidden></div>
+        </div>
+      </div>
+      <ul class="tries">
+        <li><b>↑ ↓</b> every row across groups · <b>Ctrl+↑ ↓</b> jump a group · <b>Enter</b> or <b>Tab</b> pick · <b>Esc</b> close</li>
+        <li><b>/roll</b> from Dice Bot answers · <b>/ticket</b> thinks, then answers · <b>/close</b> thinks, then doesn't answer · <b>/queue</b> is only for you</li>
+        <li><b>/play</b> then two letters shows songs in the same popup · <b>@</b> <b>#</b> <b>:</b> use it too, without the rail · Esc on <b>/roll</b>, then Enter, shows the "pick one" reply</li>
+        <li><b>Backspace</b> takes a picked command back out, from the chip or the start of its first field · in a later field it steps back one first: <b>/assign</b> has two</li>
+      </ul>
+    </section>
+    <section class="stage phone" aria-label="Phone">
+      <h2>Phone</h2>
+      <div class="ph" id="ph">
+        <div class="top"><span>#</span>general</div>
+        <div class="msgs" id="pMsgs"></div>
+        <div class="bottom">
+          <div class="dock" id="pDock"></div>
+          <div class="kbd" id="pKbd"></div>
+        </div>
+        <div class="plst" id="pList" hidden></div>
+        <div class="menu" id="pMenu" hidden></div>
+      </div>
+      <ul class="tries">
+        <li>The <b>paperclip</b> has Commands as its third entry · tap the messages to put the keyboard away</li>
+        <li><b>Backspace</b> on an empty field removes the picked command, and the drawn key does too · <b>/assign</b> steps back through its fields first</li>
+        <li>A light <b>haptic</b> fires on picking in the real app</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const root = document.documentElement;
+const $ = (id) => document.getElementById(id);
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') el.className = v;
+    else if (k === 'style') el.style.cssText = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, '');
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+  return el;
+}
+const SVGS = {
+  clip:'<path d="M20 11.5 12 19.5a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.6 1.6 0 0 1-2.3-2.3L15 7.3"/>',
+  smile:'<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01"/>',
+  oc:'<circle cx="12" cy="12" r="8.5"/><path d="m14.5 7.5-5 9"/>',
+  die:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.5 8.5h.01M15.5 15.5h.01M12 12h.01M15.5 8.5h.01M8.5 15.5h.01"/>',
+  ticket:'<path d="M4 8a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 8v2.2a2 2 0 0 0 0 3.6V16a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16v-2.2a2 2 0 0 0 0-3.6Z"/><path d="M14 7v10" stroke-dasharray="2 2.4"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/>',
+  send:'<path d="M12 19V5M6 11l6-6 6 6"/>',
+  photo:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-4.5 3.5 3 3-2.5 4.5 3.5"/>',
+  file:'<path d="M7 3.5h6.5L18.5 8.5v11a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-15a1 1 0 0 1 .5-1Z"/><path d="M13.5 3.5v5h5"/>',
+  slash:'<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m14.5 8-5 8"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/>',
+  chev:'<path d="m9.5 6.5 5.5 5.5-5.5 5.5"/>',
+  bksp:'<path d="M9 5h10.5A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5H9l-6-7Z"/><path d="m12.5 9.5 5 5M17.5 9.5l-5 5"/>',
+  eye:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/>',
+};
+function svg(name) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVGS[name]}</svg>`;
+  return tpl.content.firstChild;
+}
+
+// ---- What the server would send ----
+const OC = { id:'', name:'Opencord', icon:'oc' };
+const DICE = { id:'plugin:dice', name:'Dice Bot', icon:'die' };
+const TIX = { id:'plugin:tickets', name:'Tickets', icon:'ticket' };
+const SONGS = ['Midnight Drive · Lumen','Midsummer · Ora Vale','Mirrorball · The Kites','Mind the Gap · Halo Street','Mirage · Sable'];
+const DICE_SIDES = ['d6','d8','d12','d20','d100'];
+const base = [
+  { s:OC, name:'play', opts:[{ n:'query', d:'A song, or a link', req:true, ac:'songs' }], desc:'Play a song or playlist', run:{ k:'now', text:(v) => `Queued ${v.query || 'your song'}` } },
+  { s:OC, name:'skip', opts:[], desc:'Skip this song', why:'Needs Control playback' },
+  { s:OC, name:'queue', opts:[], desc:'Show the queue', run:{ k:'only', text:'Nothing is queued yet.' } },
+  { s:OC, name:'nowplaying', alias:['np'], opts:[], desc:'Show the song playing', why:'Join a voice channel first' },
+  { s:OC, name:'volume', opts:[{ n:'percent', d:'0 to 200', req:true }], desc:'Your music volume, on every server', run:{ k:'only', text:(v) => `Your music volume is ${v.percent || 100} %` } },
+  { s:DICE, name:'roll', opts:[{ n:'sides', d:'How many sides', ac:'dice' }], desc:'Roll a die', run:{ k:'now', text:() => `You rolled ${1 + Math.floor(Math.random() * 20)}` } },
+  { s:DICE, name:'coin', opts:[], desc:'Flip a coin and let it decide something important for you today', run:{ k:'now', text:() => (Math.random() < .5 ? 'Heads' : 'Tails') } },
+  { s:TIX, name:'roll', opts:[], desc:'Roll a raffle ticket', run:{ k:'now', text:() => `Ticket ${1000 + Math.floor(Math.random() * 9000)} won` } },
+  { s:TIX, name:'ticket', opts:[{ n:'topic', d:'What it is about', req:true }], desc:'Open a support ticket', run:{ k:'think', ms:2400, text:(v) => `Opened #ticket-${v.topic || 'help'}` } },
+  { s:TIX, name:'assign', opts:[{ n:'person', d:'Who takes it', req:true }, { n:'note', d:'Anything to know' }], desc:'Give this ticket to someone', run:{ k:'now', text:(v) => `Given to ${v.person}` } },
+  { s:TIX, name:'close', opts:[{ n:'reason', d:'Why' }], desc:'Close this ticket', run:{ k:'none', ms:2600 } },
+];
+const WORDS = ['Polls','Weather','Reminders','Quotes','Trivia','Starboard','Levels','Birthdays','Translate','Welcome','Giveaway','Countdown'];
+const many = [];
+for (let i = 0; i < 47; i++) {
+  const word = WORDS[i % WORDS.length];
+  const s = { id:`plugin:p${i}`, name: i < WORDS.length ? word : `${word} ${Math.floor(i / WORDS.length) + 1}` };
+  for (let c = 0; c < 12; c++) many.push({ s, name:`${word.toLowerCase()}-${c + 1}`, opts: c % 3 ? [] : [{ n:'text', d:'Some text' }], desc:`${s.name} command number ${c + 1}`, run:{ k:'now', text:() => `${s.name} did number ${c + 1}` } });
+}
+const MEMBERS = ['Maya','Noor','Sam','Priya','Theo'];
+const CHANNELS = ['general','music','support','announcements'];
+const EMOJI = [['😀','grinning'],['🎲','game_die'],['🎵','musical_note'],['🎫','ticket'],['🔥','fire'],['👀','eyes']];
+
+const cfg = { theme:null, sources:3, radius:14, row:36, cap:340, phone:60, reduced:false };
+const reduced = () => cfg.reduced || matchMedia('(prefers-reduced-motion: reduce)').matches;
+function commands() {
+  if (cfg.sources === 1) return base.filter((c) => c.s === OC);
+  return cfg.sources === 3 ? base : base.concat(many);
+}
+function groupsFor(query) {
+  const q = query.toLowerCase();
+  const groups = [];
+  for (const spec of commands()) {
+    if (!(spec.name.startsWith(q) || (spec.alias || []).some((a) => a.startsWith(q)))) continue;
+    let group = groups.find((g) => g.src === spec.s);
+    if (!group) groups.push(group = { src:spec.s, title:spec.s.name, rows:[] });
+    group.rows.push({ kind:'cmd', spec });
+  }
+  return groups;
+}
+const initials = (name) => name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+function icon(src) { return h('span', { class:'ic', 'aria-hidden':'true' }, src.icon ? svg(src.icon) : initials(src.name)); }
+
+function popModel(text) {
+  const slash = /^\/(\S*)$/.exec(text);
+  if (slash) return { kind:'cmd', query:slash[1], groups:groupsFor(slash[1]) };
+  const token = /(?:^|\s)([@#:])([\w-]*)$/.exec(text);
+  if (!token) return null;
+  const [, trigger, typed] = token;
+  const q = typed.toLowerCase();
+  const rows = trigger === '@' ? MEMBERS.filter((m) => m.toLowerCase().startsWith(q)).map((m) => ({ kind:'word', label:m, insert:`@${m} ` }))
+    : trigger === '#' ? CHANNELS.filter((c) => c.startsWith(q)).map((c) => ({ kind:'word', label:`# ${c}`, insert:`#${c} ` }))
+    : EMOJI.filter(([, n]) => n.startsWith(q)).map(([e, n]) => ({ kind:'word', label:`${e}  :${n}:`, insert:`${e} ` }));
+  if (!rows.length) return null;
+  return { kind:'word', tokenLength:typed.length + 1, groups:[{ title:{ '@':'Members', '#':'Channels', ':':'Emoji' }[trigger], rows }] };
+}
+function spring(t) {
+  const w = 2 * Math.PI / .2, z = .9, wd = w * Math.sqrt(1 - z * z);
+  return Math.min(1, 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + z * w / wd * Math.sin(wd * t)));
+}
+function popIn(el, origin) {
+  if (reduced()) return;
+  const frames = [];
+  const end = .32, step = .016;
+  for (let t = 0; t <= end + 1e-9; t += step) {
+    const x = spring(t);
+    frames.push({ offset:Math.min(1, t / end), opacity:x, transform:`translateY(${2 * (1 - x)}px) scale(${.97 + .03 * x})` });
+  }
+  frames[frames.length - 1] = { offset:1, opacity:1, transform:'none' };
+  el.style.transformOrigin = origin;
+  el.animate(frames, { duration:end * 1000, easing:'linear' });
+}
+
+// ---- The chat ----
+const dots = () => h('span', { class:'dots', 'aria-hidden':'true' }, h('i'), h('i'), h('i'));
+const clock = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+// The desktop draws rows as the app does now: a person's message with its
+// avatar and name, and a command's reply as one line. The phone has bubbles.
+function deskCommand(m, state) {
+  const owner = m.src.name;
+  const body = state.state === 'thinking' ? [h('b', null, owner), h('span', { class:'muted' }, ' is thinking…'), dots()]
+    : state.state === 'none' ? [h('span', { class:'noans' }, svg('clock'), `${owner} didn't answer`)]
+    : [state.text];
+  return h('div', { class:'cline' }, svg('chev'),
+    h('div', { class:'t' }, h('b', null, 'You'), h('span', { class:'muted' }, ' used '), h('code', null, `/${state.cmd}`), h('span', { class:'muted' }, ' · '), body));
+}
+function deskMessage(list, m) {
+  const who = m.own ? 'You' : m.name;
+  const first = list.lastElementChild?.dataset.who !== who;
+  return h('div', { class:`cm${first ? '' : ' cont'}`, 'data-who':who },
+    first ? h('div', { class:'av' }, initials(who)) : h('div', { class:'gut' }),
+    h('div', { class:'tx' }, first ? h('div', { class:'hdr' }, h('b', null, who), h('time', null, clock())) : null, h('div', null, m.text)));
+}
+function deskMsg(list, m) {
+  let node = m.cmd ? deskCommand(m, m) : deskMessage(list, m);
+  list.append(node);
+  list.scrollTop = list.scrollHeight;
+  return { update:(next) => {
+    const fresh = deskCommand(m, { ...m, ...next });
+    node.replaceWith(fresh);
+    node = fresh;
+    list.scrollTop = list.scrollHeight;
+  } };
+}
+function msg(list, m) {
+  if (list === dMsgs) return deskMsg(list, m);
+  const node = h('div', { class:`m${m.own ? ' own' : ''}` });
+  const render = (state) => {
+    const body = state.state === 'thinking'
+      ? h('span', { class:'muted' }, 'is thinking…', dots())
+      : state.state === 'none'
+      ? h('span', { class:'noans' }, svg('clock'), "didn't answer")
+      : state.text;
+    node.replaceChildren(
+      h('div', { class:'av' }, m.own ? 'Y' : m.src ? (m.src.icon ? svg(m.src.icon) : initials(m.src.name)) : initials(m.name)),
+      h('div', { class:'col' },
+        state.cmd ? h('div', { class:'via' }, h('b', null, 'You'), ' used ', h('b', null, `/${state.cmd}`)) : null,
+        h('div', { class:'b' }, m.own ? null : h('span', { class:'who' }, m.src ? m.src.name : m.name), body)),
+    );
+  };
+  render(m);
+  list.append(node);
+  list.scrollTop = list.scrollHeight;
+  return { update:(next) => { render({ ...m, ...next }); list.scrollTop = list.scrollHeight; } };
+}
+function note(list, text, err) {
+  const el = h('div', { class:`note${err ? ' err' : ''}` },
+    h('div', { class:'t' }, text),
+    h('small', null, list === dMsgs ? svg('eye') : null, 'Only you can see this · ', h('button', { onclick:() => el.remove() }, 'Dismiss')));
+  list.append(el);
+  list.scrollTop = list.scrollHeight;
+}
+function seed(list) {
+  msg(list, { name:'Maya', text:'anyone up for a game tonight?' });
+  msg(list, { src:DICE, cmd:'roll', text:'You rolled 14' });
+  msg(list, { src:TIX, cmd:'close', state:'none' });
+  note(list, 'Nothing is queued yet.');
+  msg(list, { src:{ name:'Weather' }, cmd:'weather', state:'thinking' });
+}
+function runCommand(list, spec, values) {
+  const r = spec.run;
+  const text = typeof r.text === 'function' ? r.text(values) : r.text;
+  if (r.k === 'only') return note(list, text);
+  if (r.k === 'now') return void msg(list, { src:spec.s, cmd:spec.name, text });
+  const m = msg(list, { src:spec.s, cmd:spec.name, state:'thinking' });
+  setTimeout(() => m.update(r.k === 'none' ? { state:'none' } : { state:undefined, text }), r.ms);
+}
+function typedCommand(list, name) {
+  const found = commands().filter((c) => c.name === name || (c.alias || []).includes(name));
+  if (!found.length) return false;
+  const mine = found.find((c) => c.s === OC);
+  if (!mine && found.length > 1) { note(list, `Two commands are called /${name}. Pick one from the list.`, true); return true; }
+  const spec = mine || found[0];
+  if (spec.why) { note(list, spec.why, true); return true; }
+  runCommand(list, spec, {});
+  return true;
+}
+function toast(parent, text) {
+  parent.querySelector('.toast')?.remove();
+  const el = h('div', { class:'toast', role:'status' }, text);
+  parent.append(el);
+  setTimeout(() => el.remove(), 1700);
+}
+
+// ---- Desktop ----
+const D = { model:null, sel:0, flat:[], cmd:null, values:{}, dismissed:false, active:null };
+const pop = $('dPop'), dFld = $('dFld'), dMsgs = $('dMsgs'), dArea = $('dArea'), dFloat = $('dFloat');
+$('dAttach').append(svg('clip')); $('dEmoji').append(svg('smile'));
+const dInput = h('input', { class:'txt', id:'dInput', placeholder:'Message #general', 'aria-label':'Message', autocomplete:'off' });
+dFld.append(dInput);
+
+function placePop() {
+  const room = dArea.offsetHeight - dFloat.offsetHeight - 16;
+  root.style.setProperty('--pop-max', `${Math.min(cfg.cap, room)}px`);
+  pop.style.bottom = `${dFloat.offsetHeight + 8}px`;
+}
+function setSel(index, scroll) {
+  D.sel = index;
+  D.flat.forEach((row, i) => { row.el.classList.toggle('sel', i === index); row.el.setAttribute('aria-selected', i === index); });
+  const row = D.flat[index];
+  if (!row || !scroll) return;
+  const list = pop.querySelector('.plist');
+  const header = row.el.parentElement.querySelector('.gh')?.offsetHeight || 0;
+  const top = row.el.offsetTop, bottom = top + row.el.offsetHeight;
+  if (top - header < list.scrollTop) list.scrollTop = top - header;
+  else if (bottom + 4 > list.scrollTop + list.clientHeight) list.scrollTop = bottom + 4 - list.clientHeight;
+}
+function markRail(index) {
+  const hl = pop.querySelector('.prail .hl');
+  if (hl) hl.style.transform = `translateY(${index * 44}px)`;
+  const rail = pop.querySelector('.prail');
+  if (!rail) return;
+  const y = index * 44;
+  if (y < rail.scrollTop) rail.scrollTop = y;
+  else if (y + 56 > rail.scrollTop + rail.clientHeight) rail.scrollTop = y + 56 - rail.clientHeight;
+}
+function rowNode(row, index) {
+  const attrs = { role:'option', onmousemove:() => { if (D.sel !== index) setSel(index, false); }, onmousedown:(e) => e.preventDefault(), onclick:() => dPick(row) };
+  if (row.kind === 'cmd') {
+    const { spec } = row;
+    return h('div', { class:`row${spec.why ? ' dim' : ''}`, ...attrs },
+      h('span', { class:'n' }, `/${spec.name}`),
+      spec.opts.length ? h('span', { class:'o' }, spec.opts.map((o) => o.n).join('  ')) : null,
+      h('span', { class:'d' }, spec.why || spec.desc));
+  }
+  if (row.kind === 'song') {
+    return h('div', { class:'row tall', ...attrs }, h('span', { class:'art', style:`background:linear-gradient(135deg,var(--shade3),var(--shade1))` }), h('span', { class:'d', style:'color:var(--text);font-size:14px' }, row.label));
+  }
+  return h('div', { class:'row', ...attrs }, h('span', { class:'d', style:'color:var(--text);font-size:14px' }, row.label));
+}
+function buildPop(model) {
+  placePop();
+  D.flat = [];
+  const showRail = model.kind === 'cmd' && cfg.sources > 1 && model.groups.length > 1;
+  const list = h('div', { class:'plist' });
+  const sections = model.groups.map((group) => {
+    const section = h('section', null, h('div', { class:'gh' }, group.src ? icon(group.src) : null, group.title));
+    for (const row of group.rows) { const index = D.flat.length; const el = rowNode(row, index); row.el = el; D.flat.push(row); section.append(el); }
+    list.append(section);
+    return section;
+  });
+  if (!D.flat.length) list.append(h('div', { class:'empty' }, `No commands match /${model.query}`));
+  const parts = [];
+  if (showRail) {
+    const rail = h('div', { class:'prail', 'aria-label':'Sources' }, h('div', { class:'hl' }));
+    model.groups.forEach((group, i) => rail.append(h('button', { title:group.title, 'aria-label':group.title, onmousedown:(e) => e.preventDefault(),
+      onclick:() => { list.scrollTop = sections[i].offsetTop; markRail(i); setSel(D.flat.indexOf(group.rows[0]), false); } }, icon(group.src))));
+    parts.push(rail);
+  }
+  parts.push(list);
+  pop.replaceChildren(...parts);
+  if (showRail) list.addEventListener('scroll', () => {
+    let at = 0;
+    sections.forEach((s, i) => { if (s.offsetTop <= list.scrollTop + 1) at = i; });
+    markRail(at);
+  }, { passive:true });
+  setSel(Math.min(D.sel, Math.max(0, D.flat.length - 1)), false);
+}
+function showPop(model, animate) {
+  const wasOpen = D.model !== null;
+  D.model = model;
+  if (!model) { pop.hidden = true; return; }
+  pop.hidden = false;
+  buildPop(model);
+  if (!wasOpen && animate !== false) popIn(pop, '0 100%');
+}
+function dUpdate(animate) {
+  if (D.cmd) return;
+  const text = dInput.value;
+  if (!text) D.dismissed = false;
+  let model = popModel(text);
+  if (D.dismissed) model = null;
+  if (model && D.model && model.query !== D.model.query) D.sel = 0;
+  if (model && !D.model) D.sel = 0;
+  showPop(model, animate);
+}
+function clearCommand(focus = true) {
+  D.cmd = null; D.values = {}; D.active = null;
+  showPop(null);
+  dFld.replaceChildren(dInput);
+  dInput.value = '';
+  if (focus) dInput.focus();
+}
+function choicesFor(opt, text) {
+  const q = text.trim().toLowerCase();
+  if (opt.ac === 'songs') return q.length < 2 ? [] : SONGS.filter((s) => s.toLowerCase().includes(q)).map((label) => ({ kind:'song', label, value:label }));
+  if (opt.ac === 'dice') return DICE_SIDES.filter((s) => s.includes(q)).map((label) => ({ kind:'word', label, value:label.slice(1) }));
+  return [];
+}
+function refreshChoices(opt, input) {
+  D.active = { opt, input };
+  const rows = opt.ac ? choicesFor(opt, input.value) : [];
+  D.sel = 0;
+  showPop(rows.length ? { kind:'choice', groups:[{ title:opt.n, rows }] } : null);
+}
+function dRun() {
+  const spec = D.cmd;
+  const fields = [...dFld.querySelectorAll('.opt input')];
+  const values = {};
+  fields.forEach((f, i) => { values[spec.opts[i].n] = f.dataset.value || f.value.trim(); });
+  const missing = spec.opts.findIndex((o) => o.req && !values[o.n]);
+  if (missing >= 0) { fields[missing].focus(); return; }
+  clearCommand();
+  runCommand(dMsgs, spec, values);
+}
+function openCommand(spec) {
+  D.cmd = spec; D.values = {};
+  showPop(null);
+  dInput.value = '';
+  const fields = spec.opts.map((opt) => {
+    const input = h('input', { id:`d-opt-${opt.n}`, placeholder:opt.d, autocomplete:'off',
+      oninput:() => { delete input.dataset.value; refreshChoices(opt, input); },
+      onfocus:() => refreshChoices(opt, input) });
+    return h('span', { class:'opt' }, h('label', { for:`d-opt-${opt.n}` }, `${opt.n}:`), input);
+  });
+  const chip = h('span', { class:'chip', tabindex:spec.opts.length ? -1 : 0, id:'dChip' }, spec.s === OC ? null : icon(spec.s), `/${spec.name}`);
+  dFld.replaceChildren(chip, ...fields, ...(spec.opts.length ? [] : [h('span', { class:'hintline' }, spec.desc)]));
+  (dFld.querySelector('.opt input') || chip).focus();
+}
+function dPick(row) {
+  if (row.kind === 'cmd') {
+    if (row.spec.why) return toast(dArea, row.spec.why);
+    return openCommand(row.spec);
+  }
+  if (row.kind === 'word' && D.model?.kind === 'word') {
+    dInput.value = dInput.value.slice(0, dInput.value.length - D.model.tokenLength) + row.insert;
+    dInput.focus();
+    return dUpdate();
+  }
+  if (D.active) { D.active.input.value = row.label; D.active.input.dataset.value = row.value; showPop(null); }
+}
+// What Backspace does while writing a command, as in the app: on the chip or
+// at the start of the first field it takes the command away, at the start of
+// a later field it goes to the end of the one before, and anywhere else it's
+// the field's own. Null means the field's own.
+function dBackspace() {
+  const el = document.activeElement;
+  if (el.id === 'dChip') return clearCommand;
+  const fields = [...dFld.querySelectorAll('.opt input')];
+  const at = fields.indexOf(el);
+  if (at < 0 || el.selectionStart !== 0 || el.selectionEnd !== 0) return null;
+  if (at === 0) return clearCommand;
+  return () => { const before = fields[at - 1]; before.focus(); before.setSelectionRange(before.value.length, before.value.length); };
+}
+function moveSel(e) {
+  const count = D.flat.length;
+  if (!count) return;
+  const dir = e.key === 'ArrowDown' ? 1 : -1;
+  if ((e.ctrlKey || e.metaKey) && D.model.kind === 'cmd') {
+    const groups = D.model.groups;
+    const at = groups.findIndex((g) => g.rows.includes(D.flat[D.sel]));
+    const next = groups[(at + dir + groups.length) % groups.length];
+    setSel(D.flat.indexOf(next.rows[0]), true);
+    pop.querySelector('.plist').scrollTop = next.rows[0].el.parentElement.offsetTop;
+    return;
+  }
+  setSel((D.sel + dir + count) % count, true);
+}
+dFld.addEventListener('keydown', (e) => {
+  const open = D.model !== null;
+  if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); return moveSel(e); }
+  if (open && D.flat.length && (e.key === 'Enter' || (e.key === 'Tab' && !D.cmd) || (e.key === 'Tab' && D.model.kind === 'choice'))) { e.preventDefault(); return dPick(D.flat[D.sel]); }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (open) { D.dismissed = !D.cmd; return showPop(null); }
+    if (D.cmd) clearCommand();
+    return;
+  }
+  if (D.cmd) {
+    if (e.key === 'Enter') { e.preventDefault(); return dRun(); }
+    if (e.key === 'Backspace') {
+      const action = dBackspace();
+      if (action) { e.preventDefault(); action(); }
+    }
+    return;
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const text = dInput.value.trim();
+    if (!text) return;
+    dInput.value = ''; D.dismissed = false; showPop(null);
+    const named = /^\/(\S+)$/.exec(text);
+    if (!named || !typedCommand(dMsgs, named[1].toLowerCase())) msg(dMsgs, { own:true, name:'You', text });
+  }
+});
+// Clicking the composer gives the focus back to the command, so Backspace
+// still reaches it after a click somewhere else.
+dFld.addEventListener('focusin', (e) => { D.last = e.target; });
+dFloat.addEventListener('mousedown', (e) => {
+  if (!D.cmd || e.target.closest('input, button, .chip')) return;
+  e.preventDefault();
+  (D.last?.isConnected ? D.last : dFld.querySelector('.opt input') || $('dChip')).focus();
+});
+dInput.addEventListener('input', () => dUpdate());
+dInput.addEventListener('blur', () => { setTimeout(() => { if (!dFld.contains(document.activeElement) && document.activeElement?.closest('#controls') == null && !D.cmd) showPop(null); }, 120); });
+dInput.addEventListener('focus', () => dUpdate());
+
+// ---- Phone ----
+const P = { open:false, cmd:null, values:{}, editing:null, choices:null };
+const ph = $('ph'), pDock = $('pDock'), pList = $('pList'), pMenu = $('pMenu'), pMsgs = $('pMsgs'), pKbd = $('pKbd');
+const pInput = h('input', { id:'pInput', placeholder:'Message #general', 'aria-label':'Message', autocomplete:'off',
+  oninput:() => pChange(), onfocus:() => { pKbd.hidden = false; pPlace(); },
+  onkeydown:(e) => {
+    if (e.key === 'Enter') { e.preventDefault(); pSend(); }
+    if (e.key === 'Backspace' && P.cmd && pInput.value === '') { e.preventDefault(); pBackspace(); }
+  } });
+const pAttach = h('button', { class:'round', 'aria-label':'Attach', onclick:() => pToggleMenu() }, svg('clip'));
+const pChip = h('span', { class:'chip', hidden:true, onclick:() => { pKbd.hidden = false; pInput.focus(); pPlace(); } });
+const pill = h('div', { class:'pill' }, pChip, pInput);
+const pAction = h('button', { class:'round', 'aria-label':'Send', onclick:() => pSend() });
+const pCard = h('div', { class:'pcard', hidden:true });
+pDock.append(pCard, h('div', { class:'drow' }, pAttach, pill, pAction));
+for (const line of ['qwertyuiop', 'asdfghjkl', 'zxcvbnm']) pKbd.append(h('div', { class:'keys' }, [...line].map((c) => h('span', null, c))));
+pKbd.querySelector('.keys:last-child').append(h('button', { class:'bs', 'aria-label':'Backspace', onmousedown:(e) => e.preventDefault(), onclick:() => pBackspaceKey() }, svg('bksp')));
+pKbd.append(h('div', { class:'kbdnote' }, 'The phone\'s keyboard. Type with your own; its Backspace works here.'));
+pMsgs.addEventListener('click', () => { pKbd.hidden = true; pHideList(); pPlace(); });
+
+function pPlace() {
+  const dockTop = pDock.offsetHeight + (pKbd.hidden ? 0 : pKbd.offsetHeight);
+  const room = ph.clientHeight - 88 - dockTop;
+  pList.style.bottom = `${dockTop + 2}px`;
+  pList.style.maxHeight = `${Math.round(room * cfg.phone / 100)}px`;
+  pMenu.style.bottom = `${dockTop + 2}px`;
+}
+function pSyncAction() {
+  const has = P.cmd || pInput.value.trim();
+  pAction.className = `round${has ? ' send' : ''}`;
+  pAction.replaceChildren(svg(has ? 'send' : 'mic'));
+}
+function pRenderList(groups, opts) {
+  const scroll = h('div', { class:'pscroll' });
+  const sections = groups.map((group) => {
+    const section = h('section', null, h('div', { class:'pgh' }, group.title));
+    for (const row of group.rows) section.append(row.node());
+    scroll.append(section);
+    return section;
+  });
+  if (!groups.some((g) => g.rows.length)) scroll.append(h('div', { class:'empty' }, opts.empty));
+  const parts = [];
+  if (opts.sources && groups.length > 1) {
+    const hl = h('div', { class:'hl' });
+    const srow = h('div', { class:'srow' }, hl, groups.map((group, i) => h('button', { 'aria-label':group.title, onclick:() => { scroll.scrollTop = sections[i].offsetTop; mark(i); } }, icon(group.src))));
+    const mark = (i) => {
+      hl.style.transform = `translateX(${i * 44}px)`;
+      const x = i * 44;
+      if (x < srow.scrollLeft) srow.scrollLeft = x;
+      else if (x + 56 > srow.scrollLeft + srow.clientWidth) srow.scrollLeft = x + 56 - srow.clientWidth;
+    };
+    scroll.addEventListener('scroll', () => { let at = 0; sections.forEach((s, i) => { if (s.offsetTop <= scroll.scrollTop + 1) at = i; }); mark(at); }, { passive:true });
+    parts.push(srow);
+  }
+  parts.push(scroll);
+  pList.replaceChildren(...parts);
+}
+function pShowList(wasOpen, animate) {
+  pPlace();
+  pList.hidden = false;
+  if (!wasOpen && animate !== false && !reduced()) pList.animate([{ opacity:0, transform:'translateY(8px)' }, { opacity:1, transform:'none' }], { duration:180, easing:'cubic-bezier(.2,.8,.2,1)' });
+  P.open = true;
+}
+function pHideList() {
+  if (!P.open) return;
+  P.open = false;
+  if (reduced()) { pList.hidden = true; return; }
+  pList.animate([{ opacity:1, transform:'none' }, { opacity:0, transform:'translateY(6px)' }], { duration:120, easing:'ease-in' }).finished.then(() => { if (!P.open) pList.hidden = true; });
+}
+function pChange(animate) {
+  pSyncAction();
+  if (P.cmd) {
+    if (P.editing) pOptionChanged();
+    return;
+  }
+  const slash = /^\/(\S*)$/.exec(pInput.value);
+  if (!slash) return pHideList();
+  const wasOpen = P.open;
+  const groups = groupsFor(slash[1]).map((g) => ({ ...g, rows:g.rows.map(({ spec }) => ({ node:() => h('button', { class:`prow${spec.why ? ' dim' : ''}`, onclick:() => pPick(spec) },
+    icon(spec.s), h('span', { class:'tx' }, h('span', { class:'n' }, `/${spec.name}`), h('span', { class:'d' }, spec.why || spec.desc))) })) }));
+  pRenderList(groups, { sources:cfg.sources > 1, empty:`No commands match /${slash[1]}` });
+  pShowList(wasOpen, animate);
+}
+function pRenderCard() {
+  const spec = P.cmd;
+  pCard.hidden = !spec || !spec.opts.length;
+  if (pCard.hidden) { pPlace(); return; }
+  pCard.replaceChildren(...spec.opts.map((opt) => h('button', { class:`ochip${P.editing === opt ? ' on' : ''}`, onclick:() => pEdit(opt) },
+    opt.req && !P.values[opt.n] ? h('i', { 'aria-label':'Required' }) : null, `${opt.n}`, P.values[opt.n] ? h('b', null, `: ${P.values[opt.n].label}`) : null)));
+  pPlace();
+}
+function pEdit(opt) {
+  P.editing = opt;
+  pInput.value = P.values[opt.n]?.label || '';
+  pInput.placeholder = opt.d;
+  pInput.focus();
+  pRenderCard();
+  pOptionChanged();
+}
+function pOptionChanged() {
+  const opt = P.editing;
+  const text = pInput.value;
+  if (text) P.values[opt.n] = { label:text, value:text }; else delete P.values[opt.n];
+  pRenderCard();
+  const rows = opt.ac ? choicesFor(opt, text) : [];
+  if (!rows.length) return pHideList();
+  const wasOpen = P.open;
+  pRenderList([{ title:opt.n, rows:rows.map((row) => ({ node:() => h('button', { class:'prow', onclick:() => pChoose(row) }, h('span', { class:'tx' }, h('span', { class:'n', style:'font-weight:500' }, row.label))) })) }], { sources:false, empty:'' });
+  pShowList(wasOpen);
+}
+function pChoose(row) {
+  P.values[P.editing.n] = { label:row.label, value:row.value };
+  pInput.value = row.label;
+  pHideList();
+  pRenderCard();
+}
+function pPick(spec) {
+  if (spec.why) return toast(ph, spec.why);
+  P.cmd = spec; P.values = {}; P.editing = null;
+  pHideList();
+  pChip.hidden = false;
+  pChip.replaceChildren(...(spec.s === OC ? [] : [icon(spec.s)]), `/${spec.name}`);
+  pInput.value = '';
+  pInput.placeholder = spec.opts.length ? '' : spec.desc;
+  pRenderCard();
+  pSyncAction();
+  if (spec.opts.length) pEdit(spec.opts[0]); else pInput.focus();
+}
+function pClear() {
+  P.cmd = null; P.values = {}; P.editing = null;
+  pChip.hidden = true;
+  pInput.value = '';
+  pInput.placeholder = 'Message #general';
+  pHideList();
+  pRenderCard();
+  pSyncAction();
+}
+// Backspace on an empty field: steps back to the option before, and from the
+// first one (or a command without options) takes the command away.
+function pBackspace() {
+  const options = P.cmd.opts;
+  const at = P.editing ? options.indexOf(P.editing) : -1;
+  if (at > 0) return pEdit(options[at - 1]);
+  pClear();
+  pInput.focus();
+}
+function pBackspaceKey() {
+  pInput.focus();
+  if (pInput.value) { pInput.value = pInput.value.slice(0, -1); pChange(); return; }
+  if (P.cmd) pBackspace();
+}
+function pSend() {
+  if (P.cmd) {
+    const spec = P.cmd;
+    const lacking = spec.opts.find((o) => o.req && !P.values[o.n]);
+    if (lacking) return pEdit(lacking);
+    const values = Object.fromEntries(Object.entries(P.values).map(([k, v]) => [k, v.value]));
+    pClear();
+    return runCommand(pMsgs, spec, values);
+  }
+  const text = pInput.value.trim();
+  if (!text) return;
+  pInput.value = '';
+  pChange();
+  const named = /^\/(\S+)$/.exec(text);
+  if (!named || !typedCommand(pMsgs, named[1].toLowerCase())) msg(pMsgs, { own:true, name:'You', text });
+}
+function pToggleMenu() {
+  if (!pMenu.hidden) { pMenu.hidden = true; return; }
+  pPlace();
+  pMenu.hidden = false;
+  if (!reduced()) popIn(pMenu, '0 100%');
+}
+pMenu.append(
+  h('button', { onclick:() => { pMenu.hidden = true; toast(ph, 'The photo picker opens here'); } }, svg('photo'), 'Photo library'),
+  h('button', { onclick:() => { pMenu.hidden = true; toast(ph, 'The file picker opens here'); } }, svg('file'), 'Files'),
+  h('button', { onclick:() => { pMenu.hidden = true; pClear(); pInput.value = '/'; pKbd.hidden = false; pInput.focus(); pChange(); } }, svg('slash'), 'Commands'),
+);
+
+// ---- Controls ----
+const effectiveDark = () => (root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+function applyCfg() {
+  root.style.setProperty('--r', `${cfg.radius}px`);
+  root.style.setProperty('--row', `${cfg.row}px`);
+  $('app').classList.toggle('reduced', reduced());
+  placePop();
+}
+function refresh() {
+  applyCfg();
+  if (!D.cmd && D.model && D.model.kind === 'cmd') { D.model = popModel(dInput.value); buildPop(D.model); }
+  if (P.open && !P.cmd) pChange(false);
+}
+const CONTROLS = [
+  { key:'theme', label:'Theme', opts:[['dark','Dark'], ['light','Light']], set:(v) => { root.dataset.theme = v; } },
+  { key:'sources', label:'Sources', opts:[[1,'1'], [3,'3'], [50,'50']] },
+  { key:'radius', label:'Popup radius', opts:[[10,'10'], [14,'14'], [16,'16']] },
+  { key:'row', label:'Row height', opts:[[32,'32'], [36,'36'], [40,'40']] },
+  { key:'cap', label:'Height cap', opts:[[280,'280'], [340,'340'], [420,'420']] },
+  { key:'phone', label:'Phone list', opts:[[40,'40 %'], [60,'60 %'], [75,'75 %']] },
+  { key:'reduced', label:'Reduced motion', opts:[[false,'Off'], [true,'On']] },
+];
+cfg.theme = effectiveDark() ? 'dark' : 'light';
+for (const control of CONTROLS) {
+  const buttons = control.opts.map(([value, text]) => {
+    const button = h('button', { 'aria-pressed':String(cfg[control.key] === value), onmousedown:(e) => e.preventDefault(),
+      onclick:() => {
+        cfg[control.key] = value;
+        buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(control.opts[i][0] === value)));
+        control.set?.(value);
+        refresh();
+      } }, text);
+    return button;
+  });
+  $('controls').append(h('div', { class:'ctl', role:'group', 'aria-label':control.label }, h('span', null, control.label), h('div', { class:'seg' }, buttons)));
+}
+
+// ---- A working first frame ----
+seed(dMsgs); seed(pMsgs);
+applyCfg();
+dInput.value = '/';
+dUpdate(false);
+pInput.value = '/';
+pSyncAction();
+pPlace();
+pChange(false);
+addEventListener('resize', () => { placePop(); pPlace(); });
+})();
+</script>

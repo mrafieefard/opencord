@@ -138,6 +138,7 @@ async fn create_server(
             hoist: false,
             mentionable: false,
             max_upload_bytes: Some(opencord_common::upload::EVERYONE_DEFAULT_BYTES as i64),
+            plugin_id: None,
         },
     )
     .await?;

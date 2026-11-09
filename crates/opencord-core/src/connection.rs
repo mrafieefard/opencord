@@ -274,6 +274,7 @@ pub(crate) async fn identify(
         protocol_version: opencord_common::PROTOCOL_VERSION,
         host,
         host_signature,
+        features: vec!["plugin_users".to_owned()],
     };
     let socket = &mut opened.socket;
     send_payload(socket, 0, Payload::Identify(identify)).await?;

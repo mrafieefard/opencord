@@ -315,6 +315,11 @@ class _Participant extends ConsumerWidget {
         serverKey,
       ).select((s) => s.data?.members[participant.userId]),
     );
+    final author = ref.watch(
+      serverProvider(
+        serverKey,
+      ).select((s) => s.data?.authorOf(participant.userId)),
+    );
     final speaking = ref.watch(
       speakingProvider(serverKey).select((s) => s.contains(participant.userId)),
     );
@@ -325,7 +330,7 @@ class _Participant extends ConsumerWidget {
         user: participant.userId,
       )).select((audio) => audio.muted),
     );
-    final name = member?.displayName ?? 'Someone';
+    final name = author?.name ?? 'Someone';
     final state = [
       if (mutedHere) 'muted by you',
       if (participant.muted) 'muted',

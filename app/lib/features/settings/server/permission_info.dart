@@ -59,6 +59,12 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
         perChannel: false,
       ),
       PermissionInfo(
+        Permissions.managePlugins,
+        'Manage plugins',
+        'Install, configure and remove plugins, and create dev tokens.',
+        perChannel: false,
+      ),
+      PermissionInfo(
         Permissions.changeNickname,
         'Change nickname',
         'Pick their own name on this server',

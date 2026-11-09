@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:opencord/core/model/author.dart';
 import 'package:opencord/features/members/member_avatar.dart';
 import 'package:opencord/core/format.dart';
 import 'package:opencord/core/model/channel.dart';
@@ -32,19 +33,12 @@ class ChatLookups {
 
   Message? message(int id) => _byId[id];
 
-  String name(int userId) =>
-      data.members[userId]?.displayName ??
-      (userId == data.self.id ? data.self.displayName : 'Unknown user');
+  Author authorOf(int userId) => data.authorOf(userId);
+
+  String name(int userId) => authorOf(userId).name;
 
   /// The author's highest role, never @everyone.
-  String? role(int userId) {
-    final member = data.members[userId];
-    if (member == null) return null;
-    final role = data.highestRole(member);
-    return role == null || role.id == data.info.everyoneRoleId
-        ? null
-        : role.name;
-  }
+  String? role(int userId) => authorOf(userId).role;
 
   String? channelName(int id) => data.channels[id]?.name;
 
@@ -62,7 +56,7 @@ class ChatLookups {
       author: name(original.authorId),
       text: previewText(
         messageSummary(original),
-        user: (id) => data.members[id]?.displayName,
+        user: (id) => data.authorOf(id).name,
         channel: channelName,
       ),
     );
@@ -160,7 +154,8 @@ class ChatRowView extends StatelessWidget {
       ),
       CommandRow(:final message) => CommandResultLine(
         message: message,
-        author: lookups.name(message.authorId),
+        author: lookups.name(message.commandUserId ?? message.authorId),
+        plugin: lookups.name(message.authorId),
         links: actions.links,
       ),
       EphemeralRow(:final note) => EphemeralLine(
@@ -174,7 +169,7 @@ class ChatRowView extends StatelessWidget {
 
   Widget _message(MessageRow row) {
     final message = row.message;
-    final author = lookups.name(message.authorId);
+    final author = lookups.authorOf(message.authorId);
     final onReaction = reactions
         ? (String emoji) => actions.onReaction(message, emoji)
         : null;
@@ -182,13 +177,13 @@ class ChatRowView extends StatelessWidget {
         ? null
         : () => actions.onJumpTo(message.replyToId!);
     Widget avatar() => Hoverable(
-      onTap: () => actions.onProfile(message.authorId),
-      semanticLabel: '$author, profile',
+      onTap: author.isPlugin ? null : () => actions.onProfile(message.authorId),
+      semanticLabel: '${author.name}, profile',
       focusRadius: BorderRadius.circular(OcSize.messageAvatar / 2),
       builder: (context, state) => MemberAvatar(
         serverKey: actions.message.channel.server,
         userId: message.authorId,
-        name: author,
+        name: author.name,
       ),
     );
     return MessageItem(
@@ -200,9 +195,10 @@ class ChatRowView extends StatelessWidget {
         message: message,
         serverKey: actions.message.channel.server,
         first: row.first,
-        author: author,
+        author: author.name,
+        isPlugin: author.isPlugin,
         avatar: row.first ? avatar() : null,
-        role: row.first ? lookups.role(message.authorId) : null,
+        role: row.first ? author.role : null,
         reply: lookups.reply(message),
         mentionsMe: row.mentionsMe,
         highlighted: highlighted,
@@ -215,7 +211,9 @@ class ChatRowView extends StatelessWidget {
             ? () => actions.onCancelSend?.call(message)
             : null,
         onSelectionChanged: onSelectionChanged,
-        onAuthorTap: () => actions.onProfile(message.authorId),
+        onAuthorTap: author.isPlugin
+            ? null
+            : () => actions.onProfile(message.authorId),
       ),
     );
   }

@@ -87,6 +87,7 @@ pub struct Role {
     /// The largest file its members may upload; `None` leaves it to their
     /// other roles.
     pub max_upload_bytes: Option<u64>,
+    pub plugin_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -167,8 +168,11 @@ pub struct Message {
     pub edited_at_ms: Option<i64>,
     /// Set on messages this client sent, to match pending ones.
     pub nonce: Option<String>,
-    /// A command's public result: the command run, by the author.
+    /// A command's public result: the command run.
     pub command: Option<String>,
+    /// Who ran it; the author unless a plugin answered.
+    pub command_user_id: Option<i64>,
+    pub command_state: CommandRunState,
     /// In the order they were attached.
     pub attachments: Vec<Attachment>,
 }
@@ -367,6 +371,7 @@ pub struct ReadySnapshot {
     pub upload_settings: UploadSettings,
     pub private_messages: bool,
     pub private_settings: PrivateSettings,
+    pub plugin_users: Vec<PluginUser>,
 }
 
 /// What the owner chose for private messages on a server.
@@ -656,6 +661,19 @@ pub enum CoreEventPayload {
         done: bool,
         error: Option<String>,
     },
+    PluginUpdate(Plugin),
+    PluginRemove {
+        plugin_id: String,
+    },
+    PluginReviewUpdate(PluginReview),
+    PluginReviewRemove {
+        review_id: String,
+    },
+    PluginLogAppend {
+        plugin_id: String,
+        lines: Vec<PluginLogLine>,
+    },
+    PluginUsersUpdate(Vec<PluginUser>),
 }
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1).
@@ -1958,13 +1976,26 @@ pub struct CommandOutcome {
     pub ephemeral: bool,
 }
 
+/// Where a command's reply stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CommandRunState {
+    #[default]
+    Answered,
+    /// The plugin asked for more time; the reply will replace this.
+    Thinking,
+    /// It never came.
+    NoAnswer,
+}
+
 /// A reply only this device sees; never stored.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EphemeralMessage {
     pub channel_id: i64,
-    /// The nonce `command_execute` was given.
+    /// The nonce `command_execute` was given. A later one with the same
+    /// nonce replaces this.
     pub nonce: String,
     pub content: String,
+    pub state: CommandRunState,
 }
 
 /// Changes to a command on the Commands page; `None` stays.
@@ -1972,6 +2003,8 @@ pub struct EphemeralMessage {
 pub struct CommandSettingsChanges {
     /// Empty to change only `results_public`.
     pub name: String,
+    /// Empty for Opencord's commands, `plugin:<id>` for a plugin's.
+    pub source: String,
     pub enabled: Option<bool>,
     /// An empty list for every channel.
     pub channel_ids: Option<Vec<i64>>,
@@ -2310,4 +2343,143 @@ pub enum PrivateEvent {
         peer: String,
         spam: bool,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginState {
+    Starting,
+    Running,
+    Stopped,
+    Crashed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginSignature {
+    Unsigned,
+    Signed,
+    Dev,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GithubCheck {
+    Unspecified,
+    Verified,
+    Mismatch,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginConfigKind {
+    Text,
+    Secret,
+    Number,
+    Boolean,
+    Choice,
+    Role,
+    Channel,
+    User,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginConfigField {
+    pub key: String,
+    pub label: String,
+    pub kind: PluginConfigKind,
+    pub choices: Vec<String>,
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginConfigValue {
+    pub key: String,
+    pub value: String,
+    pub has_value: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginPermissionGrant {
+    pub name: String,
+    pub granted: bool,
+    pub grantable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginUser {
+    pub user_id: i64,
+    pub plugin_id: String,
+    pub name: String,
+    pub avatar_hash: String,
+    pub installed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Plugin {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub author: String,
+    pub description: String,
+    pub github: String,
+    pub license: String,
+    pub signature: PluginSignature,
+    pub key_fingerprint: String,
+    pub github_check: GithubCheck,
+    pub state: PluginState,
+    pub status_reason: String,
+    pub permissions: Vec<PluginPermissionGrant>,
+    pub domains: Vec<String>,
+    pub config_fields: Vec<PluginConfigField>,
+    pub config: Vec<PluginConfigValue>,
+    pub user_id: i64,
+    pub role_id: i64,
+    pub installed_at_ms: i64,
+    pub updated_at_ms: i64,
+    pub cpu_permille: u32,
+    pub memory_bytes: u64,
+    pub database_bytes: u64,
+    pub files_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginReview {
+    pub review_id: String,
+    pub plugin: Plugin,
+    pub installed: Option<Plugin>,
+    pub new_permissions: Vec<String>,
+    pub license_needs_acceptance: bool,
+    pub expires_at_ms: i64,
+    pub dev: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginLogLevel {
+    Info,
+    Warn,
+    Error,
+    Action,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginLogLine {
+    pub seq: u64,
+    pub at_ms: i64,
+    pub level: PluginLogLevel,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginDevToken {
+    pub id: i64,
+    pub plugin_id: String,
+    pub created_by: i64,
+    pub created_at_ms: i64,
+    pub expires_at_ms: i64,
+    pub last_used_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatedPluginDevToken {
+    pub token: PluginDevToken,
+    pub secret: String,
+    pub server_fingerprint: String,
 }

@@ -4,6 +4,9 @@
 import type {
   AddServerResult,
   AttachmentVariant,
+  CommandChoiceRecord,
+  CommandOptionValueRecord,
+  CommandOutcomeRecord,
   DefaultSoundRecord,
   ExternalSoundRecord,
   IdentityInfo,
@@ -62,6 +65,23 @@ export interface CoreApi {
   messageDelete(serverKey: string, messageId: string): Promise<void>;
   typingStart(serverKey: string, channelId: string): Promise<void>;
   attachmentFile(serverKey: string, attachmentId: string, variant: AttachmentVariant): Promise<string>;
+
+  commandExecute(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    options: CommandOptionValueRecord[],
+    nonce: string,
+  ): Promise<CommandOutcomeRecord>;
+  commandAutocomplete(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    option: string,
+    value: string,
+  ): Promise<CommandChoiceRecord[]>;
 
   voiceJoin(serverKey: string, channelId: string): Promise<VoiceStateRecord>;
   voiceLeave(): Promise<void>;

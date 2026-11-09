@@ -5,10 +5,14 @@
 import {
   AttachmentKind,
   ChannelKind,
+  CommandOptionKindRecord,
   MusicPlayState,
   MusicRepeat,
   type ChannelAccess,
   type ChannelRecord,
+  type CommandListRecord,
+  type CommandOptionRecord,
+  type CommandRecord,
   type DefaultSoundRecord,
   type MemberRecord,
   type MessageRecord,
@@ -169,6 +173,66 @@ export function snapshot(serverKey: string): ServerSnapshot {
     soundboard: { enabled: true, allowDefaultSounds: true, allowExternalSounds: true, cooldownMs: 3_000 },
     soundboardSounds: soundboardSounds(serverKey),
     voiceMessageMaxSeconds: 300,
+    pluginUsers:
+      serverKey === NIGHT_OWLS
+        ? [
+            {
+              userId: '9002',
+              pluginId: 'ticket-bot',
+              name: 'Ticket Bot',
+              avatarHash: undefined,
+            },
+          ]
+        : [],
+    commands: serverKey === NIGHT_OWLS ? nightOwlsCommands() : { commands: [], resultsPublic: true },
+  };
+}
+
+function command(name: string, description: string, feature: string, more: Partial<CommandRecord> = {}): CommandRecord {
+  return {
+    name,
+    description,
+    options: [],
+    feature,
+    source: feature.startsWith('plugin:') ? feature : '',
+    permissionSummary: '',
+    aliases: [],
+    needs: [],
+    enabled: true,
+    channelIds: [],
+    ...more,
+  };
+}
+
+function textOption(name: string, description: string, more: Partial<CommandOptionRecord> = {}): CommandOptionRecord {
+  return {
+    name,
+    description,
+    kind: CommandOptionKindRecord.Text,
+    required: false,
+    autocomplete: false,
+    choices: [],
+    min: 0,
+    max: 0,
+    ...more,
+  };
+}
+
+function nightOwlsCommands(): CommandListRecord {
+  return {
+    resultsPublic: true,
+    commands: [
+      command('play', 'Play a song or playlist', 'music', {
+        options: [textOption('query', 'A song, or a link', { required: true, autocomplete: true })],
+        needs: ['musicAdd'],
+        permissionSummary: 'Add music',
+      }),
+      command('skip', 'Skip this song', 'music', { needs: ['musicControl'], permissionSummary: 'Control playback' }),
+      command('roll', 'Roll a raffle ticket', 'plugin:ticket-bot'),
+      command('ticket', 'Open a support ticket', 'plugin:ticket-bot', {
+        options: [textOption('topic', 'What it is about', { required: true }), textOption('note', 'Anything to know')],
+      }),
+    ],
   };
 }
 
@@ -192,6 +256,7 @@ const lines: [string, string][] = [
   ['1006', 'the release notes are at https://example.com/notes'],
   ['1001', 'I put a few songs in the queue in <#20>'],
   ['1007', '_quietly_ joins'],
+  ['9002', 'Welcome! Ticket bot is active in this channel.'],
   ['1003', 'did the ~~old~~ new mic arrive?'],
 ];
 

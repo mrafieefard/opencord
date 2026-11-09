@@ -49,6 +49,7 @@ webpki-roots.workspace = true
 wsola.workspace = true
 
 [dev-dependencies]
+opencord-plugins.workspace = true
 opencord-server.workspace = true
 tempfile.workspace = true
 

@@ -21,6 +21,16 @@ pub const BATCH_MAX: u32 = 1024;
 
 #[derive(Debug, Clone, PartialEq, uniffi::Enum)]
 pub enum MobileEvent {
+    /// The commands this user can use changed.
+    CommandsUpdated {
+        server_key: String,
+        commands: CommandListRecord,
+    },
+    /// A reply only this device sees.
+    EphemeralReceived {
+        server_key: String,
+        note: EphemeralNoteRecord,
+    },
     Connection {
         server_key: String,
         state: ConnectionRecord,
@@ -183,6 +193,10 @@ pub enum MobileEvent {
         key: String,
         title: String,
         body: String,
+    },
+    PluginUsersUpdated {
+        server_key: String,
+        plugin_users: Vec<PluginUserRecord>,
     },
 }
 
@@ -455,6 +469,18 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             server_key,
             max_seconds: settings.voice_message_max_seconds,
         },
+        CoreEventPayload::CommandsUpdate(list) => MobileEvent::CommandsUpdated {
+            server_key,
+            commands: convert::command_list(list),
+        },
+        CoreEventPayload::EphemeralMessage(message) => MobileEvent::EphemeralReceived {
+            server_key,
+            note: convert::ephemeral_note(message),
+        },
+        CoreEventPayload::PluginUsersUpdate(users) => MobileEvent::PluginUsersUpdated {
+            server_key,
+            plugin_users: users.into_iter().map(convert::plugin_user).collect(),
+        },
         CoreEventPayload::RoleCreate(_)
         | CoreEventPayload::RoleUpdate(_)
         | CoreEventPayload::RoleDelete { .. }
@@ -469,13 +495,16 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::LavalinkNodeRemoved { .. }
         | CoreEventPayload::LavalinkNodeEvent(_)
         | CoreEventPayload::LavalinkTestProgress(_)
-        | CoreEventPayload::CommandsUpdate(_)
-        | CoreEventPayload::EphemeralMessage(_)
         | CoreEventPayload::PrivateSettingsUpdate(_)
         | CoreEventPayload::StorageUpdate(_)
         | CoreEventPayload::VoiceRejoinFailed { .. }
         | CoreEventPayload::StagedUploadProgress { .. }
-        | CoreEventPayload::DownloadProgress { .. } => return None,
+        | CoreEventPayload::DownloadProgress { .. }
+        | CoreEventPayload::PluginUpdate(_)
+        | CoreEventPayload::PluginRemove { .. }
+        | CoreEventPayload::PluginReviewUpdate(_)
+        | CoreEventPayload::PluginReviewRemove { .. }
+        | CoreEventPayload::PluginLogAppend { .. } => return None,
     })
 }
 
@@ -586,6 +615,8 @@ mod tests {
                 edited_at_ms: None,
                 nonce: None,
                 command: None,
+                command_user_id: None,
+                command_state: core::CommandRunState::Answered,
                 attachments: Vec::new(),
             }),
         }
@@ -629,6 +660,7 @@ mod tests {
                     hoist: false,
                     mentionable: false,
                     max_upload_bytes: None,
+                    plugin_id: None,
                 }),
             })
             .unwrap();

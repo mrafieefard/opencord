@@ -734,6 +734,7 @@ class RustRepository implements OpencordRepository {
             nonce: field0.nonce,
             content: field0.content,
             at: DateTime.now(),
+            state: commandRunStateFrom(field0.state),
           ),
         ),
       core.CoreEventPayload_MusicNotice(:final field0) => MusicNoticeReceived(
@@ -828,6 +829,24 @@ class RustRepository implements OpencordRepository {
           done: done,
           error: error,
         ),
+      core.CoreEventPayload_PluginUpdate(:final field0) => PluginUpdated(
+        server,
+        pluginFrom(field0),
+      ),
+      core.CoreEventPayload_PluginRemove(:final pluginId) => PluginRemoved(
+        server,
+        pluginId,
+      ),
+      core.CoreEventPayload_PluginReviewUpdate(:final field0) =>
+        PluginReviewUpdated(server, pluginReviewFrom(field0)),
+      core.CoreEventPayload_PluginReviewRemove(:final reviewId) =>
+        PluginReviewRemoved(server, reviewId),
+      core.CoreEventPayload_PluginLogAppend(:final pluginId, :final lines) =>
+        PluginLogAppended(server, pluginId, [
+          for (final l in lines) pluginLogLineFrom(l),
+        ]),
+      core.CoreEventPayload_PluginUsersUpdate(:final field0) =>
+        PluginUsersUpdated(server, [for (final u in field0) pluginUserFrom(u)]),
     };
     if (event != null) _emit(event);
   }
@@ -1540,9 +1559,10 @@ class RustRepository implements OpencordRepository {
     String name,
     Map<String, String> options, {
     required String nonce,
+    String source = '',
   }) async {
     final outcome = await _call(
-      () => _core.commandExecute(serverKey, channelId, name, [
+      () => _core.commandExecute(serverKey, channelId, name, source, [
         for (final MapEntry(:key, :value) in options.entries)
           core.CommandOptionValue(name: key, value: value),
       ], nonce),
@@ -1556,11 +1576,18 @@ class RustRepository implements OpencordRepository {
     int channelId,
     String name,
     String option,
-    String value,
-  ) async => [
+    String value, {
+    String source = '',
+  }) async => [
     for (final choice in await _call(
-      () =>
-          _core.commandAutocomplete(serverKey, channelId, name, option, value),
+      () => _core.commandAutocomplete(
+        serverKey,
+        channelId,
+        name,
+        source,
+        option,
+        value,
+      ),
     ))
       commandChoiceFrom(choice),
   ];
@@ -1573,6 +1600,7 @@ class RustRepository implements OpencordRepository {
   Future<CommandList> updateCommandSettings(
     String serverKey, {
     String name = '',
+    String source = '',
     bool? enabled,
     List<int>? channelIds,
     bool? resultsPublic,
@@ -1582,6 +1610,7 @@ class RustRepository implements OpencordRepository {
         serverKey,
         core.CommandSettingsChanges(
           name: name,
+          source: source,
           enabled: enabled,
           channelIds: channelIds == null
               ? null
@@ -2948,4 +2977,134 @@ class RustRepository implements OpencordRepository {
   @override
   Future<void> rejectOwnDevice(String deviceId) =>
       _call(() => _core.privateRejectDevice(deviceId));
+
+  @override
+  Future<PluginReview> uploadPluginPackage(String serverKey, Uint8List bytes) =>
+      _call(() async {
+        final r = await _core.uploadPluginPackage(serverKey, bytes);
+        return pluginReviewFrom(r);
+      });
+
+  @override
+  Future<List<Plugin>> fetchPlugins(String serverKey) => _call(() async {
+    final list = await _core.fetchPlugins(serverKey);
+    return [for (final p in list) pluginFrom(p)];
+  });
+
+  @override
+  Future<List<PluginReview>> fetchPluginReviews(String serverKey) =>
+      _call(() async {
+        final list = await _core.fetchPluginReviews(serverKey);
+        return [for (final r in list) pluginReviewFrom(r)];
+      });
+
+  @override
+  Future<Plugin> confirmPluginReview(
+    String serverKey,
+    String reviewId,
+    List<String> granted,
+    List<PluginConfigValue> config,
+    bool acceptLicense,
+  ) => _call(() async {
+    final p = await _core.confirmPluginReview(serverKey, reviewId, granted, [
+      for (final v in config) pluginConfigValueTo(v),
+    ], acceptLicense);
+    return pluginFrom(p);
+  });
+
+  @override
+  Future<void> discardPluginReview(String serverKey, String reviewId) =>
+      _call(() => _core.discardPluginReview(serverKey, reviewId));
+
+  @override
+  Future<Plugin> setPluginPermissions(
+    String serverKey,
+    String pluginId,
+    List<String> granted,
+  ) => _call(() async {
+    final p = await _core.setPluginPermissions(serverKey, pluginId, granted);
+    return pluginFrom(p);
+  });
+
+  @override
+  Future<Plugin> setPluginConfig(
+    String serverKey,
+    String pluginId,
+    List<PluginConfigValue> config,
+  ) => _call(() async {
+    final p = await _core.setPluginConfig(serverKey, pluginId, [
+      for (final v in config) pluginConfigValueTo(v),
+    ]);
+    return pluginFrom(p);
+  });
+
+  @override
+  Future<Plugin> setPluginRunning(
+    String serverKey,
+    String pluginId,
+    bool running,
+  ) => _call(() async {
+    final p = await _core.setPluginRunning(serverKey, pluginId, running);
+    return pluginFrom(p);
+  });
+
+  @override
+  Future<Plugin> restartPlugin(String serverKey, String pluginId) =>
+      _call(() async {
+        final p = await _core.restartPlugin(serverKey, pluginId);
+        return pluginFrom(p);
+      });
+
+  @override
+  Future<void> uninstallPlugin(
+    String serverKey,
+    String pluginId, {
+    required bool deleteData,
+  }) => _call(
+    () => _core.uninstallPlugin(serverKey, pluginId, deleteData: deleteData),
+  );
+
+  @override
+  Future<List<PluginLogLine>> fetchPluginLog(
+    String serverKey,
+    String pluginId, {
+    int? before,
+    int limit = 200,
+  }) => _call(() async {
+    final lines = await _core.fetchPluginLog(
+      serverKey,
+      pluginId,
+      before: before,
+      limit: limit,
+    );
+    return [for (final l in lines) pluginLogLineFrom(l)];
+  });
+
+  @override
+  Future<void> watchPluginLog(
+    String serverKey,
+    String pluginId, {
+    required bool watch,
+  }) => _call(() => _core.watchPluginLog(serverKey, pluginId, watch: watch));
+
+  @override
+  Future<CreatedPluginDevToken> createPluginDevToken(
+    String serverKey,
+    String pluginId, {
+    int days = 7,
+  }) => _call(() async {
+    final c = await _core.createPluginDevToken(serverKey, pluginId, days: days);
+    return createdPluginDevTokenFrom(c);
+  });
+
+  @override
+  Future<void> revokePluginDevToken(String serverKey, int tokenId) =>
+      _call(() => _core.revokePluginDevToken(serverKey, tokenId));
+
+  @override
+  Future<List<PluginDevToken>> fetchPluginDevTokens(String serverKey) =>
+      _call(() async {
+        final tokens = await _core.fetchPluginDevTokens(serverKey);
+        return [for (final t in tokens) pluginDevTokenFrom(t)];
+      });
 }

@@ -5,6 +5,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
 
 import 'package:opencord/src/rust/api/attachments.dart' as frb_attachments;
 import 'package:opencord/src/rust/api/client.dart' as frb;
+import 'package:opencord/src/rust/api/plugins.dart' as frb_plugins;
 import 'package:opencord/src/rust/api/private.dart' as frb_private;
 import 'package:opencord/src/rust/api/types.dart' as core;
 
@@ -493,6 +494,7 @@ abstract interface class CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     List<core.CommandOptionValue> options,
     String nonce,
   );
@@ -501,6 +503,7 @@ abstract interface class CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     String option,
     String value,
   );
@@ -737,6 +740,74 @@ abstract interface class CoreApi {
   });
 
   Future<void> privateRejectDevice(String deviceId);
+
+  Future<core.PluginReview> uploadPluginPackage(
+    String serverKey,
+    List<int> bytes,
+  );
+
+  Future<List<core.Plugin>> fetchPlugins(String serverKey);
+
+  Future<List<core.PluginReview>> fetchPluginReviews(String serverKey);
+
+  Future<core.Plugin> confirmPluginReview(
+    String serverKey,
+    String reviewId,
+    List<String> granted,
+    List<core.PluginConfigValue> config,
+    bool acceptLicense,
+  );
+
+  Future<void> discardPluginReview(String serverKey, String reviewId);
+
+  Future<core.Plugin> setPluginPermissions(
+    String serverKey,
+    String pluginId,
+    List<String> granted,
+  );
+
+  Future<core.Plugin> setPluginConfig(
+    String serverKey,
+    String pluginId,
+    List<core.PluginConfigValue> config,
+  );
+
+  Future<core.Plugin> setPluginRunning(
+    String serverKey,
+    String pluginId,
+    bool running,
+  );
+
+  Future<core.Plugin> restartPlugin(String serverKey, String pluginId);
+
+  Future<void> uninstallPlugin(
+    String serverKey,
+    String pluginId, {
+    required bool deleteData,
+  });
+
+  Future<List<core.PluginLogLine>> fetchPluginLog(
+    String serverKey,
+    String pluginId, {
+    int? before,
+    required int limit,
+  });
+
+  Future<void> watchPluginLog(
+    String serverKey,
+    String pluginId, {
+    required bool watch,
+  });
+
+  Future<core.CreatedPluginDevToken> createPluginDevToken(
+    String serverKey,
+    String pluginId, {
+    required int days,
+  });
+
+  Future<void> revokePluginDevToken(String serverKey, int tokenId);
+
+  Future<List<core.PluginDevToken>> fetchPluginDevTokens(String serverKey);
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -1614,12 +1685,14 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     List<core.CommandOptionValue> options,
     String nonce,
   ) => frb.commandExecute(
     serverKey: serverKey,
     channelId: channelId,
     name: name,
+    source: source,
     options: options,
     nonce: nonce,
   );
@@ -1629,12 +1702,14 @@ class FrbCoreApi implements CoreApi {
     String serverKey,
     int channelId,
     String name,
+    String source,
     String option,
     String value,
   ) => frb.commandAutocomplete(
     serverKey: serverKey,
     channelId: channelId,
     name: name,
+    source: source,
     option: option,
     value: value,
   );
@@ -2066,4 +2141,128 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<void> privateRejectDevice(String deviceId) =>
       frb_private.privateRejectDevice(deviceId: deviceId);
+
+  @override
+  Future<core.PluginReview> uploadPluginPackage(
+    String serverKey,
+    List<int> bytes,
+  ) => frb_plugins.uploadPluginPackage(serverKey: serverKey, bytes: bytes);
+
+  @override
+  Future<List<core.Plugin>> fetchPlugins(String serverKey) =>
+      frb_plugins.fetchPlugins(serverKey: serverKey);
+
+  @override
+  Future<List<core.PluginReview>> fetchPluginReviews(String serverKey) =>
+      frb_plugins.fetchPluginReviews(serverKey: serverKey);
+
+  @override
+  Future<core.Plugin> confirmPluginReview(
+    String serverKey,
+    String reviewId,
+    List<String> granted,
+    List<core.PluginConfigValue> config,
+    bool acceptLicense,
+  ) => frb_plugins.confirmPluginReview(
+    serverKey: serverKey,
+    reviewId: reviewId,
+    granted: granted,
+    config: config,
+    acceptLicense: acceptLicense,
+  );
+
+  @override
+  Future<void> discardPluginReview(String serverKey, String reviewId) =>
+      frb_plugins.discardPluginReview(serverKey: serverKey, reviewId: reviewId);
+
+  @override
+  Future<core.Plugin> setPluginPermissions(
+    String serverKey,
+    String pluginId,
+    List<String> granted,
+  ) => frb_plugins.setPluginPermissions(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    granted: granted,
+  );
+
+  @override
+  Future<core.Plugin> setPluginConfig(
+    String serverKey,
+    String pluginId,
+    List<core.PluginConfigValue> config,
+  ) => frb_plugins.setPluginConfig(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    config: config,
+  );
+
+  @override
+  Future<core.Plugin> setPluginRunning(
+    String serverKey,
+    String pluginId,
+    bool running,
+  ) => frb_plugins.setPluginRunning(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    running: running,
+  );
+
+  @override
+  Future<core.Plugin> restartPlugin(String serverKey, String pluginId) =>
+      frb_plugins.restartPlugin(serverKey: serverKey, pluginId: pluginId);
+
+  @override
+  Future<void> uninstallPlugin(
+    String serverKey,
+    String pluginId, {
+    required bool deleteData,
+  }) => frb_plugins.uninstallPlugin(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    deleteData: deleteData,
+  );
+
+  @override
+  Future<List<core.PluginLogLine>> fetchPluginLog(
+    String serverKey,
+    String pluginId, {
+    int? before,
+    required int limit,
+  }) => frb_plugins.fetchPluginLog(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    before: before != null ? BigInt.from(before) : null,
+    limit: limit,
+  );
+
+  @override
+  Future<void> watchPluginLog(
+    String serverKey,
+    String pluginId, {
+    required bool watch,
+  }) => frb_plugins.watchPluginLog(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    watch: watch,
+  );
+
+  @override
+  Future<core.CreatedPluginDevToken> createPluginDevToken(
+    String serverKey,
+    String pluginId, {
+    required int days,
+  }) => frb_plugins.createPluginDevToken(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    days: days,
+  );
+
+  @override
+  Future<void> revokePluginDevToken(String serverKey, int tokenId) =>
+      frb_plugins.revokePluginDevToken(serverKey: serverKey, tokenId: tokenId);
+
+  @override
+  Future<List<core.PluginDevToken>> fetchPluginDevTokens(String serverKey) =>
+      frb_plugins.fetchPluginDevTokens(serverKey: serverKey);
 }

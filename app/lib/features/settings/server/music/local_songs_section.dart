@@ -112,12 +112,10 @@ class _LocalSongsSectionState extends ConsumerState<LocalSongsSection> {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final members =
-        ref.watch(
-          serverProvider(widget.serverKey).select((s) => s.data?.members),
-        ) ??
-        const {};
-    String nameOf(int userId) => members[userId]?.displayName ?? 'Someone';
+    final authorOf = ref.watch(
+      serverProvider(widget.serverKey).select((s) => s.data?.authorOf),
+    );
+    String nameOf(int userId) => authorOf?.call(userId).name ?? 'Someone';
     final error = _error;
     return SettingsSection(
       title: 'Uploaded songs',
