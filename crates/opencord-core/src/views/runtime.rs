@@ -29,21 +29,21 @@ use opencord_plugins::limits::{
 use super::carry::carry_state;
 use opencord_plugins::lua_api::install_require;
 use opencord_plugins::sandbox::{Budgeted, Vm, VmError, VmLimits};
-use opencord_plugins::view::{Batch, IdSource, Patch, Retained, TreeError, from_lua, reconcile};
+use opencord_plugins::view::{Batch, Patch};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use super::api_app::{self, LISTEN_KEY, ON_KEY, Phase, Shared};
 use super::api_ui;
+use super::draw::{Drawing, Failure, Scene};
 use super::handlers::{self, Finished, Handlers, Running};
+use super::modals;
 use super::{Command, Place, ViewContext, ViewHandle, ViewSink, ViewSpec, ViewThread, Viewer, cut};
 
 /// Luau caps its C call depth; this leaves it room, as on the server.
 const VM_STACK_BYTES: usize = 8 * 1024 * 1024;
 /// How long `close` listeners may take, waiting included.
 const CLOSE_WAIT: Duration = Duration::from_millis(500);
-/// What the viewer sees when the script fails (§11.3).
-const ERROR_MESSAGE: &str = "This plugin hit an error";
 /// `ctx.platform`: the phone (M4) will say its own.
 const PLATFORM: &str = "desktop";
 
@@ -116,6 +116,21 @@ enum Input {
         #[serde(default = "no_data")]
         data: serde_json::Value,
     },
+    /// A lazy list's visible items, `end` not included.
+    Range {
+        node: u64,
+        start: u64,
+        end: u64,
+    },
+    /// A quick dialog's answer.
+    Dialog {
+        id: u64,
+        #[serde(default)]
+        result: serde_json::Value,
+    },
+    ModalDismiss {
+        name: String,
+    },
     #[serde(other)]
     Other,
 }
@@ -146,11 +161,8 @@ struct View {
     /// Set by an error in start, `render` or the tree: no Lua runs until a
     /// reload.
     stopped: bool,
-    retained: Option<Retained>,
-    ids: IdSource,
+    drawing: Drawing,
     seq: u64,
-    /// The main root in the last `roots` op sent; `None` sends one again.
-    shown_root: Option<u64>,
     handlers: Handlers,
     running: Running,
 }
@@ -169,10 +181,8 @@ impl View {
             shared: Arc::new(Shared::new(sink)),
             live: None,
             stopped: false,
-            retained: None,
-            ids: IdSource::new(),
+            drawing: Drawing::default(),
             seq: 0,
-            shown_root: None,
             handlers: Handlers::default(),
             running: Running::default(),
         }
@@ -347,6 +357,17 @@ impl View {
                 let press = handlers::is_press(&event);
                 self.spawn(format!("on_{event}"), press, handler, data.to_string());
             }
+            Input::Range { node, start, end } => {
+                if self.drawing.set_range(node, start, end) {
+                    self.shared.mark_dirty();
+                }
+            }
+            Input::Dialog { id, result } => {
+                if !self.shared.waits.answer(id, result) {
+                    tracing::debug!(view = %self.view_id, dialog = id, "an answer no handler waits for");
+                }
+            }
+            Input::ModalDismiss { name } => self.dismiss(name),
             Input::Other => {
                 tracing::debug!(view = %self.view_id, "a view input of a kind not handled yet");
             }
@@ -445,9 +466,8 @@ impl View {
         }
     }
 
-    /// `render(state)` with one handler's budget, checked, then diffed with
-    /// the tree drawn. `roots` goes before the batch's `drop`, so the
-    /// renderer never points at a node it freed.
+    /// `render(state)`, the lists' items and the open modals, with one
+    /// handler's budget, checked, then diffed with what's drawn (`draw`).
     fn redraw(&mut self) -> Result<Vec<Patch>, Failure> {
         let Some(live) = &self.live else {
             return Ok(Vec::new());
@@ -461,33 +481,34 @@ impl View {
             ));
         };
         self.shared.set_phase(Phase::Rendering);
-        live.vm.budget().start(VIEW_HANDLER_TIME);
-        let tree = render.call::<Value>(&live.state);
-        live.vm.budget().stop();
+        let drawn = self.drawing.redraw(Scene {
+            lua: &live.vm.lua,
+            budget: live.vm.budget(),
+            state: &live.state,
+            render: &render,
+        });
         self.shared.set_phase(Phase::Running);
-        let tree = tree.map_err(|error| Failure::lua("render", VmError::from(error)))?;
-        let node = from_lua(&live.vm.lua, &tree, |handler| handler).map_err(Failure::tree)?;
+        let drawn = drawn?;
+        self.handlers.replace(drawn.handlers);
+        Ok(drawn.ops)
+    }
 
-        let reconciled = reconcile(self.retained.as_ref(), node, &mut self.ids);
-        self.handlers.replace(reconciled.handlers);
-        let root = reconciled.tree.root();
-        self.retained = Some(reconciled.tree);
-        let mut ops = reconciled.ops;
-        if self.shown_root != Some(root) {
-            let at = match ops.last() {
-                Some(Patch::Drop { .. }) => ops.len() - 1,
-                _ => ops.len(),
-            };
-            ops.insert(
-                at,
-                Patch::Roots {
-                    main: root,
-                    modals: Vec::new(),
-                },
-            );
-            self.shown_root = Some(root);
+    /// A `modal_dismiss` input: closes the named modal, unless it was drawn
+    /// as not dismissible. The closing is Lua's, so it runs as a handler.
+    fn dismiss(&mut self, name: String) {
+        if !self.drawing.dismissible(&name) {
+            return;
         }
-        Ok(ops)
+        let Some(live) = &self.live else { return };
+        match modals::dismisser(&live.vm.lua) {
+            Ok(dismiss) => {
+                let data = serde_json::Value::String(name).to_string();
+                self.spawn("modal_dismiss".to_owned(), false, dismiss, data);
+            }
+            Err(error) => {
+                tracing::warn!(view = %self.view_id, %error, "a view's modal dismiss couldn't be read");
+            }
+        }
     }
 
     /// Stops the view: the `error` op goes with the next batch, and no Lua
@@ -502,7 +523,7 @@ impl View {
         );
         self.report(failure.report());
         self.stopped = true;
-        self.shown_root = None;
+        self.drawing.forget_shown();
         self.handlers.clear();
         self.running = Running::default();
         self.shared.take_dirty();
@@ -635,74 +656,6 @@ impl From<mlua::Error> for Started {
 impl From<VmError> for Started {
     fn from(error: VmError) -> Self {
         Started::Lua(error)
-    }
-}
-
-/// An error in the script, or in starting it, and where it happened.
-struct Failure {
-    /// `init`, `render`, `on_press`…
-    what: String,
-    message: String,
-    traceback: Option<String>,
-    /// For the log: `budget`, `memory`, `lua`, `tree` or `host`.
-    kind: &'static str,
-}
-
-impl Failure {
-    fn lua(what: impl Into<String>, error: VmError) -> Failure {
-        let kind = match &error {
-            VmError::BudgetExceeded { .. } => "budget",
-            VmError::OutOfMemory => "memory",
-            VmError::Lua { .. } => "lua",
-        };
-        let (message, traceback) = match error {
-            VmError::Lua { message, traceback } => (message, traceback),
-            other => (other.to_string(), None),
-        };
-        Failure {
-            what: what.into(),
-            message,
-            traceback,
-            kind,
-        }
-    }
-
-    fn tree(error: TreeError) -> Failure {
-        Failure {
-            what: "render".to_owned(),
-            message: error.to_string(),
-            traceback: None,
-            kind: "tree",
-        }
-    }
-
-    fn host(what: impl Into<String>, message: impl Into<String>) -> Failure {
-        Failure {
-            what: what.into(),
-            message: message.into(),
-            traceback: None,
-            kind: "host",
-        }
-    }
-
-    /// The error and its traceback: what a developer needs.
-    fn details(&self) -> String {
-        match &self.traceback {
-            Some(traceback) => format!("{}\n{traceback}", self.message),
-            None => self.message.clone(),
-        }
-    }
-
-    /// The text for the plugin's log.
-    fn report(&self) -> String {
-        format!("{}: {}", self.what, self.details())
-    }
-
-    fn op(&self, show_errors: bool) -> Patch {
-        Patch::Error {
-            message: ERROR_MESSAGE.to_owned(),
-            details: show_errors.then(|| cut(&self.details(), VIEW_ERROR_REPORT_MAX_CHARS)),
-        }
     }
 }
 

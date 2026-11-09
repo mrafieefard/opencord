@@ -132,6 +132,11 @@ pub const CANVAS_MAX_ITEMS: usize = 20_000;
 pub const CANVAS_MAX_PATH_POINTS: usize = 10_000;
 /// Items of a lazy list drawn at once.
 pub const LIST_MAX_RANGE: usize = 200;
+/// Named modals one view has open at once.
+pub const VIEW_MAX_MODALS: usize = 20;
+/// Handlers of one view waiting at once on a quick dialog or
+/// `app.modal.ask`.
+pub const VIEW_MAX_WAITING: usize = 100;
 
 /// Views one session has open.
 pub const VIEWS_PER_SESSION: usize = 4;

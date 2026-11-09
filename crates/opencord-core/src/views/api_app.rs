@@ -13,6 +13,7 @@ use opencord_plugins::limits::{VIEW_EVENT_MAX_BYTES, VIEW_MAX_LISTENERS, VIEW_MA
 use opencord_plugins::lua_api::{function, raise};
 use opencord_plugins::view::Patch;
 
+use super::dialogs::Waits;
 use super::{ViewSink, cut};
 
 /// Registry keys of the tables `app.on` and `app.listen` fill: name → list
@@ -49,6 +50,8 @@ pub(super) struct Shared {
     in_press: AtomicBool,
     /// Ops other than the tree's, sent with the next batch.
     effects: Mutex<Vec<Patch>>,
+    /// Handlers paused on a quick dialog or `app.modal.ask`.
+    pub(super) waits: Waits,
 }
 
 impl Shared {
@@ -59,6 +62,7 @@ impl Shared {
             phase: AtomicU8::new(Phase::Starting as u8),
             in_press: AtomicBool::new(false),
             effects: Mutex::new(Vec::new()),
+            waits: Waits::default(),
         }
     }
 
@@ -66,12 +70,19 @@ impl Shared {
         self.phase.store(phase as u8, Ordering::Relaxed);
     }
 
-    fn phase(&self) -> Phase {
+    pub(super) fn phase(&self) -> Phase {
         match self.phase.load(Ordering::Relaxed) {
             0 => Phase::Starting,
             1 => Phase::Rendering,
             _ => Phase::Running,
         }
+    }
+
+    /// Whether Lua runs in a handler: once started, outside `render`, Lua
+    /// runs only in handlers (and `close` listeners), each an async call
+    /// that may pause.
+    pub(super) fn in_handler(&self) -> bool {
+        self.phase() == Phase::Running
     }
 
     pub(super) fn mark_dirty(&self) {
@@ -239,6 +250,8 @@ pub(super) fn install(lua: &Lua, shared: &Arc<Shared>) -> mlua::Result<Table> {
             listen_table,
             VIEW_MAX_LISTENERS,
         ))?;
+    super::modals::install(lua, &app, shared)?;
+    super::dialogs::install(lua, &app, shared)?;
     app.set_readonly(true);
     lua.globals().raw_set("app", &app)?;
     Ok(app)
@@ -262,17 +275,20 @@ pub(super) fn handlers_for(lua: &Lua, key: &str, name: &str) -> mlua::Result<Vec
     }
 }
 
-/// An event name: 1 to 64 of `a-z`, `0-9`, `_`, `.`, `:` and `-`.
+/// Whether `bytes` is a name a script gives an event or a modal: 1 to 64 of
+/// `a-z`, `0-9`, `_`, `.`, `:` and `-`.
+pub(super) fn is_name(bytes: &[u8]) -> bool {
+    !bytes.is_empty()
+        && bytes.len() <= EVENT_NAME_MAX
+        && bytes
+            .iter()
+            .all(|&b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.:-".contains(&b))
+}
+
+/// An event name, as [`is_name`] says.
 fn event_name(name: &Value) -> mlua::Result<String> {
     let fine = match name {
-        Value::String(name) => {
-            let bytes = name.as_bytes();
-            !bytes.is_empty()
-                && bytes.len() <= EVENT_NAME_MAX
-                && bytes
-                    .iter()
-                    .all(|&b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.:-".contains(&b))
-        }
+        Value::String(name) => is_name(&name.as_bytes()),
         _ => false,
     };
     match name {

@@ -12,8 +12,14 @@
 mod api_app;
 mod api_ui;
 mod carry;
+mod dialogs;
+mod draw;
 mod handlers;
+mod lists;
+mod modals;
 mod runtime;
+#[cfg(test)]
+mod test_support;
 
 use std::collections::BTreeMap;
 use std::sync::mpsc::RecvTimeoutError;

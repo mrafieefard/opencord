@@ -7,4 +7,4 @@ pub mod tree;
 
 pub use diff::{IdSource, Reconciled, Retained, reconcile};
 pub use patch::{Batch, CloseReason, DialogKind, ModalRoot, ModalSize, Patch};
-pub use tree::{Node, TreeError, UI_NODE, from_lua};
+pub use tree::{Node, Tally, TreeError, UI_NODE, from_lua, from_lua_counted};

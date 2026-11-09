@@ -54,12 +54,35 @@ impl fmt::Display for TreeError {
 
 impl std::error::Error for TreeError {}
 
+/// What one render has used of its limits so far. The limits on blocks and
+/// prop bytes hold over everything a render draws together: the main tree,
+/// every lazy list's items and every modal's tree.
+#[derive(Debug, Default)]
+pub struct Tally {
+    blocks: usize,
+    bytes: usize,
+}
+
 /// Checks `value` and converts it; each handler goes through `handler`.
 /// `lua` is the VM `value` came from; its registry holds [`UI_NODE`].
 pub fn from_lua<H>(
     lua: &Lua,
     value: &Value,
     handler: impl Fn(Function) -> H,
+) -> Result<Node<H>, TreeError> {
+    from_lua_counted(lua, value, handler, &mut Tally::default(), 0)
+}
+
+/// [`from_lua`] for one part of a render, counted in `tally` after the
+/// parts before it. `value` sits `depth` blocks below the render's root (a
+/// lazy list's item: the list's own depth), which counts toward the depth
+/// limit; error paths start at `value`.
+pub fn from_lua_counted<H>(
+    lua: &Lua,
+    value: &Value,
+    handler: impl Fn(Function) -> H,
+    tally: &mut Tally,
+    depth: usize,
 ) -> Result<Node<H>, TreeError> {
     let marker = match lua.named_registry_value::<Value>(UI_NODE) {
         Ok(Value::Table(marker)) => Some(marker.to_pointer()),
@@ -74,11 +97,15 @@ pub fn from_lua<H>(
     let mut walk = Walk {
         marker,
         handler: &handler,
-        blocks: 0,
-        bytes: 0,
+        blocks: tally.blocks,
+        bytes: tally.bytes,
+        above: depth,
         steps: Vec::new(),
     };
-    walk.node(value, None, None)
+    let node = walk.node(value, None, None);
+    tally.blocks = walk.blocks;
+    tally.bytes = walk.bytes;
+    node
 }
 
 /// How deeply plain data (canvas items, `animate`) nests inside one prop.
@@ -105,6 +132,8 @@ struct Walk<'a, F> {
     blocks: usize,
     /// What the props so far cost (`VIEW_MAX_TREE_BYTES`).
     bytes: usize,
+    /// Blocks above this part's root in the render's tree.
+    above: usize,
     /// One per block from the root down: `column`, `[2] row`.
     steps: Vec<String>,
 }
@@ -145,7 +174,7 @@ impl<H, F: Fn(Function) -> H> Walk<'_, F> {
             *last = step;
         }
 
-        if self.steps.len() > VIEW_MAX_DEPTH {
+        if self.above + self.steps.len() > VIEW_MAX_DEPTH {
             return Err(self.fail(format!(
                 "the tree is more than {VIEW_MAX_DEPTH} blocks deep"
             )));
@@ -1121,6 +1150,42 @@ mod tests {
                 "column > [{}] spacer: the tree has more than {VIEW_MAX_BLOCKS} blocks",
                 VIEW_MAX_BLOCKS - 1
             )
+        );
+    }
+
+    // Fails if `from_lua_counted` starts a count of its own (each part of a
+    // render could then hold 20,000 blocks) or ignores the depth above it.
+    #[test]
+    fn parts_of_one_render_share_its_limits() {
+        let lua = lua();
+        let part = |blocks: usize| -> Value {
+            lua.load(format!(
+                "local children = {{}}
+                 for i = 1, {} do children[i] = ui.spacer({{}}) end
+                 return ui.column({{}}, children)",
+                blocks - 1
+            ))
+            .eval()
+            .unwrap()
+        };
+        let mut tally = Tally::default();
+        let half = part(VIEW_MAX_BLOCKS / 2);
+        for _ in 0..2 {
+            from_lua_counted(&lua, &half, |_| (), &mut tally, 0).unwrap();
+        }
+        let one = part(1);
+        let error = from_lua_counted(&lua, &one, |_| (), &mut tally, 0).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            format!("column: the tree has more than {VIEW_MAX_BLOCKS} blocks")
+        );
+
+        let fresh = &mut Tally::default();
+        assert!(from_lua_counted(&lua, &one, |_| (), fresh, VIEW_MAX_DEPTH - 1).is_ok());
+        let error = from_lua_counted(&lua, &one, |_| (), fresh, VIEW_MAX_DEPTH).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            format!("column: the tree is more than {VIEW_MAX_DEPTH} blocks deep")
         );
     }
 

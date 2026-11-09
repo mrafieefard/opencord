@@ -58,6 +58,18 @@ impl Retained {
     pub fn root(&self) -> u64 {
         self.root.id
     }
+
+    /// Every node id in the tree: what a `drop` lists when the whole tree
+    /// goes (a closed modal's).
+    pub fn ids(&self) -> Vec<u64> {
+        let mut ids = Vec::new();
+        let mut left = vec![&self.root];
+        while let Some(kept) = left.pop() {
+            ids.push(kept.id);
+            left.extend(&kept.children);
+        }
+        ids
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
