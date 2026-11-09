@@ -4,16 +4,18 @@ import {
   MobileEvent,
   MobileError,
   type EphemeralNoteRecord,
+  type MessageRecord,
 } from '@opencord/core-native';
 
 import { getCore } from '@/core';
 import { CHANNELS, NIGHT_OWLS, snapshot } from '@/core/fake/world';
 import { freshStore, settle } from '@/test/store';
 
+import { reloadAfterReady } from '../actions/chat';
 import { dismissEphemeral, runCommand, suggestForOption } from '../actions/commands';
 import { applyEvents } from '../events';
 import { useAppStore } from '../store';
-import type { AppState } from '../types';
+import { channelKey, type AppState } from '../types';
 
 const now = 1_761_500_000_000;
 
@@ -121,5 +123,39 @@ describe('command actions', () => {
     dismissEphemeral(NIGHT_OWLS, CHANNELS.general, only);
 
     expect(notes(useAppStore.getState())).toEqual([]);
+  });
+
+  it('a_ready_reloads_the_open_channel_so_a_thinking_line_ends', async () => {
+    const key = channelKey(NIGHT_OWLS, CHANNELS.general);
+    const thinking: MessageRecord = {
+      id: '50',
+      channelId: CHANNELS.general,
+      authorId: '9002',
+      content: 'Ticket Bot is thinking…',
+      createdAtMs: now,
+      attachments: [],
+      interaction: { userId: '1001', command: 'roll', state: CommandRunStateRecord.Thinking },
+    };
+    useAppStore.setState({
+      messages: {
+        [key]: { items: [thinking], hasOlder: false, loadingOlder: false, loaded: true, pending: [] },
+        [channelKey(NIGHT_OWLS, 'other')]: { items: [], hasOlder: false, loadingOlder: false, loaded: true, pending: [] },
+      },
+      openChannel: { serverKey: NIGHT_OWLS, channelId: CHANNELS.general, atBottom: true },
+    });
+    jest.spyOn(getCore(), 'messagesFetch').mockResolvedValue([
+      {
+        ...thinking,
+        content: "Ticket Bot didn't answer",
+        interaction: { userId: '1001', command: 'roll', state: CommandRunStateRecord.NoAnswer },
+      },
+    ]);
+
+    await reloadAfterReady(NIGHT_OWLS);
+
+    const { messages } = useAppStore.getState();
+    expect(messages[key]?.items[0]?.interaction?.state).toBe(CommandRunStateRecord.NoAnswer);
+    expect(messages[key]?.loaded).toBe(true);
+    expect(messages[channelKey(NIGHT_OWLS, 'other')]?.loaded).toBe(false);
   });
 });

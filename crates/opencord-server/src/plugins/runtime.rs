@@ -403,6 +403,9 @@ async fn run_vm(
             }
             event = handle.queue.pop(), if hold.is_zero() => {
                 dispatch(vm, env, spec, event, &mut running, &reports);
+                // Lets the handler run before the next event is taken, so
+                // a backlog can't all start before any of it is counted.
+                tokio::task::yield_now().await;
             }
             () = tokio::time::sleep(hold), if !hold.is_zero() => {}
             Some(_) = running.join_next(), if !running.is_empty() => {}

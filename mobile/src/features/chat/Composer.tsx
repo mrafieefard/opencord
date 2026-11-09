@@ -20,6 +20,7 @@ import {
   sendWithFiles,
 } from '@/state/actions/chat';
 import { useChannelInfo } from '@/state/selectors';
+import { runCommand } from '@/state/actions/commands';
 import { toast } from '@/state/actions/ui';
 import { useAppStore } from '@/state/store';
 import type { PickedFile } from '@/state/types';
@@ -35,7 +36,7 @@ import { CommandList } from './commands/CommandList';
 import { CommandChips } from './commands/CommandChips';
 import { groupCommands, type CommandGroup, type CommandRow } from './commands/commandRows';
 import { SourceIcon } from './commands/SourceIcon';
-import { useCommandDraft } from './commands/useCommandDraft';
+import { EMPTY_MARK, useCommandDraft } from './commands/useCommandDraft';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
 import { useTypingNotifier } from './useTypingNotifier';
@@ -45,6 +46,8 @@ export interface ComposerProps {
   channelId: string;
 }
 
+/** Just after the invisible character an empty command field holds. */
+const MARK_END = { start: EMPTY_MARK.length, end: EMPTY_MARK.length };
 const MAX_CHARS = 4000;
 const COUNTER_THRESHOLD = 3900;
 /** The field and the round buttons: Telegram's floating 44 pt. */
@@ -269,13 +272,19 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       const toSendFiles = [...files];
       setText('');
       setFiles([]);
+      // A command's name sent without picking: the server decides which.
+      const typedName = toSendFiles.length === 0 ? /^\/(\S+)$/.exec(toSendText)?.[1]?.toLowerCase() : undefined;
+      if (typedName && commandList?.commands.some((spec) => spec.name === typedName || spec.aliases.includes(typedName))) {
+        await runCommand(serverKey, channelId, typedName, '', []);
+        return;
+      }
       if (toSendFiles.length > 0) {
         await sendWithFiles(serverKey, channelId, toSendText, toSendFiles);
       } else {
         await sendMessage(serverKey, channelId, toSendText);
       }
     }
-  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files]);
+  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files, commandList]);
 
   if (!canSend) {
     return (
@@ -383,6 +392,8 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 placeholder={placeholder}
                 placeholderTextColor="transparent"
                 value={draft.spec ? draft.fieldValue : text}
+                // After the mark, or Backspace would have nothing to delete.
+                selection={draft.spec && draft.fieldText === '' ? MARK_END : undefined}
                 onChangeText={handleChangeText}
                 scrollEnabled
                 multiline

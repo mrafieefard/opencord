@@ -12,6 +12,25 @@ import { toast } from './ui';
 const PAGE_SIZE = 50;
 const MAX_KEPT_AFTER_CLOSE = 100;
 
+/**
+ * What a server said while the connection was down can't be known from
+ * events (a thinking command that ended, for one): after a Ready, loaded
+ * channels load again when next opened, and the open one now.
+ */
+export async function reloadAfterReady(serverKey: string): Promise<void> {
+  const prefix = `${serverKey}/`;
+  useAppStore.setState((state) => ({
+    messages: Object.fromEntries(
+      Object.entries(state.messages).map(([key, channel]) => [
+        key,
+        key.startsWith(prefix) && channel.loaded ? { ...channel, loaded: false } : channel,
+      ]),
+    ),
+  }));
+  const open = useAppStore.getState().openChannel;
+  if (open?.serverKey === serverKey) await openChannel(serverKey, open.channelId);
+}
+
 export async function openChannel(serverKey: string, channelId: string): Promise<void> {
   const currentOpen = useAppStore.getState().openChannel;
   if (!currentOpen || currentOpen.serverKey !== serverKey || currentOpen.channelId !== channelId) {

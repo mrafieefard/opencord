@@ -192,6 +192,16 @@ async fn cpu_of(client: &mut TestClient, id: &str) -> u32 {
         .cpu_permille
 }
 
+/// The newest count a plugin logged as "ran N".
+async fn handlers_run(client: &mut TestClient, id: &str) -> u32 {
+    crate::support::log_lines(client, id)
+        .await
+        .iter()
+        .filter_map(|line| line.strip_prefix("ran ")?.parse().ok())
+        .max()
+        .unwrap_or(0)
+}
+
 #[tokio::test]
 async fn a_plugin_spinning_in_handlers_stays_near_its_share() {
     let server = TestServer::start_with(|config| config.plugins.handler_ms = 5_000).await;
@@ -255,5 +265,54 @@ async fn commands_still_answer_while_a_neighbour_is_held() {
         started.elapsed() < Duration::from_secs(1),
         "{:?}",
         started.elapsed()
+    );
+}
+
+// Catches: a queue of waiting events all starting at once when a hold ends,
+// before any of them has run to count against the share.
+#[tokio::test]
+async fn a_backlog_of_events_stays_near_the_share() {
+    let server = TestServer::start_with(|config| config.plugins.handler_ms = 5_000).await;
+    let (mut owner, ready) = owner(&server).await;
+    let zip = package(&[
+        ("manifest.lua", &manifest("backlog", &[])),
+        (
+            "server/main.luau",
+            r#"local runs = 0
+            opencord.on("message_create", function()
+                local x = 0
+                for i = 1, 500000 do x = x + i end
+                runs = runs + 1
+                if runs % 5 == 0 then log.info("ran " .. runs) end
+            end)
+            log.info("listening")"#,
+        ),
+    ]);
+    install(&server, &mut owner, &media_token(&ready), zip, &[]).await;
+    wait_for_log(&mut owner, "backlog", "listening").await;
+
+    for _ in 0..2_000 {
+        server.state().plugins.deliver(
+            "backlog",
+            opencord_server::plugins::PluginEvent {
+                name: "message_create".to_owned(),
+                payload: serde_json::json!({}),
+                reply: None,
+                command: None,
+            },
+        );
+    }
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let early = handlers_run(&mut owner, "backlog").await;
+    assert!(early > 0, "it should run freely at first");
+    tokio::time::sleep(Duration::from_secs(7)).await;
+    let late = handlers_run(&mut owner, "backlog").await;
+
+    // Free, nine seconds would run 4.5 times what two did. Held at a quarter
+    // of a core after its first 2.5 seconds, about twice.
+    assert!(
+        late < early * 3,
+        "a backlog should be held near a quarter of a core: {early} then {late}"
     );
 }

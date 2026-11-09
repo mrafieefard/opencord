@@ -423,6 +423,42 @@ describe('Composer and message actions', () => {
       expect(view.queryByTestId('command-chip')).toBeNull();
     });
 
+    it('a_name_typed_and_sent_without_picking_runs_it', async () => {
+      const execute = jest.spyOn(getCore(), 'commandExecute');
+      const send = jest.spyOn(getCore(), 'messageSend');
+      const view = await composer();
+
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), '/roll');
+      await fireEvent.press(view.getByTestId('composer-send'));
+
+      expect(execute).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.general, 'roll', '', [], expect.any(String));
+      expect(send).not.toHaveBeenCalled();
+      expect(view.getByPlaceholderText('Message #general').props.value).toBe('');
+    });
+
+    it('a_slash_that_is_no_command_is_sent_as_a_message', async () => {
+      const execute = jest.spyOn(getCore(), 'commandExecute');
+      const send = jest.spyOn(getCore(), 'messageSend');
+      const view = await composer();
+
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), '/home');
+      await fireEvent.press(view.getByTestId('composer-send'));
+
+      expect(execute).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalled();
+    });
+
+    it('the_caret_stays_after_the_mark_so_backspace_reaches_it', async () => {
+      const view = await composer();
+      await pickCommand(view, 'ticket');
+      const field = () => view.getByTestId('composer-input');
+
+      expect(field().props.selection).toEqual({ start: 1, end: 1 });
+
+      await fireEvent.changeText(field(), 'billing');
+      expect(field().props.selection).toBeUndefined();
+    });
+
     it('a_space_after_the_name_closes_the_list', async () => {
       const view = await composer();
 
