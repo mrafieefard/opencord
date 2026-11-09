@@ -84,10 +84,10 @@ export type Channel = {
     topic: string?,
     position: number,
     parent_id: string?,
-    overwrites: { ChannelOverwrite }?,
-    bitrate: number?,
-    user_limit: number?,
-    text_in_voice: boolean?,
+    overwrites: { ChannelOverwrite },
+    bitrate: number,
+    user_limit: number,
+    text_in_voice: boolean,
 }
 
 export type PermissionName =
@@ -165,11 +165,11 @@ export type ServerInfo = {
     id: string,
     server_id: string,
     name: string,
-    description: string?,
+    description: string,
     owner_id: string?,
-    open_join: boolean?,
-    everyone_role_id: string?,
-    icon_hash: string?,
+    open_join: boolean,
+    everyone_role_id: string,
+    icon_hash: string,
 }
 
 export type VoiceState = {

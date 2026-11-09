@@ -56,11 +56,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             let (table, ch_name) = {
                                 let state = env.state()?;
                                 let guild = state.guild();
-                                let ch_name = guild
-                                    .channels
-                                    .get(&channel_id)
-                                    .map(|c| c.name.clone())
-                                    .unwrap_or_else(|| channel_id.to_string());
+                                let ch_name = guild.channel_name(channel_id);
                                 (events::message_table(&msg, &guild), ch_name)
                             };
                             env.log.push(

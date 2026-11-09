@@ -811,7 +811,7 @@ class _LogTabState extends ConsumerState<_LogTab> {
       );
     } on RepoException catch (e) {
       appLog('Failed to watch plugin log: $e', name: 'plugins');
-      if (mounted) setState(() => _error = 'Failed to load log: ${e.message}');
+      _showLoadError(e);
       return;
     }
 
@@ -825,7 +825,7 @@ class _LogTabState extends ConsumerState<_LogTab> {
       );
     } on RepoException catch (e) {
       appLog('Failed to fetch initial plugin log: $e', name: 'plugins');
-      if (mounted) setState(() => _error = 'Failed to load log: ${e.message}');
+      _showLoadError(e);
       return;
     }
 
@@ -848,6 +848,16 @@ class _LogTabState extends ConsumerState<_LogTab> {
       _lines.clear();
       _lines.addAll(sorted);
     });
+  }
+
+  /// The error replaces the list, so what arrives from now on has nowhere to
+  /// go: stop listening rather than buffer it until the tab closes.
+  void _showLoadError(RepoException error) {
+    unawaited(_sub?.cancel());
+    _buffered.clear();
+    if (mounted) {
+      setState(() => _error = 'Failed to load log: ${error.message}');
+    }
   }
 
   void _append(List<PluginLogLine> lines) {

@@ -301,12 +301,7 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let name = state
-                    .guild()
-                    .channels
-                    .get(&channel_id)
-                    .map(|c| c.name.clone())
-                    .unwrap_or_else(|| channel_id.to_string());
+                let name = state.guild().channel_name(channel_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -821,12 +816,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let target_name = state
-                    .guild()
-                    .members
-                    .get(&target_user_id)
-                    .map(|m| m.user.display_name.clone())
-                    .unwrap_or_else(|| target_user_id.to_string());
+                let target_name = state.guild().member_name(target_user_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -867,12 +857,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let target_name = state
-                    .guild()
-                    .members
-                    .get(&target_user_id)
-                    .map(|m| m.user.display_name.clone())
-                    .unwrap_or_else(|| target_user_id.to_string());
+                let target_name = state.guild().member_name(target_user_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
@@ -913,12 +898,7 @@ fn install_members(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 let plugin_id = env.plugin_id.clone();
                 let user_id = env.user_id;
 
-                let target_name = state
-                    .guild()
-                    .members
-                    .get(&target_user_id)
-                    .map(|m| m.user.display_name.clone())
-                    .unwrap_or_else(|| target_user_id.to_string());
+                let target_name = state.guild().member_name(target_user_id);
 
                 env.on_server(async move {
                     let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);

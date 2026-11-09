@@ -539,7 +539,7 @@ async fn channel_get_matches_channel_update_event() {
 }
 
 #[tokio::test]
-async fn server_get_matches_server_update_event() {
+async fn server_get_has_every_server_info_field() {
     let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
 
@@ -558,6 +558,7 @@ async fn server_get_matches_server_update_event() {
             assert(type(s.description) == "string", "missing description")
             assert(type(s.everyone_role_id) == "string", "missing everyone_role_id")
             assert(type(s.open_join) == "boolean", "missing open_join")
+            assert(type(s.icon_hash) == "string", "missing icon_hash")
             log.info("server.get verified")
         end)
         "#,

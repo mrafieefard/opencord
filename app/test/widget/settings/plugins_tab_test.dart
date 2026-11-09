@@ -273,6 +273,40 @@ class _EventRouterState extends ConsumerState<_EventRouter> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// A page with a button that opens the dialog, so a pop has a route to close
+/// and a page under it that a second pop would take away.
+Widget _dialogOverPage(PluginReview review) => Builder(
+  builder: (context) => Scaffold(
+    body: Center(
+      child: ElevatedButton(
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (_) => ReviewDialog(serverKey: _devKey, review: review),
+        ),
+        child: const Text('Open Dialog'),
+      ),
+    ),
+  ),
+);
+
+/// Lists [review] in the provider the dialog listens to and feeds it the
+/// fake's events, as the app's router does. Without it a removal event never
+/// reaches the dialog.
+Future<void> _routeReviewEvents(
+  WidgetTester tester,
+  _FakePluginsRepository repository,
+  PluginReview review,
+) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(ReviewDialog)),
+  );
+  final notifier = container.read(pluginReviewsProvider(_devKey).notifier);
+  notifier.apply(PluginReviewUpdated(_devKey, review));
+  final routed = repository.events.listen(notifier.apply);
+  addTearDown(routed.cancel);
+  await tester.pumpAndSettle();
+}
+
 Widget _wrap(
   Widget child, {
   required _FakePluginsRepository repository,
@@ -683,13 +717,11 @@ void main() {
     repo.confirmDelay = const Duration(milliseconds: 50);
     repo.confirmShouldFail = true;
 
-    await tester.pumpWidget(
-      _wrap(
-        ReviewDialog(serverKey: _devKey, review: review),
-        repository: repo,
-      ),
-    );
+    await tester.pumpWidget(_wrap(_dialogOverPage(review), repository: repo));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Open Dialog'));
+    await tester.pumpAndSettle();
+    await _routeReviewEvents(tester, repo, review);
 
     // Tap Install
     final installButton = find.widgetWithText(OcButton, 'Install');
@@ -719,32 +751,13 @@ void main() {
     repo.confirmDelay = const Duration(milliseconds: 50);
     repo.confirmShouldFail = false;
 
-    await tester.pumpWidget(
-      _wrap(
-        Consumer(
-          builder: (context, ref, _) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                onPressed: () async {
-                  await showDialog<void>(
-                    context: context,
-                    builder: (dialogCtx) =>
-                        ReviewDialog(serverKey: _devKey, review: review),
-                  );
-                },
-                child: const Text('Open Dialog'),
-              ),
-            ),
-          ),
-        ),
-        repository: repo,
-      ),
-    );
+    await tester.pumpWidget(_wrap(_dialogOverPage(review), repository: repo));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Open Dialog'));
     await tester.pumpAndSettle();
     expect(find.byType(ReviewDialog), findsOneWidget);
+    await _routeReviewEvents(tester, repo, review);
 
     final installButton = find.widgetWithText(OcButton, 'Install');
     await tester.tap(installButton);
@@ -1011,6 +1024,50 @@ void main() {
 
     expect(updatedKey, 'owner');
     expect(updatedVal, '2000');
+  });
+
+  testWidgets('a_config_text_field_keeps_its_caret_while_typing', (
+    tester,
+  ) async {
+    final values = <String, String>{'name': 'abc'};
+
+    await tester.pumpWidget(
+      _wrap(
+        StatefulBuilder(
+          builder: (context, setState) => PluginConfigFields(
+            serverKey: _devKey,
+            fields: const [
+              PluginConfigField(
+                key: 'name',
+                label: 'Name',
+                kind: PluginConfigKind.text,
+              ),
+            ],
+            values: values,
+            onChanged: (key, val) => setState(() => values[key] = val),
+          ),
+        ),
+        repository: _FakePluginsRepository(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Type in the middle of the text, as a person would.
+    await tester.showKeyboard(find.byType(TextField));
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'aXbc',
+        selection: TextSelection.collapsed(offset: 2),
+      ),
+    );
+    await tester.pump();
+
+    expect(values['name'], 'aXbc');
+    final controller = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!;
+    expect(controller.text, 'aXbc');
+    expect(controller.selection.baseOffset, 2);
   });
 
   testWidgets('config_fields_boolean_choice_and_number', (tester) async {

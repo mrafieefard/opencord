@@ -243,15 +243,21 @@ impl SharedBuffer {
 }
 
 async fn wait_for_output(buf: &SharedBuffer, needle: &str) {
+    wait_for_count(buf, needle, 1).await;
+}
+
+/// Waits until `needle` has been printed `wanted` times, for output a run
+/// prints more than once: the buffer keeps everything printed so far.
+async fn wait_for_count(buf: &SharedBuffer, needle: &str, wanted: usize) {
     let start = std::time::Instant::now();
     while start.elapsed() < Duration::from_secs(10) {
-        if buf.text().contains(needle) {
+        if buf.text().matches(needle).count() >= wanted {
             return;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
     panic!(
-        "timed out waiting for {needle:?} in output:\n{}",
+        "timed out waiting for {wanted} of {needle:?} in output:\n{}",
         buf.text()
     );
 }
@@ -401,8 +407,9 @@ end)
     })
     .await;
 
-    // Verify it automatically reconnected, pushed and installed
-    wait_for_output(&buf, "Installed 0.1.0, running").await;
+    // Verify it automatically reconnected, pushed and installed: the second
+    // "Installed", since the edit before the restart printed the first.
+    wait_for_count(&buf, "Installed 0.1.0, running", 2).await;
     wait_for_output(&buf, "INFO hello after restart").await;
 
     // Signal stop and join task
@@ -433,7 +440,9 @@ async fn dev_initial_push_retries_when_server_is_down() {
         async move { dev::run_dev_with(opts, buf, Some(stop_rx)).await }
     });
 
-    wait_for_output(&buf, "Retrying in 2 seconds...").await;
+    // Twice: the message is printed before the wait, so one proves nothing
+    // about a second attempt.
+    wait_for_count(&buf, "Retrying in 2 seconds...", 2).await;
 
     let _ = stop_tx.send(true);
     let res = dev_task.await.unwrap();
