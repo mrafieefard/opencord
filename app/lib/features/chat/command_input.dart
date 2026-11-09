@@ -596,8 +596,11 @@ class _CommandInputState extends ConsumerState<CommandInput> {
                   cursorColor: colors.text,
                   decoration: InputDecoration(
                     isDense: true,
+                    filled: false,
                     counterText: '',
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     hintText: option.description,
                     hintStyle: OcText.body.copyWith(color: colors.textMuted),
                     contentPadding: const EdgeInsets.symmetric(vertical: 4),

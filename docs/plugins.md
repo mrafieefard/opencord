@@ -167,8 +167,13 @@ All API functions and type signatures are defined in `crates/opencord-plugins/ap
 - `typing`:
   - `typing.start(channel_id)`
 - `commands`:
-  - `commands.register({ name, description, options })`
+  - `commands.register({ name, description, options }, function(cmd) ... end)`: the function runs when the command does. Registering a name again replaces it.
+  - An option's `autocomplete = function(ac) ... end` suggests values with `ac:suggest({ { name, value }, ... })`, within 1 second; later it returns `false`.
+  - `cmd.name`, `cmd.options`, `cmd.user`, `cmd.channel_id`.
+  - `cmd:reply(content, { only_you? })` answers within 3 seconds. Later it raises `TIMEOUT: too late to reply` and writes a warning to the plugin's log.
+  - `cmd:defer({ only_you? })` shows "is thinking…" and gives 15 minutes to reply. It decides where the reply goes.
   - `commands.unregister(name)`
+  - Two plugins may use one name, and a plugin may use a built-in's: people pick from the list. A command's function that raises tells the member "{plugin name} ran into an error" at once.
 - `channels`:
   - `channels.list()`, `channels.get(id)`, `channels.create(spec)`, `channels.update(id, spec)`, `channels.delete(id)`, `channels.reorder(order)`, `channels.set_overwrite(channel_id, spec)`
 - `roles`:
@@ -296,7 +301,9 @@ Watches the plugin directory for file changes (polling every 300 ms). On start a
 | File storage | 500 MB per plugin |
 | Web hook payload | Max 1 MB request body |
 | HTTP request timeout | Max 30 seconds |
+| CPU share | 25 % of one core, averaged over 10 seconds; past it, events wait in the queue. Plugin threads run at a lower priority. |
 | Registered commands | Max 100 commands per plugin |
+| Commands thinking at once | Max 100 per plugin |
 | Active timers | Max 50 active timers per plugin |
 | Log history | Kept up to 5,000 lines in memory and disk per plugin |
 
