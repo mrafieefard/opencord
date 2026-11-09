@@ -122,32 +122,8 @@ impl TestServer {
         headers: &[(&str, &str)],
         body: &[u8],
     ) -> (u16, Vec<u8>) {
-        let mut stream = tls_connect(self).await;
-        let extra: String = headers
-            .iter()
-            .map(|(name, value)| format!("{name}: {value}\r\n"))
-            .collect();
-        let head = format!(
-            "{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\
-             Content-Length: {}\r\n{extra}\r\n",
-            body.len()
-        );
-        stream.write_all(head.as_bytes()).await.unwrap();
-        // A server that refuses early may stop reading the body.
-        let _ = stream.write_all(body).await;
-        // TLS may still hold the body's tail until flushed.
-        let _ = stream.flush().await;
-        let mut response = Vec::new();
-        let _ = stream.read_to_end(&mut response).await;
-        let status = std::str::from_utf8(&response[9..12])
-            .unwrap()
-            .parse()
-            .unwrap();
-        let start = response
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-            .map_or(response.len(), |at| at + 4);
-        (status, response[start..].to_vec())
+        let (status, _, body) = self.send_http_full(method, path, headers, body).await;
+        (status, body)
     }
 
     /// An HTTPS request with a binary body; returns the status code,
@@ -159,7 +135,7 @@ impl TestServer {
         headers: &[(&str, &str)],
         body: &[u8],
     ) -> (u16, Vec<(String, String)>, Vec<u8>) {
-        let mut stream = tls_connect(self).await;
+        let stream = tls_connect(self).await;
         let extra: String = headers
             .iter()
             .map(|(name, value)| format!("{name}: {value}\r\n"))
@@ -169,15 +145,37 @@ impl TestServer {
              Content-Length: {}\r\n{extra}\r\n",
             body.len()
         );
-        stream.write_all(head.as_bytes()).await.unwrap();
-        let _ = stream.write_all(body).await;
-        let _ = stream.flush().await;
-        let mut response = Vec::new();
-        let _ = stream.read_to_end(&mut response).await;
-        let status = std::str::from_utf8(&response[9..12])
-            .unwrap()
-            .parse()
-            .unwrap();
+        let (mut reader, mut writer) = tokio::io::split(stream);
+        let write_task = async move {
+            if writer.write_all(head.as_bytes()).await.is_err() {
+                return;
+            }
+            // A server that refuses early may stop reading the body.
+            let _ = writer.write_all(body).await;
+            let _ = writer.flush().await;
+        };
+        let read_task = async move {
+            let mut response = Vec::new();
+            let mut chunk = [0u8; 16 * 1024];
+            loop {
+                match reader.read(&mut chunk).await {
+                    Ok(0) => break,
+                    Ok(n) => response.extend_from_slice(&chunk[..n]),
+                    Err(_) if !response.is_empty() => break,
+                    Err(_) => break,
+                }
+            }
+            response
+        };
+        let (_, response) = tokio::join!(write_task, read_task);
+        let status = if response.len() >= 12 && response.starts_with(b"HTTP/1.") {
+            std::str::from_utf8(&response[9..12])
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0)
+        } else {
+            0
+        };
         let header_end = response
             .windows(4)
             .position(|window| window == b"\r\n\r\n")
