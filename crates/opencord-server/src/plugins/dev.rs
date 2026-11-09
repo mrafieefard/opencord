@@ -384,7 +384,7 @@ async fn install_dev(
 /// off until the next push, or until an admin starts it.
 async fn crashed(state: &AppState, id: &str, error: &str) -> Result<(), ApiError> {
     // A start that failed before its VM ran leaves the old one running.
-    state.plugins.stop(id).await;
+    state.plugins.stop(state, id).await;
     super::save_crashed_reason(state, id, Some(error)).await?;
     if let Some(handle) = state.plugins.get(id) {
         handle.set_status(proto::PluginState::Crashed, Some(error.to_owned()));

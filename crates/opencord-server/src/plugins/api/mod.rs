@@ -19,6 +19,7 @@ pub mod log;
 pub mod messages;
 pub mod plugin;
 pub mod timers;
+pub mod ui;
 pub mod voice;
 
 use std::sync::Arc;
@@ -47,6 +48,7 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     timers::install(&vm.lua, env)?;
     bus::install(&vm.lua, env)?;
     config::install(&vm.lua, env)?;
+    ui::install(&vm.lua, env)?;
     #[cfg(any(test, debug_assertions))]
     tests::install(&vm.lua, env)?;
     Ok(())

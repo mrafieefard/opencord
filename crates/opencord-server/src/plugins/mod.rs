@@ -2,6 +2,7 @@
 //! acting through a plugin user and a managed role.
 
 pub mod api;
+pub mod channel_types;
 pub mod command_calls;
 pub mod cpu_share;
 pub mod database;
@@ -335,6 +336,8 @@ pub struct Plugins {
     pub reviews: review::Reviews,
     pub dev_tokens: dev::DevTokens,
     pub bus: Arc<PluginBus>,
+    /// The channel types running plugins registered.
+    pub channel_types: channel_types::ChannelTypes,
     log_watchers: RwLock<HashMap<String, HashSet<String>>>,
     /// Held through each install, update, uninstall and permission change,
     /// so two never interleave. Taken before the guild's write lock.
@@ -361,6 +364,7 @@ impl Plugins {
             reviews: review::Reviews::default(),
             dev_tokens: dev::DevTokens::default(),
             bus: Arc::new(PluginBus::default()),
+            channel_types: channel_types::ChannelTypes::default(),
             log_watchers: RwLock::new(HashMap::new()),
             changes: tokio::sync::Mutex::new(()),
         }
@@ -410,6 +414,23 @@ impl Plugins {
         }
         let data_dir = state.config.plugins_dir().join(&installed.id);
         let spec = Arc::new(Spec::new(&installed, &state.config.plugins, data_dir)?);
+        let id = installed.id.clone();
+        let started = self.replace(state, installed, spec).await;
+        if started.is_err() {
+            // The old copy stopped and the new one didn't start.
+            channel_types::stopped(state, &id).await;
+        }
+        started
+    }
+
+    /// Stops a running copy, then starts `installed` as [`Plugins::start`]
+    /// says.
+    async fn replace(
+        &self,
+        state: &Arc<AppState>,
+        installed: InstalledPlugin,
+        spec: Arc<Spec>,
+    ) -> Result<(), StartError> {
         let old = self.get(&installed.id);
         if let Some(old) = &old {
             old.stop().await;
@@ -522,17 +543,19 @@ impl Plugins {
     }
 
     /// Delivers `stop`, waits the grace, drops the VM; waiting calls are
-    /// cancelled.
-    pub async fn stop(&self, id: &str) {
+    /// cancelled. Its channels can't be opened after.
+    pub async fn stop(&self, state: &AppState, id: &str) {
         if let Some(handle) = self.get(id) {
             handle.stop().await;
         }
+        channel_types::stopped(state, id).await;
     }
 
     /// Stops the plugin and forgets it, writing out its log first.
-    pub async fn remove(&self, id: &str) {
+    pub async fn remove(&self, state: &AppState, id: &str) {
         let Some(handle) = self.get(id) else { return };
         handle.stop().await;
+        channel_types::stopped(state, id).await;
         self.clear_log_watchers(id);
         self.bus.unlisten_all(id);
         self.handles

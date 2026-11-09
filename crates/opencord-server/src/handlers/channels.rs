@@ -14,6 +14,7 @@ use crate::db::channels;
 use crate::error::ApiError;
 use crate::guild::{Channel, Guild, PluginChannelRef, overwrite_row, overwrite_target_to_db};
 use crate::permissions::{require_base, require_channel, require_grantable};
+use crate::plugins::{PluginEvent, event_tables, events};
 use crate::state::now_ms;
 use crate::visibility::Visibility;
 use crate::voice;
@@ -30,6 +31,15 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Resp
     let position = {
         let guild = ctx.state.guild();
         require_base(&guild, ctx.user_id, Permissions::MANAGE_CHANNELS)?;
+        // Types change under the write lock, so this still holds at the
+        // insert.
+        if plugin.as_ref().is_some_and(|plugin| {
+            ctx.state.plugins.channel_types.state(plugin) != proto::PluginChannelState::Available
+        }) {
+            return Err(ApiError::invalid_argument(
+                "that channel type isn't available",
+            ));
+        }
         if guild.channels.len() >= MAX_CHANNELS {
             return Err(ApiError::conflict(format!(
                 "a server can have at most {MAX_CHANNELS} channels"
@@ -70,7 +80,30 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Resp
         .channels
         .insert(channel.id, channel.clone());
     before.announce(ctx.state, &[]);
-    Ok(Response::Channel(channel.to_proto()))
+    let shown = channel.to_proto(&ctx.state.plugins.channel_types);
+    if let Some(plugin) = &channel.plugin {
+        tell_plugin(
+            ctx,
+            &plugin.plugin_id,
+            "plugin_channel_create",
+            serde_json::json!({ "channel": event_tables::channel_table(&shown) }),
+        );
+    }
+    Ok(Response::Channel(shown))
+}
+
+/// Tells a plugin channel's plugin it was created or deleted, whatever the
+/// plugin may read (design 2026-11-07 §14.2).
+fn tell_plugin(ctx: &Ctx<'_>, plugin_id: &str, name: &str, payload: serde_json::Value) {
+    ctx.state.plugins.deliver(
+        plugin_id,
+        PluginEvent {
+            name: name.to_owned(),
+            payload,
+            reply: None,
+            command: None,
+        },
+    );
 }
 
 pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateChannel) -> Result<Response, ApiError> {
@@ -138,25 +171,28 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateChannel) -> Result<Resp
     if request.bitrate.is_some() || request.user_limit.is_some() {
         voice::limits_changed(ctx.state, &[updated.id]);
     }
-    Ok(Response::Channel(updated.to_proto()))
+    Ok(Response::Channel(
+        updated.to_proto(&ctx.state.plugins.channel_types),
+    ))
 }
 
 pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteChannel) -> Result<Response, ApiError> {
     let _writes = ctx.state.write_lock().await;
-    let children: Vec<i64> = {
+    let (children, plugin) = {
         let guild = ctx.state.guild();
-        require_channel(
+        let channel = require_channel(
             &guild,
             ctx.user_id,
             request.channel_id,
             Permissions::MANAGE_CHANNELS,
         )?;
-        guild
+        let children: Vec<i64> = guild
             .channels
             .values()
             .filter(|channel| channel.parent_id == Some(request.channel_id))
             .map(|channel| channel.id)
-            .collect()
+            .collect();
+        (children, channel.plugin.clone())
     };
     channels::delete(&mut *ctx.state.db.acquire().await?, request.channel_id).await?;
 
@@ -171,6 +207,14 @@ pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteChannel) -> Result<Resp
         }
     }
     before.announce(ctx.state, &children);
+    if let Some(plugin) = plugin {
+        tell_plugin(
+            ctx,
+            &plugin.plugin_id,
+            "plugin_channel_delete",
+            serde_json::json!({ "channel_id": events::id(request.channel_id) }),
+        );
+    }
     crate::music::end(ctx.state, Some(request.channel_id));
     let afk_cleared = {
         let guild = ctx.state.guild();
@@ -279,7 +323,9 @@ pub async fn set_overwrite(
     )
     .await?;
     replace_and_announce(ctx, vec![updated.clone()]);
-    Ok(Response::Channel(updated.to_proto()))
+    Ok(Response::Channel(
+        updated.to_proto(&ctx.state.plugins.channel_types),
+    ))
 }
 
 pub async fn delete_overwrite(
@@ -322,7 +368,9 @@ pub async fn delete_overwrite(
     )
     .await?;
     replace_and_announce(ctx, vec![updated.clone()]);
-    Ok(Response::Channel(updated.to_proto()))
+    Ok(Response::Channel(
+        updated.to_proto(&ctx.state.plugins.channel_types),
+    ))
 }
 
 /// Puts the channels in the cache and tells everyone affected.

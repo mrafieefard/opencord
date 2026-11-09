@@ -1,20 +1,121 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Plugin channels: the channel kind, its migration and who sees it (plan
-//! Task 7, design 2026-11-07 §14.2).
+//! Task 7, design 2026-11-07 §14.2); channel types and whether a channel
+//! can be opened (plan Task 8, §14.1 and §14.4).
 
 use std::time::Duration;
 
 use opencord_proto::v1 as proto;
+use proto::PluginChannelState as State;
 use proto::envelope::Payload;
 use proto::event::Kind as Event;
 use proto::request::Kind;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{AssertSqlSafe, SqlitePool};
 
-use crate::common::{TestClient, TestServer, invite, key, owner};
+use crate::common::{TestClient, TestServer, invite, key, media_token, owner};
+use crate::support::{install, log_lines, manifest, manifest_with, package, wait_for_log};
 
 const FEATURE: &str = "plugin_channels";
+
+/// The script of a plugin registering each of `keys` named "Tickets".
+fn registering(keys: &[&str]) -> String {
+    keys.iter()
+        .map(|key| format!("ui.register_channel_type({key:?}, {{ name = \"Tickets\" }})\n"))
+        .collect()
+}
+
+/// Installs plugin `id` at `version`, running `source`, through `client`
+/// (an admin) whose Ready is `ready`; returns once it started.
+async fn plugin_at(
+    server: &TestServer,
+    client: &mut TestClient,
+    ready: &proto::Ready,
+    id: &str,
+    version: &str,
+    source: &str,
+) -> proto::Plugin {
+    let zip = package(&[
+        (
+            "manifest.lua",
+            &manifest_with(id, version, &["create_channel_types"], ""),
+        ),
+        ("server/main.luau", source),
+        ("assets/desk.png", "not really a png"),
+    ]);
+    install(
+        server,
+        client,
+        &media_token(ready),
+        zip,
+        &["create_channel_types"],
+    )
+    .await
+}
+
+/// [`plugin_at`] version 1.0.0 of `"tickets"`, registering `keys`.
+async fn tickets(
+    server: &TestServer,
+    client: &mut TestClient,
+    ready: &proto::Ready,
+    keys: &[&str],
+) -> proto::Plugin {
+    plugin_at(
+        server,
+        client,
+        ready,
+        "tickets",
+        "1.0.0",
+        &registering(keys),
+    )
+    .await
+}
+
+fn plugin_channel(plugin_id: &str, type_key: &str) -> Kind {
+    Kind::CreateChannel(proto::CreateChannel {
+        kind: proto::ChannelKind::Plugin as i32,
+        name: "Help".to_owned(),
+        plugin_id: Some(plugin_id.to_owned()),
+        type_key: Some(type_key.to_owned()),
+        ..Default::default()
+    })
+}
+
+fn set_running(running: bool) -> Kind {
+    Kind::SetPluginRunning(proto::SetPluginRunning {
+        plugin_id: "tickets".to_owned(),
+        running,
+    })
+}
+
+/// Waits up to 5 s for an event `pick` takes.
+async fn within<T>(client: &mut TestClient, pick: impl FnMut(&Event) -> Option<T>) -> T {
+    tokio::time::timeout(Duration::from_secs(5), client.wait_for(pick))
+        .await
+        .expect("the event never came")
+}
+
+/// The next list of channel types `client` is sent.
+async fn types_update(client: &mut TestClient) -> Vec<proto::PluginChannelType> {
+    within(client, |event| match event {
+        Event::PluginChannelTypesUpdate(update) => Some(update.types.clone()),
+        _ => None,
+    })
+    .await
+}
+
+/// The next `ChannelUpdate` of `channel_id` that `client` is sent.
+async fn channel_update(client: &mut TestClient, channel_id: i64) -> proto::Channel {
+    within(client, |event| match event {
+        Event::ChannelUpdate(update) => update
+            .channel
+            .clone()
+            .filter(|channel| channel.id == channel_id),
+        _ => None,
+    })
+    .await
+}
 
 /// A session for `seed`'s key, listing `features`. The key must already be
 /// a member, or `invite` lets it join.
@@ -289,7 +390,8 @@ async fn a_plugin_channel_needs_its_plugin_and_type() {
     // a malformed key, or lets another kind carry them.
     let server = TestServer::start().await;
     let (_owner, _) = owner(&server).await;
-    let (mut admin, _) = session(&server, 1, None, &[FEATURE]).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    tickets(&server, &mut admin, &ready, &[&"k".repeat(40)]).await;
     let plugin = |plugin_id: Option<&str>, type_key: Option<&str>| {
         Kind::CreateChannel(proto::CreateChannel {
             kind: proto::ChannelKind::Plugin as i32,
@@ -350,10 +452,7 @@ async fn a_plugin_channel_needs_its_plugin_and_type() {
     assert_eq!(channel.name, "Tickets");
     assert_eq!(channel.plugin_id.as_deref(), Some("tickets"));
     assert_eq!(channel.type_key, Some("k".repeat(40)));
-    assert_eq!(
-        channel.plugin_state,
-        proto::PluginChannelState::PluginStopped as i32
-    );
+    assert_eq!(channel.plugin_state, State::Available as i32);
 }
 
 #[tokio::test]
@@ -362,7 +461,8 @@ async fn a_plugin_channel_takes_no_messages() {
     // joining voice works in a plugin channel, as in a text channel.
     let server = TestServer::start().await;
     let (_owner, _) = owner(&server).await;
-    let (mut admin, _) = session(&server, 1, None, &[FEATURE]).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    tickets(&server, &mut admin, &ready, &["tickets"]).await;
     let channel_id = channel_of(admin.ok(create_plugin_channel("Tickets")).await).id;
 
     for (request, message) in [
@@ -422,6 +522,7 @@ async fn an_older_app_never_sees_a_plugin_channel() {
     let (mut old_member, _) = session(&server, 2, Some(&code), &[]).await;
     let (mut new_member, _) = session(&server, 3, Some(&code), &[FEATURE]).await;
     let everyone = ready.server.as_ref().unwrap().everyone_role_id;
+    tickets(&server, &mut admin, &ready, &["tickets"]).await;
 
     let plugin_id = channel_of(admin.ok(create_plugin_channel("Tickets")).await).id;
     admin
@@ -517,6 +618,7 @@ async fn a_plugin_channel_round_trips_through_the_guild() {
     let server = TestServer::start().await;
     let (_owner, _) = owner(&server).await;
     let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    tickets(&server, &mut admin, &ready, &["desk"]).await;
     let category = channel_of(
         admin
             .ok(Kind::CreateChannel(proto::CreateChannel {
@@ -563,7 +665,352 @@ async fn a_plugin_channel_round_trips_through_the_guild() {
         .iter()
         .find(|channel| channel.id == created.id)
         .expect("the plugin channel is loaded");
-    assert_eq!(loaded, &created);
+    // The plugin starts again in the background, so it may not run yet.
+    let unjudged = |channel: &proto::Channel| proto::Channel {
+        plugin_state: 0,
+        ..channel.clone()
+    };
+    assert_eq!(unjudged(loaded), unjudged(&created));
     assert_eq!(loaded.kind, proto::ChannelKind::Plugin as i32);
     assert_eq!(loaded.type_key.as_deref(), Some("desk"));
+}
+
+// --- Channel types (Task 8) ---------------------------------------------
+
+#[tokio::test]
+async fn a_registered_type_is_listed_to_feature_sessions() {
+    // Fails if the list goes to apps that don't show plugin channels (in
+    // Ready or as an update), or a type's fields are lost on the way.
+    let server = TestServer::start_with(|config| config.gateway.identify_per_minute = 20).await;
+    let (mut old_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    plugin_at(
+        &server,
+        &mut admin,
+        &ready,
+        "tickets",
+        "1.0.0",
+        r#"ui.register_channel_type("desk", {
+            name = "Help desk", description = "Ask us", icon = "assets/desk.png",
+        })"#,
+    )
+    .await;
+    let expected = vec![proto::PluginChannelType {
+        plugin_id: "tickets".to_owned(),
+        type_key: "desk".to_owned(),
+        name: "Help desk".to_owned(),
+        description: "Ask us".to_owned(),
+        icon: "assets/desk.png".to_owned(),
+        plugin_name: "Test plugin".to_owned(),
+    }];
+
+    assert_eq!(types_update(&mut admin).await, expected);
+    let (_later, new_ready) = session(&server, 1, None, &[FEATURE]).await;
+    assert_eq!(new_ready.plugin_channel_types, expected);
+    let (_older, old_ready) = session(&server, 1, None, &[]).await;
+    assert!(old_ready.plugin_channel_types.is_empty());
+    old_owner
+        .assert_no_event(Duration::from_millis(200), |event| {
+            matches!(event, Event::PluginChannelTypesUpdate(_))
+        })
+        .await;
+}
+
+#[tokio::test]
+async fn a_channel_of_an_unregistered_type_is_refused() {
+    // Fails if CreateChannel takes a plugin channel whose plugin doesn't
+    // run or didn't register the type.
+    let server = TestServer::start().await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    let refused = |error: proto::Error| {
+        assert_eq!(error.code, proto::ErrorCode::InvalidArgument as i32);
+        assert_eq!(error.message, "that channel type isn't available");
+    };
+
+    refused(admin.error(plugin_channel("tickets", "desk")).await);
+    tickets(&server, &mut admin, &ready, &["desk"]).await;
+    refused(admin.error(plugin_channel("tickets", "other")).await);
+    refused(admin.error(plugin_channel("elsewhere", "desk")).await);
+    let created = channel_of(admin.ok(plugin_channel("tickets", "desk")).await);
+    assert_eq!(created.plugin_state, State::Available as i32);
+
+    admin.ok(set_running(false)).await;
+    refused(admin.error(plugin_channel("tickets", "desk")).await);
+}
+
+#[tokio::test]
+async fn stopping_the_plugin_makes_its_channels_unavailable_and_starting_brings_them_back() {
+    // Fails if stopping leaves the channels available, starting doesn't
+    // bring them back, or either changes the channel itself.
+    let server = TestServer::start().await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    tickets(&server, &mut admin, &ready, &["desk"]).await;
+    let code = invite(&mut admin, None).await;
+    let (mut member, _) = session(&server, 2, Some(&code), &[FEATURE]).await;
+    let channel_id = channel_of(admin.ok(plugin_channel("tickets", "desk")).await).id;
+    let created = channel_of(
+        admin
+            .ok(Kind::SetChannelOverwrite(proto::SetChannelOverwrite {
+                channel_id,
+                overwrite: Some(proto::PermissionOverwrite {
+                    target_kind: proto::OverwriteTarget::Role as i32,
+                    target_id: ready.server.as_ref().unwrap().everyone_role_id,
+                    allow: 0,
+                    deny: opencord_common::permissions::Permissions::SEND_MESSAGES.bits(),
+                }),
+            }))
+            .await,
+    );
+    assert_eq!(created.plugin_state, State::Available as i32);
+
+    admin.ok(set_running(false)).await;
+    assert!(types_update(&mut member).await.is_empty());
+    let stopped = channel_update(&mut member, channel_id).await;
+    assert_eq!(stopped.plugin_state, State::PluginStopped as i32);
+    assert_eq!(
+        proto::Channel {
+            plugin_state: State::Available as i32,
+            ..stopped
+        },
+        created
+    );
+
+    admin.ok(set_running(true)).await;
+    assert_eq!(types_update(&mut member).await.len(), 1);
+    assert_eq!(channel_update(&mut member, channel_id).await, created);
+}
+
+#[tokio::test]
+async fn a_version_without_the_type_shows_type_gone() {
+    // Fails if an update that drops a type leaves its channels available,
+    // or shows them stopped on the way.
+    let server = TestServer::start().await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    tickets(&server, &mut admin, &ready, &["desk"]).await;
+    let channel_id = channel_of(admin.ok(plugin_channel("tickets", "desk")).await).id;
+    let code = invite(&mut admin, None).await;
+    let (mut member, _) = session(&server, 2, Some(&code), &[FEATURE]).await;
+
+    plugin_at(
+        &server,
+        &mut admin,
+        &ready,
+        "tickets",
+        "2.0.0",
+        &registering(&["queue"]),
+    )
+    .await;
+
+    let types = types_update(&mut member).await;
+    assert_eq!(types.len(), 1);
+    assert_eq!(types[0].type_key, "queue");
+    assert_eq!(
+        channel_update(&mut member, channel_id).await.plugin_state,
+        State::TypeGone as i32
+    );
+}
+
+#[tokio::test]
+async fn a_restart_with_the_same_types_sends_nothing() {
+    // Fails if a restart (by an admin, or after a crash) clears the types
+    // while the new VM starts, sending "stopped" then "available" again.
+    // 64 MiB is then more than the plugin may use.
+    let server = TestServer::start_with(|config| config.plugins.memory_mb = 16).await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    let source = format!(
+        r#"{}
+        if not files.get("crashed") then
+            files.put("crashed", "1")
+            log.info("first run")
+            -- Late enough for the member to join first.
+            timer.after(1, function() local s = string.rep("x", 64 * 1024 * 1024) end)
+        else
+            log.info("run after the crash")
+        end"#,
+        registering(&["desk"])
+    );
+    plugin_at(&server, &mut admin, &ready, "tickets", "1.0.0", &source).await;
+    let channel_id = channel_of(admin.ok(plugin_channel("tickets", "desk")).await).id;
+    let code = invite(&mut admin, None).await;
+    let (mut member, _) = session(&server, 2, Some(&code), &[FEATURE]).await;
+    wait_for_log(&mut admin, "tickets", "run after the crash").await;
+    admin
+        .ok(Kind::RestartPlugin(proto::RestartPlugin {
+            plugin_id: "tickets".to_owned(),
+        }))
+        .await;
+    let marker = channel_of(admin.ok(create_text_channel("marker")).await).id;
+
+    let sent: Vec<Event> = events_until_created(&mut member, marker)
+        .await
+        .into_iter()
+        .filter(|event| {
+            matches!(event, Event::PluginChannelTypesUpdate(_))
+                || matches!(event, Event::ChannelUpdate(_))
+                    && channel_event_id(event) == Some(channel_id)
+        })
+        .collect();
+    assert!(sent.is_empty(), "a restart sent {sent:?}");
+    let lines = log_lines(&mut admin, "tickets").await;
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| line.contains("run after the crash"))
+            .count(),
+        2,
+        "it restarted after the crash, then by the admin: {lines:#?}"
+    );
+}
+
+#[tokio::test]
+async fn the_plugin_hears_its_channels_created_and_deleted() {
+    // Fails if the owning plugin doesn't hear of its channels without
+    // read_channels, or another plugin with the same key hears of them.
+    let server = TestServer::start().await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    let listening = format!(
+        r#"{}
+        opencord.on("plugin_channel_create", function(event)
+            log.info("created " .. event.channel.id .. " " .. event.channel.type_key)
+        end)
+        opencord.on("plugin_channel_delete", function(event)
+            log.info("deleted " .. event.channel_id)
+        end)"#,
+        registering(&["desk"])
+    );
+    plugin_at(&server, &mut admin, &ready, "tickets", "1.0.0", &listening).await;
+    plugin_at(&server, &mut admin, &ready, "other", "1.0.0", &listening).await;
+
+    let channel_id = channel_of(admin.ok(plugin_channel("tickets", "desk")).await).id;
+    wait_for_log(&mut admin, "tickets", &format!("created {channel_id} desk")).await;
+    admin
+        .ok(Kind::DeleteChannel(proto::DeleteChannel { channel_id }))
+        .await;
+    wait_for_log(&mut admin, "tickets", &format!("deleted {channel_id}")).await;
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let other = log_lines(&mut admin, "other").await;
+    assert!(
+        !other
+            .iter()
+            .any(|line| line.contains(&channel_id.to_string())),
+        "{other:#?}"
+    );
+}
+
+#[tokio::test]
+async fn a_bad_key_icon_or_name_raises() {
+    // Fails if a malformed registration is taken, raises another text, or
+    // works without create_channel_types.
+    let server = TestServer::start().await;
+    let (mut admin, ready) = owner(&server).await;
+    let source = r#"
+        local function try(label, key, spec)
+            local ok, err = pcall(ui.register_channel_type, key, spec)
+            log.info(label .. ": " .. (ok and "ok" or err))
+        end
+        try("key", "Bad Key", { name = "Tickets" })
+        try("long key", string.rep("k", 41), { name = "Tickets" })
+        try("number key", 5, { name = "Tickets" })
+        try("spec", "desk", "Tickets")
+        try("no name", "desk", {})
+        try("blank name", "desk", { name = "  " })
+        try("long name", "desk", { name = string.rep("n", 61) })
+        try("control name", "desk", { name = "a\nb" })
+        try("long description", "desk", { name = "T", description = string.rep("d", 201) })
+        try("svg icon", "desk", { name = "T", icon = "assets/desk.svg" })
+        try("outside icon", "desk", { name = "T", icon = "client/desk.png" })
+        try("missing icon", "desk", { name = "T", icon = "assets/gone.png" })
+        try("good", "desk", { name = "T", icon = "assets/desk.png" })
+        log.info("done")
+    "#;
+    plugin_at(&server, &mut admin, &ready, "tickets", "1.0.0", source).await;
+    let zip = package(&[
+        ("manifest.lua", &manifest("bare", &[])),
+        (
+            "server/main.luau",
+            r#"local ok, err = pcall(ui.register_channel_type, "desk", { name = "T" })
+            log.info("denied: " .. err)"#,
+        ),
+    ]);
+    install(&server, &mut admin, &media_token(&ready), zip, &[]).await;
+    wait_for_log(&mut admin, "tickets", "done").await;
+
+    let lines = log_lines(&mut admin, "tickets").await;
+    for expected in [
+        "key: INVALID_ARGUMENT: key must be 1 to 40 of a-z, 0-9 and _",
+        "long key: INVALID_ARGUMENT: key must be 1 to 40 of a-z, 0-9 and _",
+        "number key: INVALID_ARGUMENT: key must be a string",
+        "spec: INVALID_ARGUMENT: a channel type is a table such as { name = \"Tickets\" }",
+        "no name: INVALID_ARGUMENT: name must be a string",
+        "blank name: INVALID_ARGUMENT: name must be 1 to 60 characters, without control characters",
+        "long name: INVALID_ARGUMENT: name must be 1 to 60 characters, without control characters",
+        "control name: INVALID_ARGUMENT: name must be 1 to 60 characters, without control characters",
+        "long description: INVALID_ARGUMENT: description must be at most 200 characters, without control characters",
+        "svg icon: INVALID_ARGUMENT: icon must be a .png, .jpg, .jpeg or .webp file under assets/",
+        "outside icon: INVALID_ARGUMENT: icon must be a .png, .jpg, .jpeg or .webp file under assets/",
+        "missing icon: INVALID_ARGUMENT: icon assets/gone.png isn't in the plugin's package",
+        "good: ok",
+        "registered channel type desk",
+    ] {
+        assert!(
+            lines.iter().any(|line| line == expected),
+            "{expected:?} in {lines:#?}"
+        );
+    }
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| line.starts_with("registered channel type"))
+            .count(),
+        1,
+        "only the good one registered"
+    );
+    wait_for_log(
+        &mut admin,
+        "bare",
+        "denied: PERMISSION_DENIED: the plugin doesn't have create_channel_types",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn the_21st_type_raises() {
+    // Fails if a plugin can register more than 20 types, or replacing one
+    // of its 20 counts as a 21st.
+    let server = TestServer::start().await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+    let source = r#"
+        for i = 1, 20 do
+            ui.register_channel_type("type_" .. i, { name = "Type " .. i })
+        end
+        local ok, err = pcall(ui.register_channel_type, "type_21", { name = "One more" })
+        log.info("21st: " .. err)
+        ui.register_channel_type("type_1", { name = "Renamed" })
+        log.info("replaced")
+    "#;
+    plugin_at(&server, &mut admin, &ready, "tickets", "1.0.0", source).await;
+    wait_for_log(&mut admin, "tickets", "replaced").await;
+
+    wait_for_log(
+        &mut admin,
+        "tickets",
+        "21st: PLUGIN_LIMIT: at most 20 channel types",
+    )
+    .await;
+    let (_later, new_ready) = session(&server, 1, None, &[FEATURE]).await;
+    let types = new_ready.plugin_channel_types;
+    assert_eq!(types.len(), 20);
+    assert!(
+        types
+            .iter()
+            .any(|t| t.type_key == "type_1" && t.name == "Renamed")
+    );
+    assert!(!types.iter().any(|t| t.type_key == "type_21"));
 }

@@ -179,6 +179,12 @@ pub fn channel_table(c: &proto::Channel) -> Value {
     table.insert("bitrate".to_owned(), json!(c.bitrate));
     table.insert("user_limit".to_owned(), json!(c.user_limit));
     table.insert("text_in_voice".to_owned(), Value::Bool(c.text_in_voice));
+    if let Some(plugin_id) = &c.plugin_id {
+        table.insert("plugin_id".to_owned(), Value::String(plugin_id.clone()));
+    }
+    if let Some(type_key) = &c.type_key {
+        table.insert("type_key".to_owned(), Value::String(type_key.clone()));
+    }
     Value::Object(table)
 }
 

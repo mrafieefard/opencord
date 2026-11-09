@@ -517,7 +517,7 @@ async fn stop_delivers_stop_and_cancels_waits() {
     wait_for_log(&handle, "waiting").await;
 
     let began = Instant::now();
-    state.plugins.stop("waiting").await;
+    state.plugins.stop(&state, "waiting").await;
 
     assert!(began.elapsed() < Duration::from_secs(2));
     let texts: Vec<String> = logged(&handle).into_iter().map(|line| line.text).collect();

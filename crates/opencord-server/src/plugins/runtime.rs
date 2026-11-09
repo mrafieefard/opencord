@@ -33,6 +33,7 @@ use tokio::task::JoinSet;
 
 use super::api::plugin::handlers_for;
 use super::api::{self, raise};
+use super::channel_types;
 use super::command_calls;
 use super::cpu_share::{CpuShare, lower_this_threads_priority};
 use super::database::{self, PluginDb};
@@ -58,6 +59,10 @@ pub struct PluginEnv {
     pub plugin_id: String,
     pub user_id: i64,
     pub version: String,
+    /// The manifest's name.
+    pub plugin_name: String,
+    /// Every path under `assets/` in the installed version.
+    pub assets: Arc<HashSet<String>>,
     /// Shared with the plugin's handle, which changes it.
     pub granted: Arc<RwLock<HashSet<PluginPermission>>>,
     pub log: Arc<super::logbook::PluginLog>,
@@ -167,6 +172,9 @@ pub(crate) struct Spec {
     id: String,
     user_id: i64,
     version: String,
+    name: String,
+    /// Every path under `assets/`.
+    assets: Arc<HashSet<String>>,
     scripts: Vec<String>,
     /// Every `server/*.lua` and `server/*.luau`, by path.
     sources: Arc<HashMap<String, String>>,
@@ -189,6 +197,12 @@ impl Spec {
         data_dir: PathBuf,
     ) -> Result<Spec, StartError> {
         let mut sources = HashMap::new();
+        let assets = installed
+            .package
+            .paths()
+            .filter(|path| path.starts_with("assets/"))
+            .map(str::to_owned)
+            .collect();
         for path in installed.package.paths() {
             if path.starts_with("server/") && (path.ends_with(".luau") || path.ends_with(".lua")) {
                 let bytes = installed.package.get(path).unwrap_or_default();
@@ -203,6 +217,8 @@ impl Spec {
             id: installed.id.clone(),
             user_id: installed.user_id,
             version: installed.manifest.version.to_string(),
+            name: installed.manifest.name.clone(),
+            assets: Arc::new(assets),
             scripts: installed.manifest.server.clone(),
             sources: Arc::new(sources),
             limits: VmLimits {
@@ -282,6 +298,8 @@ fn spawn_vm(
                 plugin_id: spec.id.clone(),
                 user_id: spec.user_id,
                 version: spec.version.clone(),
+                plugin_name: spec.name.clone(),
+                assets: spec.assets.clone(),
                 granted: handle.granted.clone(),
                 log: handle.log.clone(),
                 budget: vm.budget().clone(),
@@ -955,6 +973,9 @@ async fn run_once(
     };
     let (reports_sender, mut reports) = mpsc::unbounded_channel();
     let (commands, commands_receiver) = watch::channel(Command::Run);
+    if let Some(state) = state.upgrade() {
+        state.plugins.channel_types.begin(&handle.id);
+    }
     if let Err(error) = spawn_vm(
         spec.clone(),
         handle.clone(),
@@ -970,29 +991,38 @@ async fn run_once(
         );
     }
     let life = loop {
-        tokio::select! {
+        let sent = tokio::select! {
             biased;
             _ = stopping.wait_for(|stop| *stop) => {
                 commands.send_replace(Command::Stop);
                 break Life::Stopped;
             }
-            sent = reports.recv() => match sent {
-                Some(Report::Started(Ok(()))) => {
-                    handle.set_status(proto::PluginState::Running, None);
-                    if let Some(waiter) = started.take() {
-                        // A caller that gave up waiting reads the handle.
-                        waiter.send(Ok(())).ok();
-                    }
+            sent = reports.recv() => sent,
+        };
+        match sent {
+            Some(Report::Started(Ok(()))) => {
+                handle.set_status(proto::PluginState::Running, None);
+                // Sent before the start returns, so whoever started it
+                // hears the channels change first.
+                if let Some(state) = state.upgrade() {
+                    channel_types::started(&state, &handle.id).await;
                 }
-                Some(Report::Started(Err(error))) => break first_failed(started, error),
-                Some(Report::Failed { error, out_of_memory }) => {
-                    if out_of_memory || health.failed(clock.now()) {
-                        commands.send_replace(Command::Kill);
-                        break Life::Broke(error);
-                    }
+                if let Some(waiter) = started.take() {
+                    // A caller that gave up waiting reads the handle.
+                    waiter.send(Ok(())).ok();
                 }
-                None => break first_failed(started, "the plugin's thread ended".to_owned()),
-            },
+            }
+            Some(Report::Started(Err(error))) => break first_failed(started, error),
+            Some(Report::Failed {
+                error,
+                out_of_memory,
+            }) => {
+                if out_of_memory || health.failed(clock.now()) {
+                    commands.send_replace(Command::Kill);
+                    break Life::Broke(error);
+                }
+            }
+            None => break first_failed(started, "the plugin's thread ended".to_owned()),
         }
     };
     // The thread holds a sender until its runtime and VM are gone.
@@ -1019,6 +1049,7 @@ async fn turn_off(state: &Weak<AppState>, handle: &PluginHandle, error: &str) {
     handle.queue.clear();
     handle.log.push(proto::PluginLogLevel::Error, &reason);
     if let Some(state) = &state {
+        channel_types::stopped(state, &handle.id).await;
         super::announce(state, &handle.id).await;
     }
 }

@@ -92,6 +92,8 @@ fn env(net: PluginNet, granted: &[PluginPermission]) -> (Vm, Arc<PluginEnv>) {
         plugin_id: "test".to_owned(),
         user_id: 7,
         version: "1.0.0".to_owned(),
+        plugin_name: "Test".to_owned(),
+        assets: Arc::new(HashSet::new()),
         granted: Arc::new(RwLock::new(granted.iter().copied().collect())),
         log: PluginLog::new("test", None),
         budget: vm.budget().clone(),

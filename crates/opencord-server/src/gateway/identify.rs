@@ -10,7 +10,7 @@ use opencord_proto::v1 as proto;
 use proto::envelope::Payload;
 
 use super::frames;
-use super::session::{CloseCode, Connection, Session};
+use super::session::{CloseCode, Connection, PLUGIN_CHANNELS, Session};
 use crate::bootstrap::hash_claim_token;
 use crate::db::invites;
 use crate::db::meta::ServerMeta;
@@ -373,7 +373,10 @@ fn ready(
             .get(&user_id)
             .map(|member| member.user.to_proto()),
         server: Some(guild.server_info()),
-        channels: shown.iter().map(|channel| channel.to_proto()).collect(),
+        channels: shown
+            .iter()
+            .map(|channel| channel.to_proto(&state.plugins.channel_types))
+            .collect(),
         roles: guild.roles.values().map(|role| role.to_proto()).collect(),
         members: guild.members.values().map(Member::to_proto).collect(),
         presences,
@@ -415,6 +418,10 @@ fn ready(
         private_messages_v2: state.private.enabled(),
         private_settings: Some(state.private.settings_proto()),
         plugin_users: crate::plugins::identity::plugin_users_proto(&guild),
-        plugin_channel_types: vec![],
+        plugin_channel_types: if session.has_feature(PLUGIN_CHANNELS) {
+            state.plugins.channel_types.list()
+        } else {
+            Vec::new()
+        },
     }
 }

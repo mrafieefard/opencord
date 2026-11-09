@@ -680,7 +680,7 @@ async fn update(
 /// already gets the update's error, and the plugin page shows the state.
 async fn roll_back(state: &Arc<AppState>, previous: Previous) {
     let id = previous.row.id.clone();
-    state.plugins.stop(&id).await;
+    state.plugins.stop(state, &id).await;
     let restored = async {
         let mut tx = state.db.begin().await?;
         rows::update_plugin(&mut tx, &previous.row, previous.license_accepted_by).await?;
@@ -741,7 +741,7 @@ pub async fn uninstall(
         )
         .await?;
     }
-    state.plugins.remove(&id).await;
+    state.plugins.remove(state, &id).await;
     if let Err(error) = identity::retire(state, &id).await {
         if !request.delete_data
             && let Err(undo) = rows::delete_leftover(&mut *state.db.acquire().await?, &id).await
@@ -964,7 +964,7 @@ pub async fn set_running(
             tracing::info!(plugin = %id, %error, "a plugin failed to start");
         }
     } else {
-        state.plugins.stop(&id).await;
+        state.plugins.stop(state, &id).await;
     }
     super::announce(state, &id).await;
     shown(state, &id, caller).await

@@ -78,7 +78,7 @@ impl Visibility {
                             *user_id,
                             channel_id,
                             Kind::ChannelCreate(proto::ChannelCreate {
-                                channel: Some(channel.to_proto()),
+                                channel: Some(channel.to_proto(&state.plugins.channel_types)),
                             }),
                         ));
                         for voice_state in voice.in_channel(channel_id) {
@@ -101,7 +101,7 @@ impl Visibility {
                             *user_id,
                             *channel_id,
                             Kind::ChannelUpdate(proto::ChannelUpdate {
-                                channel: Some(channel.to_proto()),
+                                channel: Some(channel.to_proto(&state.plugins.channel_types)),
                             }),
                         ));
                     }

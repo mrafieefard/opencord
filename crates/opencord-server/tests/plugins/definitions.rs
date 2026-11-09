@@ -28,6 +28,8 @@ async fn definitions_match_the_api() {
         plugin_id: "test".to_owned(),
         user_id: 1,
         version: "1.0.0".to_owned(),
+        plugin_name: "Test".to_owned(),
+        assets: Arc::new(HashSet::new()),
         granted: Arc::new(RwLock::new(HashSet::new())),
         log: PluginLog::new("test", None),
         budget: vm.budget().clone(),

@@ -17,6 +17,7 @@ use crate::db::roles::RoleRow;
 use crate::db::{
     channels, members, permissions_from_db, permissions_to_db, plugins, roles, sounds,
 };
+use crate::plugins::channel_types::ChannelTypes;
 use crate::soundboard::Sound;
 use crate::voice::settings::VoiceSettings;
 
@@ -464,7 +465,9 @@ impl Channel {
         }
     }
 
-    pub fn to_proto(&self) -> proto::Channel {
+    /// The channel as apps see it; a plugin channel's state comes from the
+    /// registered channel `types`.
+    pub fn to_proto(&self, types: &ChannelTypes) -> proto::Channel {
         proto::Channel {
             id: self.id,
             kind: channel_kind_to_proto(self.kind) as i32,
@@ -478,13 +481,12 @@ impl Channel {
             text_in_voice: self.kind == ChannelKind::Voice && self.text_in_voice,
             plugin_id: self.plugin.as_ref().map(|plugin| plugin.plugin_id.clone()),
             type_key: self.plugin.as_ref().map(|plugin| plugin.type_key.clone()),
-            plugin_state: if self.plugin.is_some() {
-                // The server doesn't track registered channel types yet, so
-                // no plugin channel can be opened.
-                proto::PluginChannelState::PluginStopped
-            } else {
-                proto::PluginChannelState::Unspecified
-            } as i32,
+            plugin_state: self
+                .plugin
+                .as_ref()
+                .map_or(proto::PluginChannelState::Unspecified, |plugin| {
+                    types.state(plugin)
+                }) as i32,
         }
     }
 

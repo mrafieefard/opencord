@@ -129,7 +129,7 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     let mut list = Vec::new();
                     for channel in guild.channels.values() {
                         if guild.can_view(user_id, channel.id) {
-                            list.push(channel.to_proto());
+                            list.push(channel.to_proto(&state.plugins.channel_types));
                         }
                     }
                     list.sort_by_key(|c| c.position);
@@ -162,7 +162,7 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     if let Some(ch) = guild.channels.get(&channel_id)
                         && guild.can_view(user_id, channel_id)
                     {
-                        Some(ch.to_proto())
+                        Some(ch.to_proto(&state.plugins.channel_types))
                     } else {
                         None
                     }

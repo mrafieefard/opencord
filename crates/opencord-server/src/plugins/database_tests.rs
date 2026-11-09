@@ -60,6 +60,8 @@ async fn plugin() -> (Vm, Arc<PluginEnv>, tempfile::TempDir) {
         plugin_id: "test".to_owned(),
         user_id: 7,
         version: "1.0.0".to_owned(),
+        plugin_name: "Test".to_owned(),
+        assets: Arc::new(Default::default()),
         granted: Arc::new(RwLock::new(Default::default())),
         log: PluginLog::new("test", None),
         budget: vm.budget().clone(),
