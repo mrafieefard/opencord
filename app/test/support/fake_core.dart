@@ -382,6 +382,7 @@ class FakeCoreApi extends Fake implements CoreApi {
   ) async {
     if (sendError case final error?) throw error;
     return core.Message(
+      commandState: core.CommandRunState.answered,
       id: 900,
       channelId: channelId,
       authorId: 1,

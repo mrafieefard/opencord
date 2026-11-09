@@ -363,6 +363,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CommandOutcome dco_decode_command_outcome(dynamic raw);
 
   @protected
+  CommandRunState dco_decode_command_run_state(dynamic raw);
+
+  @protected
   CommandSettingsChanges dco_decode_command_settings_changes(dynamic raw);
 
   @protected
@@ -1541,6 +1544,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CommandOutcome sse_decode_command_outcome(SseDeserializer deserializer);
+
+  @protected
+  CommandRunState sse_decode_command_run_state(SseDeserializer deserializer);
 
   @protected
   CommandSettingsChanges sse_decode_command_settings_changes(
@@ -3002,6 +3008,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_command_outcome(
     CommandOutcome self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_command_run_state(
+    CommandRunState self,
     SseSerializer serializer,
   );
 

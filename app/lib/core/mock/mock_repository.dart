@@ -2343,10 +2343,11 @@ class MockRepository implements OpencordRepository {
     String name,
     Map<String, String> options, {
     required String nonce,
+    String source = '',
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.sendMessages, channelId);
-    final spec = server.availableCommands.find(name);
+    final spec = server.availableCommands.find(name, source: source);
     if (spec == null) {
       throw RepoException(
         RepoErrorKind.notFound,
@@ -2452,8 +2453,9 @@ class MockRepository implements OpencordRepository {
     int channelId,
     String name,
     String option,
-    String value,
-  ) async {
+    String value, {
+    String source = '',
+  }) async {
     final server = _server(serverKey);
     final voice = _voice;
     if (name != 'play' ||
@@ -2488,6 +2490,7 @@ class MockRepository implements OpencordRepository {
   Future<CommandList> updateCommandSettings(
     String serverKey, {
     String name = '',
+    String source = '',
     bool? enabled,
     List<int>? channelIds,
     bool? resultsPublic,
@@ -2498,7 +2501,7 @@ class MockRepository implements OpencordRepository {
     server.commands = CommandList(
       commands: [
         for (final spec in server.commands.commands)
-          spec.name == name
+          spec.name == name && spec.source == source
               ? spec.copyWith(enabled: enabled, channelIds: channelIds)
               : spec,
       ],

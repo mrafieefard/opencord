@@ -30,6 +30,7 @@ core.Message _message(
   String content = 'hi',
   int channel = _general,
 }) => core.Message(
+  commandState: core.CommandRunState.answered,
   id: id,
   channelId: channel,
   authorId: author,
