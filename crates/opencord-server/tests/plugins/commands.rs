@@ -1080,3 +1080,425 @@ async fn a_function_that_errors_answers_at_once() {
     assert_eq!(error.message, "Test plugin ran into an error");
     wait_for_log(&mut owner, "oops", "the dice fell off the table").await;
 }
+
+/// A plugin that defers `/slow` the way `defer` says, then runs `after`.
+async fn thinking_plugin(
+    server: &TestServer,
+    owner: &mut TestClient,
+    ready: &proto::Ready,
+    permissions: &[&str],
+    defer: &str,
+    after: &str,
+) {
+    let source = format!(
+        r#"commands.register({{ name = "slow", description = "d" }}, function(cmd)
+            {defer}
+            {after}
+        end)
+        log.info("done")"#
+    );
+    plugin(server, owner, ready, "slowpoke", permissions, &source).await;
+    wait_for_log(owner, "slowpoke", "done").await;
+}
+
+const CAN_POST: &[&str] = &["register_commands", "send_messages"];
+const THINKING: i32 = proto::CommandState::Thinking as i32;
+const ANSWERED: i32 = proto::CommandState::Answered as i32;
+const NO_ANSWER: i32 = proto::CommandState::NoAnswer as i32;
+
+fn state_of(message: &proto::Message) -> i32 {
+    message
+        .interaction
+        .as_ref()
+        .expect("a command's message")
+        .state
+}
+
+async fn created_in_state(client: &mut TestClient, state: i32) -> proto::Message {
+    client
+        .wait_for(|event| match event {
+            Event::MessageCreate(create) => create.message.clone().filter(|message| {
+                message
+                    .interaction
+                    .as_ref()
+                    .is_some_and(|i| i.state == state)
+            }),
+            _ => None,
+        })
+        .await
+}
+
+async fn updated_in_state(client: &mut TestClient, state: i32) -> proto::Message {
+    client
+        .wait_for(|event| match event {
+            Event::MessageUpdate(update) => update.message.clone().filter(|message| {
+                message
+                    .interaction
+                    .as_ref()
+                    .is_some_and(|i| i.state == state)
+            }),
+            _ => None,
+        })
+        .await
+}
+
+async fn ephemeral_in_state(client: &mut TestClient, state: i32) -> proto::EphemeralMessage {
+    client
+        .wait_for(|event| match event {
+            Event::EphemeralMessage(message) if message.state == state => Some(message.clone()),
+            _ => None,
+        })
+        .await
+}
+
+#[tokio::test]
+async fn defer_posts_a_thinking_message_and_the_reply_edits_it() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "cmd:defer()",
+        r#"timer.after(0.5, function() cmd:reply("done") end)"#,
+    )
+    .await;
+
+    let started = Instant::now();
+    let res = result(owner.ok(run(ch, "slow", &[])).await);
+    assert!(
+        started.elapsed() < Duration::from_millis(500),
+        "returns at once"
+    );
+    assert!(res.message_id.is_some() && !res.ephemeral);
+
+    let thinking = created_in_state(&mut owner, THINKING).await;
+    assert_eq!(thinking.content, "Test plugin is thinking…");
+    assert_eq!(Some(thinking.id), res.message_id);
+
+    let done = updated_in_state(&mut owner, ANSWERED).await;
+    assert_eq!(done.id, thinking.id);
+    assert_eq!(done.content, "done");
+    assert_eq!(done.edited_at_ms, None);
+}
+
+#[tokio::test]
+async fn defer_only_you_sends_thinking_then_replaces_it_by_nonce() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "cmd:defer({ only_you = true })",
+        r#"timer.after(0.2, function() cmd:reply("private") end)"#,
+    )
+    .await;
+
+    let res = result(owner.ok(run(ch, "slow", &[])).await);
+    assert!(res.ephemeral && res.message_id.is_none());
+
+    let thinking = ephemeral_in_state(&mut owner, THINKING).await;
+    assert_eq!(thinking.nonce, "n1");
+    assert_eq!(thinking.content, "Test plugin is thinking…");
+
+    let done = ephemeral_in_state(&mut owner, ANSWERED).await;
+    assert_eq!(done.nonce, "n1");
+    assert_eq!(done.content, "private");
+}
+
+#[tokio::test]
+async fn defer_decides_where_the_reply_goes() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "cmd:defer()",
+        r#"cmd:reply("still public", { only_you = true })"#,
+    )
+    .await;
+
+    owner.ok(run(ch, "slow", &[])).await;
+
+    let done = updated_in_state(&mut owner, ANSWERED).await;
+    assert_eq!(done.content, "still public");
+}
+
+#[tokio::test]
+async fn defer_goes_to_the_member_when_the_plugin_cannot_post() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        &["register_commands"],
+        "cmd:defer()",
+        "",
+    )
+    .await;
+
+    let res = result(owner.ok(run(ch, "slow", &[])).await);
+
+    assert!(res.ephemeral);
+    ephemeral_in_state(&mut owner, THINKING).await;
+}
+
+#[tokio::test]
+async fn defer_follows_results_private() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(&server, &mut owner, &ready, CAN_POST, "cmd:defer()", "").await;
+    owner
+        .ok(Kind::UpdateCommandSettings(proto::UpdateCommandSettings {
+            source: String::new(),
+            name: String::new(),
+            enabled: None,
+            channel_ids: None,
+            results_public: Some(false),
+        }))
+        .await;
+
+    let res = result(owner.ok(run(ch, "slow", &[])).await);
+
+    assert!(res.ephemeral);
+    ephemeral_in_state(&mut owner, THINKING).await;
+}
+
+#[tokio::test]
+async fn a_second_defer_or_a_defer_after_reply_raises() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "twice",
+        r#"commands.register({ name = "dd", description = "d" }, function(cmd)
+            cmd:defer({ only_you = true })
+            local ok, err = pcall(function() cmd:defer() end)
+            log.info("second defer: " .. tostring(err))
+            cmd:reply("x")
+        end)
+        commands.register({ name = "rd", description = "d" }, function(cmd)
+            cmd:reply("x", { only_you = true })
+            local ok, err = pcall(function() cmd:defer() end)
+            log.info("defer after reply: " .. tostring(err))
+        end)"#,
+    )
+    .await;
+
+    owner.ok(run(ch, "dd", &[])).await;
+    wait_for_log(
+        &mut owner,
+        "twice",
+        "second defer: INVALID_ARGUMENT: already answered",
+    )
+    .await;
+    owner.ok(run(ch, "rd", &[])).await;
+    wait_for_log(
+        &mut owner,
+        "twice",
+        "defer after reply: INVALID_ARGUMENT: already answered",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn no_reply_in_time_becomes_no_answer() {
+    let server = TestServer::start_with(|config| config.plugins.thinking_secs = 1).await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(&server, &mut owner, &ready, CAN_POST, "cmd:defer()", "").await;
+
+    owner.ok(run(ch, "slow", &[])).await;
+
+    let message = updated_in_state(&mut owner, NO_ANSWER).await;
+    assert_eq!(message.content, "Test plugin didn't answer");
+}
+
+#[tokio::test]
+async fn the_plugin_stopping_while_thinking_becomes_no_answer() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(&server, &mut owner, &ready, CAN_POST, "cmd:defer()", "").await;
+    owner.ok(run(ch, "slow", &[])).await;
+    created_in_state(&mut owner, THINKING).await;
+
+    owner
+        .ok(Kind::SetPluginRunning(proto::SetPluginRunning {
+            plugin_id: "slowpoke".to_owned(),
+            running: false,
+        }))
+        .await;
+
+    let message = updated_in_state(&mut owner, NO_ANSWER).await;
+    assert_eq!(message.content, "Test plugin didn't answer");
+}
+
+#[tokio::test]
+async fn an_error_after_defer_says_ran_into_an_error() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "cmd:defer()",
+        r#"error("oops")"#,
+    )
+    .await;
+
+    owner.ok(run(ch, "slow", &[])).await;
+
+    let message = updated_in_state(&mut owner, NO_ANSWER).await;
+    assert_eq!(message.content, "Test plugin ran into an error");
+    wait_for_log(&mut owner, "slowpoke", "oops").await;
+}
+
+#[tokio::test]
+async fn the_101st_thinking_command_raises_plugin_limit() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        r#"local ok, err = pcall(function() cmd:defer({ only_you = true }) end)
+        if not ok then log.info("refused: " .. tostring(err)) error(err) end"#,
+        "",
+    )
+    .await;
+
+    for _ in 0..100 {
+        owner.ok_paced(run(ch, "slow", &[])).await;
+    }
+    let refused = loop {
+        match owner.request(run(ch, "slow", &[])).await {
+            Response::Error(error) if error.code == proto::ErrorCode::RateLimited as i32 => {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            other => break other,
+        }
+    };
+
+    assert!(matches!(refused, Response::Error(_)), "{refused:?}");
+    wait_for_log(
+        &mut owner,
+        "slowpoke",
+        "refused: PLUGIN_LIMIT: too many commands waiting",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_reply_after_the_message_was_deleted_logs_and_does_not_raise() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(
+        &server,
+        &mut owner,
+        &ready,
+        CAN_POST,
+        "cmd:defer()",
+        r#"timer.after(0.5, function()
+            local ok, err = pcall(function() cmd:reply("too late") end)
+            log.info("the reply: " .. tostring(ok))
+        end)"#,
+    )
+    .await;
+
+    owner.ok(run(ch, "slow", &[])).await;
+    let thinking = created_in_state(&mut owner, THINKING).await;
+    owner
+        .ok(Kind::DeleteMessage(proto::DeleteMessage {
+            message_id: thinking.id,
+        }))
+        .await;
+
+    wait_for_log(&mut owner, "slowpoke", "the reply: true").await;
+    wait_for_log(
+        &mut owner,
+        "slowpoke",
+        "/slow's message was deleted before the reply",
+    )
+    .await;
+}
+
+async fn history(client: &mut TestClient, channel_id: i64) -> Vec<proto::Message> {
+    match client
+        .ok(Kind::FetchMessages(proto::FetchMessages {
+            channel_id,
+            before: None,
+            limit: 10,
+        }))
+        .await
+    {
+        Response::Messages(list) => list.messages,
+        other => panic!("not messages: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn history_returns_a_thinking_message_with_its_state() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let code = invite(&mut owner, None).await;
+    let (mut member, member_ready) = join(&server, 2, &code).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(&server, &mut owner, &ready, CAN_POST, "cmd:defer()", "").await;
+
+    member.ok(run(ch, "slow", &[])).await;
+    created_in_state(&mut member, THINKING).await;
+
+    let messages = history(&mut owner, ch).await;
+    let thinking = messages
+        .iter()
+        .find(|message| message.interaction.is_some())
+        .expect("the thinking message");
+    assert_eq!(state_of(thinking), THINKING);
+    assert_eq!(
+        thinking.interaction.as_ref().unwrap().user_id,
+        self_id(&member_ready)
+    );
+}
+
+#[tokio::test]
+async fn a_restart_turns_thinking_into_no_answer() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    thinking_plugin(&server, &mut owner, &ready, CAN_POST, "cmd:defer()", "").await;
+    owner.ok(run(ch, "slow", &[])).await;
+    created_in_state(&mut owner, THINKING).await;
+    owner.close().await;
+
+    let server = server.restart(|_| {}).await;
+    let mut owner = TestClient::connect(&server, crate::common::key(1)).await;
+    owner.identify("Owner", None, None).await.unwrap();
+
+    let messages = history(&mut owner, ch).await;
+    let swept = messages
+        .iter()
+        .find(|message| message.interaction.is_some())
+        .expect("the message");
+    assert_eq!(state_of(swept), NO_ANSWER);
+    assert_eq!(swept.content, "Test plugin didn't answer");
+}

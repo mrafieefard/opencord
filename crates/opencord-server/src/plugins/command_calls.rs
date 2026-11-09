@@ -5,19 +5,26 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use mlua::{Lua, Table, Value, Variadic};
-use opencord_plugins::sandbox::Vm;
+use opencord_plugins::sandbox::{Vm, paused};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinSet;
 
 use super::PluginEvent;
 use super::api::{self, commands as registry, raise};
 use super::runtime::{Budgeted, PluginEnv, Report, failed, payload_value};
+use crate::commands::thinking::{self, GaveUp, ThinkingId};
+use crate::error::ApiError;
 
 /// A plugin's answer to the member waiting on a command.
 pub enum CommandAnswer {
     Reply {
         content: String,
         only_you: bool,
+    },
+    /// The plugin needs longer; `started` hears once the thinking line is up.
+    Defer {
+        only_you: bool,
+        started: oneshot::Sender<Result<ThinkingId, ApiError>>,
     },
     /// The command's function raised an error.
     Failed,
@@ -26,30 +33,47 @@ pub enum CommandAnswer {
 /// Choices an `ac:suggest` may offer.
 const SUGGESTIONS_MAX: usize = 25;
 
+enum CallState {
+    /// The member's request is waiting for the first answer.
+    Waiting(oneshot::Sender<CommandAnswer>),
+    /// `cmd:defer` is waiting for the thinking line.
+    Deferring,
+    Thinking(ThinkingId),
+    Done,
+}
+
 /// The one answer a command may give.
 struct CommandCall {
-    waiting: Mutex<Option<oneshot::Sender<CommandAnswer>>>,
+    state: Mutex<CallState>,
 }
 
 impl CommandCall {
     fn new(waiting: Option<oneshot::Sender<CommandAnswer>>) -> Arc<Self> {
         Arc::new(Self {
-            waiting: Mutex::new(waiting),
+            state: Mutex::new(waiting.map_or(CallState::Done, CallState::Waiting)),
         })
     }
 
-    fn take(&self) -> Option<oneshot::Sender<CommandAnswer>> {
-        self.waiting
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take()
+    fn replace(&self, next: CallState) -> CallState {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        std::mem::replace(&mut *state, next)
     }
 
     /// The function raised: the member hears at once, if nothing was said.
-    fn fail(&self) {
-        if let Some(sender) = self.take() {
-            // The member may have stopped waiting; nothing is left to tell.
-            let _ = sender.send(CommandAnswer::Failed);
+    fn fail(&self, env: &Arc<PluginEnv>) {
+        match self.replace(CallState::Done) {
+            CallState::Waiting(sender) => {
+                // The member may have stopped waiting; nothing is left to tell.
+                let _ = sender.send(CommandAnswer::Failed);
+            }
+            CallState::Thinking(id) => {
+                if let Some(state) = env.state.upgrade() {
+                    env.server.spawn(async move {
+                        thinking::give_up(&state, id, GaveUp::RanIntoError).await;
+                    });
+                }
+            }
+            CallState::Deferring | CallState::Done => {}
         }
     }
 }
@@ -71,10 +95,10 @@ pub(super) fn run_command(
         Err(error) => return failed(env, reports, "command", error, limit),
     };
     let call = CommandCall::new(event.command);
-    let argument = match command_table(&vm.lua, &event.payload, &call) {
+    let argument = match command_table(&vm.lua, &event.payload, &call, env) {
         Ok(argument) => argument,
         Err(error) => {
-            call.fail();
+            call.fail(env);
             return failed(env, reports, "command", error, limit);
         }
     };
@@ -87,7 +111,7 @@ pub(super) fn run_command(
     running.spawn(async move {
         if let Err(error) = budgeted.await {
             failed(&env, &reports, "command", error, limit);
-            call.fail();
+            call.fail(&env);
         }
     });
 }
@@ -141,31 +165,103 @@ fn payload_table(lua: &Lua, payload: &serde_json::Value) -> mlua::Result<Table> 
     }
 }
 
-/// `cmd`: the command's name, options, user and channel, and `cmd:reply`.
+/// `cmd`: the command's name, options, user and channel, `cmd:reply` and
+/// `cmd:defer`.
 fn command_table(
     lua: &Lua,
     payload: &serde_json::Value,
     call: &Arc<CommandCall>,
+    env: &Arc<PluginEnv>,
 ) -> mlua::Result<Table> {
     let table = payload_table(lua, payload)?;
-    let call = call.clone();
-    let reply = api::function(lua, move |_lua, args: Variadic<Value>| {
-        let (content, options) = method_args(args)?;
-        let content = reply_content(content)?;
-        let only_you = only_you_option(options)?;
-        let sender = call
-            .take()
-            .ok_or_else(|| raise("INVALID_ARGUMENT: already answered"))?;
-        if sender
-            .send(CommandAnswer::Reply { content, only_you })
-            .is_err()
-        {
-            tracing::debug!("a command's reply came after its member stopped waiting");
-        }
-        Ok(())
+    let (reply_call, reply_env) = (call.clone(), env.clone());
+    let reply = api::async_function(lua, move |_lua, args: Variadic<Value>| {
+        let (call, env) = (reply_call.clone(), reply_env.clone());
+        async move { reply(&call, &env, args).await }
     })?;
     table.raw_set("reply", reply)?;
+    let (defer_call, defer_env) = (call.clone(), env.clone());
+    let defer = api::async_function(lua, move |_lua, args: Variadic<Value>| {
+        let (call, env) = (defer_call.clone(), defer_env.clone());
+        async move { defer(&call, &env, args).await }
+    })?;
+    table.raw_set("defer", defer)?;
     Ok(table)
+}
+
+async fn reply(
+    call: &CommandCall,
+    env: &Arc<PluginEnv>,
+    args: Variadic<Value>,
+) -> mlua::Result<()> {
+    let (content, options) = method_args(args)?;
+    let content = reply_content(content)?;
+    let only_you = only_you_option(options)?;
+    match call.replace(CallState::Done) {
+        CallState::Waiting(sender) => {
+            if sender
+                .send(CommandAnswer::Reply { content, only_you })
+                .is_err()
+            {
+                tracing::debug!("a command's reply came after its member stopped waiting");
+            }
+            Ok(())
+        }
+        CallState::Thinking(id) => {
+            let state = env.state()?;
+            let answered = env
+                .on_server(async move { thinking::answer(&state, id, content).await })
+                .await?;
+            if answered.is_err() {
+                tracing::debug!("a deferred command's time ran out before its reply");
+            }
+            Ok(())
+        }
+        other @ CallState::Deferring => {
+            call.replace(other);
+            Err(raise("INVALID_ARGUMENT: already answered"))
+        }
+        CallState::Done => Err(raise("INVALID_ARGUMENT: already answered")),
+    }
+}
+
+async fn defer(
+    call: &CommandCall,
+    env: &Arc<PluginEnv>,
+    args: Variadic<Value>,
+) -> mlua::Result<()> {
+    let (options, second) = method_args(args)?;
+    let only_you = only_you_option(options.or(second))?;
+    let sender = match call.replace(CallState::Deferring) {
+        CallState::Waiting(sender) => sender,
+        other => {
+            call.replace(other);
+            return Err(raise("INVALID_ARGUMENT: already answered"));
+        }
+    };
+    let (started, line_up) = oneshot::channel();
+    if sender
+        .send(CommandAnswer::Defer { only_you, started })
+        .is_err()
+    {
+        call.replace(CallState::Done);
+        tracing::debug!("a command deferred after its member stopped waiting");
+        return Ok(());
+    }
+    match paused(&env.budget, line_up).await {
+        Ok(Ok(id)) => {
+            call.replace(CallState::Thinking(id));
+            Ok(())
+        }
+        Ok(Err(error)) => {
+            call.replace(CallState::Done);
+            Err(PluginEnv::api_error(error))
+        }
+        Err(_) => {
+            call.replace(CallState::Done);
+            Err(raise("STOPPING: the server is stopping"))
+        }
+    }
 }
 
 /// `(first, second)` of a call made either as `cmd:f(a, b)` or `cmd.f(a, b)`.

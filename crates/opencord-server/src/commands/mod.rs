@@ -20,6 +20,7 @@ use crate::state::{AppState, Audience};
 
 pub mod music;
 pub mod options;
+pub mod thinking;
 
 use proto::CommandOptionKind as Kind;
 
@@ -196,6 +197,8 @@ pub struct Commands {
     settings: RwLock<CommandSettings>,
     /// By (plugin id, command name): a name is unique only inside its plugin.
     plugins: RwLock<HashMap<(String, String), PluginCommand>>,
+    /// Commands that asked for more time.
+    pub thinking: thinking::Thinking,
 }
 
 impl Commands {

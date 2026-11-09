@@ -316,6 +316,8 @@ export type Command = {
     channel_id: string,
     --- Answers the member. Within 3 seconds, or 15 minutes after `defer`.
     reply: (self: Command, content: string, options: { only_you: boolean? }?) -> (),
+    --- Shows "is thinking…" and gives up to 15 minutes to reply. Within the first 3 seconds.
+    defer: (self: Command, options: { only_you: boolean? }?) -> (),
 }
 
 export type Autocomplete = {

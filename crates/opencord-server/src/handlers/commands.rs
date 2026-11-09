@@ -13,6 +13,7 @@ use proto::response::Result as Response;
 use super::Ctx;
 use crate::commands::music::{self, Reply};
 use crate::commands::options::Options;
+use crate::commands::thinking::{self, Place, StartThinking, ThinkingId};
 use crate::commands::{self, CommandSettings};
 use crate::db::messages;
 use crate::error::ApiError;
@@ -353,6 +354,19 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                 Ok(Ok(CommandAnswer::Reply { content, only_you })) => {
                     post_reply(ctx, &request, &plugin_cmd, content, only_you).await
                 }
+                Ok(Ok(CommandAnswer::Defer { only_you, started })) => {
+                    match begin_thinking(ctx, &request, &plugin_cmd, only_you).await {
+                        Ok((id, response)) => {
+                            // A plugin that stopped meanwhile was abandoned.
+                            let _ = started.send(Ok(id));
+                            Ok(response)
+                        }
+                        Err(error) => {
+                            let _ = started.send(Err(error));
+                            Err(unavailable("ran into an error"))
+                        }
+                    }
+                }
                 Ok(Ok(CommandAnswer::Failed)) => Err(unavailable("ran into an error")),
                 _ => Err(unavailable("didn't answer")),
             }
@@ -444,6 +458,49 @@ async fn post_reply(
         message_id: Some(id),
         ephemeral: false,
     }))
+}
+
+/// Puts up the thinking line: where the reply will go is decided here.
+async fn begin_thinking(
+    ctx: &Ctx<'_>,
+    request: &proto::ExecuteCommand,
+    plugin_cmd: &commands::PluginCommand,
+    only_you: bool,
+) -> Result<(ThinkingId, Response), ApiError> {
+    let public = !only_you && !ctx.state.commands.settings().results_private;
+    let poster = if public {
+        plugin_poster(ctx, &plugin_cmd.plugin_id, request.channel_id)
+    } else {
+        None
+    };
+    let message_id = poster.map(|_| ctx.state.ids.next_id());
+    let place = match (message_id, poster) {
+        (Some(message_id), Some(author_id)) => Place::Channel {
+            message_id,
+            author_id,
+        },
+        _ => Place::OnlyYou {
+            session_id: ctx.session_id.to_owned(),
+            nonce: request.nonce.clone(),
+        },
+    };
+    let id = thinking::start(
+        ctx.state,
+        StartThinking {
+            plugin_id: plugin_cmd.plugin_id.clone(),
+            plugin_name: plugin_name(ctx, &plugin_cmd.plugin_id),
+            command: plugin_cmd.spec.name.clone(),
+            channel_id: request.channel_id,
+            member_id: ctx.user_id,
+            place,
+        },
+    )
+    .await?;
+    let response = Response::CommandResult(proto::CommandResult {
+        message_id,
+        ephemeral: message_id.is_none(),
+    });
+    Ok((id, response))
 }
 
 /// A reply only the sending session sees (§17.3); never stored.

@@ -336,6 +336,10 @@ fn spawn_vm(
                 if state.commands.remove_for_plugin(&env.plugin_id) {
                     crate::commands::announce(&state);
                 }
+                let plugin_id = env.plugin_id.clone();
+                env.server.spawn(async move {
+                    crate::commands::thinking::abandon(&state, &plugin_id).await;
+                });
             }
             // Handlers still waiting go with the runtime. The Rust halves of
             // their calls live in Lua userdata, holding the VM: a collection

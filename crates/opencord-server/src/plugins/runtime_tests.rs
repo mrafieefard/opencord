@@ -357,7 +357,11 @@ async fn out_of_memory_restarts_the_plugin() {
 
     plugins.deliver("hungry", event("message_create"));
 
-    wait_for_log(&handle, "message_create handler failed: the plugin ran out of memory").await;
+    wait_for_log(
+        &handle,
+        "message_create handler failed: the plugin ran out of memory",
+    )
+    .await;
     let began = Instant::now();
     // The restart logs "started" again, then the supervisor marks it
     // running.
