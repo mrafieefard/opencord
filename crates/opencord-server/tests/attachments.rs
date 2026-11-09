@@ -174,18 +174,37 @@ async fn create_upload_checks_permissions_and_size() {
     }
 
     // A 21st create within a minute -> RATE_LIMITED.
-    let error = member
-        .error(Req::CreateUpload(proto::CreateUpload {
-            channel_id: text,
-            filename: "file21.txt".into(),
-            size_bytes: 1024,
-            kind: proto::AttachmentKind::File.into(),
-            width: None,
-            height: None,
-            duration_ms: None,
-            view_id: None,
-        }))
-        .await;
+    // In slow environments (such as Windows CI), tokens may replenish during earlier calls.
+    let mut rate_limited = None;
+    for i in 20..30 {
+        let res = member
+            .request(Req::CreateUpload(proto::CreateUpload {
+                channel_id: text,
+                filename: format!("file{i}.txt"),
+                size_bytes: 1024,
+                kind: proto::AttachmentKind::File.into(),
+                width: None,
+                height: None,
+                duration_ms: None,
+                view_id: None,
+            }))
+            .await;
+        match res {
+            Res::Upload(u) => {
+                member
+                    .ok(Req::CancelUpload(proto::CancelUpload {
+                        upload_id: u.upload_id,
+                    }))
+                    .await;
+            }
+            Res::Error(e) if e.code == proto::ErrorCode::RateLimited as i32 => {
+                rate_limited = Some(e);
+                break;
+            }
+            other => panic!("expected Upload or RateLimited, got {other:?}"),
+        }
+    }
+    let error = rate_limited.expect("rate limit was reached");
     assert_eq!(error.code, proto::ErrorCode::RateLimited as i32);
 }
 

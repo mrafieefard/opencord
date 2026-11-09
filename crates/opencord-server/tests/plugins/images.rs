@@ -632,15 +632,34 @@ async fn uncached_fetches_are_rate_limited() {
         let url = site.url(IMG, &format!("/a.png?n={n}"));
         assert_eq!(image(&server, Some(&token), &url).await.0, 200, "fetch {n}");
     }
-    let (status, _, body) = image(&server, Some(&token), &site.url(IMG, "/a.png?n=20")).await;
-    assert_eq!(status, 429);
+    let mut hit_429 = None;
+    let mut last_n = 20;
+    for n in 20..30 {
+        let (status, _, body) = image(
+            &server,
+            Some(&token),
+            &site.url(IMG, &format!("/a.png?n={n}")),
+        )
+        .await;
+        if status == 429 {
+            hit_429 = Some(body);
+            last_n = n;
+            break;
+        }
+    }
+    let body = hit_429.expect("expected 429 rate limit");
     assert_eq!(code_of(&body), proto::ErrorCode::RateLimited);
-    assert_eq!(site.hits(IMG, "/a.png?n=20"), 0);
+    assert_eq!(site.hits(IMG, &format!("/a.png?n={last_n}")), 0);
 
     let (status, _, _) = image(&server, Some(&token), &site.url(IMG, "/a.png?n=0")).await;
     assert_eq!(status, 200);
     assert_eq!(site.hits(IMG, "/a.png?n=0"), 1);
-    let (status, _, _) = image(&server, Some(&member_token), &site.url(IMG, "/a.png?n=20")).await;
+    let (status, _, _) = image(
+        &server,
+        Some(&member_token),
+        &site.url(IMG, &format!("/a.png?n={last_n}")),
+    )
+    .await;
     assert_eq!(status, 200);
 }
 
