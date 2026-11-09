@@ -196,10 +196,7 @@ class _ComposerState extends ConsumerState<Composer> {
     }
     final voice = ref.read(voiceSessionProvider);
     return [
-      for (final spec in matchingCommands(
-        data.commands,
-        match[1]!,
-      ).take(maxSuggestions))
+      for (final spec in matchingCommands(data.commands, match[1]!))
         CommandSuggestion(
           spec,
           unavailable: commandUnavailable(
