@@ -228,7 +228,7 @@ impl Spec {
             domains: Arc::new(NetGuard::new(&installed.manifest.domains)),
             database: data_dir.join("data.sqlite"),
             database_bytes: u64::from(config.database_mb) * 1024 * 1024,
-            files_dir: data_dir.join("files"),
+            files_dir: data_dir.join(super::assets::FILES_FOLDER),
             files_bytes,
         })
     }

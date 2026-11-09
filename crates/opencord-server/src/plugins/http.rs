@@ -13,6 +13,7 @@ use opencord_proto::v1 as proto;
 use proto::response::Result as Reply;
 use serde::Deserialize;
 
+use super::assets;
 use super::dev::{self, Pushed};
 use super::install;
 use super::permissions::PluginPermission;
@@ -28,9 +29,12 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/plugins/dev/{id}/log", get(dev_log))
         .route("/plugins/{id}/hooks", any(hook_root))
         .route("/plugins/{id}/hooks/{*path}", any(hook_path))
+        .route("/plugins/{id}/assets/{*path}", get(assets::get_asset))
+        .route("/plugins/{id}/files/t/{token}", get(assets::get_token_file))
+        .route("/plugins/{id}/files/{*path}", get(assets::get_file))
 }
 
-fn plugins_off() -> Response {
+pub(super) fn plugins_off() -> Response {
     reply_error(&ApiError::new(
         proto::ErrorCode::PluginUnavailable,
         "plugins are turned off on this server",

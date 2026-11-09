@@ -176,6 +176,9 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let reaper = tokio::spawn(reap_sessions(Arc::clone(&state)));
     tokio::spawn(sweep_private_messages(Arc::clone(&state)));
     tokio::spawn(crate::plugins::review::sweep_reviews(Arc::clone(&state)));
+    tokio::spawn(crate::plugins::assets::sweep_file_tokens(Arc::clone(
+        &state,
+    )));
     state.network.set_listening(
         local_addr.port(),
         Listening {

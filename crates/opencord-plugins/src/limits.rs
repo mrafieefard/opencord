@@ -159,6 +159,9 @@ pub const IMAGE_CACHE_MAX_BYTES: u64 = 100 * MIB;
 pub const IMAGE_CACHE_FRESH: Duration = Duration::from_secs(60 * 60);
 /// A `files.token` works this long.
 pub const FILE_TOKEN_LIFETIME: Duration = Duration::from_secs(60 * 60);
+/// Live file tokens one plugin holds: each is a different file or member,
+/// since asking again for the same pair renews its token.
+pub const FILE_TOKENS_PER_PLUGIN: usize = 10_000;
 
 /// `app.storage`, per plugin per server on one device.
 pub const DEVICE_STORAGE_MAX_BYTES: usize = MIB as usize;

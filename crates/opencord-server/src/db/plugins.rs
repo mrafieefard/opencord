@@ -403,6 +403,21 @@ pub async fn file_size(
     .await
 }
 
+/// Whether the plugin has a file at `path`: `Some(public)`, or `None`.
+pub async fn file_is_public(
+    conn: &mut SqliteConnection,
+    plugin_id: &str,
+    path: &str,
+) -> Result<Option<bool>, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT public AS "public!: bool" FROM plugin_files WHERE plugin_id = $1 AND path = $2"#,
+        plugin_id,
+        path
+    )
+    .fetch_optional(conn)
+    .await
+}
+
 pub async fn upsert_plugin_file(
     conn: &mut SqliteConnection,
     plugin_id: &str,

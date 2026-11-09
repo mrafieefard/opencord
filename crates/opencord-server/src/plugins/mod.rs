@@ -2,6 +2,7 @@
 //! acting through a plugin user and a managed role.
 
 pub mod api;
+pub mod assets;
 pub mod channel_types;
 pub mod command_calls;
 pub mod cpu_share;
@@ -178,6 +179,8 @@ pub struct PluginHandle {
     pub(crate) config_values: Arc<RwLock<HashMap<String, ConfigValue>>>,
     pub(crate) files_lock: Arc<tokio::sync::Mutex<()>>,
     pub(crate) files_reads: Arc<tokio::sync::Semaphore>,
+    /// The installed version's `client/` and `assets/` files.
+    pub(crate) client: Arc<assets::ClientFiles>,
 }
 
 struct Status {
@@ -338,6 +341,8 @@ pub struct Plugins {
     pub bus: Arc<PluginBus>,
     /// The channel types running plugins registered.
     pub channel_types: channel_types::ChannelTypes,
+    /// Tokens for members to load private plugin files.
+    pub file_tokens: assets::FileTokens,
     log_watchers: RwLock<HashMap<String, HashSet<String>>>,
     /// Held through each install, update, uninstall and permission change,
     /// so two never interleave. Taken before the guild's write lock.
@@ -365,6 +370,7 @@ impl Plugins {
             dev_tokens: dev::DevTokens::default(),
             bus: Arc::new(PluginBus::default()),
             channel_types: channel_types::ChannelTypes::default(),
+            file_tokens: assets::FileTokens::default(),
             log_watchers: RwLock::new(HashMap::new()),
             changes: tokio::sync::Mutex::new(()),
         }
@@ -414,13 +420,38 @@ impl Plugins {
         }
         let data_dir = state.config.plugins_dir().join(&installed.id);
         let spec = Arc::new(Spec::new(&installed, &state.config.plugins, data_dir)?);
+        let (installed, client) = self.client_files_of(installed).await?;
         let id = installed.id.clone();
-        let started = self.replace(state, installed, spec).await;
+        let started = self.replace(state, installed, spec, client).await;
         if started.is_err() {
             // The old copy stopped and the new one didn't start.
             channel_types::stopped(state, &id).await;
         }
         started
+    }
+
+    /// The installed version's client files: the plugin's current copy's
+    /// when it runs the same version folder, else hashed now.
+    async fn client_files_of(
+        &self,
+        installed: InstalledPlugin,
+    ) -> Result<(InstalledPlugin, Arc<assets::ClientFiles>), StartError> {
+        let current = self
+            .get(&installed.id)
+            .map(|handle| handle.client.clone())
+            .filter(|client| client.folder() == installed.folder);
+        if let Some(client) = current {
+            return Ok((installed, client));
+        }
+        tokio::task::spawn_blocking(move || {
+            let client = assets::ClientFiles::of(&installed.package, installed.folder.clone());
+            (installed, Arc::new(client))
+        })
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "hashing a plugin's client files failed");
+            StartError("the server couldn't read the plugin's files".to_owned())
+        })
     }
 
     /// Stops a running copy, then starts `installed` as [`Plugins::start`]
@@ -430,6 +461,7 @@ impl Plugins {
         state: &Arc<AppState>,
         installed: InstalledPlugin,
         spec: Arc<Spec>,
+        client: Arc<assets::ClientFiles>,
     ) -> Result<(), StartError> {
         let old = self.get(&installed.id);
         if let Some(old) = &old {
@@ -498,6 +530,7 @@ impl Plugins {
             config_values: Arc::new(RwLock::new(config_map)),
             files_lock,
             files_reads,
+            client,
         });
 
         if is_new_log {
@@ -553,8 +586,11 @@ impl Plugins {
 
     /// Stops the plugin and forgets it, writing out its log first.
     pub async fn remove(&self, state: &AppState, id: &str) {
+        // Without a handle, no VM ever ran to issue file tokens.
         let Some(handle) = self.get(id) else { return };
         handle.stop().await;
+        // After the stop: its `stop` handler may still issue one.
+        self.file_tokens.forget_plugin(id);
         channel_types::stopped(state, id).await;
         self.clear_log_watchers(id);
         self.bus.unlisten_all(id);

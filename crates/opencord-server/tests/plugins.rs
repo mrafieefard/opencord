@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
+#[path = "plugins/assets.rs"]
+mod assets;
 #[path = "plugins/bus.rs"]
 mod bus;
 #[path = "plugins/channels.rs"]
