@@ -1,7 +1,7 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, type ChannelAccess, type MessageRecord } from '@opencord/core-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { Alert, Text } from 'react-native';
+import { Alert, Text, TextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { getCore } from '@/core';
@@ -370,6 +370,57 @@ describe('Composer and message actions', () => {
       await fireEvent.changeText(input, '/xyz');
 
       expect(view.getByText('No commands match /xyz')).toBeTruthy();
+    });
+
+    const pickCommand = async (view: Awaited<ReturnType<typeof composer>>, name: string) => {
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), `/${name}`);
+      await fireEvent.press(view.getByLabelText(`/${name}`));
+    };
+
+    it('tapping_the_chip_brings_the_keyboard_back', async () => {
+      const focus = jest.spyOn(TextInput.prototype, 'focus').mockImplementation(() => {});
+      const view = await composer();
+      await pickCommand(view, 'roll');
+      focus.mockClear();
+
+      await fireEvent.press(view.getByTestId('command-chip'));
+
+      expect(focus).toHaveBeenCalled();
+      focus.mockRestore();
+    });
+
+    it('after_removing_a_command_the_field_is_plain_and_the_keyboard_stays_up', async () => {
+      const blur = jest.spyOn(TextInput.prototype, 'blur').mockImplementation(() => {});
+      const view = await composer();
+      await pickCommand(view, 'roll');
+      expect(view.getByTestId('command-chip')).toBeTruthy();
+
+      await fireEvent.changeText(view.getByTestId('composer-input'), '');
+
+      expect(view.queryByTestId('command-chip')).toBeNull();
+      expect(view.getByTestId('composer-input').props.value).toBe('');
+      expect(view.getByPlaceholderText('Message #general')).toBeTruthy();
+      expect(blur).not.toHaveBeenCalled();
+      blur.mockRestore();
+    });
+
+    it('sending_a_command_runs_it_and_clears_the_field', async () => {
+      const execute = jest.spyOn(getCore(), 'commandExecute');
+      const view = await composer();
+      await pickCommand(view, 'roll');
+
+      await fireEvent.press(view.getByTestId('composer-send'));
+
+      expect(execute).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.general, 'roll', 'plugin:ticket-bot', [], expect.any(String));
+      expect(view.queryByTestId('command-chip')).toBeNull();
+    });
+
+    it('a_command_that_cant_be_used_stays_out_of_the_field', async () => {
+      const view = await composer();
+
+      await pickCommand(view, 'skip');
+
+      expect(view.queryByTestId('command-chip')).toBeNull();
     });
 
     it('a_space_after_the_name_closes_the_list', async () => {

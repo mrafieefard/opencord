@@ -20,6 +20,7 @@ import {
   sendWithFiles,
 } from '@/state/actions/chat';
 import { useChannelInfo } from '@/state/selectors';
+import { toast } from '@/state/actions/ui';
 import { useAppStore } from '@/state/store';
 import type { PickedFile } from '@/state/types';
 import { GlassSurface, Icon, Menu, Text, space, typography, useTheme, type MenuAction } from '@/ui';
@@ -31,7 +32,10 @@ import { LOCK_DISTANCE, useVoiceRecorder } from '@/features/voiceMessages/useVoi
 
 import { AttachmentChips } from './AttachmentChips';
 import { CommandList } from './commands/CommandList';
-import { groupCommands } from './commands/commandRows';
+import { CommandChips } from './commands/CommandChips';
+import { groupCommands, type CommandGroup, type CommandRow } from './commands/commandRows';
+import { SourceIcon } from './commands/SourceIcon';
+import { useCommandDraft } from './commands/useCommandDraft';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
 import { useTypingNotifier } from './useTypingNotifier';
@@ -96,14 +100,21 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     setText('');
   }, []);
 
+  const draft = useCommandDraft(serverKey, channelId);
+  const hasDraft = draft.spec !== null;
+  const { changeField } = draft;
   const handleChangeText = useCallback(
     (nextText: string) => {
+      if (hasDraft) {
+        changeField(nextText);
+        return;
+      }
       setText(nextText);
       if (nextText.length > 0 && !isEditing) {
         notifyTyping();
       }
     },
-    [isEditing, notifyTyping],
+    [hasDraft, changeField, isEditing, notifyTyping],
   );
 
   const canSend = info ? info.access.send : true;
@@ -117,7 +128,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
 
   // "/" and a word at the start of the field opens the list, until it's
   // dismissed; typing anything else opens it again.
-  const slash = isEditing ? null : /^\/(\S*)$/.exec(text);
+  const slash = isEditing || draft.spec ? null : /^\/(\S*)$/.exec(text);
   const [dismissedAt, setDismissedAt] = useState<string | null>(null);
   const query = slash && dismissedAt !== text ? slash[1] ?? '' : null;
   const groups = useMemo(
@@ -133,7 +144,38 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     [query, commandList, channelId, snapshot?.access, snapshot?.pluginUsers, voiceChannelId],
   );
   const dismissList = useCallback(() => setDismissedAt(text), [text]);
-  const pickRow = useCallback(() => setText(''), []);
+  const { pick: pickDraft, pickChoice, closeChoices } = draft;
+  const pickRow = useCallback(
+    (row: CommandRow) => {
+      if (row.kind !== 'command') return;
+      if (row.unavailable !== undefined) {
+        toast(row.unavailable);
+        return;
+      }
+      setText('');
+      pickDraft(row.spec);
+    },
+    [pickDraft],
+  );
+  const choiceGroups = useMemo<CommandGroup[]>(
+    () => (draft.choiceRows.length > 0 ? [{ source: { id: '', name: draft.active?.name ?? '' }, rows: draft.choiceRows }] : []),
+    [draft.choiceRows, draft.active?.name],
+  );
+  const focusField = useCallback(() => input.current?.focus(), []);
+  const { focusOption } = draft;
+  const editOption = useCallback(
+    (name: string) => {
+      focusOption(name);
+      focusField();
+    },
+    [focusOption, focusField],
+  );
+  const commandSource = useMemo(() => {
+    if (!draft.spec || draft.spec.source === '') return null;
+    const pluginId = draft.spec.source.slice('plugin:'.length);
+    const user = snapshot?.pluginUsers.find((each) => each.pluginId === pluginId);
+    return { id: draft.spec.source, name: user?.name ?? pluginId, avatarHash: user?.avatarHash };
+  }, [draft.spec, snapshot?.pluginUsers]);
   const recorder = useVoiceRecorder(serverKey, channelId);
 
   // The field's height follows its text, eased rather than jumping. An
@@ -208,7 +250,12 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       ? text.trim().length > 0 && !isOverLimit
       : (text.trim().length > 0 || files.length > 0) && !isOverLimit;
 
+  const { run: runDraft } = draft;
   const handleSubmit = useCallback(async () => {
+    if (hasDraft) {
+      await runDraft();
+      return;
+    }
     if (!canSubmit) return;
     const currentText = text.trim();
 
@@ -228,7 +275,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
         await sendMessage(serverKey, channelId, toSendText);
       }
     }
-  }, [canSubmit, text, isEditing, editing, serverKey, channelId, files]);
+  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files]);
 
   if (!canSend) {
     return (
@@ -243,10 +290,16 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   }
 
   const channelName = info?.channel.name ?? '';
-  const hasSomething = isEditing || text.trim().length > 0 || files.length > 0;
+  const hasSomething = isEditing || hasDraft || text.trim().length > 0 || files.length > 0;
+  const placeholder = draft.spec ? draft.active?.description ?? draft.spec.description : `Message #${channelName}`;
+  const fieldIsEmpty = draft.spec ? draft.fieldText === '' : text === '';
+  const shownInMirror = draft.spec ? draft.fieldText : text;
 
   return (
     <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
+      {choiceGroups.length > 0 && (
+        <CommandList serverKey={serverKey} groups={choiceGroups} onPick={pickChoice} onDismiss={closeChoices} />
+      )}
       {query !== null && (
         <CommandList
           serverKey={serverKey}
@@ -255,6 +308,11 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
           onPick={pickRow}
           onDismiss={dismissList}
         />
+      )}
+      {draft.spec && draft.spec.options.length > 0 && (
+        <GlassSurface style={styles.card}>
+          <CommandChips options={draft.spec.options} values={draft.values} active={draft.active?.name} onPress={editOption} />
+        </GlassSurface>
       )}
       {(isEditing || files.length > 0) && (
         <GlassSurface style={styles.card}>
@@ -284,6 +342,23 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
             <View style={styles.fieldSlot}>
             <Animated.View style={[styles.fieldBox, fieldStyle]}>
             <GlassSurface style={styles.field}>
+              {draft.spec && (
+                <Touchable onPress={focusField} style={styles.chipWrap}>
+                  <View
+                    testID="command-chip"
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel={`/${draft.spec.name}`}
+                    style={[styles.chip, { backgroundColor: colors.accent }]}
+                  >
+                    {commandSource && <SourceIcon serverKey={serverKey} source={commandSource} size={16} radius={5} />}
+                    <Text variant="subhead" color="onAccent" numberOfLines={1}>
+                      {`/${draft.spec.name}`}
+                    </Text>
+                  </View>
+                </Touchable>
+              )}
+              <View style={styles.inputWrap}>
               {/* One line, cut with "…": a multiline field wraps its own
                   placeholder, which stays for VoiceOver, unseen. */}
               <NativeText
@@ -295,19 +370,19 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 importantForAccessibility="no-hide-descendants"
               >
                 {/* A last empty line is measured only with something on it. */}
-                {text.endsWith('\n') || text === '' ? `${text} ` : text}
+                {shownInMirror.endsWith('\n') || shownInMirror === '' ? `${shownInMirror} ` : shownInMirror}
               </NativeText>
-              {text === '' && (
+              {fieldIsEmpty && (
                 <Text variant="body" color="textMuted" numberOfLines={1} style={styles.placeholder} testID="composer-placeholder">
-                  {`Message #${channelName}`}
+                  {placeholder}
                 </Text>
               )}
               <TextInput
                 ref={input}
                 style={[typography.body, styles.input, { color: colors.text }]}
-                placeholder={`Message #${channelName}`}
+                placeholder={placeholder}
                 placeholderTextColor="transparent"
-                value={text}
+                value={draft.spec ? draft.fieldValue : text}
                 onChangeText={handleChangeText}
                 scrollEnabled
                 multiline
@@ -315,9 +390,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 textAlignVertical="center"
                 cursorColor={colors.text}
                 selectionColor={colors.selected}
-                accessibilityLabel={`Message #${channelName}`}
+                accessibilityLabel={placeholder}
                 testID="composer-input"
               />
+              </View>
               {showCounter && (
                 <Text
                   variant="footnote"
@@ -361,7 +437,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
           <SendButton
             label={isEditing ? 'Save edit' : 'Send'}
             icon={isEditing ? 'check' : 'send'}
-            disabled={!canSubmit}
+            disabled={hasDraft ? draft.running : !canSubmit}
             onPress={() => report(handleSubmit(), 'send')}
             testID="composer-send"
           />
@@ -473,6 +549,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md + 2,
     overflow: 'hidden',
   },
+  inputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  chipWrap: {
+    alignSelf: 'center',
+    marginRight: space.xs,
+  },
+  chip: {
+    height: 28,
+    borderRadius: 6,
+    paddingHorizontal: space.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
   input: {
     flex: 1,
     paddingTop: FIELD_PAD_V,
@@ -482,15 +575,15 @@ const styles = StyleSheet.create({
   },
   mirror: {
     position: 'absolute',
-    left: space.md + 2,
-    right: space.md + 2,
+    left: 0,
+    right: 0,
     top: 0,
     opacity: 0,
   },
   placeholder: {
     position: 'absolute',
-    left: space.md + 2,
-    right: space.md + 2,
+    left: 0,
+    right: 0,
     top: FIELD_PAD_V,
   },
   counter: {

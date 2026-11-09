@@ -44,7 +44,8 @@ export function listHeight(contentHeight: number, room: number): number {
 }
 
 function useKeyboardHeight(): number {
-  const [height, setHeight] = useState(0);
+  // Often already up when the list opens, so no event says so.
+  const [height, setHeight] = useState(() => Keyboard.metrics?.()?.height ?? 0);
   useEffect(() => {
     const showing = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const shown = Keyboard.addListener(showing, (event) => setHeight(event.endCoordinates.height));

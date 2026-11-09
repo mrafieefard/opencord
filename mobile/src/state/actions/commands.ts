@@ -20,17 +20,18 @@ function addNote(serverKey: string, note: EphemeralNote): void {
   });
 }
 
-/** Runs a command. What the server refuses becomes a note only you see. */
+/** Runs a command; false if it was refused, which becomes a note only you see. */
 export async function runCommand(
   serverKey: string,
   channelId: string,
   name: string,
   source: string,
   options: CommandOptionValueRecord[],
-): Promise<void> {
+): Promise<boolean> {
   const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   try {
     await getCore().commandExecute(serverKey, channelId, name, source, options, nonce);
+    return true;
   } catch (error: unknown) {
     addNote(serverKey, {
       channelId,
@@ -39,6 +40,7 @@ export async function runCommand(
       state: CommandRunStateRecord.Answered,
       error: true,
     });
+    return false;
   }
 }
 
