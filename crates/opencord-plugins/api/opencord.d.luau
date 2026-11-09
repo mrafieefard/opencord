@@ -13,8 +13,6 @@ export type EventName =
     | "message_update"
     | "message_delete"
     | "typing_start"
-    | "command"
-    | "command_autocomplete"
     | "channel_create"
     | "channel_update"
     | "channel_delete"
@@ -311,9 +309,39 @@ declare typing: {
     start: (channel_id: string) -> (),
 }
 
+export type Command = {
+    name: string,
+    options: { [string]: any },
+    user: User,
+    channel_id: string,
+    --- Answers the member. Within 3 seconds, or 15 minutes after `defer`.
+    reply: (self: Command, content: string, options: { only_you: boolean? }?) -> (),
+}
+
+export type Autocomplete = {
+    name: string,
+    option: string,
+    value: string,
+    user: User,
+    channel_id: string,
+    --- Offers up to 25 choices, within 1 second.
+    suggest: (self: Autocomplete, choices: { { name: string, value: string } }) -> boolean,
+}
+
+export type CommandOption = {
+    name: string,
+    description: string,
+    kind: "text" | "integer" | "boolean" | "choice" | "user" | "channel",
+    required: boolean?,
+    autocomplete: ((ac: Autocomplete) -> ())?,
+    choices: { { name: string, value: string } }?,
+    min: number?,
+    max: number?,
+}
+
 declare commands: {
     --- Permission: register_commands
-    register: (spec: { name: string, description: string, options: { any }? }) -> (),
+    register: (spec: { name: string, description: string, options: { CommandOption }? }, run: (cmd: Command) -> ()) -> (),
     --- Permission: register_commands
     unregister: (name: string) -> (),
 }

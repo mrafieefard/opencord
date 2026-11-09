@@ -480,6 +480,7 @@ impl Plugins {
                 name: route.name.to_owned(),
                 payload: built.get_or_init(|| payload(kind, guild)).clone(),
                 reply: None,
+                command: None,
             })
         });
     }
@@ -527,6 +528,7 @@ pub fn emit(
             name: name.to_owned(),
             payload: payload.clone(),
             reply: None,
+            command: None,
         })
     });
 }

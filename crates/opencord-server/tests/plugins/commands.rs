@@ -74,11 +74,8 @@ async fn a_plugin_command_answers_publicly() {
             options = {
                 { name = "name", description = "Who to greet", kind = "text", required = true }
             }
-        })
-        opencord.on("command", function(cmd)
-            if cmd.name == "greet" then
-                cmd:reply("Hello, " .. cmd.options.name .. "!")
-            end
+        }, function(cmd)
+            cmd:reply("Hello, " .. cmd.options.name .. "!")
         end)"#,
     )
     .await;
@@ -131,13 +128,10 @@ async fn an_only_you_reply_reaches_only_the_session() {
         r#"commands.register({
             name = "secret",
             description = "Tells a secret",
-        })
-        opencord.on("command", function(cmd)
-            if cmd.name == "secret" then
-                cmd:reply("psst this is a secret", { only_you = true })
-                local ok, err = pcall(function() cmd:reply("again") end)
-                log.info("second reply: " .. tostring(ok) .. " " .. tostring(err))
-            end
+        }, function(cmd)
+            cmd:reply("psst this is a secret", { only_you = true })
+            local ok, err = pcall(function() cmd:reply("again") end)
+            log.info("second reply: " .. tostring(ok) .. " " .. tostring(err))
         end)"#,
     )
     .await;
@@ -169,7 +163,7 @@ async fn an_only_you_reply_reaches_only_the_session() {
     wait_for_log(
         &mut owner,
         "secret-agent",
-        "second reply: false INVALID_ARGUMENT: already replied",
+        "second reply: false INVALID_ARGUMENT: already answered",
     )
     .await;
 }
@@ -191,8 +185,7 @@ async fn a_plugin_that_does_not_answer_times_out_in_3_seconds() {
         r#"commands.register({
             name = "hang",
             description = "Never replies",
-        })
-        opencord.on("command", function(cmd)
+        }, function(cmd)
             -- do nothing
         end)"#,
     )
@@ -244,8 +237,7 @@ async fn answering(
     text: &str,
 ) -> proto::Plugin {
     let source = format!(
-        r#"commands.register({{ name = "{command}", description = "From {id}" }})
-        opencord.on("command", function(cmd)
+        r#"commands.register({{ name = "{command}", description = "From {id}" }}, function(cmd)
             cmd:reply("{text}", {{ only_you = true }})
         end)
         log.info("registered")"#
@@ -326,8 +318,9 @@ async fn a_plugin_may_use_a_builtin_name_and_no_source_runs_the_builtin() {
     let mut ready_client = TestClient::connect(&server, crate::common::key(1)).await;
     let ready = ready_client.identify("Owner", None, None).await.unwrap();
     let ch = channel_id(&ready, "general");
-    let source = r#"commands.register({ name = "skip", description = "A plugin's skip" })
-        opencord.on("command", function(cmd) cmd:reply("from the plugin", { only_you = true }) end)
+    let source = r#"commands.register({ name = "skip", description = "A plugin's skip" }, function(cmd)
+            cmd:reply("from the plugin", { only_you = true })
+        end)
         log.info("registered")"#;
     let zip = package(&[
         ("manifest.lua", &manifest("skipper", &["register_commands"])),
@@ -536,7 +529,7 @@ async fn stopping_the_plugin_removes_its_commands() {
         r#"commands.register({
             name = "temp-cmd",
             description = "Will disappear",
-        })
+        }, function() end)
         log.info("temp registered")"#,
     )
     .await;
@@ -597,17 +590,14 @@ async fn autocomplete_suggestions_arrive() {
             name = "tag",
             description = "Search tags",
             options = {
-                { name = "name", description = "Tag name", kind = "text", autocomplete = true }
+                { name = "name", description = "Tag name", kind = "text", autocomplete = function(ac)
+                    ac:suggest({
+                        { name = "Rust", value = "rust" },
+                        { name = "Luau", value = "luau" },
+                    })
+                end }
             }
-        })
-        opencord.on("command_autocomplete", function(ac)
-            if ac.name == "tag" and ac.option == "name" then
-                ac:suggest({
-                    { name = "Rust", value = "rust" },
-                    { name = "Luau", value = "luau" },
-                })
-            end
-        end)"#,
+        }, function() end)"#,
     )
     .await;
 
@@ -660,7 +650,7 @@ async fn disabled_plugin_commands_are_refused() {
         r#"commands.register({
             name = "toggleable",
             description = "Can be turned off",
-        })
+        }, function() end)
         log.info("toggleable registered")"#,
     )
     .await;
@@ -684,7 +674,7 @@ async fn disabled_plugin_commands_are_refused() {
 }
 
 #[tokio::test]
-async fn an_oversized_reply_is_refused() {
+async fn an_invalid_reply_raises_in_the_function() {
     let server = TestServer::start().await;
     let (mut owner, ready) = owner(&server).await;
     let code = invite(&mut owner, None).await;
@@ -700,10 +690,10 @@ async fn an_oversized_reply_is_refused() {
         r#"commands.register({
             name = "huge",
             description = "answers huge reply",
-        })
-        opencord.on("command", function(cmd)
-            local big = string.rep("a", 4001)
-            cmd.reply(big)
+        }, function(cmd)
+            local ok, err = pcall(function() cmd:reply(string.rep("a", 4001)) end)
+            log.info("big reply: " .. tostring(ok) .. " " .. tostring(err))
+            cmd:reply("a smaller one")
         end)
         log.info("ready")"#,
     )
@@ -711,9 +701,14 @@ async fn an_oversized_reply_is_refused() {
 
     wait_for_log(&mut owner, "oversized-bot", "ready").await;
 
-    let err = member.error(run(ch, "huge", &[])).await;
-    assert_eq!(err.code, proto::ErrorCode::PluginUnavailable as i32);
-    assert!(err.message.contains("sent an invalid reply"));
+    let res = result(member.ok(run(ch, "huge", &[])).await);
+    assert!(res.message_id.is_some() || res.ephemeral);
+    wait_for_log(
+        &mut owner,
+        "oversized-bot",
+        "big reply: false INVALID_ARGUMENT: the reply must be 1 to 4000 characters",
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -731,7 +726,7 @@ async fn commands_cap_at_100() {
         local i = 1
         while i <= 100 do
             local ok, err = pcall(function()
-                commands.register({ name = "cmd" .. i, description = "desc" })
+                commands.register({ name = "cmd" .. i, description = "desc" }, function() end)
             end)
             if ok then
                 i = i + 1
@@ -742,7 +737,7 @@ async fn commands_cap_at_100() {
         local ok, err
         repeat
             ok, err = pcall(function()
-                commands.register({ name = "cmd101", description = "desc" })
+                commands.register({ name = "cmd101", description = "desc" }, function() end)
             end)
             if not ok and tostring(err):find("RATE_LIMITED") then
                 wait(0.2)
@@ -773,8 +768,7 @@ async fn revoking_register_commands_removes_them() {
         r#"commands.register({
             name = "revokable",
             description = "will be revoked",
-        })
-        opencord.on("command", function(cmd)
+        }, function(cmd)
             cmd.reply("still here")
         end)
         log.info("ready")"#,
@@ -797,4 +791,292 @@ async fn revoking_register_commands_removes_them() {
     // Command is now unknown
     let err = member.error(run(ch, "revokable", &[])).await;
     assert_eq!(err.code, proto::ErrorCode::CommandUnknown as i32);
+}
+
+/// Runs `lua` as a plugin allowed to register commands, and waits for it to
+/// log `done`.
+async fn scripted(
+    server: &TestServer,
+    owner: &mut TestClient,
+    ready: &proto::Ready,
+    id: &str,
+    lua: &str,
+) {
+    let source = format!("{lua}\nlog.info(\"done\")");
+    plugin(server, owner, ready, id, &["register_commands"], &source).await;
+    wait_for_log(owner, id, "done").await;
+}
+
+#[tokio::test]
+async fn a_command_runs_its_own_function() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "two-fns",
+        r#"commands.register({ name = "one", description = "d" }, function(cmd)
+            cmd:reply("ran one", { only_you = true })
+        end)
+        commands.register({ name = "two", description = "d" }, function(cmd)
+            cmd:reply("ran two: " .. cmd.name, { only_you = true })
+        end)"#,
+    )
+    .await;
+
+    owner.ok(run(ch, "two", &[])).await;
+    assert_eq!(only_you_reply(&mut owner).await, "ran two: two");
+    owner.ok(run(ch, "one", &[])).await;
+    assert_eq!(only_you_reply(&mut owner).await, "ran one");
+}
+
+#[tokio::test]
+async fn register_without_a_function_raises() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "no-fn",
+        r#"local ok, err = pcall(function()
+            commands.register({ name = "x", description = "d" })
+        end)
+        log.info("no function: " .. tostring(err))"#,
+    )
+    .await;
+    wait_for_log(
+        &mut owner,
+        "no-fn",
+        "no function: INVALID_ARGUMENT: a command needs a function",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn option_autocomplete_true_raises() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "old-form",
+        r#"local ok, err = pcall(function()
+            commands.register({ name = "x", description = "d", options = {
+                { name = "a", description = "d", kind = "text", autocomplete = true },
+            } }, function() end)
+        end)
+        log.info("old form: " .. tostring(err))"#,
+    )
+    .await;
+    wait_for_log(
+        &mut owner,
+        "old-form",
+        "old form: INVALID_ARGUMENT: option autocomplete must be a function",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn registering_a_name_again_replaces_spec_and_function() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "again",
+        r#"commands.register({ name = "x", description = "first" }, function(cmd)
+            cmd:reply("first", { only_you = true })
+        end)
+        commands.register({ name = "x", description = "second" }, function(cmd)
+            cmd:reply("second", { only_you = true })
+        end)"#,
+    )
+    .await;
+
+    owner.ok(run(ch, "x", &[])).await;
+    assert_eq!(only_you_reply(&mut owner).await, "second");
+    let page = command_page(&mut owner).await;
+    let spec = page.iter().find(|spec| spec.name == "x").unwrap();
+    assert_eq!(spec.description, "second");
+}
+
+#[tokio::test]
+async fn an_option_autocomplete_function_gets_its_own_calls() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "ac-fns",
+        r#"commands.register({ name = "x", description = "d", options = {
+            { name = "a", description = "d", kind = "text", autocomplete = function(ac)
+                ac:suggest({ { name = "from a: " .. ac.value, value = "1" } })
+            end },
+            { name = "b", description = "d", kind = "text", autocomplete = function(ac)
+                ac:suggest({ { name = "from b: " .. ac.value, value = "2" } })
+            end },
+        } }, function() end)"#,
+    )
+    .await;
+
+    let answer = owner
+        .ok(Kind::AutocompleteCommand(proto::AutocompleteCommand {
+            source: "plugin:ac-fns".to_owned(),
+            channel_id: ch,
+            name: "x".to_owned(),
+            option: "b".to_owned(),
+            value: "hi".to_owned(),
+        }))
+        .await;
+    let Response::CommandChoices(choices) = answer else {
+        panic!("expected choices, got {answer:?}");
+    };
+    assert_eq!(choices.choices[0].name, "from b: hi");
+}
+
+#[tokio::test]
+async fn on_command_raises_no_event_called() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "old-event",
+        r#"local ok, err = pcall(function() opencord.on("command", function() end) end)
+        log.info("listen: " .. tostring(err))"#,
+    )
+    .await;
+    wait_for_log(
+        &mut owner,
+        "old-event",
+        "listen: INVALID_ARGUMENT: no event called command",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn on_a_typo_raises_no_event_called() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "typo",
+        r#"local ok, err = pcall(function() opencord.on("message_creat", function() end) end)
+        log.info("listen: " .. tostring(err))"#,
+    )
+    .await;
+    wait_for_log(
+        &mut owner,
+        "typo",
+        "listen: INVALID_ARGUMENT: no event called message_creat",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn every_event_in_the_design_table_is_accepted() {
+    const EVENTS: &[&str] = &[
+        "start",
+        "stop",
+        "update",
+        "settings_change",
+        "permission_change",
+        "message_create",
+        "message_update",
+        "message_delete",
+        "typing_start",
+        "channel_create",
+        "channel_update",
+        "channel_delete",
+        "plugin_channel_create",
+        "plugin_channel_delete",
+        "role_create",
+        "role_update",
+        "role_delete",
+        "member_join",
+        "member_leave",
+        "member_update",
+        "member_unban",
+        "presence_update",
+        "invite_create",
+        "invite_revoke",
+        "server_update",
+        "voice_settings_update",
+        "upload_settings_update",
+        "voice_state_update",
+        "stream_create",
+        "stream_update",
+        "stream_delete",
+        "stream_viewers_update",
+        "soundboard_play",
+        "soundboard_sound_create",
+        "soundboard_sound_update",
+        "soundboard_sound_delete",
+        "music_now_playing",
+        "music_queue_update",
+        "music_notice",
+        "view_open",
+        "view_close",
+        "activity_start",
+        "activity_end",
+        "file_uploaded",
+    ];
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let names: Vec<String> = EVENTS.iter().map(|name| format!("{name:?}")).collect();
+    let lua = format!(
+        r#"for _, name in {{ {} }} do
+            local ok, err = pcall(function() opencord.on(name, function() end) end)
+            if not ok then log.warn("refused " .. name .. ": " .. tostring(err)) end
+        end
+        log.info("listened")"#,
+        names.join(", ")
+    );
+    scripted(&server, &mut owner, &ready, "all-events", &lua).await;
+    wait_for_log(&mut owner, "all-events", "listened").await;
+    let lines = crate::support::log_lines(&mut owner, "all-events").await;
+    assert!(
+        !lines.iter().any(|line| line.contains("refused")),
+        "{lines:#?}"
+    );
+}
+
+#[tokio::test]
+async fn a_function_that_errors_answers_at_once() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    scripted(
+        &server,
+        &mut owner,
+        &ready,
+        "oops",
+        r#"commands.register({ name = "boom", description = "d" }, function()
+            error("the dice fell off the table")
+        end)"#,
+    )
+    .await;
+
+    let started = Instant::now();
+    let error = owner.error(run(ch, "boom", &[])).await;
+
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(error.code, proto::ErrorCode::PluginUnavailable as i32);
+    assert_eq!(error.message, "Test plugin ran into an error");
+    wait_for_log(&mut owner, "oops", "the dice fell off the table").await;
 }

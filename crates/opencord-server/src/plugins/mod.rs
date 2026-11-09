@@ -2,6 +2,7 @@
 //! acting through a plugin user and a managed role.
 
 pub mod api;
+pub mod command_calls;
 pub mod database;
 pub mod dev;
 pub mod event_tables;
@@ -62,6 +63,8 @@ pub struct PluginEvent {
     /// The first `reply(...)` a handler makes, as a JSON array of its
     /// arguments. Nobody replying drops it, or leaves it to time out.
     pub reply: Option<oneshot::Sender<serde_json::Value>>,
+    /// Where a command's answer goes, for the `command` event.
+    pub command: Option<oneshot::Sender<command_calls::CommandAnswer>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -147,6 +150,7 @@ impl PluginBus {
                         "data": data,
                     }),
                     reply: None,
+                    command: None,
                 });
             }
         }
@@ -224,6 +228,7 @@ impl PluginHandle {
             name: "permission_change".to_owned(),
             payload,
             reply: None,
+            command: None,
         });
     }
 

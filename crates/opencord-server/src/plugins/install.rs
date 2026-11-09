@@ -941,6 +941,7 @@ pub async fn set_config(
             name: "settings_change".to_owned(),
             payload: serde_json::json!({ "changed": changed }),
             reply: None,
+            command: None,
         },
     );
     super::announce(state, &id).await;

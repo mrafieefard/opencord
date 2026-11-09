@@ -264,6 +264,7 @@ async fn handle_hook(
             "body": body_str,
         }),
         reply: Some(tx),
+        command: None,
     };
     handle.deliver(event);
 

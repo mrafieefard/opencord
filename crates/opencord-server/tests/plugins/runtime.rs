@@ -109,7 +109,7 @@ async fn a_restart_clears_timers_hooks_and_bus() {
                 hooks.on("old", function(req)
                     return { status = 200, body = "pong" }
                 end)
-                commands.register({ name = "ping", description = "pong" })
+                commands.register({ name = "ping", description = "pong" }, function() end)
                 log.info("first_run")
                 timer.after(0.05, function()
                     local s = string.rep("x", 64 * 1024 * 1024)
