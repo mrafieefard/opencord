@@ -16,6 +16,7 @@ use crate::support::{install, manifest, package, wait_for_log};
 
 fn run(channel_id: i64, name: &str, options: &[(&str, &str)]) -> Kind {
     Kind::ExecuteCommand(proto::ExecuteCommand {
+        source: String::new(),
         channel_id,
         name: name.to_owned(),
         options: options
@@ -388,6 +389,7 @@ async fn autocomplete_suggestions_arrive() {
 
     let res = member
         .ok(Kind::AutocompleteCommand(proto::AutocompleteCommand {
+            source: String::new(),
             channel_id: ch,
             name: "tag".to_owned(),
             option: "name".to_owned(),
@@ -433,6 +435,7 @@ async fn disabled_plugin_commands_are_refused() {
     // Disable the command via update command settings
     owner
         .ok(Kind::UpdateCommandSettings(proto::UpdateCommandSettings {
+            source: String::new(),
             name: "toggleable".to_owned(),
             enabled: Some(false),
             channel_ids: None,

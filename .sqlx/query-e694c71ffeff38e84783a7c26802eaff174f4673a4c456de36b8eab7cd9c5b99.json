@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, channel_id, author_id, content, edited_at, deleted AS \"deleted: bool\",\n                  interaction_command\n           FROM messages\n           WHERE channel_id = $1 AND id < $2 AND deleted = FALSE\n           ORDER BY id DESC\n           LIMIT $3",
+  "query": "SELECT id, channel_id, author_id, content, edited_at, deleted AS \"deleted: bool\",\n                  interaction_command, interaction_user_id, command_state\n           FROM messages WHERE id = $1 AND deleted = FALSE",
   "describe": {
     "columns": [
       {
@@ -79,10 +79,32 @@
             "name": "interaction_command"
           }
         }
+      },
+      {
+        "name": "interaction_user_id",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "messages",
+            "name": "interaction_user_id"
+          }
+        }
+      },
+      {
+        "name": "command_state",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "messages",
+            "name": "command_state"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 1
     },
     "nullable": [
       false,
@@ -91,8 +113,10 @@
       false,
       true,
       false,
-      true
+      true,
+      true,
+      false
     ]
   },
-  "hash": "4e2dce3ef16d3e2635107da137c03f7549fd51c637df75a46c69a6368a6a3eeb"
+  "hash": "e694c71ffeff38e84783a7c26802eaff174f4673a4c456de36b8eab7cd9c5b99"
 }

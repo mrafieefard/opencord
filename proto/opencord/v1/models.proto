@@ -94,9 +94,19 @@ message Message {
   repeated Attachment attachments = 9;
 }
 
+// Where a command's reply stands.
+enum CommandState {
+  COMMAND_STATE_ANSWERED = 0;
+  // The plugin deferred; the reply will replace this.
+  COMMAND_STATE_THINKING = 1;
+  // It never came.
+  COMMAND_STATE_NO_ANSWER = 2;
+}
+
 message MessageInteraction {
   int64 user_id = 1;
   string command = 2;
+  CommandState state = 3;
 }
 
 message Invite {

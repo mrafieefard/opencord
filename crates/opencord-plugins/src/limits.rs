@@ -63,6 +63,10 @@ pub const WEBHOOK_TIME: Duration = Duration::from_secs(10);
 
 /// How long a `/command` handler has to reply.
 pub const COMMAND_REPLY_TIME: Duration = Duration::from_secs(3);
+/// How long a deferred `/command` has to reply.
+pub const COMMAND_THINKING_TIME: Duration = Duration::from_secs(15 * 60);
+/// Commands one plugin has thinking at once.
+pub const COMMAND_THINKING_MAX: usize = 100;
 /// How long an autocomplete handler has to answer.
 pub const AUTOCOMPLETE_TIME: Duration = Duration::from_secs(1);
 

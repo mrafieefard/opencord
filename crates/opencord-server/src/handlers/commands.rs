@@ -203,7 +203,11 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                         request.channel_id,
                         ctx.user_id,
                         &content,
-                        Some(spec.name),
+                        Some(messages::CommandRun {
+                            name: spec.name,
+                            user_id: ctx.user_id,
+                            state: proto::CommandState::Answered as i32,
+                        }),
                     )
                     .await?;
                     let message = proto::Message {
@@ -217,6 +221,7 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                         interaction: Some(proto::MessageInteraction {
                             user_id: ctx.user_id,
                             command: spec.name.to_owned(),
+                            state: proto::CommandState::Answered as i32,
                         }),
                         attachments: Vec::new(),
                     };
@@ -352,7 +357,11 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                     request.channel_id,
                     author_id,
                     &content,
-                    Some(&plugin_cmd.spec.name),
+                    Some(messages::CommandRun {
+                        name: &plugin_cmd.spec.name,
+                        user_id: ctx.user_id,
+                        state: proto::CommandState::Answered as i32,
+                    }),
                 )
                 .await?;
                 let message = proto::Message {
@@ -366,6 +375,7 @@ pub async fn execute(ctx: &Ctx<'_>, request: proto::ExecuteCommand) -> Result<Re
                     interaction: Some(proto::MessageInteraction {
                         user_id: ctx.user_id,
                         command: plugin_cmd.spec.name.clone(),
+                        state: proto::CommandState::Answered as i32,
                     }),
                     attachments: Vec::new(),
                 };
@@ -398,6 +408,7 @@ fn ephemeral(ctx: &Ctx<'_>, channel_id: i64, nonce: &str, content: String) {
                 channel_id,
                 nonce: nonce.to_owned(),
                 content,
+                state: proto::CommandState::Answered as i32,
             })),
         };
         session.push_event(&event, Instant::now());

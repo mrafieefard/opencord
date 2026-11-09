@@ -25,6 +25,7 @@ impl Client {
         nonce: String,
     ) -> Result<CommandOutcome, CoreError> {
         let request = Request::ExecuteCommand(proto::ExecuteCommand {
+            source: String::new(),
             channel_id,
             name,
             options: options
@@ -55,6 +56,7 @@ impl Client {
         value: String,
     ) -> Result<Vec<CommandChoice>, CoreError> {
         let request = Request::AutocompleteCommand(proto::AutocompleteCommand {
+            source: String::new(),
             channel_id,
             name,
             option,
@@ -79,6 +81,7 @@ impl Client {
         changes: CommandSettingsChanges,
     ) -> Result<CommandList, CoreError> {
         let request = Request::UpdateCommandSettings(proto::UpdateCommandSettings {
+            source: String::new(),
             name: changes.name,
             enabled: changes.enabled,
             channel_ids: changes
