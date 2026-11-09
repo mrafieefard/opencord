@@ -3,6 +3,7 @@
 
 pub mod api;
 pub mod command_calls;
+pub mod cpu_share;
 pub mod database;
 pub mod dev;
 pub mod event_tables;

@@ -4685,6 +4685,7 @@ dependencies = [
  "igd-next",
  "image",
  "instant-acme",
+ "libc",
  "libsqlite3-sys",
  "mlua",
  "opencord-common",

@@ -27,6 +27,11 @@ pub const MANIFEST_MEMORY_BYTES: usize = 4 * MIB as usize;
 /// handler time.
 pub const START_TIME_FACTOR: u32 = 10;
 
+/// A plugin may use [`CPU_SHARE_MAX_PERMILLE`] of a core, averaged over this.
+pub const CPU_SHARE_WINDOW: Duration = Duration::from_secs(10);
+/// Past this its events wait in its queue: thousandths of one core.
+pub const CPU_SHARE_MAX_PERMILLE: u32 = 250;
+
 /// Events waiting for one plugin; past this, the oldest are dropped.
 pub const EVENT_QUEUE: usize = 10_000;
 

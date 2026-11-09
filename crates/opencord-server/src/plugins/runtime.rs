@@ -33,6 +33,7 @@ use tokio::task::JoinSet;
 use super::api::plugin::handlers_for;
 use super::api::{self, raise};
 use super::command_calls;
+use super::cpu_share::{CpuShare, lower_this_threads_priority};
 use super::database::{self, PluginDb};
 use super::net::{NetGuard, PluginNet};
 use super::permissions::PluginPermission;
@@ -283,6 +284,7 @@ fn spawn_vm(
         .name(format!("plugin {}", spec.id))
         .stack_size(VM_STACK_BYTES)
         .spawn(move || {
+            lower_this_threads_priority();
             let runtime = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -379,7 +381,10 @@ async fn run_vm(
     }
     let mut running = JoinSet::new();
     let mut tick = tokio::time::interval(STATS_EVERY);
+    let mut share = CpuShare::default();
     loop {
+        share.record(Instant::now(), vm.budget().total_used());
+        let hold = share.pause_for();
         tokio::select! {
             biased;
             changed = commands.changed() => {
@@ -396,7 +401,10 @@ async fn run_vm(
                     Command::Kill => break,
                 }
             }
-            event = handle.queue.pop() => dispatch(vm, env, spec, event, &mut running, &reports),
+            event = handle.queue.pop(), if hold.is_zero() => {
+                dispatch(vm, env, spec, event, &mut running, &reports);
+            }
+            () = tokio::time::sleep(hold), if !hold.is_zero() => {}
             Some(_) = running.join_next(), if !running.is_empty() => {}
             _ = tick.tick() => stats.sample(vm, handle),
         }

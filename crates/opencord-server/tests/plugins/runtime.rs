@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use opencord_proto::v1 as proto;
 use proto::request::Kind;
 
-use crate::common::{TestServer, channel_id, invite, join, media_token, owner};
+use crate::common::{TestClient, TestServer, channel_id, invite, join, media_token, owner};
 use crate::support::{install, manifest, package, wait_for_log};
 
 // Catches: running Lua on the server's runtime, where a busy plugin holds
@@ -170,4 +170,90 @@ async fn a_restart_clears_timers_hooks_and_bus() {
     );
     // The bus entry left by a restart can't be seen from outside: the new
     // VM has no Lua listener for it.
+}
+
+/// Spins as hard as the handler budget lets it, for as long as it runs.
+const SPINNER: &str = r#"
+local function spin()
+    local x = 0
+    for i = 1, 3000000 do x = x + i end
+    timer.after(0, spin)
+end
+timer.after(0, spin)
+log.info("spinning")
+"#;
+
+async fn cpu_of(client: &mut TestClient, id: &str) -> u32 {
+    crate::support::plugins(client)
+        .await
+        .into_iter()
+        .find(|plugin| plugin.id == id)
+        .unwrap_or_else(|| panic!("{id} isn't installed"))
+        .cpu_permille
+}
+
+#[tokio::test]
+async fn a_plugin_spinning_in_handlers_stays_near_its_share() {
+    let server = TestServer::start_with(|config| config.plugins.handler_ms = 5_000).await;
+    let (mut owner, ready) = owner(&server).await;
+    let zip = package(&[
+        ("manifest.lua", &manifest("spinner", &[])),
+        ("server/main.luau", SPINNER),
+    ]);
+    install(&server, &mut owner, &media_token(&ready), zip, &[]).await;
+    wait_for_log(&mut owner, "spinner", "spinning").await;
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let free = cpu_of(&mut owner, "spinner").await;
+    assert!(free > 300, "it should run freely at first: {free}");
+
+    tokio::time::sleep(Duration::from_secs(7)).await;
+    let held = cpu_of(&mut owner, "spinner").await;
+    assert!(
+        held < 450,
+        "it should be held near a quarter of a core: {held}"
+    );
+}
+
+#[tokio::test]
+async fn commands_still_answer_while_a_neighbour_is_held() {
+    let server = TestServer::start_with(|config| config.plugins.handler_ms = 5_000).await;
+    let (mut owner, ready) = owner(&server).await;
+    let token = media_token(&ready);
+    let spinner = package(&[
+        ("manifest.lua", &manifest("spinner", &[])),
+        ("server/main.luau", SPINNER),
+    ]);
+    install(&server, &mut owner, &token, spinner, &[]).await;
+    wait_for_log(&mut owner, "spinner", "spinning").await;
+    let quiet = package(&[
+        ("manifest.lua", &manifest("quiet", &["register_commands"])),
+        (
+            "server/main.luau",
+            r#"commands.register({ name = "hello", description = "d" }, function(cmd)
+                cmd:reply("hi", { only_you = true })
+            end)
+            log.info("ready")"#,
+        ),
+    ]);
+    install(&server, &mut owner, &token, quiet, &["register_commands"]).await;
+    wait_for_log(&mut owner, "quiet", "ready").await;
+    tokio::time::sleep(Duration::from_secs(4)).await;
+
+    let started = Instant::now();
+    owner
+        .ok(Kind::ExecuteCommand(proto::ExecuteCommand {
+            source: "plugin:quiet".to_owned(),
+            channel_id: channel_id(&ready, "general"),
+            name: "hello".to_owned(),
+            options: Vec::new(),
+            nonce: "n".to_owned(),
+        }))
+        .await;
+
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
 }
