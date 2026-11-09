@@ -660,6 +660,7 @@ async fn update(
                 review::remove_folder(&old).await;
             }
             tracing::info!(plugin = %row.id, "a plugin was updated");
+            super::views::scripts_updated(state, &row.id);
             Ok(())
         }
         Err(error) => {

@@ -143,3 +143,23 @@ pub fn send_event(ctx: &Ctx<'_>, request: proto::SendViewEvent) -> Result<Respon
     views::from_client(ctx.state, &view, request.name, data);
     Ok(ack())
 }
+
+/// Reports a client-side view error to the plugin's log (at most 1 per view
+/// every 10 s, text cut to 2,000 characters).
+pub fn report_error(ctx: &Ctx<'_>, request: proto::ReportViewError) -> Result<Response, ApiError> {
+    let session = session(ctx)?;
+    if let Some(view) = ctx
+        .state
+        .plugins
+        .views
+        .report_error(request.view_id, &session.id)?
+    {
+        let user_name = ctx.state.guild().member_name(view.user_id);
+        let text: String = request.text.chars().take(2000).collect();
+        let log_msg = format!("view error for {user_name}: {text}");
+        if let Some(handle) = ctx.state.plugins.get(&view.plugin_id) {
+            handle.log().push(proto::PluginLogLevel::Error, &log_msg);
+        }
+    }
+    Ok(ack())
+}

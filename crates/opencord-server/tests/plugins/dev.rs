@@ -13,7 +13,7 @@ use crate::common::{
     TestClient, TestServer, decode_response, invite, join, media_token, owner, self_id,
 };
 use crate::support::{
-    confirm, install, manifest_with, package, plugins, public_key, review, signed_package,
+    confirm, install, manifest_with, package, plugins, public_key, review, session, signed_package,
     wait_for_log,
 };
 
@@ -721,4 +721,121 @@ async fn log_long_poll_returns_new_lines() {
         "answered before the line: {took:?}"
     );
     assert!(took < Duration::from_secs(10), "{took:?}");
+}
+
+#[tokio::test]
+async fn a_dev_push_tells_only_sessions_with_a_view() {
+    // Fails if dev push does not send ViewScriptsUpdate or sends it to sessions without an open view.
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let code = invite(&mut owner, None).await;
+    let (mut viewer, _) = session(&server, 1, Some(&code), &["plugin_channels"]).await;
+    let (mut non_viewer, _) = session(&server, 2, Some(&code), &["plugin_channels"]).await;
+
+    let source = r#"
+        ui.register_channel_type("desk", { name = "Help Desk" })
+        opencord.on("start", function() log.info("v1 started") end)
+    "#;
+    let zip1 = package(&[
+        (
+            "manifest.lua",
+            &manifest_with(
+                "dev-view",
+                "1.0.0",
+                &["create_channel_types"],
+                "client = \"client/main.luau\",",
+            ),
+        ),
+        ("server/main.luau", source),
+        (
+            "client/main.luau",
+            "return { init = function() return {} end }",
+        ),
+    ]);
+    install(
+        &server,
+        &mut owner,
+        &media_token(&ready),
+        zip1,
+        &["create_channel_types"],
+    )
+    .await;
+    wait_for_log(&mut owner, "dev-view", "v1 started").await;
+
+    let ch = match owner
+        .ok(Kind::CreateChannel(proto::CreateChannel {
+            kind: proto::ChannelKind::Plugin as i32,
+            name: "help".to_owned(),
+            plugin_id: Some("dev-view".to_owned()),
+            type_key: Some("desk".to_owned()),
+            ..Default::default()
+        }))
+        .await
+    {
+        Reply::Channel(ch) => ch.id,
+        other => panic!("not a channel: {other:?}"),
+    };
+
+    // Viewer opens the view
+    let opened = viewer
+        .ok(Kind::OpenView(proto::OpenView {
+            place: Some(proto::ViewPlace {
+                kind: Some(proto::view_place::Kind::ChannelId(ch)),
+            }),
+            platform: "desktop".to_owned(),
+        }))
+        .await;
+    let Reply::ViewOpened(_) = opened else {
+        panic!("not opened")
+    };
+
+    // Dev push with new client code
+    let token = create_token(&mut owner, "dev-view", 0).await;
+    let source2 = r#"
+        ui.register_channel_type("desk", { name = "Help Desk" })
+        opencord.on("start", function() log.info("v2 started") end)
+    "#;
+    let zip2 = package(&[
+        (
+            "manifest.lua",
+            &manifest_with(
+                "dev-view",
+                "1.0.1",
+                &["create_channel_types"],
+                "client = \"client/v2.luau\",",
+            ),
+        ),
+        ("server/main.luau", source2),
+        (
+            "client/v2.luau",
+            "return { init = function() return { v = 2 } end }",
+        ),
+    ]);
+    let (status, _) = push(&server, &token.secret, "dev-view", &zip2).await;
+    assert_eq!(status, 200);
+    wait_for_log(&mut owner, "dev-view", "v2 started").await;
+
+    // Viewer receives ViewScriptsUpdate
+    let mut saw_update = false;
+    for _ in 0..10 {
+        let event = viewer.next_event().await;
+        if let proto::event::Kind::ViewScriptsUpdate(update) = event {
+            assert_eq!(update.plugin_id, "dev-view");
+            assert_eq!(update.entry, "client/v2.luau");
+            assert_eq!(update.files.len(), 1);
+            assert_eq!(update.files[0].path, "client/v2.luau");
+            saw_update = true;
+            break;
+        }
+    }
+    assert!(saw_update, "viewer never received ViewScriptsUpdate");
+
+    // Non-viewer received no ViewScriptsUpdate
+    let non_viewer_events = non_viewer.collect_for(Duration::from_millis(200)).await;
+    assert!(
+        !non_viewer_events
+            .iter()
+            .any(|e| matches!(e, proto::event::Kind::ViewScriptsUpdate(_))),
+        "non-viewer received ViewScriptsUpdate: {non_viewer_events:?}"
+    );
 }

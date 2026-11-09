@@ -367,7 +367,10 @@ async fn install_dev(
     identity::rename(state, &id, &manifest.name, icon_hash.as_deref()).await?;
     identity::set_permissions(state, &id, &granted).await?;
     match install::start(state, &row).await {
-        Ok(()) => tracing::info!(plugin = %id, "a dev version was installed"),
+        Ok(()) => {
+            tracing::info!(plugin = %id, "a dev version was installed");
+            super::views::scripts_updated(state, &id);
+        }
         Err(error) => {
             tracing::info!(plugin = %id, %error, "a dev version failed to start");
             crashed(state, &id, &error).await?;

@@ -77,6 +77,8 @@ struct Entry {
     to: Window,
     /// Events from the view's client to the plugin.
     from: Window,
+    /// When the view last reported an error.
+    last_error_report: Option<Instant>,
 }
 
 /// What a view is: whose, where, in which session.
@@ -170,6 +172,7 @@ impl Views {
                 info,
                 to: Window::new(now),
                 from: Window::new(now),
+                last_error_report: None,
             },
         );
     }
@@ -197,6 +200,31 @@ impl Views {
             .collect();
         views.sort_unstable_by_key(|view| view.id);
         views
+    }
+
+    /// Records an error report from the session's own view. Returns
+    /// `Ok(Some(info))` if within rate (at most 1 every 10 s), `Ok(None)` if
+    /// throttled, or `Err(NotFound)` if not the session's view.
+    pub fn report_error(
+        &self,
+        view_id: i64,
+        session_id: &str,
+    ) -> Result<Option<ViewInfo>, crate::error::ApiError> {
+        let mut views = self.lock();
+        let entry = views
+            .get_mut(&view_id)
+            .filter(|entry| entry.info.session_id == session_id)
+            .ok_or_else(|| crate::error::ApiError::not_found("view"))?;
+
+        let now = Instant::now();
+        const COOLDOWN: Duration = Duration::from_secs(10);
+        if let Some(last) = entry.last_error_report
+            && now.saturating_duration_since(last) < COOLDOWN
+        {
+            return Ok(None);
+        }
+        entry.last_error_report = Some(now);
+        Ok(Some(entry.info.clone()))
     }
 
     /// Counts an event from the session's own view: the view, or `None`
@@ -440,6 +468,39 @@ pub fn send(
     };
     session.push_event(&event, Instant::now());
     Ok(true)
+}
+
+/// Tells sessions with an open view of `plugin_id` that its client files updated.
+pub fn scripts_updated(state: &AppState, plugin_id: &str) {
+    let views = state.plugins.views.of_plugin(plugin_id);
+    if views.is_empty() {
+        return;
+    }
+    let Some(handle) = state.plugins.get(plugin_id) else {
+        return;
+    };
+    let Some(entry) = handle.client.entry() else {
+        return;
+    };
+    let files = crate::plugins::assets::client_files(&handle);
+    let event = proto::Event {
+        kind: Some(proto::event::Kind::ViewScriptsUpdate(
+            proto::ViewScriptsUpdate {
+                plugin_id: plugin_id.to_owned(),
+                entry: entry.to_owned(),
+                files,
+            },
+        )),
+    };
+    let now = Instant::now();
+    let mut sent_sessions = std::collections::HashSet::new();
+    for view in views {
+        if sent_sessions.insert(view.session_id.clone())
+            && let Some(session) = state.sessions.get(&view.session_id)
+        {
+            session.push_event(&event, now);
+        }
+    }
 }
 
 #[cfg(test)]

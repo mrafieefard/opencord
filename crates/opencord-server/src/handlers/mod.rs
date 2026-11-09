@@ -222,7 +222,7 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::OpenView(request) => views::open(ctx, request).await,
         Kind::CloseView(request) => views::close(ctx, &request),
         Kind::SendViewEvent(request) => views::send_event(ctx, request),
-        Kind::ReportViewError(_) => Err(ApiError::invalid_argument("not implemented")),
+        Kind::ReportViewError(request) => views::report_error(ctx, request),
     }
 }
 

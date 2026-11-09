@@ -659,3 +659,147 @@ async fn a_file_token_works_for_its_views_user_only() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn an_update_tells_open_views() {
+    // Fails if updating a plugin does not send ViewScriptsUpdate to sessions with an open view.
+    let mut world = world().await;
+    let _view = open_view(&mut world.member, world.channel_id).await;
+
+    // Admin updates plugin with client v2
+    let zip = package(&[
+        (
+            "manifest.lua",
+            &manifest_with(
+                PLUGIN,
+                "1.0.1",
+                &["create_channel_types"],
+                "client = \"client/v2.luau\",",
+            ),
+        ),
+        ("server/main.luau", SERVER),
+        (
+            "client/v2.luau",
+            "return { init = function() return { updated = true } end }",
+        ),
+        ("assets/logo.png", LOGO),
+    ]);
+    install(
+        &world.server,
+        &mut world.admin,
+        &media_token(&world.admin_ready),
+        zip,
+        &["create_channel_types"],
+    )
+    .await;
+
+    // Member has the view open -> gets ViewScriptsUpdate
+    let mut saw_update = false;
+    for _ in 0..10 {
+        let event = world.member.next_event().await;
+        if let Event::ViewScriptsUpdate(update) = event {
+            assert_eq!(update.plugin_id, PLUGIN);
+            assert_eq!(update.entry, "client/v2.luau");
+            assert!(update.files.iter().any(|f| f.path == "client/v2.luau"));
+            saw_update = true;
+            break;
+        }
+    }
+    assert!(saw_update, "open view never received ViewScriptsUpdate");
+
+    // Admin has no view open -> no ViewScriptsUpdate
+    let admin_events = world.admin.collect_for(Duration::from_millis(200)).await;
+    assert!(
+        !admin_events
+            .iter()
+            .any(|e| matches!(e, Event::ViewScriptsUpdate(_))),
+        "admin received ViewScriptsUpdate: {admin_events:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_view_error_reaches_the_log() {
+    // Fails if ReportViewError does not log "view error for {user name}: {text}" to the plugin log.
+    let mut world = world().await;
+    let view = open_view(&mut world.member, world.channel_id).await;
+
+    world
+        .member
+        .ok(Kind::ReportViewError(proto::ReportViewError {
+            view_id: view.view_id,
+            text: "test view error at line 10".to_owned(),
+        }))
+        .await;
+
+    let member_name = world
+        .member_ready
+        .self_user
+        .as_ref()
+        .map(|u| u.display_name.clone())
+        .unwrap();
+
+    let expected = format!("view error for {member_name}: test view error at line 10");
+    wait_for_log(&mut world.admin, PLUGIN, &expected).await;
+
+    // Check cutting at 2000 characters
+    let long_text = "x".repeat(2500);
+    let view2 = open_view(&mut world.member, world.channel_id).await;
+    world
+        .member
+        .ok(Kind::ReportViewError(proto::ReportViewError {
+            view_id: view2.view_id,
+            text: long_text.clone(),
+        }))
+        .await;
+    let expected_cut: String = format!("view error for {member_name}: {long_text}")
+        .chars()
+        .take(2000)
+        .collect();
+    wait_for_log(&mut world.admin, PLUGIN, &expected_cut).await;
+}
+
+#[tokio::test]
+async fn a_second_report_within_10_seconds_is_dropped() {
+    // Fails if a second ReportViewError within 10s is not dropped or returns an error.
+    let mut world = world().await;
+    let view = open_view(&mut world.member, world.channel_id).await;
+
+    world
+        .member
+        .ok(Kind::ReportViewError(proto::ReportViewError {
+            view_id: view.view_id,
+            text: "first error".to_owned(),
+        }))
+        .await;
+    wait_for_log(&mut world.admin, PLUGIN, "first error").await;
+
+    // Second error on the same view immediately
+    world
+        .member
+        .ok(Kind::ReportViewError(proto::ReportViewError {
+            view_id: view.view_id,
+            text: "second error".to_owned(),
+        }))
+        .await;
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let lines = log_lines(&mut world.admin, PLUGIN).await;
+    assert!(!lines.iter().any(|l| l.contains("second error")));
+}
+
+#[tokio::test]
+async fn another_sessions_view_cant_report() {
+    // Fails if ReportViewError for another session's view does not return NotFound.
+    let mut world = world().await;
+    let view = open_view(&mut world.member, world.channel_id).await;
+
+    let err = world
+        .admin
+        .error(Kind::ReportViewError(proto::ReportViewError {
+            view_id: view.view_id,
+            text: "rogue report".to_owned(),
+        }))
+        .await;
+    assert_eq!(err.code, ErrorCode::NotFound as i32);
+    assert_eq!(err.message, "view not found");
+}
