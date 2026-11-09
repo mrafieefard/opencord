@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 export SQLX_OFFLINE=true OPENCORD_SHARED_RUNNER=1
 
 # As in the workflow.
-SERVER_CRATES="-p opencord-server -p opencord-common -p opencord-proto"
+SERVER_CRATES="-p opencord-server -p opencord-common -p opencord-proto -p opencord-plugins -p opencord-plugin-cli"
 CLIENT_CRATES="-p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher -p opencord-mobile"
 which=${1:-all}
 
