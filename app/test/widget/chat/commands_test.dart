@@ -13,13 +13,17 @@ import 'package:opencord/features/chat/command_rows.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/popup/composer_popup.dart';
 import 'package:opencord/core/model/commands.dart';
+import 'package:opencord/core/model/message.dart';
+import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/repository/events.dart';
 import 'package:opencord/features/chat/popup/source_icon.dart';
+import 'package:opencord/features/chat/thinking_dots.dart';
 import 'package:opencord/features/settings/server/commands_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
 
 import '../../support/app.dart';
@@ -666,4 +670,330 @@ void main() {
       await app.dispose(tester);
     },
   );
+
+  // Thinking in the chat (§26.3, §26.6). --------------------------------------
+
+  Future<(MockApp, int)> chatWithPlugin(WidgetTester tester) async {
+    final app = await withPlugin(tester);
+    return (app, _channelId(app, 'general', kind: ChannelKind.text));
+  }
+
+  Message commandMessage(
+    int channel,
+    int runner,
+    CommandRunState state,
+    String content, {
+    int id = 9000000000000000000,
+  }) => Message(
+    id: id,
+    channelId: channel,
+    authorId: 900,
+    content: content,
+    createdAt: DateTime.now(),
+    command: 'roll',
+    commandUserId: runner,
+    commandState: state,
+  );
+
+  Finder textWith(String part) => find.descendant(
+    of: find.byType(CommandResultLine),
+    matching: find.textContaining(part, findRichText: true),
+  );
+
+  testWidgets(
+    'a_thinking_command_is_one_line_naming_who_ran_it_and_the_plugin',
+    (tester) async {
+      final (app, channel) = await chatWithPlugin(tester);
+      final data = app.read(serverProvider(_server)).data!;
+      final me = data.self;
+
+      app.repository.emit(
+        MessageCreated(
+          _server,
+          commandMessage(
+            channel,
+            me.id,
+            CommandRunState.thinking,
+            'Dice Bot is thinking…',
+          ),
+        ),
+      );
+      await _settle(tester);
+
+      expect(find.byType(CommandResultLine), findsOneWidget);
+      expect(
+        textWith('${me.displayName} used /roll · Dice Bot is thinking…'),
+        findsOneWidget,
+      );
+      await app.dispose(tester);
+    },
+  );
+
+  testWidgets('a_thinking_message_shows_three_fading_dots', (tester) async {
+    final (app, channel) = await chatWithPlugin(tester);
+    app.repository.emit(
+      MessageCreated(
+        _server,
+        commandMessage(channel, 1, CommandRunState.thinking, 'x'),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.byType(ThinkingDots), findsOneWidget);
+    double opacityOf(int dot) => tester
+        .widgetList<Opacity>(
+          find.descendant(
+            of: find.byType(ThinkingDots),
+            matching: find.byType(Opacity),
+          ),
+        )
+        .elementAt(dot)
+        .opacity;
+    final before = opacityOf(0);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(opacityOf(0), isNot(before));
+    await app.dispose(tester);
+  });
+
+  testWidgets('dots_stand_still_under_reduced_motion', (tester) async {
+    await tester.pumpWidget(
+      const MediaQuery(
+        data: MediaQueryData(disableAnimations: true),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: ThinkingDots(color: Color(0xFF888888)),
+        ),
+      ),
+    );
+    final opacities = [
+      for (final each in tester.widgetList<Opacity>(find.byType(Opacity)))
+        each.opacity,
+    ];
+
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(tester.hasRunningAnimations, isFalse);
+    expect([
+      for (final each in tester.widgetList<Opacity>(find.byType(Opacity)))
+        each.opacity,
+    ], opacities);
+  });
+
+  testWidgets('no_answer_shows_muted_with_its_icon', (tester) async {
+    final (app, channel) = await chatWithPlugin(tester);
+    app.repository.emit(
+      MessageCreated(
+        _server,
+        commandMessage(
+          channel,
+          1,
+          CommandRunState.noAnswer,
+          "Dice Bot didn't answer",
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    expect(textWith("Dice Bot didn't answer"), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(CommandResultLine),
+        matching: find.byIcon(OcIcons.schedule),
+      ),
+      findsOneWidget,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('an_edit_from_thinking_shows_no_edited_mark', (tester) async {
+    final (app, channel) = await chatWithPlugin(tester);
+    app.repository.emit(
+      MessageCreated(
+        _server,
+        commandMessage(channel, 1, CommandRunState.thinking, 'x'),
+      ),
+    );
+    await _settle(tester);
+
+    app.repository.emit(
+      MessageUpdated(
+        _server,
+        commandMessage(channel, 1, CommandRunState.answered, 'You rolled 4'),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.byType(ThinkingDots), findsNothing);
+    expect(textWith('You rolled 4'), findsOneWidget);
+    expect(textWith('(edited)'), findsNothing);
+    await app.dispose(tester);
+  });
+
+  EphemeralNote note(int channel, CommandRunState state, String content) =>
+      EphemeralNote(
+        channelId: channel,
+        nonce: 'n1',
+        content: content,
+        at: DateTime(2026, 11, 9),
+        state: state,
+      );
+
+  testWidgets('the_reply_replaces_a_thinking_note_by_nonce', (tester) async {
+    final (app, channel) = await chatWithPlugin(tester);
+
+    for (final each in [
+      note(channel, CommandRunState.thinking, 'thinking'),
+      note(channel, CommandRunState.answered, 'done'),
+    ]) {
+      app.repository.emit(EphemeralMessageReceived(_server, each));
+      await _settle(tester);
+    }
+
+    final notes = app.read(
+      ephemeralNotesProvider((server: _server, channel: channel)),
+    );
+    expect(notes.map((n) => n.content), ['done']);
+    expect(find.byType(ThinkingDots), findsNothing);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_thinking_note_shows_its_dots_and_can_be_dismissed', (
+    tester,
+  ) async {
+    final (app, channel) = await chatWithPlugin(tester);
+
+    app.repository.emit(
+      EphemeralMessageReceived(
+        _server,
+        note(channel, CommandRunState.thinking, 'Dice Bot is thinking…'),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.byType(ThinkingDots), findsOneWidget);
+    expect(find.text('Dismiss'), findsOneWidget);
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_thinking_note_goes_when_the_connection_returns', (
+    tester,
+  ) async {
+    final (app, channel) = await chatWithPlugin(tester);
+    app.repository.emit(
+      EphemeralMessageReceived(
+        _server,
+        note(channel, CommandRunState.thinking, 'thinking'),
+      ),
+    );
+    await _settle(tester);
+
+    app.repository.emit(
+      ConnectionChanged(
+        _server,
+        ConnectionStatus.reconnecting(
+          attempt: 1,
+          retryAt: DateTime(2026, 11, 9),
+        ),
+      ),
+    );
+    await _settle(tester);
+    app.repository.emit(
+      const ConnectionChanged(_server, ConnectionStatus.connected()),
+    );
+    await _settle(tester);
+
+    expect(
+      app.read(ephemeralNotesProvider((server: _server, channel: channel))),
+      isEmpty,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('a_thinking_note_goes_after_the_limit', (tester) async {
+    final (app, channel) = await chatWithPlugin(tester);
+    app.repository.emit(
+      EphemeralMessageReceived(
+        _server,
+        note(channel, CommandRunState.thinking, 'thinking'),
+      ),
+    );
+    await _settle(tester);
+
+    await tester.pump(thinkingLimit + const Duration(seconds: 31));
+
+    expect(
+      app.read(ephemeralNotesProvider((server: _server, channel: channel))),
+      isEmpty,
+    );
+    await app.dispose(tester);
+  });
+
+  Future<void> openCommandsPage(WidgetTester tester) async {
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(DesktopShell.sidebarKey),
+        matching: find.text('Opencord Dev'),
+      ),
+    );
+    await _pumpFor(tester, const Duration(milliseconds: 200));
+    await tester.tap(find.text('Server settings'));
+    await _pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(SettingsDialog),
+            matching: find.text('Commands'),
+          )
+          .first,
+    );
+    await _settle(tester);
+  }
+
+  const ticketsRoll = CommandSpec(
+    name: 'roll',
+    description: 'Raffle',
+    feature: 'plugin:tickets',
+  );
+
+  testWidgets('the_commands_page_groups_by_source_with_icon_and_name', (
+    tester,
+  ) async {
+    final app = await withPlugin(tester);
+    await openCommandsPage(tester);
+
+    expect(find.text('MUSIC'), findsOneWidget);
+    expect(find.text('DICE BOT'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ServerCommandsPage),
+        matching: find.byType(CommandSourceIcon),
+      ),
+      findsOneWidget,
+    );
+    await app.dispose(tester);
+  });
+
+  testWidgets('turning_off_one_plugins_roll_leaves_the_other', (tester) async {
+    final app = await withPlugin(tester);
+    await addPluginCommands(tester, app, const [ticketsRoll]);
+    await openCommandsPage(tester);
+
+    final diceSwitch = find
+        .byWidgetPredicate(
+          (widget) => widget is OcSwitch && widget.semanticLabel == '/roll',
+        )
+        .first;
+    await tester.ensureVisible(diceSwitch);
+    await tester.tap(diceSwitch);
+    await _settle(tester);
+    await saveSettings(tester);
+
+    final server = app.repository.mockServer(_server);
+    bool on(String source) => server.commands.commands
+        .firstWhere((spec) => spec.name == 'roll' && spec.source == source)
+        .enabled;
+    expect(on('plugin:dice'), isFalse);
+    expect(on('plugin:tickets'), isTrue);
+    await app.dispose(tester);
+  });
 }
