@@ -19,7 +19,10 @@ export const SlideInRight = builder();
 export const SlideOutRight = builder();
 export const LinearTransition = builder();
 export class Keyframe {
-  constructor(_definitions: unknown) {}
+  readonly definitions: unknown;
+  constructor(definitions: unknown) {
+    this.definitions = definitions;
+  }
   duration(_ms: number) {
     return this;
   }
