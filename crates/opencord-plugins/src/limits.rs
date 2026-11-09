@@ -99,3 +99,75 @@ pub const DEV_TOKEN_MAX_DAYS: u32 = 30;
 pub const DEV_TOKEN_DEFAULT_DAYS: u32 = 7;
 /// Dev pushes one token makes per second.
 pub const DEV_PUSHES_PER_SECOND: u32 = 2;
+
+// Views: a plugin's client script, running on a member's device (§11, §12).
+
+/// One view's client VM.
+pub const VIEW_MEMORY_BYTES: usize = 32 * MIB as usize;
+/// One client handler (a press, a server event, `render`).
+pub const VIEW_HANDLER_TIME: Duration = Duration::from_millis(50);
+/// One `app.on_frame` call.
+pub const VIEW_FRAME_TIME: Duration = Duration::from_millis(8);
+/// Loading every `require`d client file and running `init` gets this many
+/// times the handler time.
+pub const VIEW_START_TIME_FACTOR: u32 = 10;
+
+/// Blocks in one tree a view draws.
+pub const VIEW_MAX_BLOCKS: usize = 20_000;
+/// How deeply blocks nest in one tree; the root is 1 deep.
+pub const VIEW_MAX_DEPTH: usize = 64;
+/// One string prop, in characters.
+pub const VIEW_MAX_PROP_CHARS: usize = 10_000;
+/// The `text` prop of `text` and `rich_text`, in characters.
+pub const VIEW_MAX_TEXT_CHARS: usize = 20_000;
+/// Everything one tree's props carry, counted as each string's bytes plus
+/// 8 for every other value. Many blocks can share one long Lua string or
+/// table, so the copies the tree makes need a cap of their own.
+pub const VIEW_MAX_TREE_BYTES: usize = 16 * MIB as usize;
+/// Options in one `menu`, `select`, `tabs` or `segmented`.
+pub const VIEW_MAX_OPTIONS: usize = 100;
+/// Drawing items in one canvas.
+pub const CANVAS_MAX_ITEMS: usize = 20_000;
+/// Points in one canvas path.
+pub const CANVAS_MAX_PATH_POINTS: usize = 10_000;
+/// Items of a lazy list drawn at once.
+pub const LIST_MAX_RANGE: usize = 200;
+
+/// Views one session has open.
+pub const VIEWS_PER_SESSION: usize = 4;
+/// Events the server sends to one view, a second.
+pub const TO_VIEW_EVENTS_PER_SECOND: u32 = 60;
+pub const TO_VIEW_BYTES_PER_SECOND: u64 = 512 * KIB;
+/// Events one view sends to the server, a second.
+pub const FROM_VIEW_EVENTS_PER_SECOND: u32 = 30;
+pub const FROM_VIEW_BYTES_PER_SECOND: u64 = 128 * KIB;
+/// One view event's data, as JSON.
+pub const VIEW_EVENT_MAX_BYTES: usize = 64 * KIB as usize;
+
+/// An `image { bytes }`, before base64.
+pub const IMAGE_MAX_RAW_BYTES: usize = 256 * KIB as usize;
+/// An image the server fetches for `image { url }`.
+pub const IMAGE_FETCH_MAX_BYTES: u64 = 10 * MIB;
+pub const IMAGE_FETCH_MAX_PIXELS: u64 = 40_000_000;
+/// Fetched images the server keeps per plugin, and for how long.
+pub const IMAGE_CACHE_MAX_BYTES: u64 = 100 * MIB;
+pub const IMAGE_CACHE_FRESH: Duration = Duration::from_secs(60 * 60);
+/// A `files.token` works this long.
+pub const FILE_TOKEN_LIFETIME: Duration = Duration::from_secs(60 * 60);
+
+/// `app.storage`, per plugin per server on one device.
+pub const DEVICE_STORAGE_MAX_BYTES: usize = MIB as usize;
+pub const DEVICE_STORAGE_KEY_MAX_CHARS: usize = 200;
+
+/// Timers one view has at once.
+pub const VIEW_MAX_TIMERS: usize = 100;
+/// The shortest interval of a view's repeating timer.
+pub const VIEW_TIMER_MIN_EVERY: Duration = Duration::from_millis(100);
+
+/// Channel types one plugin registers.
+pub const CHANNEL_TYPES_PER_PLUGIN: usize = 20;
+/// The text of `app.confirm`, `app.alert` and `app.prompt`.
+pub const DIALOG_MAX_CHARS: usize = 2_000;
+/// One view sends its plugin's log at most one error report this often.
+pub const VIEW_ERROR_REPORT_EVERY: Duration = Duration::from_secs(10);
+pub const VIEW_ERROR_REPORT_MAX_CHARS: usize = 2_000;
