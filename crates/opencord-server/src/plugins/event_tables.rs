@@ -163,11 +163,15 @@ pub fn channel_table(c: &proto::Channel) -> Value {
         .overwrites
         .iter()
         .map(|o| {
+            let allow_perms =
+                opencord_common::permissions::Permissions::from_bits_truncate(o.allow);
+            let deny_perms =
+                opencord_common::permissions::Permissions::from_bits_truncate(o.deny);
             json!({
                 "target_kind": events::enum_name(o.target_kind().as_str_name(), "OVERWRITE_TARGET_"),
                 "target_id": events::id(o.target_id),
-                "allow": json!(o.allow),
-                "deny": json!(o.deny),
+                "allow": events::permissions_to_names(allow_perms),
+                "deny": events::permissions_to_names(deny_perms),
             })
         })
         .collect();
@@ -231,10 +235,9 @@ pub fn member_update_table(m: &proto::Member) -> Value {
 
 pub fn server_info_table(s: &proto::ServerInfo) -> Value {
     let mut table = Map::new();
-    table.insert(
-        "server_id".to_owned(),
-        Value::String(hex::encode(&s.server_id)),
-    );
+    let id_str = hex::encode(&s.server_id);
+    table.insert("id".to_owned(), Value::String(id_str.clone()));
+    table.insert("server_id".to_owned(), Value::String(id_str));
     table.insert("name".to_owned(), Value::String(s.name.clone()));
     table.insert(
         "description".to_owned(),

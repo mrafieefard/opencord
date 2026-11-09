@@ -56,7 +56,7 @@ class ChatLookups {
       author: name(original.authorId),
       text: previewText(
         messageSummary(original),
-        user: (id) => data.members[id]?.displayName,
+        user: (id) => data.authorOf(id).name,
         channel: channelName,
       ),
     );

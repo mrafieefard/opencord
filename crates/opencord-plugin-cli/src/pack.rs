@@ -70,73 +70,61 @@ pub fn pack(folder: &Path, key_path: Option<&Path>, out: Option<&Path>) -> Resul
         return Err(format!("manifest.lua not found in '{}'", folder.display()));
     }
 
-    if let Some(key_path) = key_path {
+    let maybe_key = if let Some(key_path) = key_path {
+        if let (Ok(folder_can), Ok(key_can)) = (folder.canonicalize(), key_path.canonicalize())
+            && key_can.starts_with(&folder_can)
+        {
+            return Err(format!(
+                "key file '{}' is inside the plugin folder '{}': refusing to pack private key",
+                key_path.display(),
+                folder.display()
+            ));
+        }
         let key = signing::read_key(key_path)
             .map_err(|e| format!("failed to read key file '{}': {e}", key_path.display()))?;
         let pubkey = PublicKey::from(&key);
         rewrite_manifest_public_key(&manifest_path, &pubkey.to_string())?;
-
-        let mut package =
-            Package::from_dir(folder).map_err(|e| format!("failed to read plugin package: {e}"))?;
-        let manifest_bytes = package
-            .get("manifest.lua")
-            .ok_or_else(|| "manifest.lua missing from package".to_string())?;
-        let manifest_src = std::str::from_utf8(manifest_bytes)
-            .map_err(|e| format!("invalid manifest encoding: {e}"))?;
-        let manifest =
-            manifest::evaluate(manifest_src).map_err(|e| format!("invalid manifest: {e}"))?;
-
-        signing::sign(&mut package, &manifest, &key).map_err(|e| format!("signing failed: {e}"))?;
-
-        let default_name = format!("{}-{}.zip", manifest.id, manifest.version);
-        let out_path = out
-            .map(PathBuf::from)
-            .unwrap_or_else(|| folder.join(default_name));
-
-        let zip_bytes = package.write_zip();
-        fs::write(&out_path, zip_bytes)
-            .map_err(|e| format!("failed to write zip file '{}': {e}", out_path.display()))?;
-
-        println!("{}", pubkey.fingerprint());
-        Ok(out_path)
+        Some((key, pubkey))
     } else {
-        let package =
-            Package::from_dir(folder).map_err(|e| format!("failed to read plugin package: {e}"))?;
-        let manifest_bytes = package
-            .get("manifest.lua")
-            .ok_or_else(|| "manifest.lua missing from package".to_string())?;
-        let manifest_src = std::str::from_utf8(manifest_bytes)
-            .map_err(|e| format!("invalid manifest encoding: {e}"))?;
-        let manifest =
-            manifest::evaluate(manifest_src).map_err(|e| format!("invalid manifest: {e}"))?;
+        None
+    };
 
-        let default_name = format!("{}-{}.zip", manifest.id, manifest.version);
-        let out_path = out
-            .map(PathBuf::from)
-            .unwrap_or_else(|| folder.join(default_name));
+    let mut package =
+        Package::from_dir(folder).map_err(|e| format!("failed to read plugin package: {e}"))?;
+    let manifest_bytes = package
+        .get("manifest.lua")
+        .ok_or_else(|| "manifest.lua missing from package".to_string())?;
+    let manifest_src = std::str::from_utf8(manifest_bytes)
+        .map_err(|e| format!("invalid manifest encoding: {e}"))?;
+    let manifest =
+        manifest::evaluate(manifest_src).map_err(|e| format!("invalid manifest: {e}"))?;
 
-        let zip_bytes = package.write_zip();
-        fs::write(&out_path, zip_bytes)
-            .map_err(|e| format!("failed to write zip file '{}': {e}", out_path.display()))?;
-
-        println!("Packed unsigned zip to {}", out_path.display());
-        Ok(out_path)
+    if let Some((ref key, ref pubkey)) = maybe_key {
+        signing::sign(&mut package, &manifest, key).map_err(|e| format!("signing failed: {e}"))?;
+        println!("{}", pubkey.fingerprint());
     }
+
+    let default_name = format!("{}-{}.zip", manifest.id, manifest.version);
+    let out_path = out
+        .map(PathBuf::from)
+        .unwrap_or_else(|| folder.join(default_name));
+
+    let zip_bytes = package.write_zip();
+    fs::write(&out_path, zip_bytes)
+        .map_err(|e| format!("failed to write zip file '{}': {e}", out_path.display()))?;
+
+    if maybe_key.is_none() {
+        println!("Packed unsigned zip to {}", out_path.display());
+    }
+    Ok(out_path)
 }
 
 pub fn rotate_key(old: &Path, new: &Path, folder: &Path) -> Result<(), String> {
     let old_key = signing::read_key(old)
         .map_err(|e| format!("failed to read old key '{}': {e}", old.display()))?;
-
-    let new_pubkey = match signing::read_key(new) {
-        Ok(new_key) => PublicKey::from(&new_key),
-        Err(_) => {
-            let text = fs::read_to_string(new)
-                .map_err(|e| format!("failed to read new key file '{}': {e}", new.display()))?;
-            PublicKey::parse(text.trim())
-                .map_err(|e| format!("invalid new public key in '{}': {e}", new.display()))?
-        }
-    };
+    let new_key = signing::read_key(new)
+        .map_err(|e| format!("failed to read new key '{}': {e}", new.display()))?;
+    let new_pubkey = PublicKey::from(&new_key);
 
     let rotation_content = signing::rotation_statement(&old_key, &new_pubkey);
     let rotation_path = folder.join("KEY-ROTATION");

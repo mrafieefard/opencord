@@ -229,9 +229,7 @@ class PluginStatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: isRunning ? colors.selected : colors.hover,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: colors.border,
-        ),
+        border: Border.all(color: colors.border),
       ),
       child: Text(
         label,
@@ -273,5 +271,3 @@ class NewBadge extends StatelessWidget {
     );
   }
 }
-
-

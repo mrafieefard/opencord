@@ -4,6 +4,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/providers/plugins_state.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
@@ -15,6 +16,7 @@ import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
+import 'package:opencord/ui/widgets/inline_error.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
 import 'package:opencord/ui/widgets/settings.dart';
@@ -60,7 +62,9 @@ class _ServerPluginsPageState extends ConsumerState<ServerPluginsPage> {
       if (mounted) {
         ref.read(pluginsProvider(widget.serverKey).notifier).set(plugins);
       }
-    } catch (_) {}
+    } on RepoException catch (e) {
+      appLog('Failed to poll plugins: ${e.message}', name: 'plugins');
+    }
 
     try {
       final reviews = await ref
@@ -69,7 +73,9 @@ class _ServerPluginsPageState extends ConsumerState<ServerPluginsPage> {
       if (mounted) {
         ref.read(pluginReviewsProvider(widget.serverKey).notifier).set(reviews);
       }
-    } catch (_) {}
+    } on RepoException catch (e) {
+      appLog('Failed to poll plugin reviews: ${e.message}', name: 'plugins');
+    }
   }
 
   Future<void> _chooseFile() async {
@@ -106,8 +112,6 @@ class _ServerPluginsPageState extends ConsumerState<ServerPluginsPage> {
           .setPluginRunning(widget.serverKey, plugin.id, on);
     } on RepoException catch (e) {
       if (mounted) showOcToast(context, e.message);
-    } catch (e) {
-      if (mounted) showOcToast(context, e.toString());
     }
   }
 
@@ -221,7 +225,28 @@ class _ServerPluginsPageState extends ConsumerState<ServerPluginsPage> {
           const SizedBox(height: OcSpace.s24),
 
           // Plugins list
-          if (plugins.isEmpty)
+          if (pluginsAsync.hasError && pluginsAsync.value == null)
+            Container(
+              padding: const EdgeInsets.all(OcSpace.s32),
+              alignment: Alignment.center,
+              child: Column(
+                children: [
+                  InlineError(
+                    pluginsAsync.error is RepoException
+                        ? (pluginsAsync.error as RepoException).message
+                        : pluginsAsync.error.toString(),
+                  ),
+                  const SizedBox(height: OcSpace.s12),
+                  OcButton(
+                    label: 'Retry',
+                    onPressed: () => ref
+                        .read(pluginsProvider(widget.serverKey).notifier)
+                        .retry(),
+                  ),
+                ],
+              ),
+            )
+          else if (plugins.isEmpty)
             Container(
               padding: const EdgeInsets.all(OcSpace.s32),
               alignment: Alignment.center,

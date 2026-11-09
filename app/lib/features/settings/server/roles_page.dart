@@ -307,18 +307,14 @@ class _RoleTile extends StatelessWidget {
             SizedBox(
               width: 22,
               child: role.pluginId != null
-                  ? Icon(
-                      OcIcons.lock,
-                      size: 16,
-                      color: colors.textMuted,
-                    )
+                  ? Icon(OcIcons.lock, size: 16, color: colors.textMuted)
                   : (draggable
-                      ? Icon(
-                          OcIcons.dragIndicator,
-                          size: 16,
-                          color: colors.textMuted,
-                        )
-                      : null),
+                        ? Icon(
+                            OcIcons.dragIndicator,
+                            size: 16,
+                            color: colors.textMuted,
+                          )
+                        : null),
             ),
             Expanded(
               child: EllipsisText(
@@ -582,13 +578,14 @@ class _RoleEditorState extends ConsumerState<_RoleEditor> with SaveBarChanges {
         ? () {
             final plugins =
                 ref.watch(pluginsProvider(widget.serverKey)).value ?? const [];
-            final plugin =
-                plugins.where((p) => p.id == role.pluginId).firstOrNull;
+            final plugin = plugins
+                .where((p) => p.id == role.pluginId)
+                .firstOrNull;
             if (plugin != null) return plugin.name;
             final pluginUsers = ref.watch(
-              serverProvider(widget.serverKey).select(
-                (s) => s.data?.pluginUsers,
-              ),
+              serverProvider(
+                widget.serverKey,
+              ).select((s) => s.data?.pluginUsers),
             );
             final pluginUser = pluginUsers?.values
                 .where((u) => u.pluginId == role.pluginId)

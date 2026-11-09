@@ -123,7 +123,7 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
           </Text>
           {member?.isPlugin && (
             <View style={[styles.pluginBadge, { backgroundColor: colors.selected }]}>
-              <Text variant="caption" color="textMuted" style={styles.pluginBadgeText}>
+              <Text variant="badge" color="textMuted">
                 Plugin
               </Text>
             </View>
@@ -265,12 +265,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
-  },
-  pluginBadgeText: {
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: '600',
-    textTransform: 'none',
   },
   failed: {
     alignSelf: 'flex-end',

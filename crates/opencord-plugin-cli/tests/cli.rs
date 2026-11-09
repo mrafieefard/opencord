@@ -1,4 +1,6 @@
 use std::fs;
+use std::path::Path;
+use std::time::Duration;
 
 use opencord_plugin_cli::{dev, init, keys, pack};
 use opencord_plugins::manifest;
@@ -22,6 +24,9 @@ fn init_creates_a_working_plugin() {
     assert!(plugin_dir.join("opencord.d.luau").is_file());
     assert!(plugin_dir.join(".luaurc").is_file());
     assert!(plugin_dir.join(".gitignore").is_file());
+    assert!(plugin_dir.join(".vscode/settings.json").is_file());
+    let settings_str = fs::read_to_string(plugin_dir.join(".vscode/settings.json")).unwrap();
+    assert!(settings_str.contains("luau-lsp.types.definitionFiles"));
 
     // Pack unsigned
     let zip_path = pack::pack(&plugin_dir, None, None).expect("pack succeeds");
@@ -142,6 +147,93 @@ fn rotate_key_writes_valid_key_rotation() {
     assert_eq!(verified, SignatureState::Signed(new_pub));
 }
 
+#[test]
+fn pack_refuses_a_key_inside_the_folder() {
+    let tmp = tempdir().unwrap();
+    let id = "my-plugin";
+    init::init(id, tmp.path()).unwrap();
+    let plugin_dir = tmp.path().join(id);
+
+    let key_path = plugin_dir.join("my-plugin.key");
+    keys::keygen(Some(&key_path)).unwrap();
+
+    // 1. Pointing --key to a path inside the folder
+    let err = pack::pack(&plugin_dir, Some(&key_path), None).unwrap_err();
+    assert!(
+        err.contains("is inside the plugin folder") && err.contains("refusing to pack private key"),
+        "unexpected error: {err}"
+    );
+
+    // 2. Unsigned pack with a key file in the folder is refused by package::add_dir
+    let err = pack::pack(&plugin_dir, None, None).unwrap_err();
+    assert!(
+        err.contains("contains a private key"),
+        "unexpected error: {err}"
+    );
+}
+
+#[tokio::test]
+async fn dev_push_refuses_a_key_inside_the_folder() {
+    let tmp = tempdir().unwrap();
+    let id = "dev-bot";
+    init::init(id, tmp.path()).unwrap();
+    let plugin_dir = tmp.path().join(id);
+
+    let key_path = plugin_dir.join("secret.key");
+    keys::keygen(Some(&key_path)).unwrap();
+
+    let opts = dev::DevOptions {
+        server: "127.0.0.1:8000",
+        fingerprint: None,
+        token: "token",
+        folder: &plugin_dir,
+    };
+
+    let err = dev::push_once(&opts).await.unwrap_err();
+    match err {
+        dev::PushError::Refused(msg) => {
+            assert!(
+                msg.contains("contains a private key"),
+                "expected error mentioning private key, got: {msg}"
+            );
+        }
+        other => panic!("expected PushError::Refused, got {other:?}"),
+    }
+}
+
+#[derive(Clone, Default)]
+struct SharedBuffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for SharedBuffer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl SharedBuffer {
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+    }
+}
+
+async fn wait_for_output(buf: &SharedBuffer, needle: &str) {
+    let start = std::time::Instant::now();
+    while start.elapsed() < Duration::from_secs(10) {
+        if buf.text().contains(needle) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    panic!(
+        "timed out waiting for {needle:?} in output:\n{}",
+        buf.text()
+    );
+}
+
 #[tokio::test]
 async fn dev_pushes_and_prints_the_log() {
     let server = TestServer::start().await;
@@ -185,22 +277,34 @@ end)
     )
     .unwrap();
 
-    let server_addr = server.handle.local_addr.to_string();
-    let fingerprint_hex = hex::encode(server.handle.fingerprint);
+    let server_addr: &'static str =
+        Box::leak(server.handle.local_addr.to_string().into_boxed_str());
+    let fingerprint_hex: &'static str =
+        Box::leak(hex::encode(server.handle.fingerprint).into_boxed_str());
+    let token: &'static str = Box::leak(token.into_boxed_str());
+    let plugin_dir_ref: &'static Path = Box::leak(plugin_dir.clone().into_boxed_path());
 
     let opts = dev::DevOptions {
-        server: &server_addr,
-        fingerprint: Some(&fingerprint_hex),
-        token: &token,
-        folder: &plugin_dir,
+        server: server_addr,
+        fingerprint: Some(fingerprint_hex),
+        token,
+        folder: plugin_dir_ref,
     };
 
-    // Run first iteration of push: asks for review
-    let pushed_msg1 = dev::push_once(&opts).await.expect("first push succeeds");
-    assert_eq!(
-        pushed_msg1,
-        "Waiting for an admin to review it on the Plugins page"
-    );
+    let buf = SharedBuffer::default();
+    let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
+
+    let dev_task = tokio::spawn({
+        let buf = buf.clone();
+        async move { dev::run_dev_with(opts, buf, Some(stop_rx)).await }
+    });
+
+    // Wait for initial push asking for review
+    wait_for_output(
+        &buf,
+        "Waiting for an admin to review it on the Plugins page",
+    )
+    .await;
 
     // Admin reviews and accepts the plugin
     let reply = owner_client
@@ -223,24 +327,44 @@ end)
         }))
         .await;
 
-    // Second push: installed immediately
-    let pushed_msg2 = dev::push_once(&opts).await.expect("second push succeeds");
-    assert!(pushed_msg2.contains("Installed 0.1.0, running"));
+    // Edit the file to trigger re-push
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    fs::write(
+        plugin_dir.join("server/main.luau"),
+        r#"opencord.on("start", function()
+  log.info("hello after edit")
+end)
+"#,
+    )
+    .unwrap();
 
-    // Poll logs
-    let logs = dev::poll_logs_once(&opts, 0)
-        .await
-        .expect("poll log succeeds");
-    let found = logs.iter().any(|line| line.contains("dev hello from test"));
-    assert!(found, "expected log line found in logs: {logs:?}");
+    // Verify it pushed and installed
+    wait_for_output(&buf, "Installed 0.1.0, running").await;
 
-    // Test resilience: server restarts on same port and push still succeeds
+    // Verify the log was polled and printed
+    wait_for_output(&buf, "INFO hello after edit").await;
+
+    // Test resilience: server restarts on same port and dev reconnects
     let port = server.handle.local_addr.port();
     let _server = server
         .restart(|c| c.server.bind = format!("127.0.0.1:{port}").parse().unwrap())
         .await;
-    let pushed_msg3 = dev::push_once(&opts)
-        .await
-        .expect("push after restart succeeds");
-    assert!(pushed_msg3.contains("Installed 0.1.0, running"));
+
+    // Touch file after restart
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    fs::write(
+        plugin_dir.join("server/main.luau"),
+        r#"opencord.on("start", function()
+  log.info("hello after restart")
+end)
+"#,
+    )
+    .unwrap();
+
+    wait_for_output(&buf, "INFO hello after restart").await;
+
+    // Signal stop and join task
+    let _ = stop_tx.send(true);
+    let res = dev_task.await.unwrap();
+    assert!(res.is_ok());
 }

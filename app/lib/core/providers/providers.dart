@@ -503,7 +503,6 @@ void _route(Ref ref, RepoEvent event) {
   ref.read(streamsProvider(key).notifier).apply(event);
   ref.read(soundsProvider(key).notifier).apply(event);
   ref.read(pluginsProvider(key).notifier).apply(event);
-  ref.read(pluginUsersProvider(key).notifier).apply(event);
   ref.read(pluginReviewsProvider(key).notifier).apply(event);
   switch (event) {
     case SoundPlayed(:final play):

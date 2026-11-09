@@ -841,16 +841,11 @@ class RustRepository implements OpencordRepository {
       core.CoreEventPayload_PluginReviewRemove(:final reviewId) =>
         PluginReviewRemoved(server, reviewId),
       core.CoreEventPayload_PluginLogAppend(:final pluginId, :final lines) =>
-        PluginLogAppended(
-          server,
-          pluginId,
-          [for (final l in lines) pluginLogLineFrom(l)],
-        ),
+        PluginLogAppended(server, pluginId, [
+          for (final l in lines) pluginLogLineFrom(l),
+        ]),
       core.CoreEventPayload_PluginUsersUpdate(:final field0) =>
-        PluginUsersUpdated(
-          server,
-          [for (final u in field0) pluginUserFrom(u)],
-        ),
+        PluginUsersUpdated(server, [for (final u in field0) pluginUserFrom(u)]),
     };
     if (event != null) _emit(event);
   }
@@ -2981,9 +2976,9 @@ class RustRepository implements OpencordRepository {
 
   @override
   Future<List<Plugin>> fetchPlugins(String serverKey) => _call(() async {
-        final list = await _core.fetchPlugins(serverKey);
-        return [for (final p in list) pluginFrom(p)];
-      });
+    final list = await _core.fetchPlugins(serverKey);
+    return [for (final p in list) pluginFrom(p)];
+  });
 
   @override
   Future<List<PluginReview>> fetchPluginReviews(String serverKey) =>
@@ -3000,15 +2995,11 @@ class RustRepository implements OpencordRepository {
     List<PluginConfigValue> config,
     bool acceptLicense,
   ) => _call(() async {
-        final p = await _core.confirmPluginReview(
-          serverKey,
-          reviewId,
-          granted,
-          [for (final v in config) pluginConfigValueTo(v)],
-          acceptLicense,
-        );
-        return pluginFrom(p);
-      });
+    final p = await _core.confirmPluginReview(serverKey, reviewId, granted, [
+      for (final v in config) pluginConfigValueTo(v),
+    ], acceptLicense);
+    return pluginFrom(p);
+  });
 
   @override
   Future<void> discardPluginReview(String serverKey, String reviewId) =>
@@ -3020,10 +3011,9 @@ class RustRepository implements OpencordRepository {
     String pluginId,
     List<String> granted,
   ) => _call(() async {
-        final p =
-            await _core.setPluginPermissions(serverKey, pluginId, granted);
-        return pluginFrom(p);
-      });
+    final p = await _core.setPluginPermissions(serverKey, pluginId, granted);
+    return pluginFrom(p);
+  });
 
   @override
   Future<Plugin> setPluginConfig(
@@ -3031,13 +3021,11 @@ class RustRepository implements OpencordRepository {
     String pluginId,
     List<PluginConfigValue> config,
   ) => _call(() async {
-        final p = await _core.setPluginConfig(
-          serverKey,
-          pluginId,
-          [for (final v in config) pluginConfigValueTo(v)],
-        );
-        return pluginFrom(p);
-      });
+    final p = await _core.setPluginConfig(serverKey, pluginId, [
+      for (final v in config) pluginConfigValueTo(v),
+    ]);
+    return pluginFrom(p);
+  });
 
   @override
   Future<Plugin> setPluginRunning(
@@ -3045,9 +3033,9 @@ class RustRepository implements OpencordRepository {
     String pluginId,
     bool running,
   ) => _call(() async {
-        final p = await _core.setPluginRunning(serverKey, pluginId, running);
-        return pluginFrom(p);
-      });
+    final p = await _core.setPluginRunning(serverKey, pluginId, running);
+    return pluginFrom(p);
+  });
 
   @override
   Future<Plugin> restartPlugin(String serverKey, String pluginId) =>
@@ -3061,11 +3049,9 @@ class RustRepository implements OpencordRepository {
     String serverKey,
     String pluginId, {
     required bool deleteData,
-  }) => _call(() => _core.uninstallPlugin(
-        serverKey,
-        pluginId,
-        deleteData: deleteData,
-      ));
+  }) => _call(
+    () => _core.uninstallPlugin(serverKey, pluginId, deleteData: deleteData),
+  );
 
   @override
   Future<List<PluginLogLine>> fetchPluginLog(
@@ -3074,25 +3060,21 @@ class RustRepository implements OpencordRepository {
     int? before,
     int limit = 200,
   }) => _call(() async {
-        final lines = await _core.fetchPluginLog(
-          serverKey,
-          pluginId,
-          before: before,
-          limit: limit,
-        );
-        return [for (final l in lines) pluginLogLineFrom(l)];
-      });
+    final lines = await _core.fetchPluginLog(
+      serverKey,
+      pluginId,
+      before: before,
+      limit: limit,
+    );
+    return [for (final l in lines) pluginLogLineFrom(l)];
+  });
 
   @override
   Future<void> watchPluginLog(
     String serverKey,
     String pluginId, {
     required bool watch,
-  }) => _call(() => _core.watchPluginLog(
-        serverKey,
-        pluginId,
-        watch: watch,
-      ));
+  }) => _call(() => _core.watchPluginLog(serverKey, pluginId, watch: watch));
 
   @override
   Future<CreatedPluginDevToken> createPluginDevToken(
@@ -3100,13 +3082,9 @@ class RustRepository implements OpencordRepository {
     String pluginId, {
     int days = 7,
   }) => _call(() async {
-        final c = await _core.createPluginDevToken(
-          serverKey,
-          pluginId,
-          days: days,
-        );
-        return createdPluginDevTokenFrom(c);
-      });
+    final c = await _core.createPluginDevToken(serverKey, pluginId, days: days);
+    return createdPluginDevTokenFrom(c);
+  });
 
   @override
   Future<void> revokePluginDevToken(String serverKey, int tokenId) =>

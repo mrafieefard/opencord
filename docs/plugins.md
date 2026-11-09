@@ -160,7 +160,7 @@ All API functions and type signatures are defined in `crates/opencord-plugins/ap
 - `log`:
   - `log.info(...)`, `log.warn(...)`, `log.error(...)`
 - `messages`:
-  - `messages.send(channel_id, content | { content, files })`
+  - `messages.send(channel_id, content | { content })` *(file attachments arrive in a later milestone)*
   - `messages.edit(message_id, content)`
   - `messages.delete(message_id)`
   - `messages.fetch(channel_id, { before, limit })`
@@ -174,11 +174,11 @@ All API functions and type signatures are defined in `crates/opencord-plugins/ap
 - `roles`:
   - `roles.list()`, `roles.create(spec)`, `roles.update(id, spec)`, `roles.delete(id)`, `roles.reorder(order)`
 - `members`:
-  - `members.list()`, `members.get(id)`, `members.add_role(user_id, role_id)`, `members.remove_role(user_id, role_id)`, `members.set_nickname(user_id, nickname)`, `members.kick(user_id, reason)`, `members.ban(user_id, reason)`
+  - `members.list()`, `members.get(id)`, `members.add_role(user_id, role_id)`, `members.remove_role(user_id, role_id)`, `members.set_nickname(user_id, nickname)`, `members.kick(user_id, reason)`, `members.ban(user_id, reason)`, `members.unban(user_id)`
 - `server`:
   - `server.get()`
 - `bans`:
-  - `bans.list()`, `bans.create(spec)`, `bans.unban(user_id)`
+  - `bans.list()`
 - `invites`:
   - `invites.list()`, `invites.create(spec)`
 - `voice`:

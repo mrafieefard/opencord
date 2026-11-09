@@ -6,7 +6,11 @@ import 'package:opencord/core/repository/events.dart';
 
 const _server = 'opencord.example:7710';
 
-Plugin _plugin(String id, String name, {PluginState state = PluginState.running}) => Plugin(
+Plugin _plugin(
+  String id,
+  String name, {
+  PluginState state = PluginState.running,
+}) => Plugin(
   id: id,
   name: name,
   version: '1.0.0',

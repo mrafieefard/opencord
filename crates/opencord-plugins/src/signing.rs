@@ -34,7 +34,13 @@ const ROTATE_PREFIX: &[u8; 25] = b"opencord-plugin-rotate-v1";
 
 const SIGNATURE_HEADER: &str = "opencord-plugin-signature-v1\n";
 const ROTATION_HEADER: &str = "opencord-plugin-rotation-v1";
-const KEY_FILE_HEADER: &str = "opencord-plugin-key-v1\n";
+/// Prefix line placed on private key files written by [`write_key`].
+pub const KEY_FILE_HEADER: &str = "opencord-plugin-key-v1\n";
+
+/// Returns true if the file content starts with the private key file header.
+pub fn is_key_file(bytes: &[u8]) -> bool {
+    bytes.starts_with(KEY_FILE_HEADER.as_bytes())
+}
 
 const KEY_PREFIX: &str = "ed25519:";
 

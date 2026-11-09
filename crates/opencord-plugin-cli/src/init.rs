@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+use opencord_plugins::manifest::valid_id;
+
 const OPENCORD_D_LUAU: &str = include_str!("../../../crates/opencord-plugins/api/opencord.d.luau");
 
 const LUAURC: &str = r#"{
@@ -14,31 +16,20 @@ const LUAURC: &str = r#"{
 }
 "#;
 
+const VSCODE_SETTINGS: &str = r#"{
+  "luau-lsp.types.definitionFiles": [
+    "opencord.d.luau"
+  ]
+}
+"#;
+
 const GITIGNORE: &str = r#"*.zip
 .DS_Store
 signing.key
 "#;
 
-fn is_valid_id(id: &str) -> bool {
-    let bytes = id.as_bytes();
-    if bytes.len() < 3 || bytes.len() > 40 {
-        return false;
-    }
-    let first = bytes[0];
-    let last = bytes[bytes.len() - 1];
-    if !first.is_ascii_lowercase() && !first.is_ascii_digit() {
-        return false;
-    }
-    if !last.is_ascii_lowercase() && !last.is_ascii_digit() {
-        return false;
-    }
-    bytes
-        .iter()
-        .all(|&b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-}
-
 pub fn init(id: &str, parent_dir: &Path) -> Result<(), String> {
-    if !is_valid_id(id) {
+    if !valid_id(id) {
         return Err(format!(
             "invalid id '{id}': must be 3 to 40 lowercase letters, digits, and hyphens"
         ));
@@ -55,6 +46,10 @@ pub fn init(id: &str, parent_dir: &Path) -> Result<(), String> {
     let server_dir = plugin_dir.join("server");
     fs::create_dir_all(&server_dir)
         .map_err(|e| format!("failed to create directory '{}': {e}", server_dir.display()))?;
+
+    let vscode_dir = plugin_dir.join(".vscode");
+    fs::create_dir_all(&vscode_dir)
+        .map_err(|e| format!("failed to create directory '{}': {e}", vscode_dir.display()))?;
 
     let manifest_content = format!(
         r#"return {{
@@ -83,6 +78,8 @@ end)
         .map_err(|e| format!("failed to write opencord.d.luau: {e}"))?;
     fs::write(plugin_dir.join(".luaurc"), LUAURC)
         .map_err(|e| format!("failed to write .luaurc: {e}"))?;
+    fs::write(vscode_dir.join("settings.json"), VSCODE_SETTINGS)
+        .map_err(|e| format!("failed to write .vscode/settings.json: {e}"))?;
     fs::write(plugin_dir.join(".gitignore"), GITIGNORE)
         .map_err(|e| format!("failed to write .gitignore: {e}"))?;
 

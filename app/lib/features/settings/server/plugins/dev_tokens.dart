@@ -34,6 +34,7 @@ class DevTokensSection extends ConsumerStatefulWidget {
 class _DevTokensSectionState extends ConsumerState<DevTokensSection> {
   List<PluginDevToken> _tokens = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -50,10 +51,16 @@ class _DevTokensSectionState extends ConsumerState<DevTokensSection> {
         setState(() {
           _tokens = all.where((t) => t.pluginId == widget.pluginId).toList();
           _loading = false;
+          _error = null;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } on RepoException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -79,8 +86,6 @@ class _DevTokensSectionState extends ConsumerState<DevTokensSection> {
       }
     } on RepoException catch (e) {
       if (mounted) showOcToast(context, e.message);
-    } catch (e) {
-      if (mounted) showOcToast(context, e.toString());
     }
   }
 
@@ -111,6 +116,11 @@ class _DevTokensSectionState extends ConsumerState<DevTokensSection> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
+          )
+        else if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: OcSpace.s12),
+            child: InlineError(_error!),
           )
         else if (_tokens.isEmpty)
           Container(
@@ -247,13 +257,6 @@ class _CreateDevTokenDialogState extends ConsumerState<_CreateDevTokenDialog> {
       if (mounted) {
         setState(() {
           _error = e.message;
-          _busy = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
           _busy = false;
         });
       }

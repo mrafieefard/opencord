@@ -1196,8 +1196,18 @@ impl Client {
             Arc::clone(&self.inner.routes),
             Arc::clone(&self.inner.media_tokens),
         );
+        let timeout_duration =
+            std::time::Duration::from_secs(30 + (bytes.len() as u64) / (256 * 1024));
         let response = media
-            .request(self, key, "POST", "/plugins/packages", &bytes, 256 * 1024)
+            .request_with_timeout(
+                self,
+                key,
+                "POST",
+                "/plugins/packages",
+                &bytes,
+                256 * 1024,
+                timeout_duration,
+            )
             .await?;
         let decoded = proto::Response::decode(response.body.as_slice())
             .map_err(|error| CoreError::Connection {

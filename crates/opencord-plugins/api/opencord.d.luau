@@ -279,8 +279,8 @@ declare db: {
 }
 
 declare messages: {
-    --- Permission: send_messages
-    send: (channel_id: string, content: string | { content: string, files: { string }? }) -> Message,
+    --- Permission: send_messages (file attachments arrive in a later milestone)
+    send: (channel_id: string, content: string | { content: string }) -> Message,
     --- Permission: send_messages
     edit: (id: string, content: string | { content: string }) -> Message,
     --- Permission: send_messages

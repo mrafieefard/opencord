@@ -166,8 +166,9 @@ class ServerData {
     if (pluginUsers[userId] case final pluginUser?) {
       return Author(
         name: pluginUser.name,
-        avatarHash:
-            pluginUser.avatarHash.isEmpty ? null : pluginUser.avatarHash,
+        avatarHash: pluginUser.avatarHash.isEmpty
+            ? null
+            : pluginUser.avatarHash,
         role: null,
         isPlugin: true,
       );

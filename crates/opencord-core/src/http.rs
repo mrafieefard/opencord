@@ -88,6 +88,50 @@ impl MediaHttp {
             renewed = true;
         }
     }
+
+    /// Reads at most `limit` bytes of the answer's body with a custom timeout.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn request_with_timeout(
+        &self,
+        client: &Client,
+        key: &str,
+        method: &str,
+        path: &str,
+        body: &[u8],
+        limit: usize,
+        timeout_duration: Duration,
+    ) -> Result<HttpResponse, CoreError> {
+        let Route { address, pin } = self
+            .routes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned()
+            .ok_or(CoreError::NotConnected)?;
+        let mut renewed = false;
+        loop {
+            let token = media_token(&self.tokens, key).ok_or(CoreError::NotConnected)?;
+            let response = request_with_timeout(
+                &address,
+                pin,
+                method,
+                path,
+                &token,
+                body,
+                limit,
+                timeout_duration,
+            )
+            .await
+            .map_err(|error| CoreError::Connection {
+                message: error.to_string(),
+            })?;
+            if response.status != 401 || renewed {
+                return Ok(response);
+            }
+            renew_media_token(client, &self.tokens, key).await?;
+            renewed = true;
+        }
+    }
 }
 
 /// This device's media token for the server at `key`.
@@ -132,8 +176,33 @@ pub async fn request(
     body: &[u8],
     limit: usize,
 ) -> Result<HttpResponse, HttpError> {
-    timeout(
+    request_with_timeout(
+        address,
+        pin,
+        method,
+        path,
+        bearer,
+        body,
+        limit,
         REQUEST_TIMEOUT,
+    )
+    .await
+}
+
+/// One request with a custom timeout.
+#[allow(clippy::too_many_arguments)]
+pub async fn request_with_timeout(
+    address: &ServerAddress,
+    pin: Option<Fingerprint>,
+    method: &str,
+    path: &str,
+    bearer: &str,
+    body: &[u8],
+    limit: usize,
+    timeout_duration: Duration,
+) -> Result<HttpResponse, HttpError> {
+    timeout(
+        timeout_duration,
         send(address, pin, method, path, bearer, body, limit),
     )
     .await

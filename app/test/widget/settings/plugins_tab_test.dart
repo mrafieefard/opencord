@@ -29,6 +29,7 @@ Plugin _samplePlugin({
   String version = '0.1.0',
   String author = 'Amin',
   String description = 'Greets new members',
+  String license = 'MIT',
   PluginState state = PluginState.running,
   PluginSignature signature = PluginSignature.signed,
   GithubCheck githubCheck = GithubCheck.verified,
@@ -41,6 +42,7 @@ Plugin _samplePlugin({
   version: version,
   author: author,
   description: description,
+  license: license,
   state: state,
   signature: signature,
   githubCheck: githubCheck,
@@ -77,6 +79,8 @@ PluginReview _sampleReview({
         name: 'Ticket Master',
         version: '1.0.0',
         author: 'Support Team',
+        description: 'Tickets and support for your server',
+        license: 'Custom Commercial',
         signature: PluginSignature.unsigned,
         githubCheck: GithubCheck.unspecified,
       ).copyWith(
@@ -238,7 +242,6 @@ class _EventRouterState extends ConsumerState<_EventRouter> {
     _sub = repo.events.listen((event) {
       final key = event.serverKey;
       ref.read(pluginsProvider(key).notifier).apply(event);
-      ref.read(pluginUsersProvider(key).notifier).apply(event);
       ref.read(pluginReviewsProvider(key).notifier).apply(event);
     });
   }
@@ -414,8 +417,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Header
+    // Header (§9.1)
     expect(find.text('Install Ticket Master'), findsOneWidget);
+    expect(find.text('v1.0.0'), findsOneWidget);
+    expect(find.textContaining('by Support Team'), findsOneWidget);
+    expect(find.textContaining('Custom Commercial'), findsAtLeast(1));
+    expect(find.text('Tickets and support for your server'), findsOneWidget);
+    expect(find.text('Unsigned'), findsOneWidget);
 
     // Unsigned warning
     expect(
@@ -442,7 +450,12 @@ void main() {
     expect(tester.widget<OcButton>(installButton).onPressed, isNull);
 
     // Accept licence
-    await tester.tap(find.text('I accept the licence'));
+    final licenceFinder = find.text(
+      'I accept the Custom Commercial licence terms',
+    );
+    await tester.ensureVisible(licenceFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(licenceFinder);
     await tester.pumpAndSettle();
 
     // Now install is enabled
@@ -484,8 +497,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Header & replace info
+    // Header & replace info (§9.1)
     expect(find.text('Update Ticket Master'), findsOneWidget);
+    expect(find.text('v1.0.0'), findsOneWidget);
+    expect(find.text('by Support Team · MIT'), findsOneWidget);
     expect(
       find.text('This replaces Ticket Master 0.9.0 by Support Team'),
       findsOneWidget,
@@ -570,6 +585,70 @@ void main() {
     await tester.pumpAndSettle();
 
     // Dialog closed cleanly!
+    expect(find.byType(ReviewDialog), findsNothing);
+    expect(closed, true);
+  });
+
+  testWidgets('review_dialog_stays_open_on_poll_before_review_exists', (
+    tester,
+  ) async {
+    final review = _sampleReview(reviewId: 'rev-poll');
+    final repo = _FakePluginsRepository(
+      initialPlugins: [],
+      initialReviews: [review],
+    );
+
+    var closed = false;
+
+    await tester.pumpWidget(
+      _wrap(
+        Consumer(
+          builder: (context, ref, _) => TextButton(
+            onPressed: () async {
+              await showReviewDialog(
+                context,
+                serverKey: _devKey,
+                review: review,
+              );
+              closed = true;
+            },
+            child: const Text('Open Dialog'),
+          ),
+        ),
+        repository: repo,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Open Dialog'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ReviewDialog), findsOneWidget);
+
+    // 1. Poll answers with empty list before upload/review exists in provider:
+    // Dialog must stay open!
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReviewDialog)),
+    );
+    container.read(pluginReviewsProvider(_devKey).notifier).set([]);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ReviewDialog), findsOneWidget);
+    expect(closed, false);
+
+    // 2. Add the review to provider
+    container
+        .read(pluginReviewsProvider(_devKey).notifier)
+        .apply(PluginReviewUpdated(_devKey, review));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReviewDialog), findsOneWidget);
+
+    // 3. Remove the review from provider -> now it closes cleanly
+    container
+        .read(pluginReviewsProvider(_devKey).notifier)
+        .apply(PluginReviewRemoved(_devKey, review.reviewId));
+    await tester.pumpAndSettle();
+
     expect(find.byType(ReviewDialog), findsNothing);
     expect(closed, true);
   });

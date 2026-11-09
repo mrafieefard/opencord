@@ -491,3 +491,49 @@ async fn happy_paths_for_channels_roles_members_invites_server() {
 
     wait_for_log(&mut owner, "all-in-one", "all happy paths completed").await;
 }
+
+#[tokio::test]
+async fn channel_get_matches_channel_update_event() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch_id = channel_id(&ready, "general");
+
+    let _p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "channel-matcher",
+        &["read_channels", "manage_channels"],
+        &format!(
+            r#"
+            local target_id = "{ch_id}"
+            opencord.on("channel_update", function(event)
+                if event.channel and event.channel.id == target_id then
+                    local fetched = channels.get(target_id)
+                    assert(fetched.id == event.channel.id, "id mismatch")
+                    assert(fetched.name == event.channel.name, "name mismatch")
+                    assert(fetched.kind == event.channel.kind, "kind mismatch")
+                    assert(fetched.position == event.channel.position, "position mismatch")
+                    assert(fetched.topic == event.channel.topic, "topic mismatch")
+                    assert(fetched.bitrate == event.channel.bitrate, "bitrate mismatch")
+                    assert(fetched.user_limit == event.channel.user_limit, "user_limit mismatch")
+                    assert(fetched.text_in_voice == event.channel.text_in_voice, "text_in_voice mismatch")
+                    log.info("channel.get matches channel_update")
+                end
+            end)
+
+            opencord.on("start", function()
+                channels.update(target_id, {{ name = "matching-channel", topic = "some-topic" }})
+            end)
+            "#
+        ),
+    )
+    .await;
+
+    wait_for_log(
+        &mut owner,
+        "channel-matcher",
+        "channel.get matches channel_update",
+    )
+    .await;
+}

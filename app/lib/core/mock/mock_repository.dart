@@ -5378,7 +5378,10 @@ class MockRepository implements OpencordRepository {
     final server = _server(serverKey);
     final plugin = server.plugins[pluginId];
     if (plugin == null) {
-      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
     }
     final updated = plugin.copyWith(
       permissions: [
@@ -5404,7 +5407,10 @@ class MockRepository implements OpencordRepository {
     final server = _server(serverKey);
     final plugin = server.plugins[pluginId];
     if (plugin == null) {
-      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
     }
     final updated = plugin.copyWith(config: config);
     server.plugins[pluginId] = updated;
@@ -5421,7 +5427,10 @@ class MockRepository implements OpencordRepository {
     final server = _server(serverKey);
     final plugin = server.plugins[pluginId];
     if (plugin == null) {
-      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
     }
     final updated = plugin.copyWith(
       state: running ? PluginState.running : PluginState.stopped,
@@ -5436,7 +5445,10 @@ class MockRepository implements OpencordRepository {
     final server = _server(serverKey);
     final plugin = server.plugins[pluginId];
     if (plugin == null) {
-      throw RepoException(RepoErrorKind.notFound, 'plugin not found: $pluginId');
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
     }
     final updated = plugin.copyWith(state: PluginState.running);
     server.plugins[pluginId] = updated;

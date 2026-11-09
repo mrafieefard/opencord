@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/format.dart';
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/providers/plugins_state.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/features/settings/server/plugins/dev_tokens.dart';
+import 'package:opencord/features/settings/server/plugins/plugin_config_fields.dart';
 import 'package:opencord/features/settings/server/plugins/review_dialog.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
@@ -21,7 +23,6 @@ import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_dialog.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_switch.dart';
-import 'package:opencord/ui/widgets/oc_text_field.dart';
 import 'package:opencord/ui/widgets/section_label.dart';
 import 'package:opencord/ui/widgets/settings.dart';
 import 'package:opencord/ui/widgets/toast.dart';
@@ -67,8 +68,6 @@ class _PluginPageState extends ConsumerState<PluginPage> {
       if (mounted) showOcToast(context, 'Plugin restarted');
     } on RepoException catch (e) {
       if (mounted) showOcToast(context, e.message);
-    } catch (e) {
-      if (mounted) showOcToast(context, e.toString());
     }
   }
 
@@ -156,8 +155,6 @@ class _PluginPageState extends ConsumerState<PluginPage> {
         }
       } on RepoException catch (e) {
         if (mounted) showOcToast(context, e.message);
-      } catch (e) {
-        if (mounted) showOcToast(context, e.toString());
       }
     }
   }
@@ -635,7 +632,7 @@ class _SettingsTab extends ConsumerStatefulWidget {
 
 class _SettingsTabState extends ConsumerState<_SettingsTab>
     with SaveBarChanges {
-  final Map<String, TextEditingController> _controllers = {};
+  final Map<String, String> _values = {};
   late Map<String, String> _saved = {
     for (final val in widget.plugin.config) val.key: val.value,
   };
@@ -647,21 +644,11 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
     for (final field in widget.plugin.configFields) {
       if (field.kind == PluginConfigKind.secret) {
         // Secrets start empty (§17.2, "Saved. Leave empty to keep it.")
-        _controllers[field.key] = TextEditingController(text: '');
+        _values[field.key] = '';
       } else {
-        _controllers[field.key] = TextEditingController(
-          text: _saved[field.key] ?? '',
-        );
+        _values[field.key] = _saved[field.key] ?? '';
       }
     }
-  }
-
-  @override
-  void dispose() {
-    for (final c in _controllers.values) {
-      c.dispose();
-    }
-    super.dispose();
   }
 
   @override
@@ -670,13 +657,10 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
     if (oldWidget.plugin != widget.plugin && !unsavedChanges) {
       _saved = {for (final val in widget.plugin.config) val.key: val.value};
       for (final field in widget.plugin.configFields) {
-        if (!_controllers.containsKey(field.key)) {
-          _controllers[field.key] = TextEditingController();
-        }
         if (field.kind == PluginConfigKind.secret) {
-          _controllers[field.key]?.text = '';
+          _values[field.key] = '';
         } else {
-          _controllers[field.key]?.text = _saved[field.key] ?? '';
+          _values[field.key] = _saved[field.key] ?? '';
         }
       }
     }
@@ -693,14 +677,14 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
           PluginConfigValue(
             key: field.key,
             // A kept secret is sent empty (§17.2, review focus)
-            value: _controllers[field.key]?.text.trim() ?? '',
-            hasValue: (_controllers[field.key]?.text.trim() ?? '').isNotEmpty,
+            value: _values[field.key]?.trim() ?? '',
+            hasValue: (_values[field.key]?.trim() ?? '').isNotEmpty,
           )
         else
           PluginConfigValue(
             key: field.key,
-            value: _controllers[field.key]?.text ?? '',
-            hasValue: (_controllers[field.key]?.text ?? '').isNotEmpty,
+            value: _values[field.key] ?? '',
+            hasValue: (_values[field.key] ?? '').isNotEmpty,
           ),
     ];
 
@@ -718,18 +702,13 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
     setState(() {
       for (final field in widget.plugin.configFields) {
         if (field.kind == PluginConfigKind.secret) {
-          _controllers[field.key]?.text = '';
+          _values[field.key] = '';
         } else {
-          _controllers[field.key]?.text = _saved[field.key] ?? '';
+          _values[field.key] = _saved[field.key] ?? '';
         }
       }
       _dirty = false;
     });
-  }
-
-  void _onEdit() {
-    setState(() => _dirty = true);
-    changesEdited();
   }
 
   @override
@@ -752,32 +731,18 @@ class _SettingsTabState extends ConsumerState<_SettingsTab>
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final field in widget.plugin.configFields) ...[
-          Text(
-            field.required ? '${field.label} *' : field.label,
-            style: OcText.small.copyWith(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _controllers[field.key],
-            obscureText: field.kind == PluginConfigKind.secret,
-            onChanged: (_) => _onEdit(),
-            decoration: ocInputDecoration(
-              context,
-              hint: field.kind == PluginConfigKind.secret
-                  ? 'Saved. Leave empty to keep it.'
-                  : (field.required ? 'Required' : null),
-            ),
-          ),
-          const SizedBox(height: OcSpace.s16),
-        ],
-      ],
+    return PluginConfigFields(
+      serverKey: widget.serverKey,
+      fields: widget.plugin.configFields,
+      values: _values,
+      secretHint: 'Saved. Leave empty to keep it.',
+      onChanged: (key, val) {
+        setState(() {
+          _values[key] = val;
+          _dirty = true;
+        });
+        changesEdited();
+      },
     );
   }
 }
@@ -797,6 +762,8 @@ class _LogTab extends ConsumerStatefulWidget {
 class _LogTabState extends ConsumerState<_LogTab> {
   _LogFilter _filter = _LogFilter.all;
   final List<PluginLogLine> _lines = [];
+  final List<PluginLogLine> _buffered = [];
+  bool _initialLoaded = false;
   StreamSubscription? _sub;
 
   late final OpencordRepository _repo;
@@ -805,43 +772,76 @@ class _LogTabState extends ConsumerState<_LogTab> {
   void initState() {
     super.initState();
     _repo = ref.read(repositoryProvider);
-    _loadInitial();
-    _startWatching();
+    _initLogStream();
   }
 
   @override
   void dispose() {
     _sub?.cancel();
-    _repo
-        .watchPluginLog(widget.serverKey, widget.pluginId, watch: false)
-        .ignore();
+    unawaited(
+      _repo
+          .watchPluginLog(widget.serverKey, widget.pluginId, watch: false)
+          .catchError((e) {
+            appLog('Failed to unwatch plugin log: $e', name: 'plugins');
+          }),
+    );
     super.dispose();
   }
 
-  Future<void> _loadInitial() async {
+  Future<void> _initLogStream() async {
+    // 1. Subscribe and buffer live events first (Finding 8)
     try {
-      final initial = await ref
-          .read(repositoryProvider)
-          .fetchPluginLog(widget.serverKey, widget.pluginId, limit: 200);
-      if (mounted) {
-        setState(() => _lines.addAll(initial));
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _startWatching() async {
-    try {
-      await ref
-          .read(repositoryProvider)
-          .watchPluginLog(widget.serverKey, widget.pluginId, watch: true);
-      _sub = ref.read(repositoryProvider).events.listen((event) {
+      _sub = _repo.events.listen((event) {
         if (event is PluginLogAppended &&
             event.serverKey == widget.serverKey &&
             event.pluginId == widget.pluginId) {
-          _append(event.lines);
+          if (!_initialLoaded) {
+            _buffered.addAll(event.lines);
+          } else {
+            _append(event.lines);
+          }
         }
       });
-    } catch (_) {}
+      await _repo.watchPluginLog(
+        widget.serverKey,
+        widget.pluginId,
+        watch: true,
+      );
+    } on RepoException catch (e) {
+      appLog('Failed to watch plugin log: $e', name: 'plugins');
+    }
+
+    // 2. Fetch initial log lines
+    List<PluginLogLine> initial = const [];
+    try {
+      initial = await _repo.fetchPluginLog(
+        widget.serverKey,
+        widget.pluginId,
+        limit: 200,
+      );
+    } on RepoException catch (e) {
+      appLog('Failed to fetch initial plugin log: $e', name: 'plugins');
+    }
+
+    if (!mounted) return;
+
+    // 3. Merge initial and buffered lines deduplicating by seq
+    final Map<int, PluginLogLine> bySeq = {};
+    for (final line in initial) {
+      bySeq[line.seq] = line;
+    }
+    for (final line in _buffered) {
+      bySeq[line.seq] = line;
+    }
+    _buffered.clear();
+    _initialLoaded = true;
+
+    final sorted = bySeq.values.toList()
+      ..sort((a, b) => a.seq.compareTo(b.seq));
+    setState(() {
+      _lines.clear();
+      _lines.addAll(sorted);
+    });
   }
 
   void _append(List<PluginLogLine> lines) {

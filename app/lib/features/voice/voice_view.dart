@@ -219,11 +219,7 @@ class _StageState extends ConsumerState<_Stage> {
           key: ValueKey(id),
           userId: id.userId,
           name: author?.name ?? 'Someone',
-          picture: avatarImage(
-            ref,
-            widget.channel.server,
-            author?.avatarHash,
-          ),
+          picture: avatarImage(ref, widget.channel.server, author?.avatarHash),
           screen: id.screen,
           muted:
               participant != null &&
@@ -292,7 +288,7 @@ class _StageState extends ConsumerState<_Stage> {
                 }
               : null,
           viewers: id.screen && own && ownShare != null ? viewers.length : null,
-          onViewers: () => _showViewers(context, viewers, members),
+          onViewers: () => _showViewers(context, viewers, serverData),
         ),
       );
     }
@@ -321,7 +317,7 @@ class _StageState extends ConsumerState<_Stage> {
   void _showViewers(
     BuildContext context,
     List<int> viewers,
-    Map<int, Member> members,
+    ServerData? serverData,
   ) {
     final colors = context.oc;
     showPopover<void>(
@@ -345,13 +341,13 @@ class _StageState extends ConsumerState<_Stage> {
                           MemberAvatar(
                             serverKey: widget.channel.server,
                             userId: id,
-                            name: members[id]?.displayName ?? 'Someone',
+                            name: serverData?.authorOf(id).name ?? 'Someone',
                             size: 24,
                           ),
                           const SizedBox(width: OcSpace.s8),
                           Expanded(
                             child: Text(
-                              members[id]?.displayName ?? 'Someone',
+                              serverData?.authorOf(id).name ?? 'Someone',
                               overflow: TextOverflow.ellipsis,
                               style: OcText.body.copyWith(color: colors.text),
                             ),

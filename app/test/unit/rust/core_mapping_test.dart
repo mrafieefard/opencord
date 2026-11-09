@@ -429,11 +429,7 @@ void main() {
         ),
       ],
       config: const [
-        core.PluginConfigValue(
-          key: 'channel',
-          value: '100',
-          hasValue: true,
-        ),
+        core.PluginConfigValue(key: 'channel', value: '100', hasValue: true),
       ],
       userId: 9001,
       roleId: 50,

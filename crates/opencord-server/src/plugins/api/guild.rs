@@ -54,41 +54,19 @@ fn parse_permissions_table(table: Table) -> mlua::Result<Permissions> {
 }
 
 fn channel_table(lua: &Lua, ch: &proto::Channel) -> mlua::Result<Table> {
-    let t = lua.create_table()?;
-    t.raw_set("id", ch.id.to_string())?;
-    t.raw_set("name", ch.name.clone())?;
-    let kind_str = match proto::ChannelKind::try_from(ch.kind).unwrap_or(proto::ChannelKind::Text) {
-        proto::ChannelKind::Text => "text",
-        proto::ChannelKind::Voice => "voice",
-        proto::ChannelKind::Category => "category",
-        proto::ChannelKind::Unspecified => "text",
-    };
-    t.raw_set("kind", kind_str)?;
-    if let Some(ref topic) = ch.topic
-        && !topic.is_empty()
-    {
-        t.raw_set("topic", topic.clone())?;
+    let json_val = crate::plugins::event_tables::channel_table(ch);
+    match to_lua_value(lua, &json_val)? {
+        Value::Table(t) => Ok(t),
+        _ => Err(raise("failed to serialize channel table")),
     }
-    if let Some(parent_id) = ch.parent_id {
-        t.raw_set("parent_id", parent_id.to_string())?;
-    }
-    t.raw_set("position", ch.position)?;
-    Ok(t)
 }
 
 fn role_table(lua: &Lua, r: &proto::Role) -> mlua::Result<Table> {
-    let t = lua.create_table()?;
-    t.raw_set("id", r.id.to_string())?;
-    t.raw_set("name", r.name.clone())?;
-    t.raw_set("color", r.color)?;
-    t.raw_set("hoist", r.hoist)?;
-    t.raw_set("mentionable", r.mentionable)?;
-    t.raw_set("position", r.position)?;
-    let perms = Permissions::from_bits_truncate(r.permissions);
-    let perm_names = crate::plugins::events::permissions_to_names(perms);
-    let perms_table = lua.create_sequence_from(perm_names)?;
-    t.raw_set("permissions", perms_table)?;
-    Ok(t)
+    let json_val = crate::plugins::event_tables::role_table(r);
+    match to_lua_value(lua, &json_val)? {
+        Value::Table(t) => Ok(t),
+        _ => Err(raise("failed to serialize role table")),
+    }
 }
 
 fn member_table(lua: &Lua, m: &proto::Member) -> mlua::Result<Table> {
@@ -1186,7 +1164,9 @@ fn install_server(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 };
 
                 let res = lua.create_table()?;
-                res.raw_set("id", hex::encode(meta.server_id))?;
+                let s_id = hex::encode(meta.server_id);
+                res.raw_set("id", s_id.clone())?;
+                res.raw_set("server_id", s_id)?;
                 res.raw_set("name", meta.name)?;
                 res.raw_set("description", meta.description)?;
                 res.raw_set("owner_id", meta.owner_id.unwrap_or(0).to_string())?;

@@ -266,7 +266,7 @@ class _MessageListState extends ConsumerState<MessageList>
       final author = data.authorOf(message.authorId).name;
       final text = copyableText(
         message.content,
-        user: (id) => data.members[id]?.displayName,
+        user: (id) => data.authorOf(id).name,
         channel: (id) => data.channels[id]?.name,
       );
       SemanticsService.sendAnnouncement(view, '$author: $text', direction);
@@ -447,7 +447,7 @@ class _MessageListState extends ConsumerState<MessageList>
     return ChatRowActions(
       message: message,
       links: MarkdownContext(
-        userName: (id) => data.members[id]?.displayName,
+        userName: (id) => data.authorOf(id).name,
         channelName: (id) => data.channels[id]?.name,
         onLink: (url) => openMessageLink(context, ref, url),
         onUser: (id) =>

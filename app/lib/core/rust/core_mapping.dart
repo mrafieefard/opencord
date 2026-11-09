@@ -803,16 +803,17 @@ GithubCheck githubCheckFrom(core.GithubCheck check) => switch (check) {
   core.GithubCheck.failed => GithubCheck.failed,
 };
 
-PluginConfigKind pluginConfigKindFrom(core.PluginConfigKind kind) => switch (kind) {
-  core.PluginConfigKind.text => PluginConfigKind.text,
-  core.PluginConfigKind.secret => PluginConfigKind.secret,
-  core.PluginConfigKind.number => PluginConfigKind.number,
-  core.PluginConfigKind.boolean => PluginConfigKind.boolean,
-  core.PluginConfigKind.choice => PluginConfigKind.choice,
-  core.PluginConfigKind.role => PluginConfigKind.role,
-  core.PluginConfigKind.channel => PluginConfigKind.channel,
-  core.PluginConfigKind.user => PluginConfigKind.user,
-};
+PluginConfigKind pluginConfigKindFrom(core.PluginConfigKind kind) =>
+    switch (kind) {
+      core.PluginConfigKind.text => PluginConfigKind.text,
+      core.PluginConfigKind.secret => PluginConfigKind.secret,
+      core.PluginConfigKind.number => PluginConfigKind.number,
+      core.PluginConfigKind.boolean => PluginConfigKind.boolean,
+      core.PluginConfigKind.choice => PluginConfigKind.choice,
+      core.PluginConfigKind.role => PluginConfigKind.role,
+      core.PluginConfigKind.channel => PluginConfigKind.channel,
+      core.PluginConfigKind.user => PluginConfigKind.user,
+    };
 
 PluginLogLevel pluginLogLevelFrom(core.PluginLogLevel level) => switch (level) {
   core.PluginLogLevel.info => PluginLogLevel.info,
@@ -831,18 +832,10 @@ PluginConfigField pluginConfigFieldFrom(core.PluginConfigField f) =>
     );
 
 PluginConfigValue pluginConfigValueFrom(core.PluginConfigValue v) =>
-    PluginConfigValue(
-      key: v.key,
-      value: v.value,
-      hasValue: v.hasValue,
-    );
+    PluginConfigValue(key: v.key, value: v.value, hasValue: v.hasValue);
 
 core.PluginConfigValue pluginConfigValueTo(PluginConfigValue v) =>
-    core.PluginConfigValue(
-      key: v.key,
-      value: v.value,
-      hasValue: v.hasValue,
-    );
+    core.PluginConfigValue(key: v.key, value: v.value, hasValue: v.hasValue);
 
 PluginPermissionGrant pluginPermissionGrantFrom(core.PluginPermissionGrant g) =>
     PluginPermissionGrant(
@@ -918,4 +911,3 @@ CreatedPluginDevToken createdPluginDevTokenFrom(core.CreatedPluginDevToken c) =>
       secret: c.secret,
       serverFingerprint: c.serverFingerprint,
     );
-

@@ -114,7 +114,7 @@ pub fn utc_time(at_ms: i64) -> String {
     let z = days + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
     let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1024 + doe / 1460 - doe / 146_096) / 365;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
     let y = (yoe as i64) + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
@@ -152,12 +152,42 @@ fn load_manifest_id(folder: &Path) -> Result<String, String> {
     Ok(manifest.id)
 }
 
-pub async fn push_once(options: &DevOptions<'_>) -> Result<String, String> {
-    let client = create_http_client(options.fingerprint)?;
-    let id = load_manifest_id(options.folder)?;
+#[derive(Debug)]
+pub enum PushError {
+    Network(String),
+    Refused(String),
+}
+
+impl std::fmt::Display for PushError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Network(s) => write!(f, "network error: {s}"),
+            Self::Refused(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum PollLogError {
+    Network(String),
+    Server(String),
+}
+
+impl std::fmt::Display for PollLogError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Network(s) => write!(f, "network error: {s}"),
+            Self::Server(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+pub async fn push_once(options: &DevOptions<'_>) -> Result<String, PushError> {
+    let client = create_http_client(options.fingerprint).map_err(PushError::Refused)?;
+    let id = load_manifest_id(options.folder).map_err(PushError::Refused)?;
 
     let package = Package::from_dir(options.folder)
-        .map_err(|e| format!("failed to read plugin folder: {e}"))?;
+        .map_err(|e| PushError::Refused(format!("failed to read plugin folder: {e}")))?;
     let zip_bytes = package.write_zip();
 
     let url = format!("https://{}/plugins/dev/{id}", options.server);
@@ -168,44 +198,42 @@ pub async fn push_once(options: &DevOptions<'_>) -> Result<String, String> {
         .body(zip_bytes)
         .send()
         .await
-        .map_err(|e| format!("network error: {e}"))?;
+        .map_err(|e| PushError::Network(e.to_string()))?;
 
     let status = resp.status();
     let body = resp
         .bytes()
         .await
-        .map_err(|e| format!("failed to read response: {e}"))?;
+        .map_err(|e| PushError::Network(format!("failed to read response: {e}")))?;
 
-    let response = proto::Response::decode(&*body)
-        .map_err(|e| format!("invalid response proto (status {status}): {e}"))?;
+    let response = proto::Response::decode(&*body).map_err(|e| {
+        PushError::Refused(format!("invalid response proto (status {status}): {e}"))
+    })?;
 
     match (status.as_u16(), response.result) {
         (200, Some(Reply::Plugin(plugin))) => {
             let msg = format!("Installed {}, running", plugin.version);
-            println!("{msg}");
             Ok(msg)
         }
         (202, Some(Reply::PluginReview(_))) => {
             let msg = "Waiting for an admin to review it on the Plugins page".to_string();
-            println!("{msg}");
             Ok(msg)
         }
         (_, Some(Reply::Error(err))) => {
-            let msg = format!("server error: {}", err.message);
-            eprintln!("{msg}");
-            Err(msg)
+            Err(PushError::Refused(format!("server error: {}", err.message)))
         }
-        (status_code, _) => {
-            let msg = format!("unexpected server status {status_code}");
-            eprintln!("{msg}");
-            Err(msg)
-        }
+        (status_code, _) => Err(PushError::Refused(format!(
+            "unexpected server status {status_code}"
+        ))),
     }
 }
 
-pub async fn poll_logs_once(options: &DevOptions<'_>, after: u64) -> Result<Vec<String>, String> {
-    let client = create_http_client(options.fingerprint)?;
-    let id = load_manifest_id(options.folder)?;
+pub async fn poll_logs_once(
+    options: &DevOptions<'_>,
+    after: u64,
+) -> Result<Vec<proto::PluginLogLine>, PollLogError> {
+    let client = create_http_client(options.fingerprint).map_err(PollLogError::Server)?;
+    let id = load_manifest_id(options.folder).map_err(PollLogError::Server)?;
 
     let url = format!(
         "https://{}/plugins/dev/{id}/log?after={after}",
@@ -216,24 +244,27 @@ pub async fn poll_logs_once(options: &DevOptions<'_>, after: u64) -> Result<Vec<
         .header("Authorization", format!("Bearer {}", options.token))
         .send()
         .await
-        .map_err(|e| format!("network error: {e}"))?;
+        .map_err(|e| PollLogError::Network(e.to_string()))?;
 
     let status = resp.status();
     let body = resp
         .bytes()
         .await
-        .map_err(|e| format!("failed to read response body: {e}"))?;
+        .map_err(|e| PollLogError::Network(format!("failed to read response body: {e}")))?;
 
-    let response = proto::Response::decode(&*body)
-        .map_err(|e| format!("invalid response proto (status {status}): {e}"))?;
+    let response = proto::Response::decode(&*body).map_err(|e| {
+        PollLogError::Server(format!("invalid response proto (status {status}): {e}"))
+    })?;
 
     match response.result {
-        Some(Reply::PluginLog(log)) => {
-            let lines = log.lines.iter().map(format_log_line).collect();
-            Ok(lines)
-        }
-        Some(Reply::Error(err)) => Err(format!("error reading logs: {}", err.message)),
-        _ => Err(format!("unexpected response reading logs: status {status}")),
+        Some(Reply::PluginLog(log)) => Ok(log.lines),
+        Some(Reply::Error(err)) => Err(PollLogError::Server(format!(
+            "error reading logs: {}",
+            err.message
+        ))),
+        _ => Err(PollLogError::Server(format!(
+            "unexpected response reading logs: status {status}"
+        ))),
     }
 }
 
@@ -250,11 +281,17 @@ fn folder_snapshot(folder: &Path) -> BTreeMap<PathBuf, (SystemTime, u64)> {
     }
 
     while let Some(path) = stack.pop() {
+        let Ok(rel) = path.strip_prefix(folder) else {
+            continue;
+        };
         let name = path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or_default();
-        if name.starts_with('.') || name.ends_with(".zip") || name == "signing.key" {
+        if name.starts_with('.') {
+            continue;
+        }
+        if rel.components().count() == 1 && opencord_plugins::package::is_ignored_root_file(name) {
             continue;
         }
         if let Ok(meta) = fs::metadata(&path) {
@@ -264,9 +301,7 @@ fn folder_snapshot(folder: &Path) -> BTreeMap<PathBuf, (SystemTime, u64)> {
                         stack.push(entry.path());
                     }
                 }
-            } else if meta.is_file()
-                && let Ok(rel) = path.strip_prefix(folder)
-            {
+            } else if meta.is_file() {
                 let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
                 map.insert(rel.to_path_buf(), (mtime, meta.len()));
             }
@@ -276,58 +311,102 @@ fn folder_snapshot(folder: &Path) -> BTreeMap<PathBuf, (SystemTime, u64)> {
 }
 
 pub async fn run_dev(options: DevOptions<'_>) -> Result<(), String> {
-    let client = create_http_client(options.fingerprint)?;
+    run_dev_with(options, std::io::stdout(), None).await
+}
+
+pub async fn run_dev_with<W: std::io::Write + Send + 'static>(
+    options: DevOptions<'_>,
+    writer: W,
+    stop_rx: Option<tokio::sync::watch::Receiver<bool>>,
+) -> Result<(), String> {
+    let writer = Arc::new(std::sync::Mutex::new(writer));
     let id = load_manifest_id(options.folder)?;
 
-    println!(
-        "Watching '{}' for changes (dev mode for plugin '{id}')...",
-        options.folder.display()
-    );
+    {
+        let mut w = writer.lock().unwrap();
+        let _ = writeln!(
+            w,
+            "Watching '{}' for changes (dev mode for plugin '{id}')...",
+            options.folder.display()
+        );
+    }
 
     // Initial push with retry on connection errors
     loop {
+        if let Some(ref rx) = stop_rx
+            && *rx.borrow()
+        {
+            return Ok(());
+        }
         match push_once(&options).await {
-            Ok(_) => break,
-            Err(e) => {
-                eprintln!("{e}. Retrying in 2 seconds...");
+            Ok(msg) => {
+                let mut w = writer.lock().unwrap();
+                let _ = writeln!(w, "{msg}");
+                break;
+            }
+            Err(PushError::Network(e)) => {
+                {
+                    let mut w = writer.lock().unwrap();
+                    let _ = writeln!(w, "{e}. Retrying in 2 seconds...");
+                }
                 tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+            Err(PushError::Refused(e)) => {
+                let mut w = writer.lock().unwrap();
+                let _ = writeln!(w, "{e}");
+                break;
             }
         }
     }
 
     // Spawn long-polling log streamer
-    let server_str = options.server.to_string();
-    let token_str = options.token.to_string();
-    let id_str = id.clone();
-    let client_for_logs = client.clone();
-    tokio::spawn(async move {
+    let log_server = options.server.to_string();
+    let log_fingerprint = options.fingerprint.map(|s| s.to_string());
+    let log_token = options.token.to_string();
+    let log_folder = options.folder.to_path_buf();
+    let log_writer = Arc::clone(&writer);
+    let log_stop = stop_rx.clone();
+    let log_handle = tokio::spawn(async move {
+        let log_options = DevOptions {
+            server: &log_server,
+            fingerprint: log_fingerprint.as_deref(),
+            token: &log_token,
+            folder: &log_folder,
+        };
         let mut cursor = 0u64;
+        let mut seen = std::collections::HashSet::new();
         loop {
-            let url = format!("https://{server_str}/plugins/dev/{id_str}/log?after={cursor}");
-            match client_for_logs
-                .get(&url)
-                .header("Authorization", format!("Bearer {token_str}"))
-                .send()
-                .await
+            if let Some(ref rx) = log_stop
+                && *rx.borrow()
             {
-                Ok(resp) => {
-                    let status = resp.status();
-                    if let Ok(body) = resp.bytes().await
-                        && let Ok(response) = proto::Response::decode(&*body)
-                        && let Some(Reply::PluginLog(log)) = response.result
-                    {
-                        for line in log.lines {
-                            if line.seq > cursor {
-                                cursor = line.seq;
-                            }
-                            println!("{}", format_log_line(&line));
+                break;
+            }
+            match poll_logs_once(&log_options, cursor).await {
+                Ok(lines) => {
+                    for line in lines {
+                        if line.seq > cursor {
+                            cursor = line.seq;
                         }
-                    } else if !status.is_success() {
-                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        let key = (line.at_ms, line.level, line.text.clone());
+                        if seen.insert(key) {
+                            if seen.len() > 2048 {
+                                seen.clear();
+                            }
+                            let formatted = format_log_line(&line);
+                            let mut w = log_writer.lock().unwrap();
+                            let _ = writeln!(w, "{formatted}");
+                        }
                     }
                 }
-                Err(_) => {
-                    // Connection error / server restart: retry in 2 seconds
+                Err(PollLogError::Network(_)) => {
+                    cursor = 0;
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+                Err(PollLogError::Server(e)) => {
+                    {
+                        let mut w = log_writer.lock().unwrap();
+                        let _ = writeln!(w, "{e}");
+                    }
                     tokio::time::sleep(Duration::from_secs(2)).await;
                 }
             }
@@ -338,19 +417,61 @@ pub async fn run_dev(options: DevOptions<'_>) -> Result<(), String> {
     let mut last_snapshot = folder_snapshot(options.folder);
     loop {
         tokio::time::sleep(Duration::from_millis(300)).await;
+        if let Some(ref rx) = stop_rx
+            && *rx.borrow()
+        {
+            break;
+        }
         let current_snapshot = folder_snapshot(options.folder);
         if current_snapshot != last_snapshot {
             last_snapshot = current_snapshot;
-            println!("Changes detected, packing and pushing...");
+            {
+                let mut w = writer.lock().unwrap();
+                let _ = writeln!(w, "Changes detected, packing and pushing...");
+            }
             loop {
+                if let Some(ref rx) = stop_rx
+                    && *rx.borrow()
+                {
+                    break;
+                }
                 match push_once(&options).await {
-                    Ok(_) => break,
-                    Err(e) => {
-                        eprintln!("{e}. Retrying in 2 seconds...");
+                    Ok(msg) => {
+                        let mut w = writer.lock().unwrap();
+                        let _ = writeln!(w, "{msg}");
+                        break;
+                    }
+                    Err(PushError::Network(e)) => {
+                        {
+                            let mut w = writer.lock().unwrap();
+                            let _ = writeln!(w, "{e}. Retrying in 2 seconds...");
+                        }
                         tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                    Err(PushError::Refused(e)) => {
+                        let mut w = writer.lock().unwrap();
+                        let _ = writeln!(w, "{e}");
+                        break;
                     }
                 }
             }
         }
+    }
+
+    log_handle.abort();
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn utc_time_formats_exact_civil_dates() {
+        assert_eq!(utc_time(0), "1970-01-01T00:00:00.000Z");
+        assert_eq!(utc_time(1772236800000), "2026-02-28T00:00:00.000Z");
+        assert_eq!(utc_time(1835395200000), "2028-02-29T00:00:00.000Z");
+        assert_eq!(utc_time(1798761599999), "2026-12-31T23:59:59.999Z");
+        assert_eq!(utc_time(-86400000), "1969-12-31T00:00:00.000Z");
     }
 }

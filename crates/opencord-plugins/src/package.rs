@@ -35,6 +35,15 @@ const SYMLINK: u32 = 0o120_000;
 /// How many characters of a path an error shows.
 const SHOWN_CHARS: usize = 256;
 
+/// Returns true if a file at the root of a plugin package should be ignored
+/// during development and packaging (dotfiles, definition file, signing key, and zip files).
+pub fn is_ignored_root_file(name: &str) -> bool {
+    name.starts_with('.')
+        || name == "opencord.d.luau"
+        || name.ends_with(".zip")
+        || name == "signing.key"
+}
+
 /// Why a package was refused. Each names the rule it broke.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageError {
@@ -53,6 +62,8 @@ pub enum PackageError {
     Ratio(String),
     NotZip,
     NoManifest,
+    /// A file in the package is an Ed25519 private key.
+    PrivateKey(String),
     /// A file in a folder couldn't be read.
     Read {
         path: String,
@@ -101,6 +112,9 @@ impl fmt::Display for PackageError {
             }
             PackageError::NotZip => f.write_str("this isn't a zip file"),
             PackageError::NoManifest => f.write_str("manifest.lua is missing"),
+            PackageError::PrivateKey(path) => {
+                write!(f, "{}: contains a private key", shown(path))
+            }
             PackageError::Read { path, error } => {
                 write!(f, "{}: it can't be read: {error}", shown(path))
             }
@@ -271,15 +285,11 @@ impl Package {
         for entry in entries {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if name.starts_with('.')
-                || name == "opencord.d.luau"
-                || name.ends_with(".zip")
-                || name == "signing.key"
-            {
+            if name.starts_with('.') || (prefix.is_empty() && is_ignored_root_file(&name)) {
                 continue;
             }
             let path = if prefix.is_empty() {
-                name.into_owned()
+                name.to_string()
             } else {
                 format!("{prefix}/{name}")
             };
@@ -298,10 +308,12 @@ impl Package {
                 self.add_dir(&entry.path(), &path)?;
                 continue;
             }
-            self.check_new(&path)?;
             // A pipe or a device would block or never end.
             if !kind.is_file() {
                 return Err(PackageError::KindNotAllowed(path));
+            }
+            if name.ends_with(".key") {
+                return Err(PackageError::PrivateKey(path));
             }
             let read = |error: io::Error| PackageError::Read {
                 path: path.clone(),
@@ -309,6 +321,10 @@ impl Package {
             };
             let file = fs::File::open(entry.path()).map_err(read)?;
             let bytes = unpack(file, self.room()).map_err(read)?;
+            if crate::signing::is_key_file(&bytes) {
+                return Err(PackageError::PrivateKey(path));
+            }
+            self.check_new(&path)?;
             self.check_size(&path, bytes.len() as u64)?;
             self.files.insert(path, bytes);
         }

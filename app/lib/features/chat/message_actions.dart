@@ -147,7 +147,7 @@ class MessageActions {
             selection ??
             copyableText(
               message.content,
-              user: (id) => data?.members[id]?.displayName,
+              user: (id) => data?.authorOf(id).name,
               channel: (id) => data?.channels[id]?.name,
             ),
       ),

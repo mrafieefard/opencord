@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 
 /// The installed plugins of a server, kept in step with the server's events.
@@ -14,14 +15,15 @@ class PluginsNotifier extends AsyncNotifier<List<Plugin>> {
 
   @override
   FutureOr<List<Plugin>> build() {
-    try {
-      return _repository.fetchPlugins(serverKey);
-    } catch (_) {
-      return const [];
-    }
+    return _repository.fetchPlugins(serverKey);
   }
 
   void set(List<Plugin> plugins) => state = AsyncData(plugins);
+
+  Future<void> retry() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => _repository.fetchPlugins(serverKey));
+  }
 
   void apply(RepoEvent event) {
     switch (event) {
@@ -37,7 +39,10 @@ class PluginsNotifier extends AsyncNotifier<List<Plugin>> {
         }
       case PluginRemoved(:final pluginId):
         final current = state.value ?? const [];
-        state = AsyncData([for (final p in current) if (p.id != pluginId) p]);
+        state = AsyncData([
+          for (final p in current)
+            if (p.id != pluginId) p,
+        ]);
       default:
         break;
     }
@@ -50,43 +55,15 @@ final pluginsProvider =
     );
 
 /// The plugin users (bots) of a server, by user id.
-class PluginUsersNotifier extends Notifier<Map<int, PluginUser>> {
-  PluginUsersNotifier(this.serverKey);
-
-  final String serverKey;
-
-  @override
-  Map<int, PluginUser> build() => const {};
-
-  void apply(RepoEvent event) {
-    switch (event) {
-      case Ready(:final snapshot):
-        state = {for (final u in snapshot.pluginUsers) u.userId: u};
-      case PluginUsersUpdated(:final users):
-        state = {for (final u in users) u.userId: u};
-      case PluginRemoved(:final pluginId):
-        state = {
-          for (final entry in state.entries)
-            entry.key: entry.value.pluginId == pluginId
-                ? PluginUser(
-                    userId: entry.value.userId,
-                    pluginId: entry.value.pluginId,
-                    name: entry.value.name,
-                    avatarHash: entry.value.avatarHash,
-                    installed: false,
-                  )
-                : entry.value,
-        };
-      default:
-        break;
-    }
-  }
-}
-
-final pluginUsersProvider =
-    NotifierProvider.family<PluginUsersNotifier, Map<int, PluginUser>, String>(
-      PluginUsersNotifier.new,
-    );
+final pluginUsersProvider = Provider.family<Map<int, PluginUser>, String>((
+  ref,
+  serverKey,
+) {
+  return ref.watch(
+        serverProvider(serverKey).select((s) => s.data?.pluginUsers),
+      ) ??
+      const {};
+});
 
 /// Reviews waiting for review on a server, by review id.
 class PluginReviewsNotifier extends Notifier<Map<String, PluginReview>> {
