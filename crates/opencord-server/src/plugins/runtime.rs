@@ -86,6 +86,11 @@ pub struct PluginEnv {
     pub config_values: Arc<RwLock<HashMap<String, super::ConfigValue>>>,
     pub files_lock: Arc<tokio::sync::Mutex<()>>,
     pub files_reads: Arc<tokio::sync::Semaphore>,
+    /// The views this VM heard open and not yet close: each is announced
+    /// to a VM once, and only those it heard open are heard closing.
+    pub views_heard: Mutex<HashSet<i64>>,
+    /// When a broadcast to views last logged skipping limited ones.
+    pub views_skip_logged: Mutex<Option<Instant>>,
 }
 
 impl PluginEnv {
@@ -315,6 +320,8 @@ fn spawn_vm(
                 config_values: handle.config_values.clone(),
                 files_lock: handle.files_lock.clone(),
                 files_reads: handle.files_reads.clone(),
+                views_heard: Mutex::new(HashSet::new()),
+                views_skip_logged: Mutex::new(None),
             });
             let last_report = reports.clone();
             runtime.block_on(run_vm(&vm, &env, &spec, &handle, reports, commands));
@@ -367,6 +374,8 @@ async fn run_vm(
         return;
     }
     let mut running = JoinSet::new();
+    // Views open across a restart are announced before any waiting event.
+    super::view_calls::announce(vm, env, spec.limits.handler_time, &mut running, &reports);
     let mut tick = tokio::time::interval(STATS_EVERY);
     let mut share = CpuShare::default();
     loop {
@@ -559,6 +568,9 @@ fn dispatch(
     }
     if event.name == "command_autocomplete" {
         return command_calls::run_autocomplete(vm, env, limit, event, running, reports);
+    }
+    if super::view_calls::NAMES.contains(&event.name.as_str()) {
+        return super::view_calls::dispatch(vm, env, limit, event, running, reports);
     }
     let super::PluginEvent {
         name,
@@ -772,6 +784,24 @@ async fn stop_vm(
                 handler.call_async::<()>(argument),
             )),
             Err(error) => failed(env, reports, "stop", error, limit),
+        }
+    }
+    // Views closed as it stops are heard within the same grace.
+    let closing = super::view_calls::closing(vm, env);
+    let close_handlers = match handlers_for(&vm.lua, "view_close") {
+        Ok(handlers) => handlers,
+        Err(error) => {
+            failed(env, reports, "view_close", error, limit);
+            Vec::new()
+        }
+    };
+    for argument in closing {
+        for handler in &close_handlers {
+            calls.push(Budgeted::new(
+                env.budget.clone(),
+                limit,
+                handler.call_async::<()>(argument.clone()),
+            ));
         }
     }
     match tokio::time::timeout(STOP_GRACE, futures_util::future::join_all(calls)).await {

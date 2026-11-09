@@ -251,6 +251,10 @@ fn announce(state: &AppState, change: &Change) {
     };
     for channel in updated {
         let channel_id = channel.id;
+        let now = channel.plugin_state();
+        if now != proto::PluginChannelState::Available {
+            super::views::channel_unavailable(state, channel_id, now);
+        }
         state.broadcast(
             proto::event::Kind::ChannelUpdate(proto::ChannelUpdate {
                 channel: Some(channel),

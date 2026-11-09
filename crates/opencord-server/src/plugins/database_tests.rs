@@ -77,6 +77,8 @@ async fn plugin() -> (Vm, Arc<PluginEnv>, tempfile::TempDir) {
         config_values: Arc::new(RwLock::new(HashMap::new())),
         files_lock: Arc::new(tokio::sync::Mutex::new(())),
         files_reads: Arc::new(tokio::sync::Semaphore::new(10)),
+        views_heard: Default::default(),
+        views_skip_logged: Default::default(),
     });
     vm.budget().start(Duration::from_secs(5));
     api::install(&vm, &env).unwrap();

@@ -8,14 +8,13 @@ use std::time::Duration;
 
 use opencord_proto::v1 as proto;
 use proto::PluginChannelState as State;
-use proto::envelope::Payload;
 use proto::event::Kind as Event;
 use proto::request::Kind;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{AssertSqlSafe, SqlitePool};
 
-use crate::common::{TestClient, TestServer, invite, key, media_token, owner};
-use crate::support::{install, log_lines, manifest, manifest_with, package, wait_for_log};
+use crate::common::{TestClient, TestServer, invite, media_token, owner};
+use crate::support::{install, log_lines, manifest, manifest_with, package, session, wait_for_log};
 
 const FEATURE: &str = "plugin_channels";
 
@@ -115,24 +114,6 @@ async fn channel_update(client: &mut TestClient, channel_id: i64) -> proto::Chan
         _ => None,
     })
     .await
-}
-
-/// A session for `seed`'s key, listing `features`. The key must already be
-/// a member, or `invite` lets it join.
-async fn session(
-    server: &TestServer,
-    seed: u8,
-    invite: Option<&str>,
-    features: &[&str],
-) -> (TestClient, proto::Ready) {
-    let mut client = TestClient::connect(server, key(seed)).await;
-    let mut identify = client.identify_message("Member", invite, None);
-    identify.features = features.iter().map(|name| (*name).to_owned()).collect();
-    client.send(Payload::Identify(identify)).await;
-    match client.recv_payload().await {
-        Payload::Ready(ready) => (client, *ready),
-        other => panic!("expected Ready, got {other:?}"),
-    }
 }
 
 fn create_plugin_channel(name: &str) -> Kind {

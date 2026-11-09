@@ -454,6 +454,9 @@ declare files: {
     delete: (path: string) -> (),
     --- Permission: none
     list: (prefix: string?) -> { FileInfo },
+    --- Permission: none. A token for the view's member to load the file at
+    --- `path`, good for an hour. Server only.
+    token: (path: string, view: { id: string }) -> string,
 }
 
 declare hooks: {

@@ -129,6 +129,7 @@ impl Visibility {
                 }
             }
         }
+        crate::plugins::views::check_access(state);
         crate::voice::reconcile(state);
     }
 }

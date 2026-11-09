@@ -109,6 +109,8 @@ fn env(net: PluginNet, granted: &[PluginPermission]) -> (Vm, Arc<PluginEnv>) {
         config_values: Arc::new(RwLock::new(HashMap::new())),
         files_lock: Arc::new(tokio::sync::Mutex::new(())),
         files_reads: Arc::new(tokio::sync::Semaphore::new(10)),
+        views_heard: Default::default(),
+        views_skip_logged: Default::default(),
     });
     (vm, env)
 }

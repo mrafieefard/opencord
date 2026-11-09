@@ -67,6 +67,20 @@ impl EventQueue {
         }
     }
 
+    /// Removes and returns the waiting events named `name`, in order.
+    pub fn take_named(&self, name: &str) -> Vec<PluginEvent> {
+        let mut inner = self.lock();
+        let mut taken = Vec::new();
+        for event in std::mem::take(&mut inner.events) {
+            if event.name == name {
+                taken.push(event);
+            } else {
+                inner.events.push_back(event);
+            }
+        }
+        taken
+    }
+
     /// How many events were dropped since the last call.
     pub fn take_dropped(&self) -> u64 {
         std::mem::take(&mut self.lock().dropped)

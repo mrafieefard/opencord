@@ -242,6 +242,44 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
         })?,
     )?;
 
+    let token_env = Arc::clone(env);
+    files.raw_set(
+        "token",
+        async_function(lua, move |_lua, (path_val, view_val): (Value, Value)| {
+            let env = Arc::clone(&token_env);
+            async move {
+                let path = string_arg(path_val, "path")?;
+                check_file_path(&path)
+                    .map_err(|e| raise(format!("INVALID_ARGUMENT: {path}: {e}")))?;
+                let view_id = super::ui::view_id(view_val)?;
+                let state = env.state()?;
+                let view = state
+                    .plugins
+                    .views
+                    .info(view_id)
+                    .filter(|view| view.plugin_id == env.plugin_id)
+                    .ok_or_else(|| raise("NOT_FOUND: that view isn't open"))?;
+                let (plugin_id, wanted) = (env.plugin_id.clone(), path.clone());
+                let reading = state.clone();
+                let kept = env
+                    .on_server(async move {
+                        let mut conn = reading.db.acquire().await?;
+                        db::plugins::file_is_public(&mut conn, &plugin_id, &wanted).await
+                    })
+                    .await?
+                    .map_err(|e| raise(format!("INTERNAL: {e}")))?;
+                if kept.is_none() {
+                    return Err(raise(format!("NOT_FOUND: no plugin file at {path}")));
+                }
+                state
+                    .plugins
+                    .file_tokens
+                    .issue(&env.plugin_id, &path, view.user_id)
+                    .map_err(PluginEnv::api_error)
+            }
+        })?,
+    )?;
+
     lua.globals().raw_set("files", files)?;
     Ok(())
 }

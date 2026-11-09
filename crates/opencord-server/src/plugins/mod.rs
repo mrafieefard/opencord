@@ -20,6 +20,8 @@ pub mod permissions;
 pub mod queue;
 pub mod review;
 pub mod runtime;
+pub mod view_calls;
+pub mod views;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -343,6 +345,8 @@ pub struct Plugins {
     pub channel_types: channel_types::ChannelTypes,
     /// Tokens for members to load private plugin files.
     pub file_tokens: assets::FileTokens,
+    /// The open views of plugin channels.
+    pub views: views::Views,
     log_watchers: RwLock<HashMap<String, HashSet<String>>>,
     /// Held through each install, update, uninstall and permission change,
     /// so two never interleave. Taken before the guild's write lock.
@@ -371,6 +375,7 @@ impl Plugins {
             bus: Arc::new(PluginBus::default()),
             channel_types: channel_types::ChannelTypes::default(),
             file_tokens: assets::FileTokens::default(),
+            views: views::Views::default(),
             log_watchers: RwLock::new(HashMap::new()),
             changes: tokio::sync::Mutex::new(()),
         }
@@ -444,7 +449,11 @@ impl Plugins {
             return Ok((installed, client));
         }
         tokio::task::spawn_blocking(move || {
-            let client = assets::ClientFiles::of(&installed.package, installed.folder.clone());
+            let client = assets::ClientFiles::of(
+                &installed.package,
+                &installed.manifest,
+                installed.folder.clone(),
+            );
             (installed, Arc::new(client))
         })
         .await
@@ -576,8 +585,10 @@ impl Plugins {
     }
 
     /// Delivers `stop`, waits the grace, drops the VM; waiting calls are
-    /// cancelled. Its channels can't be opened after.
+    /// cancelled. Its views close first, so it hears them close; its
+    /// channels can't be opened after.
     pub async fn stop(&self, state: &AppState, id: &str) {
+        views::plugin_stopping(state, id);
         if let Some(handle) = self.get(id) {
             handle.stop().await;
         }
@@ -588,6 +599,7 @@ impl Plugins {
     pub async fn remove(&self, state: &AppState, id: &str) {
         // Without a handle, no VM ever ran to issue file tokens.
         let Some(handle) = self.get(id) else { return };
+        views::plugin_stopping(state, id);
         handle.stop().await;
         // After the stop: its `stop` handler may still issue one.
         self.file_tokens.forget_plugin(id);

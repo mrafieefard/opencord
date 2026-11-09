@@ -190,6 +190,26 @@ pub async fn wait_for_log(client: &mut TestClient, plugin_id: &str, text: &str) 
     }
 }
 
+/// A session for `seed`'s key, listing `features`. The key must already be
+/// a member, or `invite` lets it join.
+pub async fn session(
+    server: &TestServer,
+    seed: u8,
+    invite: Option<&str>,
+    features: &[&str],
+) -> (TestClient, proto::Ready) {
+    let mut client = TestClient::connect(server, crate::common::key(seed)).await;
+    let mut identify = client.identify_message("Member", invite, None);
+    identify.features = features.iter().map(|name| (*name).to_owned()).collect();
+    client
+        .send(proto::envelope::Payload::Identify(identify))
+        .await;
+    match client.recv_payload().await {
+        proto::envelope::Payload::Ready(ready) => (client, *ready),
+        other => panic!("expected Ready, got {other:?}"),
+    }
+}
+
 /// The installed plugins.
 pub async fn plugins(client: &mut TestClient) -> Vec<proto::Plugin> {
     match client.ok(Kind::FetchPlugins(proto::FetchPlugins {})).await {

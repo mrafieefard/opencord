@@ -27,6 +27,7 @@ use data_encoding::BASE64URL_NOPAD;
 use futures_util::Stream;
 use opencord_common::sniff::Sniffed;
 use opencord_plugins::limits::{FILE_TOKEN_LIFETIME, FILE_TOKENS_PER_PLUGIN};
+use opencord_plugins::manifest::Manifest;
 use opencord_plugins::package::Package;
 use opencord_proto::v1 as proto;
 use serde::Deserialize;
@@ -66,13 +67,16 @@ pub struct ClientFiles {
     /// The version's folder, `data/plugins/<id>/v<ms>`.
     folder: PathBuf,
     files: BTreeMap<String, ClientFile>,
+    /// The manifest's `api` and `client` entry.
+    api: u32,
+    entry: Option<String>,
 }
 
 impl ClientFiles {
     /// Hashes every `client/` and `assets/` file of `package`, which is
     /// written out in `folder`. Reads every byte: run it off the async
     /// threads.
-    pub fn of(package: &Package, folder: PathBuf) -> ClientFiles {
+    pub fn of(package: &Package, manifest: &Manifest, folder: PathBuf) -> ClientFiles {
         let files = package
             .paths()
             .filter(|path| path.starts_with("client/") || path.starts_with("assets/"))
@@ -85,11 +89,26 @@ impl ClientFiles {
                 Some((path.to_owned(), file))
             })
             .collect();
-        ClientFiles { folder, files }
+        ClientFiles {
+            folder,
+            files,
+            api: manifest.api,
+            entry: manifest.client.clone(),
+        }
     }
 
     pub fn folder(&self) -> &Path {
         &self.folder
+    }
+
+    /// The manifest's `api`.
+    pub fn api(&self) -> u32 {
+        self.api
+    }
+
+    /// The manifest's `client` entry, like `client/main.luau`.
+    pub fn entry(&self) -> Option<&str> {
+        self.entry.as_deref()
     }
 }
 

@@ -29,6 +29,7 @@ pub(crate) mod soundboard;
 mod storage;
 mod streams;
 mod uploads;
+mod views;
 pub(crate) mod voice;
 
 /// The caller of a request.
@@ -68,7 +69,14 @@ pub async fn handle(
         session: Some(session),
         plugin_id: None,
     };
-    let result = match state.rate_limits.check_request(ctx.user_id) {
+    // A view's events have their own limits, per view (plan M2 Task 10).
+    let limited = !matches!(request.kind, Some(Kind::SendViewEvent(_)));
+    let checked = if limited {
+        state.rate_limits.check_request(ctx.user_id)
+    } else {
+        Ok(())
+    };
+    let result = match checked {
         Ok(()) => dispatch(&ctx, request).await,
         Err(wait) => Err(ApiError::rate_limited(wait)),
     };
@@ -211,10 +219,10 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::RevokePluginDevToken(request) => plugins::revoke_dev_token(ctx, request).await,
         Kind::FetchPluginDevTokens(_) => plugins::fetch_dev_tokens(ctx).await,
         Kind::WatchPluginLog(request) => plugins::watch_log(ctx, request).await,
-        Kind::OpenView(_)
-        | Kind::CloseView(_)
-        | Kind::SendViewEvent(_)
-        | Kind::ReportViewError(_) => Err(ApiError::invalid_argument("not implemented")),
+        Kind::OpenView(request) => views::open(ctx, request).await,
+        Kind::CloseView(request) => views::close(ctx, &request),
+        Kind::SendViewEvent(request) => views::send_event(ctx, request),
+        Kind::ReportViewError(_) => Err(ApiError::invalid_argument("not implemented")),
     }
 }
 

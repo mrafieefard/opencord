@@ -293,6 +293,12 @@ impl ServerHandle {
         crate::certs::renew_all_now(&self.state).await;
     }
 
+    /// Ends the sessions that would have expired `later` from now, as the
+    /// reaper does. Intended for tests of what a session's end closes.
+    pub fn reap_sessions_after(&self, later: Duration) {
+        end_expired_sessions(&self.state, Instant::now() + later);
+    }
+
     /// Like [`Self::drop_connections`], for one user only.
     pub fn drop_user_connections(&self, user_id: i64) {
         for session in self.state.sessions.for_user(user_id) {
@@ -591,12 +597,7 @@ async fn reap_sessions(state: Arc<AppState>) {
     let mut interval = tokio::time::interval(REAP_INTERVAL);
     loop {
         interval.tick().await;
-        for session in state.sessions.remove_expired(Instant::now()) {
-            if !state.sessions.has_user(session.user_id) {
-                state.presence.clear(session.user_id);
-                state.broadcast_presence(session.user_id);
-            }
-        }
+        end_expired_sessions(&state, Instant::now());
         {
             let _writes = state.write_lock().await;
             voice::expire_detached(&state, Instant::now());
@@ -606,6 +607,18 @@ async fn reap_sessions(state: Arc<AppState>) {
         let longest_cooldown = Duration::from_secs(u64::from(SOUND_COOLDOWN_MAX_S));
         state.voice().sounds.prune(Instant::now(), longest_cooldown);
     }
+}
+
+/// Forgets the sessions that can no longer resume at `now`, announcing
+/// users going offline, and closes the views of every ended session.
+fn end_expired_sessions(state: &AppState, now: Instant) {
+    for session in state.sessions.remove_expired(now) {
+        if !state.sessions.has_user(session.user_id) {
+            state.presence.clear(session.user_id);
+            state.broadcast_presence(session.user_id);
+        }
+    }
+    crate::plugins::views::sessions_ended(state);
 }
 
 /// Drops undelivered private events, unseen devices and old send ids,

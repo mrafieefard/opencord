@@ -40,6 +40,8 @@ async fn definitions_match_the_api() {
         files_bytes: 0,
         files_lock: Arc::new(tokio::sync::Mutex::new(())),
         files_reads: Arc::new(tokio::sync::Semaphore::new(10)),
+        views_heard: Default::default(),
+        views_skip_logged: Default::default(),
         hooks: Arc::new(RwLock::new(HashSet::new())),
         queue: Arc::new(EventQueue::default()),
         timers: Arc::new(Mutex::new(HashMap::new())),
