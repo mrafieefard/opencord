@@ -34,7 +34,15 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Resp
         // Types change under the write lock, so this still holds at the
         // insert.
         if plugin.as_ref().is_some_and(|plugin| {
-            ctx.state.plugins.channel_types.state(plugin) != proto::PluginChannelState::Available
+            if ctx.plugin_id == Some(plugin.plugin_id.as_str()) {
+                !ctx.state
+                    .plugins
+                    .channel_types
+                    .is_registered_by(&plugin.plugin_id, &plugin.type_key)
+            } else {
+                ctx.state.plugins.channel_types.state(plugin)
+                    != proto::PluginChannelState::Available
+            }
         }) {
             return Err(ApiError::invalid_argument(
                 "that channel type isn't available",

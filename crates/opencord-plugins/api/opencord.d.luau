@@ -18,6 +18,9 @@ export type EventName =
     | "channel_delete"
     | "plugin_channel_create"
     | "plugin_channel_delete"
+    | "view_open"
+    | "view_close"
+    | "file_uploaded"
     | "role_create"
     | "role_update"
     | "role_delete"
@@ -257,6 +260,53 @@ export type DbTx = {
     query: (sql: string, ...any) -> { { [string]: any } },
 }
 
+export type ViewPlace = {
+    channel_id: string,
+}
+
+export type View = {
+    id: string,
+    user: User,
+    place: ViewPlace,
+    platform: string,
+    send: (name: string, data: any) -> (),
+}
+
+export type UploadedFile = {
+    id: string,
+    name: string,
+    size: number,
+    content_type: string,
+}
+
+export type ChannelTypeSpec = {
+    name: string,
+    description: string?,
+    icon: string?,
+}
+
+export type ViewOpenEvent = {
+    view: View,
+}
+
+export type ViewCloseEvent = {
+    view: View,
+    reason: string,
+}
+
+export type FileUploadedEvent = {
+    view: View,
+    file: UploadedFile,
+}
+
+export type PluginChannelCreateEvent = {
+    channel: Channel,
+}
+
+export type PluginChannelDeleteEvent = {
+    channel_id: string,
+}
+
 -- Globals
 
 declare opencord: {
@@ -294,8 +344,8 @@ declare db: {
 }
 
 declare messages: {
-    --- Permission: send_messages (file attachments arrive in a later milestone)
-    send: (channel_id: string, content: string | { content: string }) -> Message,
+    --- Permission: send_messages, attach_files (when sending files)
+    send: (channel_id: string, content: string | { content: string?, files: { string }? }) -> Message,
     --- Permission: send_messages
     edit: (id: string, content: string | { content: string }) -> Message,
     --- Permission: send_messages
@@ -354,7 +404,7 @@ declare channels: {
     --- Permission: read_channels
     get: (id: string) -> Channel?,
     --- Permission: manage_channels
-    create: (spec: { kind: string, name: string, topic: string?, parent_id: string? }) -> Channel,
+    create: (spec: { kind: string, name: string, topic: string?, parent_id: string?, type_key: string? }) -> Channel,
     --- Permission: manage_channels
     update: (id: string, spec: { name: string?, topic: string?, parent_id: string? }) -> Channel,
     --- Permission: manage_channels
@@ -446,8 +496,8 @@ declare music: {
 }
 
 declare files: {
-    --- Permission: none
-    put: (path: string, data: string | buffer, options: { public: boolean? }?) -> (),
+    --- Permission: none. Server only (when putting an uploaded file).
+    put: (path: string, data: string | buffer | UploadedFile, options: { public: boolean? }?) -> (),
     --- Permission: none
     get: (path: string) -> buffer?,
     --- Permission: none
@@ -456,7 +506,22 @@ declare files: {
     list: (prefix: string?) -> { FileInfo },
     --- Permission: none. A token for the view's member to load the file at
     --- `path`, good for an hour. Server only.
-    token: (path: string, view: { id: string }) -> string,
+    token: (path: string, view: View | { id: string }) -> string,
+}
+
+declare ui: {
+    --- Permission: create_channel_types. Server only.
+    register_channel_type: (key: string, spec: ChannelTypeSpec) -> (),
+    --- Server only.
+    on: (name: string, handler: (view: View, data: any) -> ()) -> (),
+    --- Server only.
+    views: (place: ViewPlace?) -> { View },
+    --- Server only.
+    send_place: (place: ViewPlace, name: string, data: any) -> number,
+    --- Server only.
+    send_role: (role_id: string, name: string, data: any) -> number,
+    --- Server only.
+    send_all: (name: string, data: any) -> number,
 }
 
 declare hooks: {

@@ -192,10 +192,35 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     .get("name")
                     .map_err(|_| raise("INVALID_ARGUMENT: channel name is required"))?;
                 let kind_str = get_opt_string(&spec, "kind")?.unwrap_or_else(|| "text".to_owned());
-                let kind = match kind_str.as_str() {
-                    "text" => proto::ChannelKind::Text as i32,
-                    "voice" => proto::ChannelKind::Voice as i32,
-                    "category" => proto::ChannelKind::Category as i32,
+                let (kind, plugin_id_field, type_key_field) = match kind_str.as_str() {
+                    "text" => (proto::ChannelKind::Text as i32, None, None),
+                    "voice" => (proto::ChannelKind::Voice as i32, None, None),
+                    "category" => (proto::ChannelKind::Category as i32, None, None),
+                    "plugin" => {
+                        let type_key = match get_opt_string(&spec, "type_key")? {
+                            Some(k) if !k.is_empty() => k,
+                            _ => {
+                                return Err(raise(
+                                    "INVALID_ARGUMENT: that channel type isn't registered by this plugin",
+                                ));
+                            }
+                        };
+                        let state = env.state()?;
+                        if !state
+                            .plugins
+                            .channel_types
+                            .is_registered_by(&env.plugin_id, &type_key)
+                        {
+                            return Err(raise(
+                                "INVALID_ARGUMENT: that channel type isn't registered by this plugin",
+                            ));
+                        }
+                        (
+                            proto::ChannelKind::Plugin as i32,
+                            Some(env.plugin_id.clone()),
+                            Some(type_key),
+                        )
+                    }
                     _ => return Err(raise("INVALID_ARGUMENT: unknown channel kind")),
                 };
                 let topic = get_opt_string(&spec, "topic")?;
@@ -214,8 +239,8 @@ fn install_channels(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             kind,
                             topic,
                             parent_id,
-                            plugin_id: None,
-                            type_key: None,
+                            plugin_id: plugin_id_field,
+                            type_key: type_key_field,
                         };
                         channels::create(&ctx, req).await
                     })

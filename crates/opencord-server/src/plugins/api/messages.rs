@@ -9,12 +9,18 @@ use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
 
 use super::{async_function, id_arg, raise, to_lua_value};
+use crate::db;
 use crate::db::messages;
 use crate::error::ApiError;
+use crate::handlers::messages::require_message_channel;
 use crate::handlers::{self, Ctx};
+use crate::permissions::require_channel;
+use crate::plugins::api::files::check_file_path;
 use crate::plugins::events;
 use crate::plugins::permissions::PluginPermission;
 use crate::plugins::runtime::PluginEnv;
+use opencord_common::permissions::Permissions;
+use opencord_common::upload::MAX_ATTACHMENTS;
 
 pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let messages = lua.create_table()?;
@@ -30,23 +36,129 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 async move {
                     env.require(PluginPermission::SendMessages)?;
                     let channel_id = id_arg(channel_val, "channel_id")?;
-                    let content = parse_content_arg(content_val, true)?;
+                    let (content, files) = parse_send_content_arg(content_val)?;
+                    if !files.is_empty() {
+                        env.require(PluginPermission::AttachFiles)?;
+                        if files.len() > MAX_ATTACHMENTS {
+                            return Err(raise(
+                                "INVALID_ARGUMENT: a message can have at most 10 files",
+                            ));
+                        }
+                        for path in &files {
+                            check_file_path(path)
+                                .map_err(|e| raise(format!("INVALID_ARGUMENT: {path}: {e}")))?;
+                        }
+                    }
                     env.check_rate_limit()?;
 
                     let state = env.state()?;
                     let plugin_id = env.plugin_id.clone();
                     let user_id = env.user_id;
+                    let files_dir = env.files_dir.clone();
 
                     let resp = env
                         .on_server(async move {
                             let ctx = Ctx::for_plugin(&state, user_id, &plugin_id);
+                            require_message_channel(
+                                &ctx,
+                                channel_id,
+                                Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
+                            )?;
+                            if !files.is_empty() {
+                                require_channel(
+                                    &state.guild(),
+                                    user_id,
+                                    channel_id,
+                                    Permissions::ATTACH_FILES,
+                                )?;
+                            }
+
+                            let not_found =
+                                |p: &str| ApiError::not_found(&format!("no plugin file at {p}"));
+                            let mut prepared = Vec::new();
+                            for path in files {
+                                let mut conn = state.db.acquire().await?;
+                                let _db_size = db::plugins::file_size(&mut conn, &plugin_id, &path)
+                                    .await?
+                                    .ok_or_else(|| not_found(&path))?;
+                                drop(conn);
+
+                                let full_path = files_dir.join(&path);
+                                let file = match tokio::fs::File::open(&full_path).await {
+                                    Ok(f) => f,
+                                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                                        return Err(not_found(&path));
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(?e, "failed to open plugin file");
+                                        return Err(ApiError::internal());
+                                    }
+                                };
+                                let metadata = file.metadata().await.map_err(|e| {
+                                    tracing::error!(?e, "failed to read plugin file metadata");
+                                    ApiError::internal()
+                                })?;
+                                let size = metadata.len();
+                                let filename = opencord_common::upload::sanitize_filename(
+                                    std::path::Path::new(&path)
+                                        .file_name()
+                                        .and_then(|n| n.to_str())
+                                        .unwrap_or(&path),
+                                );
+                                crate::handlers::uploads::check_file_for(
+                                    &state.guild(),
+                                    user_id,
+                                    state.attachments.max_file_bytes(),
+                                    &filename,
+                                    size,
+                                )?;
+                                prepared.push((filename, file, size));
+                            }
+
+                            let mut created_ids = Vec::new();
+                            let attach_res: Result<(), ApiError> = async {
+                                for (filename, file, size) in prepared {
+                                    let row = crate::attachments::plugin_files::attach(
+                                        &state, user_id, channel_id, filename, file, size,
+                                    )
+                                    .await?;
+                                    created_ids.push(row.id);
+                                }
+                                Ok(())
+                            }
+                            .await;
+
+                            if let Err(e) = attach_res {
+                                if let Ok(mut conn) = state.db.acquire().await {
+                                    for id in created_ids {
+                                        let _ = db::attachments::delete(&mut conn, id).await;
+                                    }
+                                }
+                                return Err(e);
+                            }
+
                             let request = proto::SendMessage {
                                 channel_id,
                                 content,
                                 nonce: String::new(),
-                                attachment_ids: Vec::new(),
+                                attachment_ids: created_ids.clone(),
                             };
-                            handlers::messages::send(&ctx, request).await
+                            let resp = handlers::messages::send(&ctx, request).await;
+                            if resp.is_err() {
+                                match state.db.acquire().await {
+                                    Ok(mut conn) => {
+                                        for id in created_ids {
+                                            if let Err(e) = db::attachments::delete(&mut conn, id).await {
+                                                tracing::warn!(?e, id, "failed to delete attachment on rollback");
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(?e, "failed to acquire db connection to rollback attachments");
+                                    }
+                                }
+                            }
+                            resp
                         })
                         .await?
                         .map_err(PluginEnv::api_error)?;
@@ -83,7 +195,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 async move {
                     env.require(PluginPermission::SendMessages)?;
                     let message_id = id_arg(message_val, "message_id")?;
-                    let content = parse_content_arg(content_val, false)?;
+                    let content = parse_content_arg(content_val)?;
                     env.check_rate_limit()?;
 
                     let state = env.state()?;
@@ -284,24 +396,73 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     Ok(())
 }
 
-fn parse_content_arg(value: Value, check_files: bool) -> mlua::Result<String> {
+fn parse_send_content_arg(value: Value) -> mlua::Result<(String, Vec<String>)> {
+    match value {
+        Value::String(s) => {
+            let text = s
+                .to_str()
+                .map(|text| text.to_owned())
+                .map_err(|_| raise("INVALID_ARGUMENT: content must be UTF-8 text"))?;
+            Ok((text, Vec::new()))
+        }
+        Value::Table(table) => {
+            let files = match table.get::<Value>("files")? {
+                Value::Nil => Vec::new(),
+                Value::Table(files_tbl) => {
+                    let mut list = Vec::new();
+                    for pair in files_tbl.pairs::<Value, Value>() {
+                        let (_, v) = pair?;
+                        match v {
+                            Value::String(s) => {
+                                let path =
+                                    s.to_str().map(|text| text.to_owned()).map_err(|_| {
+                                        raise("INVALID_ARGUMENT: file path must be UTF-8 text")
+                                    })?;
+                                list.push(path);
+                            }
+                            _ => {
+                                return Err(raise(
+                                    "INVALID_ARGUMENT: files must be a table of strings",
+                                ));
+                            }
+                        }
+                    }
+                    list
+                }
+                _ => return Err(raise("INVALID_ARGUMENT: files must be a table")),
+            };
+
+            let content = match table.get::<Value>("content")? {
+                Value::Nil if !files.is_empty() => String::new(),
+                Value::String(s) => s
+                    .to_str()
+                    .map(|text| text.to_owned())
+                    .map_err(|_| raise("INVALID_ARGUMENT: content must be UTF-8 text"))?,
+                Value::Nil => return Err(raise("INVALID_ARGUMENT: content must be a string")),
+                _ => return Err(raise("INVALID_ARGUMENT: content must be a string")),
+            };
+
+            Ok((content, files))
+        }
+        _ => Err(raise(
+            "INVALID_ARGUMENT: content must be a string or a table",
+        )),
+    }
+}
+
+fn parse_content_arg(value: Value) -> mlua::Result<String> {
     match value {
         Value::String(s) => s
             .to_str()
             .map(|text| text.to_owned())
             .map_err(|_| raise("INVALID_ARGUMENT: content must be UTF-8 text")),
-        Value::Table(table) => {
-            if check_files && table.contains_key("files")? {
-                return Err(raise("INVALID_ARGUMENT: files arrive in a later version"));
-            }
-            match table.get::<Value>("content")? {
-                Value::String(s) => s
-                    .to_str()
-                    .map(|text| text.to_owned())
-                    .map_err(|_| raise("INVALID_ARGUMENT: content must be UTF-8 text")),
-                _ => Err(raise("INVALID_ARGUMENT: content must be a string")),
-            }
-        }
+        Value::Table(table) => match table.get::<Value>("content")? {
+            Value::String(s) => s
+                .to_str()
+                .map(|text| text.to_owned())
+                .map_err(|_| raise("INVALID_ARGUMENT: content must be UTF-8 text")),
+            _ => Err(raise("INVALID_ARGUMENT: content must be a string")),
+        },
         _ => Err(raise(
             "INVALID_ARGUMENT: content must be a string or a table",
         )),

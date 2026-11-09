@@ -19,7 +19,8 @@ use crate::handlers::Ctx;
 use crate::handlers::messages::require_message_channel;
 use crate::permissions::{require_base, require_channel};
 use crate::plugins::permissions::PluginPermission;
-use crate::state::{Audience, now_ms};
+use crate::state::{AppState, Audience, now_ms};
+use sqlx::SqliteConnection;
 
 pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Response, ApiError> {
     if let Some(view_id) = request.view_id {
@@ -95,7 +96,13 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateUpload) -> Result<Respo
 
 /// A file's extension isn't blocked [FILE_TYPE_BLOCKED] and its size is
 /// within the member's limit [FILE_TOO_LARGE].
-fn check_file(ctx: &Ctx<'_>, guild: &Guild, filename: &str, size: u64) -> Result<(), ApiError> {
+pub(crate) fn check_file_for(
+    guild: &Guild,
+    user_id: i64,
+    ceiling: u64,
+    filename: &str,
+    size: u64,
+) -> Result<(), ApiError> {
     let blocked = &guild.upload_settings.blocked_extensions;
     if let Some(entry) = blocked
         .iter()
@@ -103,11 +110,21 @@ fn check_file(ctx: &Ctx<'_>, guild: &Guild, filename: &str, size: u64) -> Result
     {
         return Err(ApiError::file_type_blocked(entry));
     }
-    let limit = guild.upload_limit(ctx.user_id, ctx.state.attachments.max_file_bytes());
+    let limit = guild.upload_limit(user_id, ceiling);
     if size > limit {
         return Err(ApiError::file_too_large(limit));
     }
     Ok(())
+}
+
+fn check_file(ctx: &Ctx<'_>, guild: &Guild, filename: &str, size: u64) -> Result<(), ApiError> {
+    check_file_for(
+        guild,
+        ctx.user_id,
+        ctx.state.attachments.max_file_bytes(),
+        filename,
+        size,
+    )
 }
 
 /// A file for a plugin view's picker (plan M2 Task 12, design 2026-11-07
@@ -193,11 +210,91 @@ fn music_upload(ctx: &Ctx<'_>, request: &proto::CreateUpload) -> Result<String, 
     Ok(filename)
 }
 
+pub(crate) struct NewUpload {
+    pub uploader_id: i64,
+    pub channel_id: i64,
+    pub kind: &'static str,
+    pub filename: String,
+    pub size_bytes: u64,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub duration_ms: Option<i64>,
+}
+
+pub(crate) async fn insert_new(
+    state: &AppState,
+    conn: &mut SqliteConnection,
+    new: NewUpload,
+) -> Result<AttachmentRow, ApiError> {
+    // 10. fs4::available_space(temp_dir) < size + 512 MiB [STORAGE_FULL]
+    let temp_dir = state.attachments.temp_dir();
+    tokio::fs::create_dir_all(temp_dir).await.map_err(|e| {
+        tracing::error!(?e, "failed to create temp dir");
+        ApiError::internal()
+    })?;
+    let required = new.size_bytes.saturating_add(TEMP_HEADROOM_BYTES);
+    let available = fs4::available_space(temp_dir).map_err(|e| {
+        tracing::warn!(?e, "failed to check available space");
+        ApiError::storage_full()
+    })?;
+    if available < required {
+        return Err(ApiError::storage_full());
+    }
+
+    // Generate ID, random key, seal key
+    let id = state.ids.next_id();
+    let key = BlobKey::random();
+    let key_enc = state
+        .certificates
+        .secrets()
+        .seal(&crate::attachments::key_label(id), key.as_bytes());
+
+    let temp_path = state.attachments.temp_path(id);
+    temp::create(&temp_path).await.map_err(|e| {
+        tracing::error!(?e, "failed to create temp file");
+        ApiError::internal()
+    })?;
+
+    let active_storage_id = state.attachments.active_id();
+    let now = now_ms();
+
+    let row = AttachmentRow {
+        id,
+        uploader_id: new.uploader_id,
+        channel_id: new.channel_id,
+        message_id: None,
+        position: 0,
+        state: "uploading".to_owned(),
+        kind: new.kind.to_owned(),
+        filename: new.filename,
+        content_type: "application/octet-stream".to_owned(),
+        size_bytes: new.size_bytes as i64,
+        received_bytes: 0,
+        storage_id: active_storage_id,
+        key_enc,
+        width: new.width,
+        height: new.height,
+        duration_ms: new.duration_ms,
+        animated: false,
+        waveform: None,
+        has_thumbnail: false,
+        thumbnail_width: None,
+        thumbnail_height: None,
+        error_code: None,
+        error_message: None,
+        created_at: now,
+        updated_at: now,
+    };
+
+    attachments::insert_upload(conn, &row).await?;
+    Ok(row)
+}
+
 /// Checks what every upload needs, then makes its row and temp file.
 async fn start(
     ctx: &Ctx<'_>,
     request: &proto::CreateUpload,
-    kind_str: &str,
+    kind_str: &'static str,
     filename: String,
 ) -> Result<proto::Upload, ApiError> {
     // 8. rate_limits.check_upload(user) [RATE_LIMITED]
@@ -215,74 +312,28 @@ async fn start(
         ));
     }
 
-    // 10. fs4::available_space(temp_dir) < size + 512 MiB [STORAGE_FULL]
-    let temp_dir = ctx.state.attachments.temp_dir();
-    tokio::fs::create_dir_all(temp_dir).await.map_err(|e| {
-        tracing::error!(?e, "failed to create temp dir");
-        ApiError::internal()
-    })?;
-    let required = request.size_bytes.saturating_add(TEMP_HEADROOM_BYTES);
-    let available = fs4::available_space(temp_dir).map_err(|e| {
-        tracing::warn!(?e, "failed to check available space");
-        ApiError::storage_full()
-    })?;
-    if available < required {
-        return Err(ApiError::storage_full());
-    }
-
-    // Generate ID, random key, seal key
-    let id = ctx.state.ids.next_id();
-    let key = BlobKey::random();
-    let key_enc = ctx
-        .state
-        .certificates
-        .secrets()
-        .seal(&crate::attachments::key_label(id), key.as_bytes());
-
-    let temp_path = ctx.state.attachments.temp_path(id);
-    temp::create(&temp_path).await.map_err(|e| {
-        tracing::error!(?e, "failed to create temp file");
-        ApiError::internal()
-    })?;
-
-    let active_storage_id = ctx.state.attachments.active_id();
     let width = request.width.map(|w| (w as i64).clamp(1, 16_384));
     let height = request.height.map(|h| (h as i64).clamp(1, 16_384));
     let duration_ms = request.duration_ms.map(|d| (d as i64).clamp(1, 86_400_000));
-    let now = now_ms();
 
-    let row = AttachmentRow {
-        id,
-        uploader_id: ctx.user_id,
-        channel_id: request.channel_id,
-        message_id: None,
-        position: 0,
-        state: "uploading".to_owned(),
-        kind: kind_str.to_owned(),
-        filename,
-        content_type: "application/octet-stream".to_owned(),
-        size_bytes: request.size_bytes as i64,
-        received_bytes: 0,
-        storage_id: active_storage_id,
-        key_enc,
-        width,
-        height,
-        duration_ms,
-        animated: false,
-        waveform: None,
-        has_thumbnail: false,
-        thumbnail_width: None,
-        thumbnail_height: None,
-        error_code: None,
-        error_message: None,
-        created_at: now,
-        updated_at: now,
-    };
-
-    attachments::insert_upload(&mut conn, &row).await?;
+    let row = insert_new(
+        ctx.state,
+        &mut conn,
+        NewUpload {
+            uploader_id: ctx.user_id,
+            channel_id: request.channel_id,
+            kind: kind_str,
+            filename,
+            size_bytes: request.size_bytes,
+            width,
+            height,
+            duration_ms,
+        },
+    )
+    .await?;
 
     Ok(proto::Upload {
-        upload_id: id,
+        upload_id: row.id,
         piece_bytes: PIECE_BYTES,
     })
 }

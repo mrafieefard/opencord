@@ -995,3 +995,104 @@ async fn the_21st_type_raises() {
     );
     assert!(!types.iter().any(|t| t.type_key == "type_21"));
 }
+
+#[tokio::test]
+async fn a_plugin_creates_a_channel_of_its_own_type() {
+    // Fails if is_registered_by misses starting types or channels.create fails for kind = "plugin".
+    let server = TestServer::start().await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+
+    let source = r#"
+        ui.register_channel_type("desk", { name = "Help Desk" })
+        local ch = channels.create({ kind = "plugin", type_key = "desk", name = "support-desk" })
+        log.info("created channel " .. ch.name .. " id " .. ch.id .. " kind " .. ch.kind)
+    "#;
+    let zip = package(&[
+        (
+            "manifest.lua",
+            &manifest_with(
+                "own-creator",
+                "1.0.0",
+                &["create_channel_types", "manage_channels"],
+                "",
+            ),
+        ),
+        ("server/main.luau", source),
+        ("assets/desk.png", "not really a png"),
+    ]);
+    install(
+        &server,
+        &mut admin,
+        &media_token(&ready),
+        zip,
+        &["create_channel_types", "manage_channels"],
+    )
+    .await;
+
+    wait_for_log(&mut admin, "own-creator", "created channel support-desk").await;
+
+    // Verify channel is in the guild and available
+    let (_later, new_ready) = session(&server, 1, None, &[FEATURE]).await;
+    let ch = new_ready
+        .channels
+        .iter()
+        .find(|c| c.name == "support-desk")
+        .expect("channel should exist");
+    assert_eq!(ch.kind, proto::ChannelKind::Plugin as i32);
+    assert_eq!(ch.plugin_id.as_deref(), Some("own-creator"));
+    assert_eq!(ch.type_key.as_deref(), Some("desk"));
+    assert_eq!(ch.plugin_state, State::Available as i32);
+}
+
+#[tokio::test]
+async fn another_plugins_type_is_refused() {
+    // Fails if another plugin's type or unregistered type does not raise INVALID_ARGUMENT.
+    let server = TestServer::start().await;
+    let (_owner, _) = owner(&server).await;
+    let (mut admin, ready) = session(&server, 1, None, &[FEATURE]).await;
+
+    // Plugin 1 registers "desk"
+    tickets(&server, &mut admin, &ready, &["desk"]).await;
+
+    // Plugin 2 tries to create "desk" (registered by plugin 1) or an unknown type
+    let source = r#"
+        local ok, err = pcall(function()
+            channels.create({ kind = "plugin", type_key = "desk", name = "rogue-desk" })
+        end)
+        log.info("other plugin type: " .. tostring(err))
+
+        local ok2, err2 = pcall(function()
+            channels.create({ kind = "plugin", type_key = "unregistered_type", name = "rogue-desk-2" })
+        end)
+        log.info("unknown type: " .. tostring(err2))
+    "#;
+    let zip = package(&[
+        (
+            "manifest.lua",
+            &manifest_with("other-plugin", "1.0.0", &["manage_channels"], ""),
+        ),
+        ("server/main.luau", source),
+    ]);
+    install(
+        &server,
+        &mut admin,
+        &media_token(&ready),
+        zip,
+        &["manage_channels"],
+    )
+    .await;
+
+    wait_for_log(
+        &mut admin,
+        "other-plugin",
+        "other plugin type: INVALID_ARGUMENT: that channel type isn't registered by this plugin",
+    )
+    .await;
+    wait_for_log(
+        &mut admin,
+        "other-plugin",
+        "unknown type: INVALID_ARGUMENT: that channel type isn't registered by this plugin",
+    )
+    .await;
+}

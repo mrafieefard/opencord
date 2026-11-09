@@ -336,7 +336,7 @@ async fn ids_must_be_strings() {
             r#"local ok1, err1 = pcall(function() messages.send(12345, "hello") end)
             log.info("num channel: " .. tostring(err1))
 
-            local ok2, err2 = pcall(function() messages.send("{ch}", {{ content = "x", files = {{}} }}) end)
+            local ok2, err2 = pcall(function() messages.send("{ch}", {{ content = "x", files = {{ 12345 }} }}) end)
             log.info("files err: " .. tostring(err2))
 
             local ok3, err3 = pcall(function() messages.edit(12345, "hello") end)
@@ -363,7 +363,7 @@ async fn ids_must_be_strings() {
     wait_for_log(
         &mut owner,
         "idchecker",
-        "files err: INVALID_ARGUMENT: files arrive in a later version",
+        "files err: INVALID_ARGUMENT: files must be a table of strings",
     )
     .await;
     wait_for_log(
@@ -422,6 +422,177 @@ async fn the_plugins_messages_are_rate_limited() {
         &mut owner,
         "spammer",
         "rate limit hit at 6: RATE_LIMITED: slow down",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_plugin_sends_its_file_as_an_attachment() {
+    // Fails if messages.send does not attach files or attachment cannot be downloaded.
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let code = invite(&mut owner, None).await;
+    let (mut member, member_ready) = join(&server, 2, &code).await;
+    let ch = channel_id(&ready, "general");
+
+    let p = plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "attach-sender",
+        &["send_messages", "attach_files"],
+        &format!(
+            r#"files.put("doc.txt", "hello attachment world")
+            local msg = messages.send("{ch}", {{ content = "file message", files = {{ "doc.txt" }} }})
+            log.info("sent attachments: " .. tostring(#msg.attachments))"#
+        ),
+    )
+    .await;
+
+    wait_for_log(&mut owner, "attach-sender", "sent attachments: 1").await;
+
+    // Member sees message with attachment
+    let mut saw_msg = false;
+    for _ in 0..5 {
+        let event = member.next_event().await;
+        if let proto::event::Kind::MessageCreate(proto::MessageCreate { message: Some(msg) }) =
+            event
+            && msg.content == "file message"
+        {
+            assert_eq!(msg.author_id, p.user_id);
+            assert_eq!(msg.channel_id, ch);
+            assert_eq!(msg.attachments.len(), 1);
+            let att = &msg.attachments[0];
+            assert_eq!(att.filename, "doc.txt");
+            assert_eq!(att.size_bytes, 22);
+
+            let auth = format!("Bearer {}", media_token(&member_ready));
+            let (status, body) = server
+                .send_http(
+                    "GET",
+                    &format!("/media/attachments/{}", att.id),
+                    &[("Authorization", &auth)],
+                    &[],
+                )
+                .await;
+            assert_eq!(status, 200);
+            assert_eq!(body, b"hello attachment world");
+            saw_msg = true;
+            break;
+        }
+    }
+    assert!(saw_msg, "member never received message with attachment");
+}
+
+#[tokio::test]
+async fn too_many_files_or_a_blocked_one_is_refused() {
+    // Fails if >10 files, blocked extensions, or missing attach_files are not refused.
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+
+    // Block .exe extensions
+    owner
+        .ok(Kind::UpdateUploadSettings(proto::UpdateUploadSettings {
+            blocked_extensions: Some(proto::BlockedExtensions {
+                extensions: vec!["exe".to_owned()],
+            }),
+        }))
+        .await;
+
+    plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "checks-plugin",
+        &["send_messages", "attach_files"],
+        &format!(
+            r#"
+            -- 1. Too many files (11)
+            local files_11 = {{}}
+            for i = 1, 11 do
+                table.insert(files_11, "f" .. i .. ".txt")
+            end
+            local ok, err = pcall(function()
+                messages.send("{ch}", {{ files = files_11 }})
+            end)
+            log.info("11 files: " .. tostring(err))
+
+            -- 2. Blocked extension
+            files.put("bad.exe", "dangerous")
+            local ok2, err2 = pcall(function()
+                messages.send("{ch}", {{ files = {{ "bad.exe" }} }})
+            end)
+            log.info("blocked: " .. tostring(err2))
+            "#
+        ),
+    )
+    .await;
+
+    wait_for_log(
+        &mut owner,
+        "checks-plugin",
+        "11 files: INVALID_ARGUMENT: a message can have at most 10 files",
+    )
+    .await;
+    wait_for_log(
+        &mut owner,
+        "checks-plugin",
+        "blocked: FILE_TYPE_BLOCKED: exe files can't be uploaded here",
+    )
+    .await;
+
+    // 3. Plugin without attach_files permission
+    plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "no-attach-perm",
+        &["send_messages"],
+        &format!(
+            r#"files.put("sample.txt", "abc")
+            local ok, err = pcall(function()
+                messages.send("{ch}", {{ files = {{ "sample.txt" }} }})
+            end)
+            log.info("no perm: " .. tostring(err))"#
+        ),
+    )
+    .await;
+
+    wait_for_log(
+        &mut owner,
+        "no-attach-perm",
+        "no perm: PERMISSION_DENIED: the plugin doesn't have attach_files",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_missing_file_is_not_found() {
+    // Fails if a missing plugin file does not raise NOT_FOUND: no plugin file at <path>.
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+
+    plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "missing-file-plugin",
+        &["send_messages", "attach_files"],
+        &format!(
+            r#"local ok, err = pcall(function()
+                messages.send("{ch}", {{ files = {{ "not_here.txt" }} }})
+            end)
+            log.info("missing: " .. tostring(err))"#
+        ),
+    )
+    .await;
+
+    wait_for_log(
+        &mut owner,
+        "missing-file-plugin",
+        "missing: NOT_FOUND: no plugin file at not_here.txt",
     )
     .await;
 }

@@ -28,7 +28,7 @@ pub(crate) mod settings;
 pub(crate) mod soundboard;
 mod storage;
 mod streams;
-mod uploads;
+pub(crate) mod uploads;
 mod views;
 pub(crate) mod voice;
 

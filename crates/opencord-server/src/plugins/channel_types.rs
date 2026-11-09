@@ -76,6 +76,22 @@ impl ChannelTypes {
         state_in(live, &plugin.type_key)
     }
 
+    /// Whether this plugin currently registers `type_key` (either starting or live).
+    pub fn is_registered_by(&self, plugin_id: &str, type_key: &str) -> bool {
+        let plugins = self.plugins.read().unwrap_or_else(PoisonError::into_inner);
+        let Some(registered) = plugins.get(plugin_id) else {
+            return false;
+        };
+        registered
+            .starting
+            .as_ref()
+            .is_some_and(|types| types.contains_key(type_key))
+            || registered
+                .live
+                .as_ref()
+                .is_some_and(|types| types.contains_key(type_key))
+    }
+
     /// Every type of a running plugin, by plugin id, then key.
     pub fn list(&self) -> Vec<proto::PluginChannelType> {
         let plugins = self.plugins.read().unwrap_or_else(PoisonError::into_inner);

@@ -5,6 +5,7 @@ pub mod http;
 pub mod images;
 pub mod manage;
 pub mod move_job;
+pub mod plugin_files;
 pub mod process;
 pub mod range;
 pub mod settings;

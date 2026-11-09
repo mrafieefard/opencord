@@ -77,6 +77,7 @@ async fn definitions_match_the_api() {
         "timer",
         "plugins",
         "config",
+        "ui",
     ];
 
     let mut api_functions = BTreeSet::new();
