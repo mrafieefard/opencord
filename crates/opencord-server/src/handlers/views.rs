@@ -155,8 +155,16 @@ pub fn report_error(ctx: &Ctx<'_>, request: proto::ReportViewError) -> Result<Re
         .report_error(request.view_id, &session.id)?
     {
         let user_name = ctx.state.guild().member_name(view.user_id);
-        let text: String = request.text.chars().take(2000).collect();
-        let log_msg = format!("view error for {user_name}: {text}");
+        let sanitized: String = request
+            .text
+            .replace("\r\n", "\n")
+            .replace('\r', "\n")
+            .chars()
+            .take(2000)
+            .map(|c| if c.is_control() && c != '\n' { ' ' } else { c })
+            .collect();
+        let indented = sanitized.replace('\n', "\n    ");
+        let log_msg = format!("view error for {user_name}: {indented}");
         if let Some(handle) = ctx.state.plugins.get(&view.plugin_id) {
             handle.log().push(proto::PluginLogLevel::Error, &log_msg);
         }

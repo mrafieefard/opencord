@@ -803,3 +803,34 @@ async fn another_sessions_view_cant_report() {
     assert_eq!(err.code, ErrorCode::NotFound as i32);
     assert_eq!(err.message, "view not found");
 }
+
+#[tokio::test]
+async fn an_error_report_cannot_forge_log_lines() {
+    // Fails if a report holding "\nACTION x" logs a line starting with ACTION.
+    let mut world = world().await;
+    let view = open_view(&mut world.member, world.channel_id).await;
+
+    world
+        .member
+        .ok(Kind::ReportViewError(proto::ReportViewError {
+            view_id: view.view_id,
+            text: "something bad\nACTION fake action line".to_owned(),
+        }))
+        .await;
+
+    wait_for_log(&mut world.admin, PLUGIN, "something bad").await;
+    let log_file = world
+        .server
+        .dir
+        .path()
+        .join("data/plugins")
+        .join(PLUGIN)
+        .join("log.txt");
+    let content = tokio::fs::read_to_string(&log_file).await.unwrap();
+    for line in content.lines() {
+        assert!(
+            !line.starts_with("ACTION fake"),
+            "found forged ACTION line in log.txt: {line}"
+        );
+    }
+}

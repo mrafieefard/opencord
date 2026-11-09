@@ -89,6 +89,8 @@ export type Channel = {
     bitrate: number,
     user_limit: number,
     text_in_voice: boolean,
+    plugin_id: string?,
+    type_key: string?,
 }
 
 export type PermissionName =
@@ -269,7 +271,7 @@ export type View = {
     user: User,
     place: ViewPlace,
     platform: string,
-    send: (name: string, data: any) -> (),
+    send: (self: View, name: string, data: any) -> boolean,
 }
 
 export type UploadedFile = {

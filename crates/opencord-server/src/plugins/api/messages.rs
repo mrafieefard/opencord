@@ -129,11 +129,11 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             .await;
 
                             if let Err(e) = attach_res {
-                                if let Ok(mut conn) = state.db.acquire().await {
-                                    for id in created_ids {
-                                        let _ = db::attachments::delete(&mut conn, id).await;
-                                    }
-                                }
+                                crate::attachments::plugin_files::rollback_attachments(
+                                    &state,
+                                    &created_ids,
+                                )
+                                .await;
                                 return Err(e);
                             }
 
@@ -145,18 +145,11 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                             };
                             let resp = handlers::messages::send(&ctx, request).await;
                             if resp.is_err() {
-                                match state.db.acquire().await {
-                                    Ok(mut conn) => {
-                                        for id in created_ids {
-                                            if let Err(e) = db::attachments::delete(&mut conn, id).await {
-                                                tracing::warn!(?e, id, "failed to delete attachment on rollback");
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        tracing::warn!(?e, "failed to acquire db connection to rollback attachments");
-                                    }
-                                }
+                                crate::attachments::plugin_files::rollback_attachments(
+                                    &state,
+                                    &created_ids,
+                                )
+                                .await;
                             }
                             resp
                         })
@@ -410,8 +403,13 @@ fn parse_send_content_arg(value: Value) -> mlua::Result<(String, Vec<String>)> {
                 Value::Nil => Vec::new(),
                 Value::Table(files_tbl) => {
                     let mut list = Vec::new();
-                    for pair in files_tbl.pairs::<Value, Value>() {
-                        let (_, v) = pair?;
+                    for item in files_tbl.sequence_values::<Value>() {
+                        let v = item?;
+                        if list.len() >= 10 {
+                            return Err(raise(
+                                "INVALID_ARGUMENT: a message can have at most 10 files",
+                            ));
+                        }
                         match v {
                             Value::String(s) => {
                                 let path =
@@ -426,6 +424,9 @@ fn parse_send_content_arg(value: Value) -> mlua::Result<(String, Vec<String>)> {
                                 ));
                             }
                         }
+                    }
+                    if files_tbl.pairs::<Value, Value>().count() != list.len() {
+                        return Err(raise("INVALID_ARGUMENT: files must be a table of strings"));
                     }
                     list
                 }

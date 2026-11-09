@@ -568,6 +568,50 @@ async fn too_many_files_or_a_blocked_one_is_refused() {
 }
 
 #[tokio::test]
+async fn file_over_size_limit_is_refused() {
+    // Fails if a plugin file over the upload limit is not refused with FILE_TOO_LARGE.
+    // Mutation: passing 0 instead of size to check_file_for in plugins/api/messages.rs makes this fail.
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+    let everyone = ready.server.as_ref().unwrap().everyone_role_id;
+
+    // Set everyone's max upload limit to 1 MB
+    owner
+        .ok(Kind::UpdateRole(proto::UpdateRole {
+            role_id: everyone,
+            max_upload_bytes: Some(1024 * 1024),
+            ..Default::default()
+        }))
+        .await;
+
+    plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "oversize-sender",
+        &["send_messages", "attach_files"],
+        &format!(
+            r#"
+            files.put("oversize.txt", string.rep("x", 1024 * 1024 + 100))
+            local ok, err = pcall(function()
+                messages.send("{ch}", {{ files = {{ "oversize.txt" }} }})
+            end)
+            log.info("oversize: " .. tostring(err))
+            "#
+        ),
+    )
+    .await;
+
+    wait_for_log(
+        &mut owner,
+        "oversize-sender",
+        "oversize: FILE_TOO_LARGE: files can be at most 1 MB here",
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn a_missing_file_is_not_found() {
     // Fails if a missing plugin file does not raise NOT_FOUND: no plugin file at <path>.
     let server = TestServer::start().await;

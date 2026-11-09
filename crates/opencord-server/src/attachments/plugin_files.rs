@@ -101,11 +101,35 @@ pub async fn attach(
     match result {
         Ok(ready_row) => Ok(ready_row),
         Err(err) => {
-            let _ = tokio::fs::remove_file(&temp_path).await;
-            if let Ok(mut conn) = state.db.acquire().await {
-                let _ = db::attachments::delete(&mut conn, id).await;
+            if let Err(e) = tokio::fs::remove_file(&temp_path).await
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(?e, ?temp_path, "failed to remove temp file during rollback");
             }
+            rollback_attachments(state, &[id]).await;
             Err(err)
+        }
+    }
+}
+
+/// Deletes attachment records by id on rollback, logging any errors with tracing.
+pub(crate) async fn rollback_attachments(state: &AppState, ids: &[i64]) {
+    if ids.is_empty() {
+        return;
+    }
+    match state.db.acquire().await {
+        Ok(mut conn) => {
+            for &id in ids {
+                if let Err(e) = db::attachments::delete(&mut conn, id).await {
+                    tracing::warn!(?e, id, "failed to delete attachment row during rollback");
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                ?e,
+                "failed to acquire db connection to delete attachments during rollback"
+            );
         }
     }
 }
