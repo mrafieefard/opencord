@@ -18,6 +18,12 @@ export const ZoomOut = builder();
 export const SlideInRight = builder();
 export const SlideOutRight = builder();
 export const LinearTransition = builder();
+export class Keyframe {
+  constructor(_definitions: unknown) {}
+  duration(_ms: number) {
+    return this;
+  }
+}
 
 /** React 19 passes `ref` as a prop, so the component stands in as it is. */
 export function createAnimatedComponent<P extends object>(component: ComponentType<P>): ComponentType<P> {
@@ -126,4 +132,6 @@ export const Easing = {
   linear: (t: number) => t,
   ease: (t: number) => t,
   inOut: (curve: (t: number) => number) => curve,
+  in: (curve: (t: number) => number) => curve,
+  bezier: () => (t: number) => t,
 };
