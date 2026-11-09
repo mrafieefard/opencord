@@ -11,7 +11,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/command_input.dart';
 import 'package:opencord/features/chat/command_rows.dart';
 import 'package:opencord/features/chat/composer.dart';
-import 'package:opencord/features/chat/suggestion_list.dart';
+import 'package:opencord/features/chat/popup/composer_popup.dart';
 import 'package:opencord/features/settings/server/commands_page.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/features/shell/desktop_shell.dart';
@@ -69,7 +69,7 @@ Finder get _input => find.descendant(
 );
 
 Finder _inList(Finder finder) =>
-    find.descendant(of: find.byType(SuggestionList), matching: finder);
+    find.descendant(of: find.byType(ComposerPopup), matching: finder);
 
 Future<void> _press(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyEvent(key);

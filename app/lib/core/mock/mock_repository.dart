@@ -161,6 +161,9 @@ class MockRepository implements OpencordRepository {
   Future<void> _latency([int base = 120]) =>
       Future<void>.delayed(Duration(milliseconds: base + _random.nextInt(180)));
 
+  /// A server's state, for tests that change it directly.
+  MockServer mockServer(String key) => _server(key);
+
   MockServer _server(String key) =>
       _world.servers.where((server) => server.key == key).firstOrNull ??
       (throw const RepoException(
@@ -2347,11 +2350,17 @@ class MockRepository implements OpencordRepository {
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.sendMessages, channelId);
-    final spec = server.availableCommands.find(name, source: source);
+    final available = server.availableCommands;
+    final spec = available.find(name, source: source);
     if (spec == null) {
+      final twoPlugins =
+          source.isEmpty &&
+          available.commands.where((each) => each.matches(name)).length > 1;
       throw RepoException(
         RepoErrorKind.notFound,
-        '/$name isn\'t a command here',
+        twoPlugins
+            ? 'Two commands are called /$name. Pick one from the list.'
+            : '/$name isn\'t a command here',
       );
     }
     if (!spec.allowedIn(channelId)) {
@@ -2361,6 +2370,20 @@ class MockRepository implements OpencordRepository {
       );
     }
     commandsRun.add(spec.name);
+    if (spec.pluginId != null) {
+      _emit(
+        EphemeralMessageReceived(
+          serverKey,
+          EphemeralNote(
+            channelId: channelId,
+            nonce: nonce,
+            content: 'Done',
+            at: _clock(),
+          ),
+        ),
+      );
+      return (messageId: null, ephemeral: true);
+    }
     final voice = _voice;
     final reply = voice == null || voice.server != serverKey
         ? (false, 'Join a voice channel to use music commands')

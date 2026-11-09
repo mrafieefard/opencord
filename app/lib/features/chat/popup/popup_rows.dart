@@ -54,6 +54,10 @@ class PopupGroup {
 
 const _opencord = PopupSource(id: '', name: 'Opencord');
 
+/// Who [spec] comes from.
+PopupSource sourceOfCommand(CommandSpec spec, ServerData data) =>
+    _sourceOf(spec.source, data);
+
 PopupSource _sourceOf(String id, ServerData data) {
   if (id.isEmpty) return _opencord;
   final pluginId = id.substring(pluginSourcePrefix.length);

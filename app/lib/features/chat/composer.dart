@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:clock/clock.dart';
 import 'package:file_selector/file_selector.dart';
@@ -23,7 +24,8 @@ import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/chat/command_input.dart';
 import 'package:opencord/features/chat/emoji_picker.dart';
 import 'package:opencord/features/chat/mentions.dart';
-import 'package:opencord/features/chat/suggestion_list.dart';
+import 'package:opencord/features/chat/popup/composer_popup.dart';
+import 'package:opencord/features/chat/popup/popup_rows.dart';
 import 'package:opencord/features/chat/suggestions.dart';
 import 'package:opencord/features/chat/voice/mic_button.dart';
 import 'package:opencord/features/chat/voice/recording_bar.dart';
@@ -68,11 +70,19 @@ class _ComposerState extends ConsumerState<Composer> {
   late final TextEditingController _text;
   final _focus = FocusNode(debugLabel: 'composer');
   final _field = LayerLink();
+  final _frameKey = GlobalKey();
   final _fieldKey = GlobalKey();
+  final _popupKey = GlobalKey<ComposerPopupState>();
   final _popup = OverlayPortalController();
   DateTime? _typingSent;
   ActiveToken? _token;
   List<Suggestion> _suggestions = const [];
+
+  /// The commands of [_suggestions] by source; empty for anything else.
+  List<PopupGroup> _groups = const [];
+
+  /// Typing `/` and something no command matches.
+  bool _noCommandMatches = false;
   int _selected = 0;
 
   /// The token whose suggestions were closed with Escape; they stay closed
@@ -211,6 +221,8 @@ class _ComposerState extends ConsumerState<Composer> {
   }
 
   void _updateSuggestions() {
+    final previousQuery = _token?.query;
+    final previouslySelected = _suggestions.elementAtOrNull(_selected);
     final selection = _text.selection;
     final data = _data;
     final channel = data?.channels[_channel.channel];
@@ -221,27 +233,52 @@ class _ComposerState extends ConsumerState<Composer> {
         ? activeToken(_text.text, selection.baseOffset)
         : null;
     if (token?.start != _dismissedAt) _dismissedAt = null;
-    final suggestions = token == null || _dismissedAt != null
+    final listed = token == null || _dismissedAt != null
         ? const <Suggestion>[]
         : commands ?? suggest(data!, channel!, token);
+    _groups = commands == null || listed.isEmpty
+        ? const []
+        : groupCommands(listed.cast<CommandSuggestion>(), data!);
+    final suggestions = _groups.isEmpty ? listed : flatRows(_groups);
+    _noCommandMatches =
+        commands != null && _dismissedAt == null && listed.isEmpty;
     _token = token;
-    if (suggestions.length != _suggestions.length ||
-        !_sameSuggestions(suggestions)) {
-      _selected = 0;
+    if (!_sameSuggestions(suggestions)) {
+      _selected = token?.query == previousQuery
+          ? _sameRowIn(suggestions, previouslySelected)
+          : 0;
     }
     _suggestions = suggestions;
-    if (suggestions.isEmpty) {
+    if (suggestions.isEmpty && !_noCommandMatches) {
       if (_popup.isShowing) _popup.hide();
     } else if (!_popup.isShowing) {
       _popup.show();
     }
   }
 
+  String _rowKey(Suggestion suggestion) => switch (suggestion) {
+    CommandSuggestion(:final spec) => '${spec.source}/${spec.name}',
+    _ => suggestion.insert,
+  };
+
   bool _sameSuggestions(List<Suggestion> other) {
+    if (other.length != _suggestions.length) return false;
     for (var i = 0; i < other.length; i++) {
-      if (other[i].insert != _suggestions[i].insert) return false;
+      if (_rowKey(other[i]) != _rowKey(_suggestions[i])) return false;
     }
     return true;
+  }
+
+  /// Where the selected row went when the list changed under it, or the
+  /// nearest real row if it's gone.
+  int _sameRowIn(List<Suggestion> next, Suggestion? selected) {
+    if (next.isEmpty) return 0;
+    if (selected != null) {
+      final key = _rowKey(selected);
+      final at = next.indexWhere((row) => _rowKey(row) == key);
+      if (at >= 0) return at;
+    }
+    return math.min(_selected, next.length - 1);
   }
 
   void _pick(Suggestion suggestion) {
@@ -251,7 +288,7 @@ class _ComposerState extends ConsumerState<Composer> {
         return;
       }
       _text.clear();
-      _popup.hide();
+      if (_popup.isShowing) _popup.hide();
       setState(() => _command = spec);
       return;
     }
@@ -300,11 +337,29 @@ class _ComposerState extends ConsumerState<Composer> {
     final shift = keyboard.isShiftPressed;
     final suggesting = _popup.isShowing && _suggestions.isNotEmpty;
 
+    if (_popup.isShowing &&
+        _noCommandMatches &&
+        key == LogicalKeyboardKey.escape) {
+      _dismissedAt = _token?.start;
+      _updateSuggestions();
+      setState(() {});
+      return KeyEventResult.handled;
+    }
+
     if (suggesting) {
       if (key == LogicalKeyboardKey.arrowDown ||
           key == LogicalKeyboardKey.arrowUp) {
         final step = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
-        setState(() => _selected = (_selected + step) % _suggestions.length);
+        if (_groups.length > 1 &&
+            (keyboard.isControlPressed || keyboard.isMetaPressed)) {
+          setState(() => _selected = stepGroup(_groups, _selected, step));
+          _popupKey.currentState?.scrollToGroupOf(_selected);
+          return KeyEventResult.handled;
+        }
+        setState(
+          () => _selected = stepRow(_selected, step, _suggestions.length),
+        );
+        _popupKey.currentState?.scrollToRow(_selected);
         return KeyEventResult.handled;
       }
       if (key == LogicalKeyboardKey.enter ||
@@ -456,6 +511,11 @@ class _ComposerState extends ConsumerState<Composer> {
         state.hasProblem) {
       return;
     }
+    if (_typedCommandName(data, text, state) case final name?) {
+      _composer.sent();
+      unawaited(_runTyped(name));
+      return;
+    }
     final staged = List<StagedFile>.of(state.staged);
     _composer.sent();
     _composer.clearStaged();
@@ -467,6 +527,49 @@ class _ComposerState extends ConsumerState<Composer> {
       unawaited(_messages.send(encoded, replyToId: state.replyTo?.id));
     }
     unawaited(widget.controller.scrollToEnd());
+  }
+
+  /// `/name` sent without picking from the list: the name, if the server
+  /// has a command called that. The server decides which one runs (§26.5).
+  String? _typedCommandName(ServerData data, String text, ComposerState state) {
+    if (state.staged.isNotEmpty) return null;
+    final name = RegExp(r'^/(\S+)$').firstMatch(text)?[1]?.toLowerCase();
+    if (name == null) return null;
+    return data.commands.commands.any((spec) => spec.matches(name))
+        ? name
+        : null;
+  }
+
+  Future<void> _runTyped(String name) async {
+    try {
+      await ref
+          .read(repositoryProvider)
+          .executeCommand(
+            _channel.server,
+            _channel.channel,
+            name,
+            const {},
+            nonce: '${DateTime.now().microsecondsSinceEpoch}',
+          );
+    } on RepoException catch (error) {
+      if (!mounted) return;
+      ref
+          .read(
+            ephemeralNotesProvider((
+              server: _channel.server,
+              channel: _channel.channel,
+            )).notifier,
+          )
+          .add(
+            EphemeralNote(
+              channelId: _channel.channel,
+              nonce: '',
+              content: error.message,
+              at: DateTime.now(),
+              error: true,
+            ),
+          );
+    }
   }
 
   // Type to focus -------------------------------------------------------------
@@ -543,6 +646,10 @@ class _ComposerState extends ConsumerState<Composer> {
     final isRecording = voiceState.phase != RecordingPhase.idle;
     final state = ref.watch(composerProvider(_channel));
     final cooldown = ref.watch(sendCooldownProvider(_channel));
+    ref.listen(
+      serverProvider(_channel.server).select((state) => state.data?.commands),
+      (_, _) => setState(_updateSuggestions),
+    );
     final decoration = BoxDecoration(
       color: colors.sidebar,
       border: Border(top: BorderSide(color: colors.border)),
@@ -571,6 +678,7 @@ class _ComposerState extends ConsumerState<Composer> {
     final composer = CompositedTransformTarget(
       link: _field,
       child: ComposerFrame(
+        key: _frameKey,
         above: [
           if (about != null)
             ComposerContextBar(
@@ -684,13 +792,19 @@ class _ComposerState extends ConsumerState<Composer> {
           showWhenUnlinked: false,
           targetAnchor: Alignment.topLeft,
           followerAnchor: Alignment.bottomLeft,
-          offset: const Offset(OcSpace.s8 + OcSize.hitDefault, -OcSpace.s6),
-          child: SuggestionList(
-            width: _fieldWidth(),
-            suggestions: _suggestions,
+          offset: const Offset(0, -PopupMetrics.gap),
+          child: ComposerPopup(
+            key: _popupKey,
+            serverKey: _channel.server,
+            width: _frameWidth(),
+            maxHeight: _roomAbove(),
+            groups: _groups,
+            rows: _groups.isEmpty ? _suggestions : const [],
+            title: _popupTitle,
             selected: _selected,
             onHover: (index) => setState(() => _selected = index),
             onPick: _pick,
+            emptyText: 'No commands match /${_token?.query ?? ''}',
           ),
         ),
       ),
@@ -734,10 +848,26 @@ class _ComposerState extends ConsumerState<Composer> {
     );
   }
 
-  double _fieldWidth() {
-    final box = _fieldKey.currentContext?.findRenderObject();
-    if (box is! RenderBox || !box.hasSize) return 320;
-    return box.size.width;
+  String get _popupTitle => switch (_suggestions.firstOrNull) {
+    MemberSuggestion() => 'Members',
+    ChannelSuggestion() => 'Channels',
+    EmojiSuggestion() => 'Emoji',
+    CommandSuggestion() || null => '',
+  };
+
+  RenderBox? get _frame {
+    final box = _frameKey.currentContext?.findRenderObject();
+    return box is RenderBox && box.hasSize ? box : null;
+  }
+
+  /// The popup is as wide as the composer.
+  double _frameWidth() => _frame?.size.width ?? 320;
+
+  /// It never reaches past the top of the window.
+  double _roomAbove() {
+    final top = _frame?.localToGlobal(Offset.zero).dy;
+    if (top == null) return PopupMetrics.cap;
+    return math.min(PopupMetrics.cap, top - 2 * PopupMetrics.gap);
   }
 }
 
