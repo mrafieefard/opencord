@@ -399,6 +399,17 @@ jobs:
         working-directory: app
         run: flutter test
 
+      # The plugin view renderer, a package of its own (app/packages).
+      - name: Analyze the renderer
+        working-directory: app/packages/opencord_blocks
+        run: |
+          flutter pub get
+          flutter analyze
+
+      - name: Test the renderer
+        working-directory: app/packages/opencord_blocks
+        run: flutter test
+
       - name: Build
         working-directory: app
         env:

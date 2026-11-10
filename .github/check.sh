@@ -42,6 +42,8 @@ if [[ $which == all || $which == client ]]; then
     run "client tests" cargo test --locked --no-fail-fast $CLIENT_CRATES
     run "flutter analyze" bash -c 'cd app && flutter analyze'
     run "flutter test" bash -c 'cd app && flutter test'
+    run "blocks analyze" bash -c 'cd app/packages/opencord_blocks && flutter analyze'
+    run "blocks test" bash -c 'cd app/packages/opencord_blocks && flutter test'
 fi
 if [[ $which == all || $which == mobile ]]; then
     if [[ $which == mobile ]]; then
