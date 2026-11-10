@@ -270,6 +270,11 @@ impl View {
                         self.server_message(&name, data_json);
                     }
                     Some(Command::Reload { entry, sources }) => self.reload(entry, sources),
+                    Some(Command::Finish(op)) => {
+                        self.shared.push_effect(op);
+                        self.flush();
+                        break;
+                    }
                     Some(Command::Close) | None => break,
                 },
                 () = timers::wait(due) => self.fire_timer(),

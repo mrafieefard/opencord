@@ -42,7 +42,7 @@ use crate::connection::{
     MediaTokens, Route, Routes,
 };
 use crate::convert;
-use crate::http::MediaHttp;
+use crate::http::{HttpResponse, MediaHttp};
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
@@ -54,6 +54,7 @@ use crate::private::service::{PrivateService, Transport, parse_hex};
 use crate::private::trust;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
+use crate::views::client::{ViewTransport, Views};
 use crate::voice::VoiceServer;
 use crate::voice_message::player::VoicePlayer;
 use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
@@ -117,6 +118,40 @@ struct Inner {
     voice_player: Arc<VoicePlayer>,
     media_player: Arc<crate::media_player::CoreMediaPlayer>,
     private: PrivateService,
+    views: Views,
+    /// What `Identify` lists in `features`; the desktop adds
+    /// `"plugin_channels"` before connecting.
+    features: RwLock<Vec<String>>,
+}
+
+/// `Identify.features` until the app says otherwise.
+const DEFAULT_FEATURES: &[&str] = &["plugin_users"];
+/// At most this many features, each 1 to 32 of `[a-z_]`.
+const MAX_FEATURES: usize = 8;
+
+/// The plugin views' way to the client, held weakly.
+impl ViewTransport for ClientTransport {
+    fn request(&self, key: &str, kind: Request) -> BoxFuture<'static, Result<Response, CoreError>> {
+        Transport::request(self, key, kind)
+    }
+
+    fn get(
+        &self,
+        key: &str,
+        path: String,
+        limit: usize,
+    ) -> BoxFuture<'static, Result<HttpResponse, CoreError>> {
+        let client = self.0.upgrade().map(|inner| Client { inner });
+        let key = key.to_owned();
+        Box::pin(async move {
+            let client = client.ok_or(CoreError::NotConnected)?;
+            let media = MediaHttp::new(
+                Arc::clone(&client.inner.routes),
+                Arc::clone(&client.inner.media_tokens),
+            );
+            media.request(&client, &key, "GET", &path, &[], limit).await
+        })
+    }
 }
 
 /// The private messages service's way to the client, held weakly.
@@ -274,6 +309,12 @@ impl Client {
                     data_dir.to_owned(),
                     Arc::new(ClientTransport(weak.clone())),
                 ),
+                views: Views::new(
+                    runtime.clone(),
+                    data_dir,
+                    Arc::new(ClientTransport(weak.clone())),
+                ),
+                features: RwLock::new(DEFAULT_FEATURES.iter().map(|f| (*f).to_owned()).collect()),
             }),
         };
         client.spawn_wake_watch();
@@ -300,7 +341,61 @@ impl Client {
             .unwrap_or_else(PoisonError::into_inner) = Some(Credentials {
             identity,
             display_name,
+            features: Vec::new(),
         });
+    }
+
+    /// What `Identify` lists in `features` from the next connection on;
+    /// `["plugin_users"]` until called. The desktop adds
+    /// `"plugin_channels"`; the phone's facade never calls this, so phones
+    /// get no plugin channels before milestone 4.
+    pub fn set_plugin_features(&self, features: Vec<String>) -> Result<(), CoreError> {
+        let valid = |feature: &String| {
+            (1..=32).contains(&feature.len())
+                && feature.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+        };
+        if features.len() > MAX_FEATURES || !features.iter().all(valid) {
+            return Err(invalid_input(format!(
+                "at most {MAX_FEATURES} features, each 1 to 32 of a-z and _"
+            )));
+        }
+        *self
+            .inner
+            .features
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = features;
+        Ok(())
+    }
+
+    /// Every plugin view's batches from now on; an earlier receiver hears
+    /// nothing more. A view's first batches can come before
+    /// [`Self::view_open`] returns its id: keep what arrives for ids not
+    /// known yet.
+    pub fn view_outputs(&self) -> mpsc::UnboundedReceiver<crate::views::client::ViewOutput> {
+        self.inner.views.outputs()
+    }
+
+    /// Opens the plugin channel `channel_id` on server `key`; the core's id
+    /// for the view, kept when it opens again on a new session.
+    /// `context_json` is the renderer's first `context` input, without
+    /// `kind`.
+    pub async fn view_open(
+        &self,
+        key: &str,
+        channel_id: i64,
+        context_json: &str,
+    ) -> Result<String, CoreError> {
+        self.inner.views.open(key, channel_id, context_json).await
+    }
+
+    /// An input from the view's renderer, as JSON (the wire format).
+    pub fn view_input(&self, view_id: &str, json: &str) {
+        self.inner.views.input(view_id, json);
+    }
+
+    /// Closes the view; nothing more arrives for it.
+    pub fn view_close(&self, view_id: &str) {
+        self.inner.views.close(view_id);
     }
 
     pub fn identity_info(&self) -> Option<IdentityInfo> {
@@ -460,6 +555,7 @@ impl Client {
     /// Disconnects and forgets the server and its pinned certificate.
     pub async fn remove_server(&self, key: &str) -> Result<(), CoreError> {
         self.inner.private.before_remove(key).await;
+        self.inner.views.close_server(key);
         let connection = self.lock_connections().remove(key);
         if let Some(connection) = connection {
             stop(connection).await;
@@ -1006,6 +1102,28 @@ impl Client {
             parent_id,
             plugin_id: None,
             type_key: None,
+        });
+        expect_channel(self.request(key, request).await?)
+    }
+
+    /// A channel of the type `type_key` a plugin running on the server
+    /// registered (§14.2).
+    pub async fn create_plugin_channel(
+        &self,
+        key: &str,
+        plugin_id: String,
+        type_key: String,
+        name: String,
+        topic: Option<String>,
+        parent_id: Option<i64>,
+    ) -> Result<Channel, CoreError> {
+        let request = Request::CreateChannel(proto::CreateChannel {
+            kind: proto::ChannelKind::Plugin as i32,
+            name,
+            topic,
+            parent_id,
+            plugin_id: Some(plugin_id),
+            type_key: Some(type_key),
         });
         expect_channel(self.request(key, request).await?)
     }
@@ -2195,6 +2313,16 @@ impl Client {
         match &event.payload {
             CoreEventPayload::Ready(snapshot) => {
                 let self_id = snapshot.self_user.id;
+                let member = snapshot.members.iter().find(|m| m.user.id == self_id);
+                let viewer = match member {
+                    Some(member) => viewer_of(member),
+                    None => crate::views::Viewer {
+                        id: self_id.to_string(),
+                        name: snapshot.self_user.display_name.clone(),
+                        roles: Vec::new(),
+                    },
+                };
+                self.inner.views.set_viewer(key, viewer);
                 let rejoin = {
                     let mut voice = self.lock_voice();
                     voice.self_ids.insert(key.clone(), self_id);
@@ -2249,6 +2377,11 @@ impl Client {
                     }
                 }
                 self.sync_media();
+            }
+            CoreEventPayload::MemberUpdate(member)
+                if self.lock_voice().self_ids.get(key) == Some(&member.user.id) =>
+            {
+                self.inner.views.set_viewer(key, viewer_of(member));
             }
             CoreEventPayload::StreamDelete { stream_key, .. } => {
                 if let Some(media) = self.inner.media.get() {
@@ -2419,6 +2552,7 @@ impl Client {
             clocks: Arc::clone(&self.inner.clocks),
             uploads: Arc::clone(&self.inner.uploads),
             private: self.inner.private.clone(),
+            views: self.inner.views.clone(),
         }
     }
 
@@ -2447,11 +2581,19 @@ impl Client {
     }
 
     fn credentials(&self) -> Option<Credentials> {
-        self.inner
+        let mut credentials = self
+            .inner
             .credentials
             .read()
             .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+            .clone()?;
+        credentials.features = self
+            .inner
+            .features
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        Some(credentials)
     }
 
     fn lock_store(&self) -> MutexGuard<'_, Store> {
@@ -2509,6 +2651,19 @@ fn parse_address(input: &str) -> Result<ServerAddress, CoreError> {
 fn invalid_input(error: impl std::fmt::Display) -> CoreError {
     CoreError::InvalidInput {
         message: error.to_string(),
+    }
+}
+
+/// Who this device is on a server, for its plugin views: ids as decimal
+/// strings, the name members see.
+fn viewer_of(member: &Member) -> crate::views::Viewer {
+    crate::views::Viewer {
+        id: member.user.id.to_string(),
+        name: member
+            .nickname
+            .clone()
+            .unwrap_or_else(|| member.user.display_name.clone()),
+        roles: member.role_ids.iter().map(i64::to_string).collect(),
     }
 }
 

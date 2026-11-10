@@ -12,6 +12,7 @@
 mod api_app;
 mod api_ui;
 mod carry;
+pub mod client;
 mod context;
 mod dialogs;
 mod draw;
@@ -142,6 +143,8 @@ enum Command {
         entry: String,
         sources: BTreeMap<String, String>,
     },
+    /// Sends this op as the view's last batch, then closes.
+    Finish(opencord_plugins::view::Patch),
     Close,
 }
 
@@ -173,6 +176,14 @@ impl ViewHandle {
     /// through the new script's `migrate(old)` when it has one.
     pub fn reload(&self, entry: String, sources: BTreeMap<String, String>) {
         self.command(Command::Reload { entry, sources });
+    }
+
+    /// Ends the view from outside (the server closed it, or it couldn't be
+    /// opened again): `op` goes out as its last batch, numbered after every
+    /// batch the script sent, then the view closes as [`Self::close`] does,
+    /// without waiting for its thread.
+    pub fn finish(&self, op: opencord_plugins::view::Patch) {
+        self.command(Command::Finish(op));
     }
 
     /// Runs the script's `close` listeners within one handler's budget,
