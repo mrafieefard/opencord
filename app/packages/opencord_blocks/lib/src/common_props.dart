@@ -21,6 +21,28 @@ const containerBlocks = [
 double? numberProp(Object? value) =>
     value is num && value.isFinite ? value.toDouble() : null;
 
+/// The sources an `image` block or a canvas `image` item may name (design
+/// §13.1), as the core's schema lists them.
+const imageSourceNames = [
+  'asset',
+  'file',
+  'file_token',
+  'url',
+  'attachment',
+  'bytes',
+];
+
+/// The one image source [props] names, as `{name: value}` for the host's
+/// `image`; null when it names none, or more than one.
+Map<String, Object?>? imageSource(Map<String, Object?> props) {
+  final named = [
+    for (final name in imageSourceNames)
+      if (props[name] != null) name,
+  ];
+  if (named.length != 1) return null;
+  return {named.single: props[named.single]};
+}
+
 /// `padding`: a number, or all four sides (the core sends `{x, y}` as four).
 EdgeInsets? insetsProp(Object? value) {
   if (numberProp(value) case final all?) return EdgeInsets.all(all);

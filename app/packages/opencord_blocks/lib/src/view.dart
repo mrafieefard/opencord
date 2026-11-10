@@ -5,10 +5,12 @@ import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
 
 import 'blocks/box.dart';
+import 'blocks/canvas.dart';
 import 'blocks/row_column.dart';
 import 'blocks/unknown.dart';
 import 'common_props.dart';
 import 'controller.dart';
+import 'frames.dart';
 import 'host.dart';
 import 'node.dart';
 import 'theme.dart';
@@ -17,7 +19,8 @@ import 'theme.dart';
 /// inside its own box. Overlays its blocks open (tooltips) use the view's
 /// own [Overlay], so nothing a plugin draws leaves the plugin area. Tells
 /// the core the area's size, theme, input kind, safe area and text scale
-/// whenever they change, and hands the view's side effects to [host].
+/// whenever they change, hands the view's side effects to [host], and sends
+/// `frame` inputs while the view's frames are on ([FrameLoop]).
 class BlocksView extends StatelessWidget {
   const BlocksView({
     super.key,
@@ -50,14 +53,17 @@ class _BlocksArea extends StatefulWidget {
   State<_BlocksArea> createState() => _BlocksAreaState();
 }
 
-class _BlocksAreaState extends State<_BlocksArea> {
+class _BlocksAreaState extends State<_BlocksArea>
+    with TickerProviderStateMixin {
   String? _lastContext;
   String? _waitingContext;
+  late FrameLoop _frames;
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_takeEffects);
+    _frames = FrameLoop(widget.controller, this);
     // Effects from batches applied before this view was shown.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _takeEffects();
@@ -70,6 +76,8 @@ class _BlocksAreaState extends State<_BlocksArea> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_takeEffects);
       widget.controller.addListener(_takeEffects);
+      _frames.dispose();
+      _frames = FrameLoop(widget.controller, this);
       _lastContext = null;
     }
   }
@@ -77,6 +85,7 @@ class _BlocksAreaState extends State<_BlocksArea> {
   @override
   void dispose() {
     widget.controller.removeListener(_takeEffects);
+    _frames.dispose();
     super.dispose();
   }
 
@@ -259,6 +268,7 @@ final Map<String, BlockRenderer> blockRenderers = {
   'row': rowBlock,
   'column': columnBlock,
   'box': boxBlock,
+  'canvas': canvasBlock,
 };
 
 /// Draws the node [id] and redraws it when it changes. Its common props
