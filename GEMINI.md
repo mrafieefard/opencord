@@ -67,12 +67,15 @@ Every rule here was broken at least once and caught in review.
   - Numbers are checked for NaN, infinity and range before use: `Duration::from_secs_f64(f64::NAN)` panics.
   - Headers that frame a reply (`content-length`, `transfer-encoding`, `connection`) never come from the caller's data.
 - **Check the type of every argument yourself.** A value of the wrong type gets the same plain error as any other bad value: take the loose type (`mlua::Value`) and check it, so the library's own conversion never fails first.
+  - A list from Lua is a sequence and nothing else: stop reading at its limit, then compare its length with the `pairs` count, so `{ "a", x = "b" }` is refused rather than half read.
+- **Text someone else wrote can't start a log line.** A report, a name or a message going into a log has its control characters replaced and every newline followed by an indent, so `"…\nACTION x"` stays inside its own line. Test that the forged line isn't there.
 
 ### Errors
 
 - **Never turn an error into "nothing".** Propagate with `?`.
   - Never wrap a query in `if let Ok(..)`, `.ok()` or `unwrap_or_default()` when its result decides what gets deleted or skipped. A failed query then looks like an empty one.
   - Never write `let _ =` on a `Result` (database, files, network). If a failure is truly harmless, log it with `tracing` and say why in a comment.
+  - Rollback and clean-up code follows the same rules. One helper undoes a half-done step and logs each failure it meets with `tracing::warn!`; no `let _ =` or `if let Ok(..)` around the undo.
   - `let Ok(..) = … else { return Ok(()) }` hides a failure as well as `let _ =` does. A failing handler is logged and counted where it fails.
 - **In Dart, catch what you expect:** `on RepoException catch (error)`, never a bare `catch` or `catch (_) {}`.
   - An error the user can cause reaches them, as a toast or an inline error.
@@ -217,7 +220,7 @@ Every rule here was broken at least once and caught in review.
 - **Selectable text takes the long press.** Where a long press opens a menu, the text in it isn't selectable; the menu offers Copy.
 - **Chat screens use keyboard-controller's chat pieces:** the list's scroll view is `KeyboardChatScrollView` and the composer sits in a `KeyboardStickyView`, both offset by the bottom inset (see `features/chat`).
 - **A style passed to a text variant replaces its fields.** To change a variant's size, pass `fontSize` and `lineHeight`; another variant's style brings its font too.
-- **Numbers come from the plan's table.** A step, limit or duration the plan's Numbers table gives is used as given, never a guess.
+- **Numbers come from the plan's table.** A step, limit or duration the plan's Numbers table gives is used as given, never a guess. Code and messages use its constant (`MAX_ATTACHMENTS`, `format!("at most {MAX_ATTACHMENTS} files")`), never a literal copy that drifts when the constant changes.
 - **Check both themes.** Theme colours (`colors.text`, `colors.scrim`) flip with the theme. Anything drawn on a photo or a video uses the fixed dark set, `OcColors.dark`, as the image grid's overlay does.
 - **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
 - **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
@@ -241,6 +244,9 @@ Every rule here was broken at least once and caught in review.
   - Prove it: break the code the test guards (return early, undo the fix), run the test, see it fail, then put the code back. Say in the ledger what you broke.
   - A test named after an event (a restart, a lag, a timeout) makes that event happen on every run. When a race decides whether it happens, drive it directly: fill a channel before its reader runs, or call the function that handles it.
   - Fixing a flaky test keeps what it proved. Wait longer for the same condition; don't swap the condition for an easier one.
+    - A rate limit test on a slow runner may see tokens refill. Allow at most `elapsed / refill period` extra successes, timed from before the first counted request; "a 429 somewhere in the next N tries" lets a limit N looser pass.
+    - A test reading what a background writer writes (a log file) polls for the line it needs, with a deadline, before asserting on the rest.
+  - A task's review focus is a list of tests. Each item it names (count, size, blocked extension) gets its own test, and its own mutation shown failing.
   - A test of a retry sees the second attempt. A message printed before the wait proves nothing, and output that piles up already holds earlier matches: wait for a count.
   - A test of what an event does sends the event down the road it takes in the app. A fake's stream that reaches no provider, or a dialog with no route under it to pop, passes with the fix removed.
 - **A UI test pins the design's number, not your code's.** Read it from the prototype's CSS or `measure.json`, then measure the widget where it's really used. M0's `@` badge test pinned the width 18 the code had; the prototype's is 21. A badge in a `Column` stretches to the window's width, so measure it in a `Row`.
@@ -271,8 +277,9 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 - **Describe the code, not the plan.** For each sentence, open the code it describes, and copy labels, counts and messages from there. The plan says what was asked for; only the code says what was built.
 - **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name. Checksums, versions and hashes are copied from the file, never typed from memory.
 - **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger, your report and the pull request's description, which also lists every commit outside the plan's scope.
-- **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
+- **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in. A route also matches the router's line character for character. Each time you edit a document (the pull request's description too), check all of it, not only the part you changed.
 - **Type definitions and API docs copy each shape from the function that builds it,** field by field: the names, which fields can be missing, and what a call returns, including nothing. Matching the function names is only the start.
+  - A method called with `:` takes `self` in its type; a table type lists every field its builder sets.
 
 ## Reports and the ledger
 
@@ -283,6 +290,8 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   Private helpers you needed to build what the plan describes are not deviations.
 
   Name each one in the ledger and in the report, with the failure that made you add it. If `git diff` shows one, "Deviations: none" is wrong.
+- **Where the plan says "ask before …", stop and ask.** Doing it without asking is a deviation even when it turns out right.
+- **A stage end is a ledger entry** with the last lines of `.github/check.sh` and the `gh pr checks` table pasted verbatim, once no check is pending. A table with pending checks hasn't been read yet: wait for it, and fix any red job on the branch before the review.
 - **A fix commit is a deviation too.** M1's report said "Deviations: none" and left out three commits that changed voice and toast behaviour. Name each one, with the failure that made you add it.
 - **A number in a report comes from output you saw.** Paste it, don't recall it. M1's report gave a spring's stiffness 380, damping 34, settle 370 ms and a 200 ms scrim; the real values are 503.6, 44.9, 342 ms and 120 ms. Its pull request described a 32 px title bar, a 44 px header and breakpoints that don't exist.
 - **Never `git add -f`.** What's ignored stays out of the repository. That includes `.superpowers/sdd/`, where the ledger and the scorecard live: M1 force-added both, so don't commit them at all.
