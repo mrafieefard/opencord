@@ -6,16 +6,23 @@ import 'package:flutter/widgets.dart';
 
 import 'blocks/badge_progress_spinner.dart';
 import 'blocks/box.dart';
+import 'blocks/button.dart';
 import 'blocks/canvas.dart';
 import 'blocks/grid.dart';
 import 'blocks/icon.dart';
 import 'blocks/image.dart';
+import 'blocks/pickers.dart';
 import 'blocks/rich_text.dart';
 import 'blocks/row_column.dart';
 import 'blocks/scroll.dart';
+import 'blocks/select.dart';
+import 'blocks/slider.dart';
 import 'blocks/spacer_divider.dart';
 import 'blocks/stack.dart';
+import 'blocks/tabs.dart';
 import 'blocks/text.dart';
+import 'blocks/text_input.dart';
+import 'blocks/toggles.dart';
 import 'blocks/unknown.dart';
 import 'blocks/user.dart';
 import 'common_props.dart';
@@ -292,6 +299,18 @@ final Map<String, BlockRenderer> blockRenderers = {
   'badge': badgeBlock,
   'progress': progressBlock,
   'spinner': spinnerBlock,
+  'button': buttonBlock,
+  'icon_button': iconButtonBlock,
+  'checkbox': checkboxBlock,
+  'switch': switchBlock,
+  'radio': radioBlock,
+  'slider': sliderBlock,
+  'select': selectBlock,
+  'tabs': tabsBlock,
+  'segmented': segmentedBlock,
+  'text_input': textInputBlock,
+  'image_picker': imagePickerBlock,
+  'file_picker': filePickerBlock,
 };
 
 /// Draws the node [id] and redraws it when it changes. Its common props
