@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
 
+import 'animation.dart';
 import 'blocks/badge_progress_spinner.dart';
 import 'blocks/box.dart';
 import 'blocks/button.dart';
@@ -11,6 +12,7 @@ import 'blocks/canvas.dart';
 import 'blocks/grid.dart';
 import 'blocks/icon.dart';
 import 'blocks/image.dart';
+import 'blocks/list.dart';
 import 'blocks/pickers.dart';
 import 'blocks/rich_text.dart';
 import 'blocks/row_column.dart';
@@ -289,6 +291,7 @@ final Map<String, BlockRenderer> blockRenderers = {
   'stack': stackBlock,
   'grid': gridBlock,
   'scroll': scrollBlock,
+  'list': listBlock,
   'spacer': spacerBlock,
   'divider': dividerBlock,
   'text': textBlock,
@@ -402,8 +405,12 @@ class _BlockWidgetState extends State<BlockWidget> {
     if (!width.isFree || !height.isFree) {
       drawn = BlockSize(width: width, height: height, child: drawn);
     }
-    if (numberProp(props['opacity']) case final opacity? when opacity < 1) {
-      drawn = Opacity(opacity: opacity, child: drawn);
+    if (props['animate'] != null) {
+      drawn = AnimatedBlock(build: b, props: props, child: drawn);
+    } else {
+      if (numberProp(props['opacity']) case final opacity? when opacity < 1) {
+        drawn = Opacity(opacity: opacity, child: drawn);
+      }
     }
     if (props['tooltip'] case final String tooltip when tooltip.isNotEmpty) {
       drawn = Tooltip(message: tooltip, child: drawn);

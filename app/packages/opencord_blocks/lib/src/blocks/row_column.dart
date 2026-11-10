@@ -1,6 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../animation.dart';
 import '../common_props.dart';
 import '../view.dart';
 
@@ -34,77 +35,88 @@ Widget _flex(BlockBuild b, Axis axis) {
   return ListenableBuilder(
     listenable: Listenable.merge([for (final id in ids) controller.watch(id)]),
     builder: (context, _) {
-      final children = <Widget>[];
-      for (final id in ids) {
-        final child = controller.node(id);
-        if (child == null || child.props['visible'] == false) continue;
-        final placed = BlockWidget(
-          key: wrap ? ValueKey<int>(id) : null,
-          id: id,
-          stretch: stretch && child.props[crossName] == null ? crossAxis : null,
-        );
-        if (wrap) {
-          children.add(placed);
-          continue;
-        }
-        final flex =
-            numberProp(child.props['flex']) ??
-            (child.block == 'spacer' && child.props['size'] == null ? 1.0 : 0);
-        final share = flex > 0
-            ? (flex * _flexScale).round().clamp(1, 1 << 40)
-            : (child.props[mainName] == 'fill' ? _flexScale : 0);
-        children.add(
-          share > 0
+      return AnimatedChildren(
+        build: b,
+        children: ids,
+        childBuilder: (context, id, isExiting) {
+          final child = controller.node(id);
+          if (child == null ||
+              (child.props['visible'] == false && !isExiting)) {
+            return const SizedBox.shrink();
+          }
+          final placed = BlockWidget(
+            key: wrap ? ValueKey<int>(id) : null,
+            id: id,
+            stretch: stretch && child.props[crossName] == null
+                ? crossAxis
+                : null,
+          );
+          if (wrap) return placed;
+          final flex =
+              numberProp(child.props['flex']) ??
+              (child.block == 'spacer' && child.props['size'] == null
+                  ? 1.0
+                  : 0);
+          final share = flex > 0
+              ? (flex * _flexScale).round().clamp(1, 1 << 40)
+              : (child.props[mainName] == 'fill' ? _flexScale : 0);
+          return share > 0
               ? Flexible(
                   key: ValueKey<int>(id),
                   flex: share,
                   fit: FlexFit.tight,
                   child: placed,
                 )
-              : KeyedSubtree(key: ValueKey<int>(id), child: placed),
-        );
-      }
-      if (wrap) {
-        return Wrap(
-          direction: axis,
-          spacing: gap,
-          runSpacing: gap,
-          alignment: switch (align) {
-            'center' => WrapAlignment.center,
-            'end' => WrapAlignment.end,
-            'space_between' => WrapAlignment.spaceBetween,
-            'space_around' => WrapAlignment.spaceAround,
-            _ => WrapAlignment.start,
-          },
-          crossAxisAlignment: switch (cross) {
-            'center' => WrapCrossAlignment.center,
-            'end' => WrapCrossAlignment.end,
-            _ => WrapCrossAlignment.start,
-          },
-          children: children,
-        );
-      }
-      final flex = _BlockFlex(
-        direction: axis,
-        spacing: gap,
-        mainAxisSize: props[mainName] == 'fit'
-            ? MainAxisSize.min
-            : MainAxisSize.max,
-        mainAxisAlignment: switch (align) {
-          'center' => MainAxisAlignment.center,
-          'end' => MainAxisAlignment.end,
-          'space_between' => MainAxisAlignment.spaceBetween,
-          'space_around' => MainAxisAlignment.spaceAround,
-          _ => MainAxisAlignment.start,
+              : KeyedSubtree(key: ValueKey<int>(id), child: placed);
         },
-        crossAxisAlignment: switch (cross) {
-          'center' => CrossAxisAlignment.center,
-          'end' => CrossAxisAlignment.end,
-          _ => CrossAxisAlignment.start,
+        builder: (context, children) {
+          final visibleChildren = [
+            for (final child in children)
+              if (child is! SizedBox || child.child != null) child,
+          ];
+          if (wrap) {
+            return Wrap(
+              direction: axis,
+              spacing: gap,
+              runSpacing: gap,
+              alignment: switch (align) {
+                'center' => WrapAlignment.center,
+                'end' => WrapAlignment.end,
+                'space_between' => WrapAlignment.spaceBetween,
+                'space_around' => WrapAlignment.spaceAround,
+                _ => WrapAlignment.start,
+              },
+              crossAxisAlignment: switch (cross) {
+                'center' => WrapCrossAlignment.center,
+                'end' => WrapCrossAlignment.end,
+                _ => WrapCrossAlignment.start,
+              },
+              children: visibleChildren,
+            );
+          }
+          final flex = _BlockFlex(
+            direction: axis,
+            spacing: gap,
+            mainAxisSize: props[mainName] == 'fit'
+                ? MainAxisSize.min
+                : MainAxisSize.max,
+            mainAxisAlignment: switch (align) {
+              'center' => MainAxisAlignment.center,
+              'end' => MainAxisAlignment.end,
+              'space_between' => MainAxisAlignment.spaceBetween,
+              'space_around' => MainAxisAlignment.spaceAround,
+              _ => MainAxisAlignment.start,
+            },
+            crossAxisAlignment: switch (cross) {
+              'center' => CrossAxisAlignment.center,
+              'end' => CrossAxisAlignment.end,
+              _ => CrossAxisAlignment.start,
+            },
+            children: visibleChildren,
+          );
+          return stretch ? _StretchCross(axis: crossAxis, child: flex) : flex;
         },
-        children: children,
       );
-      return stretch ? _StretchCross(axis: crossAxis, child: flex) : flex;
     },
   );
 }
