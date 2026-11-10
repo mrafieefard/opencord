@@ -628,13 +628,15 @@ async fn uncached_fetches_are_rate_limited() {
     let token = media_token(&ready);
     let (_member, member_token) = member(&server, &mut owner, 2).await;
 
+    let started = std::time::Instant::now();
     for n in 0..20 {
         let url = site.url(IMG, &format!("/a.png?n={n}"));
         assert_eq!(image(&server, Some(&token), &url).await.0, 200, "fetch {n}");
     }
     let mut hit_429 = None;
+    let mut extra = 0usize;
     let mut last_n = 20;
-    for n in 20..30 {
+    for n in 20..100 {
         let (status, _, body) = image(
             &server,
             Some(&token),
@@ -646,10 +648,16 @@ async fn uncached_fetches_are_rate_limited() {
             last_n = n;
             break;
         }
+        extra += 1;
     }
     let body = hit_429.expect("expected 429 rate limit");
     assert_eq!(code_of(&body), proto::ErrorCode::RateLimited);
     assert_eq!(site.hits(IMG, &format!("/a.png?n={last_n}")), 0);
+    assert!(
+        extra as u128 <= started.elapsed().as_millis() / 500,
+        "{extra} extra in {:?}",
+        started.elapsed()
+    );
 
     let (status, _, _) = image(&server, Some(&token), &site.url(IMG, "/a.png?n=0")).await;
     assert_eq!(status, 200);

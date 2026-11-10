@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use opencord_plugins::limits::{
     FROM_VIEW_BYTES_PER_SECOND, FROM_VIEW_EVENTS_PER_SECOND, TO_VIEW_BYTES_PER_SECOND,
-    TO_VIEW_EVENTS_PER_SECOND,
+    TO_VIEW_EVENTS_PER_SECOND, VIEW_ERROR_REPORT_EVERY,
 };
 use opencord_proto::v1 as proto;
 
@@ -217,9 +217,8 @@ impl Views {
             .ok_or_else(|| crate::error::ApiError::not_found("view"))?;
 
         let now = Instant::now();
-        const COOLDOWN: Duration = Duration::from_secs(10);
         if let Some(last) = entry.last_error_report
-            && now.saturating_duration_since(last) < COOLDOWN
+            && now.saturating_duration_since(last) < VIEW_ERROR_REPORT_EVERY
         {
             return Ok(None);
         }

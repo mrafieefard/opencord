@@ -5,7 +5,9 @@
 
 use opencord_common::channel::ChannelKind;
 use opencord_common::permissions::Permissions;
-use opencord_plugins::limits::{VIEW_EVENT_MAX_BYTES, VIEWS_PER_SESSION};
+use opencord_plugins::limits::{
+    VIEW_ERROR_REPORT_MAX_CHARS, VIEW_EVENT_MAX_BYTES, VIEWS_PER_SESSION,
+};
 use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
 
@@ -160,7 +162,7 @@ pub fn report_error(ctx: &Ctx<'_>, request: proto::ReportViewError) -> Result<Re
             .replace("\r\n", "\n")
             .replace('\r', "\n")
             .chars()
-            .take(2000)
+            .take(VIEW_ERROR_REPORT_MAX_CHARS)
             .map(|c| if c.is_control() && c != '\n' { ' ' } else { c })
             .collect();
         let indented = sanitized.replace('\n', "\n    ");

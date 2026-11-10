@@ -640,3 +640,35 @@ async fn a_missing_file_is_not_found() {
     )
     .await;
 }
+
+// Fails if named keys in the `files` table are not rejected.
+// Mutation: disabling `count != list.len()` in `plugins/api/messages.rs:428`.
+#[tokio::test]
+async fn files_table_cannot_have_named_keys() {
+    let server = TestServer::start().await;
+    let (mut owner, ready) = owner(&server).await;
+    let ch = channel_id(&ready, "general");
+
+    plugin(
+        &server,
+        &mut owner,
+        &ready,
+        "named-keys",
+        &["send_messages", "attach_files"],
+        &format!(
+            r#"files.put("a.txt", "hello")
+            local ok, err = pcall(function()
+                messages.send("{ch}", {{ files = {{ "a.txt", x = "b.txt" }} }})
+            end)
+            log.info("named keys err: " .. tostring(err))"#
+        ),
+    )
+    .await;
+
+    wait_for_log(
+        &mut owner,
+        "named-keys",
+        "named keys err: INVALID_ARGUMENT: files must be a table of strings",
+    )
+    .await;
+}

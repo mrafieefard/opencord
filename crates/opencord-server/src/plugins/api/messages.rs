@@ -39,11 +39,6 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                     let (content, files) = parse_send_content_arg(content_val)?;
                     if !files.is_empty() {
                         env.require(PluginPermission::AttachFiles)?;
-                        if files.len() > MAX_ATTACHMENTS {
-                            return Err(raise(
-                                "INVALID_ARGUMENT: a message can have at most 10 files",
-                            ));
-                        }
                         for path in &files {
                             check_file_path(path)
                                 .map_err(|e| raise(format!("INVALID_ARGUMENT: {path}: {e}")))?;
@@ -405,10 +400,10 @@ fn parse_send_content_arg(value: Value) -> mlua::Result<(String, Vec<String>)> {
                     let mut list = Vec::new();
                     for item in files_tbl.sequence_values::<Value>() {
                         let v = item?;
-                        if list.len() >= 10 {
-                            return Err(raise(
-                                "INVALID_ARGUMENT: a message can have at most 10 files",
-                            ));
+                        if list.len() >= MAX_ATTACHMENTS {
+                            return Err(raise(format!(
+                                "INVALID_ARGUMENT: a message can have at most {MAX_ATTACHMENTS} files"
+                            )));
                         }
                         match v {
                             Value::String(s) => {

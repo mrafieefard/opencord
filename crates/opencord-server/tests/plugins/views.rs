@@ -826,7 +826,18 @@ async fn an_error_report_cannot_forge_log_lines() {
         .join("data/plugins")
         .join(PLUGIN)
         .join("log.txt");
-    let content = tokio::fs::read_to_string(&log_file).await.unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let content = loop {
+        if let Ok(c) = tokio::fs::read_to_string(&log_file).await
+            && c.contains("something bad")
+        {
+            break c;
+        }
+        if std::time::Instant::now() >= deadline {
+            panic!("timed out waiting for log.txt to contain 'something bad'");
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    };
     for line in content.lines() {
         assert!(
             !line.starts_with("ACTION fake"),

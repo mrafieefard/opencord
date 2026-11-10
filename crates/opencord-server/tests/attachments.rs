@@ -63,6 +63,7 @@ async fn create_upload_checks_permissions_and_size() {
         .await;
 
     // A member without ATTACH_FILES gets FORBIDDEN.
+    let started = std::time::Instant::now();
     let error = member
         .error(Req::CreateUpload(proto::CreateUpload {
             channel_id: text,
@@ -176,7 +177,8 @@ async fn create_upload_checks_permissions_and_size() {
     // A 21st create within a minute -> RATE_LIMITED.
     // In slow environments (such as Windows CI), tokens may replenish during earlier calls.
     let mut rate_limited = None;
-    for i in 20..30 {
+    let mut extra = 0usize;
+    for i in 20..100 {
         let res = member
             .request(Req::CreateUpload(proto::CreateUpload {
                 channel_id: text,
@@ -191,8 +193,9 @@ async fn create_upload_checks_permissions_and_size() {
             .await;
         match res {
             Res::Upload(u) => {
+                extra += 1;
                 member
-                    .ok(Req::CancelUpload(proto::CancelUpload {
+                    .ok_paced(Req::CancelUpload(proto::CancelUpload {
                         upload_id: u.upload_id,
                     }))
                     .await;
@@ -206,6 +209,11 @@ async fn create_upload_checks_permissions_and_size() {
     }
     let error = rate_limited.expect("rate limit was reached");
     assert_eq!(error.code, proto::ErrorCode::RateLimited as i32);
+    assert!(
+        extra as u128 <= started.elapsed().as_millis() / 3_000,
+        "{extra} extra in {:?}",
+        started.elapsed()
+    );
 }
 
 #[tokio::test]
