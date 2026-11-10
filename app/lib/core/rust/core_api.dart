@@ -812,6 +812,46 @@ abstract interface class CoreApi {
   Future<void> revokePluginDevToken(String serverKey, int tokenId);
 
   Future<List<core.PluginDevToken>> fetchPluginDevTokens(String serverKey);
+
+  Stream<core.ViewOutput> viewOutputStream();
+
+  Future<String> viewOpen({
+    required String serverKey,
+    required int channelId,
+    required String contextJson,
+  });
+
+  void viewInput({required String viewId, required String json});
+
+  Future<void> viewClose({required String viewId});
+
+  Future<String> pluginAssetFile({
+    required String serverKey,
+    required String pluginId,
+    required String path,
+    required String sha256,
+  });
+
+  Future<String> pluginImageFile({
+    required String serverKey,
+    required String pluginId,
+    required String sourceJson,
+  });
+
+  Future<void> viewUpload({
+    required String viewId,
+    required BigInt nodeId,
+    required String path,
+  });
+
+  Future<core.Channel> createPluginChannel({
+    required String serverKey,
+    required String pluginId,
+    required String typeKey,
+    required String name,
+    String? topic,
+    int? parentId,
+  });
 }
 
 /// [CoreApi] over the generated bindings; needs `RustLib.init` first.
@@ -2273,4 +2313,74 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<List<core.PluginDevToken>> fetchPluginDevTokens(String serverKey) =>
       frb_plugins.fetchPluginDevTokens(serverKey: serverKey);
+
+  @override
+  Stream<core.ViewOutput> viewOutputStream() => frb_views.viewOutputStream();
+
+  @override
+  Future<String> viewOpen({
+    required String serverKey,
+    required int channelId,
+    required String contextJson,
+  }) => frb_views.viewOpen(
+    serverKey: serverKey,
+    channelId: channelId,
+    contextJson: contextJson,
+  );
+
+  @override
+  void viewInput({required String viewId, required String json}) =>
+      frb_views.viewInput(viewId: viewId, json: json);
+
+  @override
+  Future<void> viewClose({required String viewId}) async =>
+      frb_views.viewClose(viewId: viewId);
+
+  @override
+  Future<String> pluginAssetFile({
+    required String serverKey,
+    required String pluginId,
+    required String path,
+    required String sha256,
+  }) => frb_views.pluginAssetFile(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    path: path,
+    sha256: sha256,
+  );
+
+  @override
+  Future<String> pluginImageFile({
+    required String serverKey,
+    required String pluginId,
+    required String sourceJson,
+  }) => frb_views.pluginImageFile(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    sourceJson: sourceJson,
+  );
+
+  @override
+  Future<void> viewUpload({
+    required String viewId,
+    required BigInt nodeId,
+    required String path,
+  }) => frb_views.viewUpload(viewId: viewId, nodeId: nodeId, path: path);
+
+  @override
+  Future<core.Channel> createPluginChannel({
+    required String serverKey,
+    required String pluginId,
+    required String typeKey,
+    required String name,
+    String? topic,
+    int? parentId,
+  }) => frb_views.createPluginChannel(
+    serverKey: serverKey,
+    pluginId: pluginId,
+    typeKey: typeKey,
+    name: name,
+    topic: topic,
+    parentId: parentId,
+  );
 }

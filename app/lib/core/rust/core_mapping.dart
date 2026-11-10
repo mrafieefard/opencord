@@ -68,26 +68,26 @@ Attachment attachmentFrom(core.Attachment a) => Attachment(
   animated: a.animated,
 );
 
-/// Plugin channels never get here: until plugins milestone 2's Task 18
-/// gives the model `ChannelKind.plugin`, [readyFrom] and the channel events
-/// leave them out ([isShownChannel]).
 ChannelKind channelKindFrom(core.ChannelKind kind) => switch (kind) {
   core.ChannelKind.text => ChannelKind.text,
   core.ChannelKind.voice => ChannelKind.voice,
   core.ChannelKind.category => ChannelKind.category,
-  core.ChannelKind.plugin => ChannelKind.text,
+  core.ChannelKind.plugin => ChannelKind.plugin,
 };
 
-/// Whether the app models channels of this kind yet: not plugin channels
-/// before plugins milestone 2's Task 18.
-bool isShownChannel(core.Channel channel) =>
-    channel.kind != core.ChannelKind.plugin;
+PluginChannelState pluginChannelStateFrom(core.PluginChannelState state) =>
+    switch (state) {
+      core.PluginChannelState.available => PluginChannelState.available,
+      core.PluginChannelState.pluginStopped => PluginChannelState.pluginStopped,
+      core.PluginChannelState.typeGone => PluginChannelState.typeGone,
+    };
 
 /// Announcement channels are not in Phase 1's protocol; they go as text.
 core.ChannelKind channelKindTo(ChannelKind kind) => switch (kind) {
   ChannelKind.text || ChannelKind.announcement => core.ChannelKind.text,
   ChannelKind.voice => core.ChannelKind.voice,
   ChannelKind.category => core.ChannelKind.category,
+  ChannelKind.plugin => core.ChannelKind.plugin,
 };
 
 OverwriteTargetKind _targetFrom(core.OverwriteTargetKind kind) =>
@@ -130,6 +130,11 @@ Channel channelFrom(core.Channel channel) => Channel(
       : Channel.defaultBitrate,
   userLimit: channel.userLimit,
   textInVoice: channel.kind != core.ChannelKind.voice || channel.textInVoice,
+  pluginId: channel.pluginId,
+  typeKey: channel.typeKey,
+  pluginState: channel.pluginState == null
+      ? null
+      : pluginChannelStateFrom(channel.pluginState!),
 );
 
 VoiceParticipant participantFrom(core.VoiceState state) => VoiceParticipant(
@@ -352,10 +357,7 @@ ReadySnapshot snapshotFrom(
 }) => ReadySnapshot(
   self: userFrom(ready.selfUser),
   info: serverInfoFrom(ready.server),
-  channels: [
-    for (final channel in ready.channels)
-      if (isShownChannel(channel)) channelFrom(channel),
-  ],
+  channels: [for (final channel in ready.channels) channelFrom(channel)],
   roles: [for (final role in ready.roles) roleFrom(role)],
   members: [for (final member in ready.members) memberFrom(member)],
   presences: {
@@ -384,7 +386,23 @@ ReadySnapshot snapshotFrom(
   privateMessages: ready.privateMessages,
   privateSettings: privateSettingsFrom(ready.privateSettings),
   pluginUsers: [for (final user in ready.pluginUsers) pluginUserFrom(user)],
+  pluginChannelTypes: [
+    for (final type in ready.pluginChannelTypes) pluginChannelTypeFrom(type),
+  ],
 );
+
+PluginChannelType pluginChannelTypeFrom(core.PluginChannelType type) =>
+    PluginChannelType(
+      pluginId: type.pluginId,
+      typeKey: type.typeKey,
+      name: type.name,
+      description: type.description,
+      icon: type.icon,
+      pluginName: type.pluginName,
+    );
+
+ViewOutput viewOutputFrom(core.ViewOutput output) =>
+    ViewOutput(viewId: output.viewId, json: output.json);
 
 ServerPrivateSettings privateSettingsFrom(core.PrivateSettings s) =>
     ServerPrivateSettings(

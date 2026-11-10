@@ -274,6 +274,7 @@ class _ChannelTile extends StatelessWidget {
                 ChannelKind.voice => OcIcons.volumeUp,
                 ChannelKind.announcement => OcIcons.campaign,
                 ChannelKind.text => OcIcons.tag,
+                ChannelKind.plugin => OcIcons.extension,
               },
               size: 16,
               color: colors.textSecondary,

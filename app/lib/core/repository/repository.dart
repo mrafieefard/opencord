@@ -1264,6 +1264,40 @@ abstract interface class OpencordRepository {
   Future<void> revokePluginDevToken(String serverKey, int tokenId);
 
   Future<List<PluginDevToken>> fetchPluginDevTokens(String serverKey);
+
+  // Plugin views and custom channels -----------------------------------------
+
+  Future<String> openView(String serverKey, int channelId, String contextJson);
+
+  void viewInput(String viewId, String json);
+
+  Future<void> closeView(String viewId);
+
+  Stream<ViewOutput> get viewOutputs;
+
+  Future<String> pluginAssetFile(
+    String serverKey,
+    String pluginId,
+    String path,
+    String sha256,
+  );
+
+  Future<String?> pluginImageFile(
+    String serverKey,
+    String pluginId,
+    Map<String, Object?> source,
+  );
+
+  Future<void> viewUpload(String viewId, int nodeId, String path);
+
+  Future<Channel> createPluginChannel(
+    String serverKey, {
+    required String pluginId,
+    required String typeKey,
+    required String name,
+    String? topic,
+    int? parentId,
+  });
 }
 
 /// Overridden at startup with the mock or the Rust-core repository.

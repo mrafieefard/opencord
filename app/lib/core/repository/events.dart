@@ -731,3 +731,9 @@ final class PluginUsersUpdated extends RepoEvent {
 
   final List<PluginUser> users;
 }
+
+final class PluginChannelTypesUpdated extends RepoEvent {
+  const PluginChannelTypesUpdated(super.serverKey, this.channelTypes);
+
+  final List<PluginChannelType> channelTypes;
+}

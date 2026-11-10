@@ -166,6 +166,7 @@ class MockServer {
   final Map<String, Plugin> plugins = {};
   final Map<String, PluginReview> pluginReviews = {};
   final Map<int, PluginUser> pluginUsers = {};
+  final List<PluginChannelType> pluginChannelTypes = [];
   final Map<String, List<PluginLogLine>> pluginLogs = {};
   final List<PluginDevToken> pluginDevTokens = [];
 
@@ -259,6 +260,7 @@ class MockServer {
       privateMessages: privateMessages,
       privateSettings: privateSettings,
       pluginUsers: pluginUsers.values.toList(),
+      pluginChannelTypes: List.unmodifiable(pluginChannelTypes),
     );
   }
 }
@@ -508,6 +510,34 @@ class _Builder {
     return id;
   }
 
+  int pluginChannel(
+    String name, {
+    required String pluginId,
+    required String typeKey,
+    required PluginChannelState pluginState,
+    int? parent,
+    String? topic,
+    List<PermissionOverwrite> overwrites = const [],
+  }) {
+    final id = channelBase + ++_channelId;
+    final position = server.channels.values
+        .where((c) => c.parentId == parent && !c.isCategory)
+        .length;
+    server.channels[id] = Channel(
+      id: id,
+      kind: ChannelKind.plugin,
+      name: name,
+      topic: topic,
+      parentId: parent,
+      position: position,
+      overwrites: overwrites,
+      pluginId: pluginId,
+      typeKey: typeKey,
+      pluginState: pluginState,
+    );
+    return id;
+  }
+
   PermissionOverwrite everyoneDeny(Permissions deny) => PermissionOverwrite(
     targetKind: OverwriteTargetKind.role,
     targetId: server.info.everyoneRoleId,
@@ -709,6 +739,32 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     topic: 'Ask anything about running a server',
   );
   final offTopic = b.channel('off-topic', ChannelKind.text, parent: text);
+  server.pluginChannelTypes.add(
+    const PluginChannelType(
+      pluginId: 'support-tickets',
+      typeKey: 'tickets',
+      name: 'Tickets',
+      description: 'Support and feedback desk',
+      icon: '',
+      pluginName: 'Support Tickets',
+    ),
+  );
+  b.pluginChannel(
+    'tickets',
+    pluginId: 'support-tickets',
+    typeKey: 'tickets',
+    pluginState: PluginChannelState.available,
+    parent: text,
+    topic: 'Support tickets',
+  );
+  b.pluginChannel(
+    'legacy-help',
+    pluginId: 'support-tickets',
+    typeKey: 'legacy',
+    pluginState: PluginChannelState.pluginStopped,
+    parent: text,
+    topic: 'Archived tickets',
+  );
   final maintainers = b.channel(
     'maintainers',
     ChannelKind.text,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
@@ -42,6 +43,10 @@ const _replies = [
   'I had the same thought this morning.',
 ];
 
+/// A mock plugin view script taking input JSON and returning batch JSON.
+typedef MockViewScript = String? Function(String inputJson);
+typedef MockViewFactory = MockViewScript Function(String viewId);
+
 /// The repository of plan §11: three servers with realistic content and a
 /// little simulated life, plus debug triggers for edge states. Everything
 /// lives in memory.
@@ -63,6 +68,7 @@ class MockRepository implements OpencordRepository {
       emit: _emit,
       simulateLife: simulateLife,
     );
+    _initMockViews();
   }
 
   static final _seededIdentity = LocalIdentity(
@@ -118,6 +124,73 @@ class MockRepository implements OpencordRepository {
   final _activeSends = <String, bool>{};
   final _activeDownloads = <int, bool>{};
   Uint8List? _clipboardImage;
+  int _nextViewId = 0;
+  final _viewOutputsController = StreamController<ViewOutput>.broadcast();
+  final _mockViewFactories = <String, MockViewFactory>{};
+  final _activeMockViews = <String, MockViewScript>{};
+
+  void _initMockViews() {
+    _mockViewFactories['counter'] = _defaultCounterMockView;
+    _mockViewFactories['support-tickets'] = _defaultCounterMockView;
+  }
+
+  static MockViewScript _defaultCounterMockView(String viewId) {
+    var count = 0;
+    var seq = 1;
+    return (inputJson) {
+      if (inputJson.contains('"kind":"init"') || inputJson == '{}') {
+        return jsonEncode({
+          'view': viewId,
+          'seq': seq,
+          'ops': [
+            {
+              'op': 'create',
+              'id': 1,
+              'block': 'column',
+              'props': <String, Object?>{},
+              'events': <String>[],
+              'children': [2, 3],
+            },
+            {
+              'op': 'create',
+              'id': 2,
+              'block': 'text',
+              'props': {'text': 'Count: $count'},
+              'events': <String>[],
+              'children': <int>[],
+            },
+            {
+              'op': 'create',
+              'id': 3,
+              'block': 'button',
+              'props': {'text': 'Count'},
+              'events': ['press'],
+              'children': <int>[],
+            },
+            {'op': 'roots', 'main': 1, 'modals': <Object?>[]},
+          ],
+        });
+      }
+      count++;
+      seq++;
+      return jsonEncode({
+        'view': viewId,
+        'seq': seq,
+        'ops': [
+          {
+            'op': 'props',
+            'id': 2,
+            'set': {'text': 'Count: $count'},
+            'unset': <String>[],
+          },
+        ],
+      });
+    };
+  }
+
+  void registerMockView(String pluginId, MockViewFactory factory) {
+    _mockViewFactories[pluginId] = factory;
+  }
 
   /// Everything by default; Phase 1's set to see the app as it will be
   /// on the Rust core.
@@ -189,6 +262,8 @@ class MockRepository implements OpencordRepository {
     _musicTick?.cancel();
     _speaking?.cancel();
     _levels?.cancel();
+    _viewOutputsController.close();
+    _activeMockViews.clear();
     _events.close();
   }
 
@@ -5557,6 +5632,103 @@ class MockRepository implements OpencordRepository {
   Future<List<PluginDevToken>> fetchPluginDevTokens(String serverKey) async {
     final server = _server(serverKey);
     return server.pluginDevTokens.toList();
+  }
+
+  // Plugin views and custom channels -----------------------------------------
+
+  @override
+  Stream<ViewOutput> get viewOutputs => _viewOutputsController.stream;
+
+  @override
+  Future<String> openView(
+    String serverKey,
+    int channelId,
+    String contextJson,
+  ) async {
+    final server = _server(serverKey);
+    final channel = server.channels[channelId];
+    final pluginId = channel?.pluginId ?? 'counter';
+    final viewId = 'mock_view_${++_nextViewId}';
+    final factory = _mockViewFactories[pluginId] ?? _defaultCounterMockView;
+    final script = factory(viewId);
+    _activeMockViews[viewId] = script;
+
+    final initialBatch = script('{"kind":"init"}');
+    if (initialBatch != null) {
+      scheduleMicrotask(() {
+        if (_activeMockViews.containsKey(viewId) &&
+            !_viewOutputsController.isClosed) {
+          _viewOutputsController.add(
+            ViewOutput(viewId: viewId, json: initialBatch),
+          );
+        }
+      });
+    }
+    return viewId;
+  }
+
+  @override
+  void viewInput(String viewId, String json) {
+    final script = _activeMockViews[viewId];
+    if (script != null) {
+      final batch = script(json);
+      if (batch != null && !_viewOutputsController.isClosed) {
+        _viewOutputsController.add(ViewOutput(viewId: viewId, json: batch));
+      }
+    }
+  }
+
+  @override
+  Future<void> closeView(String viewId) async {
+    _activeMockViews.remove(viewId);
+  }
+
+  @override
+  Future<String> pluginAssetFile(
+    String serverKey,
+    String pluginId,
+    String path,
+    String sha256,
+  ) async => 'assets/$path';
+
+  @override
+  Future<String?> pluginImageFile(
+    String serverKey,
+    String pluginId,
+    Map<String, Object?> source,
+  ) async => null;
+
+  @override
+  Future<void> viewUpload(String viewId, int nodeId, String path) async {}
+
+  @override
+  Future<Channel> createPluginChannel(
+    String serverKey, {
+    required String pluginId,
+    required String typeKey,
+    required String name,
+    String? topic,
+    int? parentId,
+  }) async {
+    final server = _server(serverKey);
+    final id = _world.ids.at(_clock());
+    final position = server.channels.values
+        .where((c) => c.parentId == parentId && !c.isCategory)
+        .length;
+    final channel = Channel(
+      id: id,
+      kind: ChannelKind.plugin,
+      name: name,
+      topic: topic,
+      parentId: parentId,
+      position: position,
+      pluginId: pluginId,
+      typeKey: typeKey,
+      pluginState: PluginChannelState.available,
+    );
+    server.channels[id] = channel;
+    _emit(ChannelUpserted(serverKey, channel));
+    return channel;
   }
 }
 

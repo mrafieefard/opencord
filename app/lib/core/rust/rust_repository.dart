@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
@@ -123,6 +124,10 @@ class RustRepository implements OpencordRepository {
   StreamSubscription<core.CoreEvent>? _coreEvents;
   StreamSubscription<core.MediaEvent>? _mediaEvents;
   StreamSubscription<core.PrivateEvent>? _privateEvents;
+  StreamSubscription<core.ViewOutput>? _viewOutputs;
+  final _viewOutputsController = StreamController<ViewOutput>.broadcast();
+  final _activeViews = <String>{};
+  final _unclaimedOutputs = <String, List<ViewOutput>>{};
 
   LocalIdentity? _identity;
   Uint8List? _secret;
@@ -189,6 +194,7 @@ class RustRepository implements OpencordRepository {
     _coreEvents = _core.eventStream().listen(_onCoreEvent);
     _mediaEvents = _core.mediaEventStream().listen(_onMediaEvent);
     _privateEvents = _core.privateEventStream().listen(_onPrivateEvent);
+    _viewOutputs = _core.viewOutputStream().listen(_onViewOutput);
     if (_saved case final saved?) _useSaved(saved);
   }
 
@@ -209,6 +215,10 @@ class RustRepository implements OpencordRepository {
     _coreEvents?.cancel();
     _mediaEvents?.cancel();
     _privateEvents?.cancel();
+    _viewOutputs?.cancel();
+    _viewOutputsController.close();
+    _activeViews.clear();
+    _unclaimedOutputs.clear();
     _events.close();
   }
 
@@ -424,6 +434,24 @@ class RustRepository implements OpencordRepository {
 
   // Events ------------------------------------------------------------------
 
+  void _onViewOutput(core.ViewOutput output) {
+    final mapped = viewOutputFrom(output);
+    if (_activeViews.contains(mapped.viewId)) {
+      if (!_viewOutputsController.isClosed) {
+        _viewOutputsController.add(mapped);
+      }
+    } else {
+      if (_unclaimedOutputs.length >= 16 &&
+          !_unclaimedOutputs.containsKey(mapped.viewId)) {
+        _unclaimedOutputs.remove(_unclaimedOutputs.keys.first);
+      }
+      final list = _unclaimedOutputs.putIfAbsent(mapped.viewId, () => []);
+      if (list.length < 100) {
+        list.add(mapped);
+      }
+    }
+  }
+
   void _onCoreEvent(core.CoreEvent event) {
     final server = event.serverKey;
     if (event.payload case core.CoreEventPayload_Ready(:final field0)) {
@@ -591,10 +619,9 @@ class RustRepository implements OpencordRepository {
       core.CoreEventPayload_MessageDelete(:final channelId, :final messageId) =>
         MessageDeleted(server, channelId, messageId),
       core.CoreEventPayload_ChannelCreate(:final field0) ||
-      core.CoreEventPayload_ChannelUpdate(:final field0) =>
-        isShownChannel(field0)
-            ? ChannelUpserted(server, channelFrom(field0))
-            : null,
+      core.CoreEventPayload_ChannelUpdate(
+        :final field0,
+      ) => ChannelUpserted(server, channelFrom(field0)),
       core.CoreEventPayload_ChannelDelete(:final channelId) => ChannelDeleted(
         server,
         channelId,
@@ -855,8 +882,10 @@ class RustRepository implements OpencordRepository {
         ]),
       core.CoreEventPayload_PluginUsersUpdate(:final field0) =>
         PluginUsersUpdated(server, [for (final u in field0) pluginUserFrom(u)]),
-      // The app models channel types from plugins milestone 2's Task 18.
-      core.CoreEventPayload_PluginChannelTypesUpdate() => null,
+      core.CoreEventPayload_PluginChannelTypesUpdate(:final field0) =>
+        PluginChannelTypesUpdated(server, [
+          for (final type in field0) pluginChannelTypeFrom(type),
+        ]),
     };
     if (event != null) _emit(event);
   }
@@ -3117,4 +3146,111 @@ class RustRepository implements OpencordRepository {
         final tokens = await _core.fetchPluginDevTokens(serverKey);
         return [for (final t in tokens) pluginDevTokenFrom(t)];
       });
+
+  // Plugin views and custom channels -----------------------------------------
+
+  @override
+  Stream<ViewOutput> get viewOutputs => _viewOutputsController.stream;
+
+  @override
+  Future<String> openView(
+    String serverKey,
+    int channelId,
+    String contextJson,
+  ) async {
+    final viewId = await _call(
+      () => _core.viewOpen(
+        serverKey: serverKey,
+        channelId: channelId,
+        contextJson: contextJson,
+      ),
+    );
+    _activeViews.add(viewId);
+    final unconsumed = _unclaimedOutputs.remove(viewId);
+    if (unconsumed != null && unconsumed.isNotEmpty) {
+      scheduleMicrotask(() {
+        if (_activeViews.contains(viewId) && !_viewOutputsController.isClosed) {
+          for (final output in unconsumed) {
+            _viewOutputsController.add(output);
+          }
+        }
+      });
+    }
+    return viewId;
+  }
+
+  @override
+  void viewInput(String viewId, String json) {
+    try {
+      _core.viewInput(viewId: viewId, json: json);
+    } on Object catch (error) {
+      appLog('viewInput failed: $error', name: 'views', level: LogLevel.warn);
+    }
+  }
+
+  @override
+  Future<void> closeView(String viewId) async {
+    _activeViews.remove(viewId);
+    _unclaimedOutputs.remove(viewId);
+    await _call(() => _core.viewClose(viewId: viewId));
+  }
+
+  @override
+  Future<String> pluginAssetFile(
+    String serverKey,
+    String pluginId,
+    String path,
+    String sha256,
+  ) => _call(
+    () => _core.pluginAssetFile(
+      serverKey: serverKey,
+      pluginId: pluginId,
+      path: path,
+      sha256: sha256,
+    ),
+  );
+
+  @override
+  Future<String?> pluginImageFile(
+    String serverKey,
+    String pluginId,
+    Map<String, Object?> source,
+  ) => _call(
+    () => _core.pluginImageFile(
+      serverKey: serverKey,
+      pluginId: pluginId,
+      sourceJson: jsonEncode(source),
+    ),
+  );
+
+  @override
+  Future<void> viewUpload(String viewId, int nodeId, String path) => _call(
+    () => _core.viewUpload(
+      viewId: viewId,
+      nodeId: BigInt.from(nodeId),
+      path: path,
+    ),
+  );
+
+  @override
+  Future<Channel> createPluginChannel(
+    String serverKey, {
+    required String pluginId,
+    required String typeKey,
+    required String name,
+    String? topic,
+    int? parentId,
+  }) async {
+    final created = await _call(
+      () => _core.createPluginChannel(
+        serverKey: serverKey,
+        pluginId: pluginId,
+        typeKey: typeKey,
+        name: name,
+        topic: topic,
+        parentId: parentId,
+      ),
+    );
+    return channelFrom(created);
+  }
 }

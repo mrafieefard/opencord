@@ -43,6 +43,7 @@ class ReadySnapshot {
     this.privateMessages = false,
     this.privateSettings = const ServerPrivateSettings(),
     this.pluginUsers = const [],
+    this.pluginChannelTypes = const [],
   });
 
   final User self;
@@ -85,4 +86,5 @@ class ReadySnapshot {
   final bool privateMessages;
   final ServerPrivateSettings privateSettings;
   final List<PluginUser> pluginUsers;
+  final List<PluginChannelType> pluginChannelTypes;
 }

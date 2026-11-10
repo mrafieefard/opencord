@@ -248,3 +248,56 @@ class CreatedPluginDevToken {
   final String secret;
   final String serverFingerprint;
 }
+
+/// A channel type a running plugin registers (plugins design §14.1).
+@immutable
+class PluginChannelType {
+  const PluginChannelType({
+    required this.pluginId,
+    required this.typeKey,
+    required this.name,
+    required this.description,
+    this.icon = '',
+    required this.pluginName,
+  });
+
+  final String pluginId;
+  final String typeKey;
+  final String name;
+  final String description;
+  final String icon;
+  final String pluginName;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginChannelType &&
+          other.pluginId == pluginId &&
+          other.typeKey == typeKey &&
+          other.name == name &&
+          other.description == description &&
+          other.icon == icon &&
+          other.pluginName == pluginName;
+
+  @override
+  int get hashCode =>
+      Object.hash(pluginId, typeKey, name, description, icon, pluginName);
+}
+
+/// A batch for the renderer of one plugin view: the core's id for the view
+/// and the batch as JSON (plugins milestone 2 plan, "The view wire format").
+@immutable
+class ViewOutput {
+  const ViewOutput({required this.viewId, required this.json});
+
+  final String viewId;
+  final String json;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ViewOutput && other.viewId == viewId && other.json == json;
+
+  @override
+  int get hashCode => Object.hash(viewId, json);
+}

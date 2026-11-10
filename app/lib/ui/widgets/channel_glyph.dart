@@ -10,6 +10,7 @@ IconData channelIcon(ChannelKind kind) => switch (kind) {
   ChannelKind.announcement => OcIcons.campaign,
   ChannelKind.voice => OcIcons.volumeUp,
   ChannelKind.category => OcIcons.expandMore,
+  ChannelKind.plugin => OcIcons.extension,
 };
 
 /// The rounded square in front of a channel row (§4.2), inverted when the
