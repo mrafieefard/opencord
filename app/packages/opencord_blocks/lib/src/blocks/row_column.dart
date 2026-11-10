@@ -47,7 +47,9 @@ Widget _flex(BlockBuild b, Axis axis) {
           children.add(placed);
           continue;
         }
-        final flex = numberProp(child.props['flex']) ?? 0;
+        final flex =
+            numberProp(child.props['flex']) ??
+            (child.block == 'spacer' && child.props['size'] == null ? 1.0 : 0);
         final share = flex > 0
             ? (flex * _flexScale).round().clamp(1, 1 << 40)
             : (child.props[mainName] == 'fill' ? _flexScale : 0);
