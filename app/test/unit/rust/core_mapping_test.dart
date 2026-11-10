@@ -202,6 +202,7 @@ void main() {
         commands: const core.CommandList(commands: [], resultsPublic: true),
         uploadSettings: coreUploadSettings,
         pluginUsers: const [],
+        pluginChannelTypes: const [],
       ),
     );
 

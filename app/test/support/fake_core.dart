@@ -27,6 +27,11 @@ class FakeCoreApi extends Fake implements CoreApi {
     mouse: true,
   );
   final calls = <String>[];
+
+  /// What setPluginFeatures was last sent, and what it held when the
+  /// identity loaded (which connects).
+  List<String>? pluginFeatures;
+  List<String>? featuresAtLoad;
   var servers = <core.Server>[];
   var identityInfo = const core.IdentityInfo(
     publicKeyHex: 'abcd',
@@ -317,8 +322,12 @@ class FakeCoreApi extends Fake implements CoreApi {
   }
 
   @override
+  void setPluginFeatures(List<String> features) => pluginFeatures = features;
+
+  @override
   core.IdentityInfo identityLoad(List<int> secret, String displayName) {
     calls.add('identityLoad:$displayName');
+    featuresAtLoad = pluginFeatures;
     return identityCheck(secret, displayName);
   }
 

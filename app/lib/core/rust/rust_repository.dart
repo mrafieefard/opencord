@@ -44,6 +44,11 @@ import 'package:opencord/src/rust/api/types.dart' as core;
 /// replies; read positions live on this device, and after each Ready the
 /// unread counts are rebuilt from recent history. Voice has its states but
 /// no media yet, so no camera or screen share.
+/// What the desktop asks servers for in `Identify.features`: plugin users
+/// and plugin channels (plugins milestone 2). The phone asks for plugin
+/// users only.
+const desktopFeatures = ['plugin_users', 'plugin_channels'];
+
 class RustRepository implements OpencordRepository {
   RustRepository._(
     this._core,
@@ -60,6 +65,8 @@ class RustRepository implements OpencordRepository {
         "Private messages need the system keyring, which couldn't be used.",
       );
     }
+    // Before any identity loads, since loading one connects.
+    _core.setPluginFeatures(desktopFeatures);
     // Listed now: the tray and the server rail read them before start, and
     // they show while offline too.
     _servers = _listServers();
@@ -584,9 +591,10 @@ class RustRepository implements OpencordRepository {
       core.CoreEventPayload_MessageDelete(:final channelId, :final messageId) =>
         MessageDeleted(server, channelId, messageId),
       core.CoreEventPayload_ChannelCreate(:final field0) ||
-      core.CoreEventPayload_ChannelUpdate(
-        :final field0,
-      ) => ChannelUpserted(server, channelFrom(field0)),
+      core.CoreEventPayload_ChannelUpdate(:final field0) =>
+        isShownChannel(field0)
+            ? ChannelUpserted(server, channelFrom(field0))
+            : null,
       core.CoreEventPayload_ChannelDelete(:final channelId) => ChannelDeleted(
         server,
         channelId,
@@ -847,6 +855,8 @@ class RustRepository implements OpencordRepository {
         ]),
       core.CoreEventPayload_PluginUsersUpdate(:final field0) =>
         PluginUsersUpdated(server, [for (final u in field0) pluginUserFrom(u)]),
+      // The app models channel types from plugins milestone 2's Task 18.
+      core.CoreEventPayload_PluginChannelTypesUpdate() => null,
     };
     if (event != null) _emit(event);
   }

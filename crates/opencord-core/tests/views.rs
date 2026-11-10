@@ -5,7 +5,10 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use opencord_common::address::format_fingerprint;
-use opencord_core::api::types::{CoreError, CoreEvent, CoreEventPayload, ReadySnapshot};
+use opencord_core::api::types::{
+    ChannelKind, CoreError, CoreEvent, CoreEventPayload, PluginChannelState, PluginChannelType,
+    ReadySnapshot,
+};
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
 use opencord_core::views::client::ViewOutput;
@@ -13,6 +16,7 @@ use opencord_plugins::view::{Batch, CloseReason, Patch};
 use opencord_server::config::Config;
 use opencord_server::server::{self, ServerHandle};
 use serde_json::json;
+use sha2::Digest as _;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 const WAIT: Duration = Duration::from_secs(15);
@@ -22,16 +26,26 @@ const CONTEXT: &str = r#"{"width":800,"height":600,"theme":"dark","input":"mouse
 
 /// Each view open makes the server send `opened`; each `press` is echoed
 /// as `count`, which the client adds up, so a press delivered twice shows.
+/// At start it saves a public file for the image tests.
 const SERVER: &str = r#"
 ui.register_channel_type("desk", { name = "Desk" })
+opencord.on("start", function()
+    files.put("pub/a.png", "public bytes", { public = true })
+end)
 opencord.on("view_open", function(event)
     log.info("view_open " .. event.view.id)
     event.view:send("opened", {})
+end)
+opencord.on("file_uploaded", function(event)
+    log.info("uploaded " .. event.file.name .. " " .. event.file.size)
 end)
 ui.on("press", function(view)
     view:send("count", {})
 end)
 "#;
+
+/// The plugin's `assets/logo.png`: not an image, but the core never looks.
+const LOGO: &[u8] = b"logo bytes";
 
 fn client_script(label: &str) -> String {
     format!(
@@ -39,10 +53,18 @@ fn client_script(label: &str) -> String {
 function init() return {{ count = 0, opened = 0 }} end
 app.on("opened", function() app.set(function(s) s.opened += 1 end) end)
 app.on("count", function() app.set(function(s) s.count += 1 end) end)
+local function uploaded(file)
+    app.set(function(s) s.upload = file.name .. " " .. file.size end)
+end
+local function refused(problem)
+    app.set(function(s) s.upload = "error " .. problem.message end)
+end
 function render(s)
+    local upload = s.upload and (" upload " .. s.upload) or ""
     return ui.column({{}}, {{
-        ui.text({{ text = "{label} count " .. s.count .. " opened " .. s.opened }}),
+        ui.text({{ text = "{label} count " .. s.count .. " opened " .. s.opened .. upload }}),
         ui.button({{ text = "add", on_press = function() app.send("press", {{}}) end }}),
+        ui.file_picker({{ text = "pick", on_upload = uploaded, on_upload_error = refused }}),
     }})
 end
 "#
@@ -52,10 +74,12 @@ end
 fn package(version: &str, label: &str) -> Vec<u8> {
     let manifest = format!(
         r#"return {{ id = "tickets", name = "Tickets", version = "{version}", author = "A",
-            license = "MIT", api = 1, permissions = {{ "create_channel_types" }},
+            license = "MIT", api = 1, permissions = {{ "create_channel_types", "accept_uploads" }},
             server = {{ "server/main.luau" }}, client = "client/main.luau" }}"#
     );
     let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("assets")).unwrap();
+    std::fs::write(dir.path().join("assets/logo.png"), LOGO).unwrap();
     for (path, text) in [
         ("manifest.lua", manifest),
         ("server/main.luau", SERVER.to_owned()),
@@ -123,13 +147,18 @@ impl TestServer {
 
     /// The installed `client/main.luau` on the server's disk.
     fn installed_client_script(&self) -> PathBuf {
+        self.installed("client/main.luau")
+    }
+
+    /// A file of the installed package on the server's disk.
+    fn installed(&self, path: &str) -> PathBuf {
         let plugin = self.dir.path().join("data/plugins/tickets");
         let version = std::fs::read_dir(&plugin)
             .unwrap()
             .map(|entry| entry.unwrap().path())
-            .find(|path| path.join("client/main.luau").exists())
+            .find(|version| version.join(path).exists())
             .expect("an installed version");
-        version.join("client/main.luau")
+        version.join(path)
     }
 }
 
@@ -188,6 +217,21 @@ impl App {
         }
     }
 
+    /// Reads events until one makes `found` true.
+    async fn hears(&mut self, what: &str, found: impl Fn(&CoreEventPayload) -> bool) {
+        let heard = tokio::time::timeout(WAIT, async {
+            loop {
+                let event = self.events.recv().await.expect("the event stream ended");
+                if found(&event.payload) {
+                    return;
+                }
+            }
+        });
+        heard
+            .await
+            .unwrap_or_else(|_| panic!("timed out waiting for {what}"));
+    }
+
     async fn shows(&mut self, view: &str, text: &str) {
         let what = format!("the text {text:?}");
         self.until(view, &what, |batches| {
@@ -233,13 +277,18 @@ fn shown_text(batches: &[Batch]) -> Option<String> {
 }
 
 fn button(batches: &[Batch]) -> u64 {
+    node(batches, "button")
+}
+
+/// The last block of `kind` created.
+fn node(batches: &[Batch], kind: &str) -> u64 {
     ops(batches)
         .filter_map(|op| match op {
-            Patch::Create { id, block, .. } if block == "button" => Some(*id),
+            Patch::Create { id, block, .. } if block == kind => Some(*id),
             _ => None,
         })
         .last()
-        .expect("a button")
+        .unwrap_or_else(|| panic!("no {kind}"))
 }
 
 /// A server with the tickets plugin installed by its owner, and a `desk`
@@ -290,7 +339,10 @@ async fn install(app: &App, key: &str, version: &str, label: &str) {
         .upload_plugin_package(key, package(version, label))
         .await
         .unwrap();
-    let granted = vec!["create_channel_types".to_owned()];
+    let granted = vec![
+        "create_channel_types".to_owned(),
+        "accept_uploads".to_owned(),
+    ];
     app.client
         .confirm_plugin_review(key, review.review_id, granted, vec![], false)
         .await
@@ -443,6 +495,205 @@ async fn server_closing_the_view_sends_closed() {
                     reason: CloseReason::ChannelDeleted,
                 }
             })
+        })
+        .await;
+}
+
+// Fails if the core drops a plugin channel's plugin, type or state on the
+// way from the wire, gives them to other channels, leaves
+// `plugin_channel_types` out of `Ready`, or drops `PluginChannelTypesUpdate`
+// (the app would offer the type of a plugin that stopped).
+#[tokio::test(flavor = "multi_thread")]
+async fn plugin_channels_and_their_types_reach_the_app() {
+    let (server, owner, channel_id) = world().await;
+    let key = server.key();
+    let invite = owner
+        .client
+        .create_invite(&key, None, None, None)
+        .await
+        .unwrap();
+    let mut asking = App::new("Asking", Some(&FEATURES));
+    asking.client.add_server(&invite.link, None).await.unwrap();
+
+    let ready = asking.ready().await;
+
+    let channel = ready
+        .channels
+        .iter()
+        .find(|c| c.id == channel_id)
+        .expect("the plugin channel");
+    assert_eq!(channel.kind, ChannelKind::Plugin);
+    assert_eq!(channel.plugin_id.as_deref(), Some("tickets"));
+    assert_eq!(channel.type_key.as_deref(), Some("desk"));
+    assert_eq!(channel.plugin_state, Some(PluginChannelState::Available));
+    let others: Vec<_> = ready
+        .channels
+        .iter()
+        .filter(|c| c.kind != ChannelKind::Plugin)
+        .collect();
+    assert!(!others.is_empty());
+    assert!(
+        others
+            .iter()
+            .all(|c| c.plugin_id.is_none() && c.type_key.is_none() && c.plugin_state.is_none()),
+        "{others:?}"
+    );
+    assert_eq!(
+        ready.plugin_channel_types,
+        vec![PluginChannelType {
+            plugin_id: "tickets".into(),
+            type_key: "desk".into(),
+            name: "Desk".into(),
+            description: String::new(),
+            icon: String::new(),
+            plugin_name: "Tickets".into(),
+        }]
+    );
+
+    owner
+        .client
+        .set_plugin_running(&key, "tickets".into(), false)
+        .await
+        .unwrap();
+
+    asking
+        .hears("an empty PluginChannelTypesUpdate", |payload| {
+            matches!(payload, CoreEventPayload::PluginChannelTypesUpdate(types) if types.is_empty())
+        })
+        .await;
+}
+
+// Fails if `plugin_asset_file` fetches a file it already has (the server's
+// copy changed under the same hash, so a second fetch brings other bytes),
+// returns a path to anything but the asset, or accepts bytes that don't
+// match the hash it was given.
+#[tokio::test(flavor = "multi_thread")]
+async fn assets_load_once_and_match_their_hash() {
+    let (server, owner, _) = world().await;
+    let key = server.key();
+    let sha256 = hex::encode(sha2::Sha256::digest(LOGO));
+
+    let first = owner
+        .client
+        .plugin_asset_file(&key, "tickets", "assets/logo.png", "")
+        .await
+        .unwrap();
+    std::fs::write(server.installed("assets/logo.png"), b"changed").unwrap();
+    let again = owner
+        .client
+        .plugin_asset_file(&key, "tickets", "assets/logo.png", "")
+        .await
+        .unwrap();
+    let by_hash = owner
+        .client
+        .plugin_asset_file(&key, "tickets", "assets/logo.png", &sha256)
+        .await
+        .unwrap();
+    let wrong = owner
+        .client
+        .plugin_asset_file(&key, "tickets", "assets/logo.png", &"ab".repeat(32))
+        .await;
+
+    assert_eq!(std::fs::read(&first).unwrap(), LOGO);
+    assert_eq!(again, first);
+    assert_eq!(by_hash, first);
+    assert!(wrong.is_err(), "{wrong:?}");
+}
+
+// Fails if an image source isn't fetched from its plugin route (`file`
+// from the public files, `asset` from the package), if `bytes` aren't
+// written out as they are, or if an `attachment` is written to disk
+// instead of refused: attachments come from `attachment_bytes`, through
+// the encrypted cache.
+#[tokio::test(flavor = "multi_thread")]
+async fn image_sources_become_files() {
+    let (server, owner, _) = world().await;
+    let key = server.key();
+    let image = |source: serde_json::Value| {
+        let client = &owner.client;
+        let key = &key;
+        async move {
+            client
+                .plugin_image_file(key, "tickets", &source.to_string())
+                .await
+        }
+    };
+
+    // The plugin saves the file when its start runs.
+    let deadline = Instant::now() + WAIT;
+    let file = loop {
+        match image(json!({ "file": "pub/a.png" })).await {
+            Ok(path) => break path,
+            Err(_) if Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Err(error) => panic!("no public file: {error:?}"),
+        }
+    };
+    let asset = image(json!({ "asset": "assets/logo.png" })).await.unwrap();
+    let raw = data_encoding::BASE64.encode(b"raw image");
+    let bytes = image(json!({ "bytes": raw })).await.unwrap();
+    let attachment = image(json!({ "attachment": 1 })).await;
+
+    assert_eq!(std::fs::read(file).unwrap(), b"public bytes");
+    assert_eq!(std::fs::read(asset).unwrap(), LOGO);
+    assert_eq!(std::fs::read(bytes).unwrap(), b"raw image");
+    assert!(
+        matches!(attachment, Err(CoreError::InvalidInput { .. })),
+        "{attachment:?}"
+    );
+}
+
+// Fails if `view_upload` doesn't upload through `CreateUpload` for the
+// view (the server refuses one with neither a channel nor a view), or
+// doesn't answer the picker with `upload`, the file's name and its size.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_picked_file_uploads_for_the_view_and_answers_the_picker() {
+    let (server, mut owner, channel_id) = world().await;
+    let view = open(&owner, &server.key(), channel_id).await;
+    owner.shows(&view, "v1 count 0 opened 1").await;
+    let picker = node(&owner.batches, "file_picker");
+    let path = owner._dir.path().join("notes.txt");
+    std::fs::write(&path, "hello").unwrap();
+
+    owner
+        .client
+        .view_upload(&view, picker, path.to_string_lossy().into_owned())
+        .await
+        .unwrap();
+
+    owner
+        .shows(&view, "v1 count 0 opened 1 upload notes.txt 5")
+        .await;
+}
+
+// Fails if a refused upload only reaches the caller and the picker never
+// hears `upload_error` (its spinner would turn forever).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refused_upload_answers_the_picker_with_upload_error() {
+    let (server, mut owner, channel_id) = world().await;
+    let key = server.key();
+    owner
+        .client
+        .update_upload_settings(&key, Some(vec!["exe".to_owned()]))
+        .await
+        .unwrap();
+    let view = open(&owner, &key, channel_id).await;
+    owner.shows(&view, "v1 count 0 opened 1").await;
+    let picker = node(&owner.batches, "file_picker");
+    let path = owner._dir.path().join("run.exe");
+    std::fs::write(&path, "MZ").unwrap();
+
+    owner
+        .client
+        .view_upload(&view, picker, path.to_string_lossy().into_owned())
+        .await
+        .unwrap();
+
+    owner
+        .until(&view, "an upload error", |batches| {
+            shown_text(batches)
+                .is_some_and(|text| text.starts_with("v1 count 0 opened 1 upload error "))
         })
         .await;
 }

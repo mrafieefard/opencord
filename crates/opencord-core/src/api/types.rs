@@ -106,6 +106,40 @@ pub enum ChannelKind {
     Text,
     Voice,
     Category,
+    /// A channel of a type a plugin registers (plugins design §14); only
+    /// apps that ask for `plugin_channels` hear of them.
+    Plugin,
+}
+
+/// Whether a plugin channel can be opened now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginChannelState {
+    Available,
+    /// Its plugin isn't running, or isn't installed.
+    PluginStopped,
+    /// Its plugin runs but no longer registers this type.
+    TypeGone,
+}
+
+/// A batch for the renderer of one plugin view: the core's id for the
+/// view and the batch as JSON (plugins milestone 2 plan, "The view wire
+/// format").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewOutput {
+    pub view_id: String,
+    pub json: String,
+}
+
+/// A channel type a running plugin registers (plugins design §14.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginChannelType {
+    pub plugin_id: String,
+    pub type_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,6 +171,11 @@ pub struct Channel {
     pub user_limit: u32,
     /// Voice channels only: whether it holds messages too.
     pub text_in_voice: bool,
+    /// Plugin channels only: the plugin and the type it registered.
+    pub plugin_id: Option<String>,
+    pub type_key: Option<String>,
+    /// Plugin channels only.
+    pub plugin_state: Option<PluginChannelState>,
 }
 
 /// Absent fields stay unchanged. An empty topic clears it; `parent_id` 0
@@ -372,6 +411,9 @@ pub struct ReadySnapshot {
     pub private_messages: bool,
     pub private_settings: PrivateSettings,
     pub plugin_users: Vec<PluginUser>,
+    /// The channel types running plugins register; empty unless the app
+    /// asked for `plugin_channels`.
+    pub plugin_channel_types: Vec<PluginChannelType>,
 }
 
 /// What the owner chose for private messages on a server.
@@ -674,6 +716,9 @@ pub enum CoreEventPayload {
         lines: Vec<PluginLogLine>,
     },
     PluginUsersUpdate(Vec<PluginUser>),
+    /// Every channel type running plugins register now, in place of the
+    /// earlier list.
+    PluginChannelTypesUpdate(Vec<PluginChannelType>),
 }
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1).

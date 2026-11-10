@@ -398,6 +398,73 @@ impl Client {
         self.inner.views.close(view_id);
     }
 
+    /// The cached file of a plugin's asset under `assets/`; an empty
+    /// `sha256` takes the hash its views were given, or learns it.
+    pub async fn plugin_asset_file(
+        &self,
+        key: &str,
+        plugin_id: &str,
+        path: &str,
+        sha256: &str,
+    ) -> Result<String, CoreError> {
+        self.inner
+            .views
+            .asset_file(key, plugin_id, path, sha256)
+            .await
+    }
+
+    /// A file holding the image an `image` block's source names (its
+    /// source and `version`, as JSON). An `attachment` is refused: it comes
+    /// from `attachment_bytes`, through the encrypted cache.
+    pub async fn plugin_image_file(
+        &self,
+        key: &str,
+        plugin_id: &str,
+        source_json: &str,
+    ) -> Result<String, CoreError> {
+        self.inner
+            .views
+            .image_file(key, plugin_id, source_json)
+            .await
+    }
+
+    /// Uploads the file a view's picker (block `node_id`) chose, for that
+    /// view, and answers the picker with its `upload` event, or with
+    /// `upload_error` and the reason. Fails only for a view that isn't open.
+    pub async fn view_upload(
+        &self,
+        view_id: &str,
+        node_id: u64,
+        path: String,
+    ) -> Result<(), CoreError> {
+        let (key, server_view) = self
+            .inner
+            .views
+            .place_of(view_id)
+            .ok_or_else(|| invalid_input("that view isn't open"))?;
+        let uploaded = match server_view {
+            Some(server_view) => {
+                crate::attachments::view_upload::upload(self, &key, server_view, path).await
+            }
+            None => Err(CoreError::NotConnected),
+        };
+        let input = match uploaded {
+            Ok((name, size)) => serde_json::json!({
+                "kind": "event", "node": node_id, "event": "upload",
+                "data": { "name": name, "size": size },
+            }),
+            Err(error) => {
+                tracing::info!(view = %view_id, ?error, "a view's upload failed");
+                serde_json::json!({
+                    "kind": "event", "node": node_id, "event": "upload_error",
+                    "data": { "message": error.to_string() },
+                })
+            }
+        };
+        self.inner.views.input(view_id, &input.to_string());
+        Ok(())
+    }
+
     pub fn identity_info(&self) -> Option<IdentityInfo> {
         self.credentials().map(|credentials| IdentityInfo {
             public_key_hex: hex::encode(credentials.identity.public_key()),
@@ -2383,6 +2450,8 @@ impl Client {
             {
                 self.inner.views.set_viewer(key, viewer_of(member));
             }
+            // A plugin started, stopped or changed: its assets may have too.
+            CoreEventPayload::PluginChannelTypesUpdate(_) => self.inner.views.forget_assets(key),
             CoreEventPayload::StreamDelete { stream_key, .. } => {
                 if let Some(media) = self.inner.media.get() {
                     media.video().screen_ended_by_server(stream_key);

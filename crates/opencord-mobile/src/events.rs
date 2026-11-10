@@ -351,7 +351,7 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         CoreEventPayload::ChannelCreate(channel) | CoreEventPayload::ChannelUpdate(channel) => {
             MobileEvent::ChannelUpserted {
                 server_key,
-                channel: convert::channel(channel),
+                channel: convert::channel(channel)?,
             }
         }
         CoreEventPayload::ChannelDelete { channel_id } => MobileEvent::ChannelDeleted {
@@ -504,7 +504,8 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::PluginRemove { .. }
         | CoreEventPayload::PluginReviewUpdate(_)
         | CoreEventPayload::PluginReviewRemove { .. }
-        | CoreEventPayload::PluginLogAppend { .. } => return None,
+        | CoreEventPayload::PluginLogAppend { .. }
+        | CoreEventPayload::PluginChannelTypesUpdate(_) => return None,
     })
 }
 

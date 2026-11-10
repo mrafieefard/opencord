@@ -13,6 +13,7 @@ import 'api/plugins.dart';
 import 'api/private.dart';
 import 'api/system.dart';
 import 'api/types.dart';
+import 'api/views.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -39,6 +40,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<PrivateEvent> dco_decode_StreamSink_private_event_Sse(
     dynamic raw,
   );
+
+  @protected
+  RustStreamSink<ViewOutput> dco_decode_StreamSink_view_output_Sse(dynamic raw);
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -190,6 +194,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Plugin dco_decode_box_autoadd_plugin(dynamic raw);
+
+  @protected
+  PluginChannelState dco_decode_box_autoadd_plugin_channel_state(dynamic raw);
 
   @protected
   PluginReview dco_decode_box_autoadd_plugin_review(dynamic raw);
@@ -599,6 +606,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Plugin> dco_decode_list_plugin(dynamic raw);
 
   @protected
+  List<PluginChannelType> dco_decode_list_plugin_channel_type(dynamic raw);
+
+  @protected
   List<PluginConfigField> dco_decode_list_plugin_config_field(dynamic raw);
 
   @protected
@@ -807,6 +817,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Plugin? dco_decode_opt_box_autoadd_plugin(dynamic raw);
 
   @protected
+  PluginChannelState? dco_decode_opt_box_autoadd_plugin_channel_state(
+    dynamic raw,
+  );
+
+  @protected
   S3Config? dco_decode_opt_box_autoadd_s_3_config(dynamic raw);
 
   @protected
@@ -867,6 +882,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Plugin dco_decode_plugin(dynamic raw);
+
+  @protected
+  PluginChannelState dco_decode_plugin_channel_state(dynamic raw);
+
+  @protected
+  PluginChannelType dco_decode_plugin_channel_type(dynamic raw);
 
   @protected
   PluginConfigField dco_decode_plugin_config_field(dynamic raw);
@@ -1100,6 +1121,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VideoWant dco_decode_video_want(dynamic raw);
 
   @protected
+  ViewOutput dco_decode_view_output(dynamic raw);
+
+  @protected
   VoiceConnectionState dco_decode_voice_connection_state(dynamic raw);
 
   @protected
@@ -1138,6 +1162,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<PrivateEvent> sse_decode_StreamSink_private_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<ViewOutput> sse_decode_StreamSink_view_output_Sse(
     SseDeserializer deserializer,
   );
 
@@ -1329,6 +1358,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Plugin sse_decode_box_autoadd_plugin(SseDeserializer deserializer);
+
+  @protected
+  PluginChannelState sse_decode_box_autoadd_plugin_channel_state(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PluginReview sse_decode_box_autoadd_plugin_review(
@@ -1834,6 +1868,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Plugin> sse_decode_list_plugin(SseDeserializer deserializer);
 
   @protected
+  List<PluginChannelType> sse_decode_list_plugin_channel_type(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PluginConfigField> sse_decode_list_plugin_config_field(
     SseDeserializer deserializer,
   );
@@ -2096,6 +2135,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Plugin? sse_decode_opt_box_autoadd_plugin(SseDeserializer deserializer);
 
   @protected
+  PluginChannelState? sse_decode_opt_box_autoadd_plugin_channel_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   S3Config? sse_decode_opt_box_autoadd_s_3_config(SseDeserializer deserializer);
 
   @protected
@@ -2170,6 +2214,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Plugin sse_decode_plugin(SseDeserializer deserializer);
+
+  @protected
+  PluginChannelState sse_decode_plugin_channel_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PluginChannelType sse_decode_plugin_channel_type(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PluginConfigField sse_decode_plugin_config_field(
@@ -2431,6 +2485,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VideoWant sse_decode_video_want(SseDeserializer deserializer);
 
   @protected
+  ViewOutput sse_decode_view_output(SseDeserializer deserializer);
+
+  @protected
   VoiceConnectionState sse_decode_voice_connection_state(
     SseDeserializer deserializer,
   );
@@ -2479,6 +2536,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_private_event_Sse(
     RustStreamSink<PrivateEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_view_output_Sse(
+    RustStreamSink<ViewOutput> self,
     SseSerializer serializer,
   );
 
@@ -2721,6 +2784,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_plugin(Plugin self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_plugin_channel_state(
+    PluginChannelState self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_plugin_review(
@@ -3380,6 +3449,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_plugin(List<Plugin> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_plugin_channel_type(
+    List<PluginChannelType> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_plugin_config_field(
     List<PluginConfigField> self,
     SseSerializer serializer,
@@ -3716,6 +3791,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_plugin_channel_state(
+    PluginChannelState? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_s_3_config(
     S3Config? self,
     SseSerializer serializer,
@@ -3810,6 +3891,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_plugin(Plugin self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin_channel_state(
+    PluginChannelState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plugin_channel_type(
+    PluginChannelType self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_plugin_config_field(
@@ -4146,6 +4239,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_video_want(VideoWant self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_view_output(ViewOutput self, SseSerializer serializer);
 
   @protected
   void sse_encode_voice_connection_state(

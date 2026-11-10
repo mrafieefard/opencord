@@ -99,13 +99,17 @@ pub(crate) fn member(member: core::Member) -> MemberRecord {
     }
 }
 
-pub(crate) fn channel(channel: core::Channel) -> ChannelRecord {
-    ChannelRecord {
+/// `None` for a plugin channel: the phone doesn't ask for them before
+/// plugins milestone 4, so one only arrives from a server that sends them
+/// anyway, and the phone can't show it.
+pub(crate) fn channel(channel: core::Channel) -> Option<ChannelRecord> {
+    Some(ChannelRecord {
         id: id(channel.id),
         kind: match channel.kind {
             core::ChannelKind::Text => ChannelKind::Text,
             core::ChannelKind::Voice => ChannelKind::Voice,
             core::ChannelKind::Category => ChannelKind::Category,
+            core::ChannelKind::Plugin => return None,
         },
         name: channel.name,
         topic: channel.topic,
@@ -113,7 +117,7 @@ pub(crate) fn channel(channel: core::Channel) -> ChannelRecord {
         position: channel.position,
         user_limit: channel.user_limit,
         text_in_voice: channel.text_in_voice,
-    }
+    })
 }
 
 /// Permission bits as the core's API carries them (an `i64` holding the
@@ -160,7 +164,7 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
         description: ready.server.description,
         owner_id: opt_id(ready.server.owner_id),
         icon_hash: ready.server.icon_hash,
-        channels: ready.channels.into_iter().map(channel).collect(),
+        channels: ready.channels.into_iter().filter_map(channel).collect(),
         access: access_list(ready.channel_permissions),
         members: ready.members.into_iter().map(member).collect(),
         voice_states: ready.voice_states.into_iter().map(voice_state).collect(),

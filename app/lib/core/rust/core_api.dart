@@ -8,11 +8,15 @@ import 'package:opencord/src/rust/api/client.dart' as frb;
 import 'package:opencord/src/rust/api/plugins.dart' as frb_plugins;
 import 'package:opencord/src/rust/api/private.dart' as frb_private;
 import 'package:opencord/src/rust/api/types.dart' as core;
+import 'package:opencord/src/rust/api/views.dart' as frb_views;
 
 /// The Rust core's calls (its generated bindings), behind an interface so
 /// the repository over them can be tested without the native library.
 abstract interface class CoreApi {
   Stream<core.CoreEvent> eventStream();
+
+  /// What the core lists in `Identify.features` from the next connection.
+  void setPluginFeatures(List<String> features);
 
   /// Voice media's connection states and device news.
   Stream<core.MediaEvent> mediaEventStream();
@@ -816,6 +820,10 @@ class FrbCoreApi implements CoreApi {
 
   @override
   Stream<core.CoreEvent> eventStream() => frb.eventStream();
+
+  @override
+  void setPluginFeatures(List<String> features) =>
+      frb_views.setPluginFeatures(features: features);
 
   @override
   Stream<core.MediaEvent> mediaEventStream() => frb.mediaEventStream();

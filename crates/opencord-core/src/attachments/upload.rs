@@ -266,6 +266,10 @@ pub(super) trait Report: Sync {
     fn client(&self) -> &Client;
     fn key(&self) -> &str;
     fn channel_id(&self) -> i64;
+    /// The plugin view a file is for, in place of a channel (0).
+    fn view_id(&self) -> Option<i64> {
+        None
+    }
     fn sized(&self, total: u64);
     fn sent(&self, sent: u64);
     fn phase(&self, phase: UploadPhase);
@@ -390,7 +394,7 @@ pub(super) async fn upload_one(
         width,
         height,
         duration_ms,
-        view_id: None,
+        view_id: report.view_id(),
     });
     let upload = match report.client().request(report.key(), request).await? {
         Response::Upload(upload) => upload,

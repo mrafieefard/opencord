@@ -23,11 +23,17 @@
 //! - `expected` (views the server opened that `open` hasn't claimed yet,
 //!   with what arrived for them): when claimed, when the open fails after
 //!   the server's answer, and on every new session or lost connection of
-//!   their server; at most [`MAX_EXPECTED`] at once.
+//!   their server; at most [`MAX_EXPECTED`] at once. While an `OpenView` is
+//!   on its way, what comes for a view not known yet starts an entry: the
+//!   server queues `view_open` for the plugin before it answers, so the
+//!   plugin's first message can arrive before the answer.
+//! - `opening` (each server's `OpenView`s waiting for their answer): until
+//!   the answer, or the request failing.
 //! - `viewers` (who this device is on each server): replaced by each
 //!   `Ready`; on `close_server`.
+//! - `assets` and the image files: see [`files`].
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
@@ -50,6 +56,10 @@ use super::{Place, ViewContext, ViewHandle, ViewSink, ViewSpec, Viewer, start};
 use crate::api::types::CoreError;
 use crate::http::HttpResponse;
 
+#[path = "client_files.rs"]
+mod files;
+use files::Known;
+
 /// A plugin's client files together, in bytes.
 const CLIENT_FILES_MAX_BYTES: u64 = 16 * 1024 * 1024;
 /// Events and error reports waiting to leave one view, in order.
@@ -64,13 +74,7 @@ const PLATFORM: &str = "desktop";
 /// The words of an `error` op the core sends itself, as the VM's.
 const ERROR_MESSAGE: &str = "This plugin hit an error";
 
-/// A batch for the renderer of one view: the core's view id and the batch
-/// as JSON (the plan's wire format).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ViewOutput {
-    pub view_id: String,
-    pub json: String,
-}
+pub use crate::api::types::ViewOutput;
 
 /// How the service reaches a server: its connection's requests and its
 /// HTTP routes with this device's media token.
@@ -100,6 +104,12 @@ struct Shared {
     outputs: Mutex<Option<mpsc::UnboundedSender<ViewOutput>>>,
     state: Mutex<State>,
     next_id: AtomicU64,
+    /// Cached files' hashes checked this run.
+    verified: Mutex<HashSet<String>>,
+    /// This run's image files, under `<data>/cache/plugin-images`.
+    images_dir: PathBuf,
+    /// Their names, oldest first.
+    images: Mutex<VecDeque<String>>,
 }
 
 #[derive(Default)]
@@ -108,6 +118,10 @@ struct State {
     by_server: HashMap<(String, i64), String>,
     expected: HashMap<(String, i64), Vec<Early>>,
     viewers: HashMap<String, Viewer>,
+    /// (server, plugin) → asset path → its hash and size.
+    assets: HashMap<(String, String), HashMap<String, Known>>,
+    /// Each server's `OpenView`s waiting for their answer.
+    opening: HashMap<String, usize>,
 }
 
 struct Open {
@@ -136,6 +150,7 @@ enum Outgoing {
 
 impl Views {
     pub(crate) fn new(runtime: Handle, data_dir: &Path, transport: Arc<dyn ViewTransport>) -> Self {
+        let images_dir = files::images_dir(&runtime, data_dir);
         Self {
             shared: Arc::new(Shared {
                 runtime,
@@ -145,6 +160,9 @@ impl Views {
                 outputs: Mutex::new(None),
                 state: Mutex::new(State::default()),
                 next_id: AtomicU64::new(1),
+                verified: Mutex::default(),
+                images_dir,
+                images: Mutex::default(),
             }),
         }
     }
@@ -196,6 +214,8 @@ impl Views {
             self.shared.emit_alone(&id, Patch::TooOld);
             return Ok(id);
         }
+        self.shared
+            .remember_assets(key, &opened.plugin_id, &opened.files);
         let scripts = scripts_of(&opened.files);
         let sources = match self
             .shared
@@ -273,6 +293,14 @@ impl Views {
         }
     }
 
+    /// The server a view is open on and the server's id for it, `None`
+    /// while it's being opened again; `None` for a view that isn't open.
+    pub(crate) fn place_of(&self, view_id: &str) -> Option<(String, Option<i64>)> {
+        let state = self.shared.lock();
+        let view = state.views.get(view_id)?;
+        Some((view.key.clone(), view.server_id))
+    }
+
     /// Closes a view: the server hears it, and the VM runs its `close`
     /// listeners and ends, off the caller's thread.
     pub(crate) fn close(&self, view_id: &str) {
@@ -290,6 +318,7 @@ impl Views {
     pub(crate) fn close_server(&self, key: &str) {
         let mut state = self.shared.lock();
         state.viewers.remove(key);
+        state.assets.retain(|(server, _), _| server != key);
         state.expected.retain(|(server, _), _| server != key);
         state.by_server.retain(|(server, _), _| server != key);
         let ids: Vec<String> = state
@@ -313,6 +342,11 @@ impl Views {
     /// its events.
     pub(crate) fn expect(&self, key: &str, server_id: i64) {
         let mut state = self.shared.lock();
+        let at = (key.to_owned(), server_id);
+        if state.expected.contains_key(&at) {
+            // Something came for it before the answer: keep it.
+            return;
+        }
         if state.expected.len() >= MAX_EXPECTED {
             tracing::warn!(
                 view = server_id,
@@ -320,15 +354,13 @@ impl Views {
             );
             return;
         }
-        state
-            .expected
-            .insert((key.to_owned(), server_id), Vec::new());
+        state.expected.insert(at, Vec::new());
     }
 
     pub(crate) fn on_message(&self, key: &str, message: proto::ViewMessage) {
         let mut state = self.shared.lock();
         let at = (key.to_owned(), message.view_id);
-        if let Some(early) = state.expected.get_mut(&at) {
+        if let Some(early) = state.early_for(&at) {
             if early.len() < MAX_EARLY {
                 early.push(Early::Message {
                     name: message.name,
@@ -356,7 +388,7 @@ impl Views {
         let reason = close_reason(closed.reason);
         let mut state = self.shared.lock();
         let at = (key.to_owned(), closed.view_id);
-        if let Some(early) = state.expected.get_mut(&at) {
+        if let Some(early) = state.early_for(&at) {
             early.push(Early::Closed(reason));
             return;
         }
@@ -372,6 +404,8 @@ impl Views {
     /// New client files for a plugin's open views on `key`: loaded once,
     /// then each view reloads keeping its state.
     pub(crate) fn on_scripts(&self, key: &str, update: proto::ViewScriptsUpdate) {
+        self.shared
+            .remember_assets(key, &update.plugin_id, &update.files);
         let shared = self.shared.clone();
         let key = key.to_owned();
         self.shared.runtime.spawn(async move {
@@ -434,6 +468,7 @@ impl Views {
         }
         state.expected.retain(|(server, _), _| server != key);
         state.by_server.retain(|(server, _), _| server != key);
+        state.assets.retain(|(server, _), _| server != key);
         let mut ids = Vec::new();
         for (id, view) in state.views.iter_mut().filter(|(_, view)| view.key == key) {
             view.server_id = None;
@@ -445,6 +480,49 @@ impl Views {
             self.shared
                 .runtime
                 .spawn(async move { shared.reopen(id).await });
+        }
+    }
+}
+
+impl State {
+    /// Where what arrives for the server's view `at` waits, if it's a view
+    /// being opened: one the server answered for, or, while an `OpenView`
+    /// of that server is on its way, one not known yet.
+    fn early_for(&mut self, at: &(String, i64)) -> Option<&mut Vec<Early>> {
+        let unknown = !self.expected.contains_key(at) && !self.by_server.contains_key(at);
+        let opening = self.opening.get(&at.0).is_some_and(|n| *n > 0);
+        if unknown && opening && self.expected.len() < MAX_EXPECTED {
+            self.expected.insert(at.clone(), Vec::new());
+        }
+        self.expected.get_mut(at)
+    }
+}
+
+/// An `OpenView` on its way to `key`, counted in `State::opening` until
+/// dropped.
+struct Opening<'a> {
+    shared: &'a Shared,
+    key: String,
+}
+
+impl<'a> Opening<'a> {
+    fn new(shared: &'a Shared, key: &str) -> Self {
+        *shared.lock().opening.entry(key.to_owned()).or_default() += 1;
+        Self {
+            shared,
+            key: key.to_owned(),
+        }
+    }
+}
+
+impl Drop for Opening<'_> {
+    fn drop(&mut self) {
+        let mut state = self.shared.lock();
+        if let Some(count) = state.opening.get_mut(&self.key) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                state.opening.remove(&self.key);
+            }
         }
     }
 }
@@ -468,6 +546,7 @@ impl Shared {
             }),
             platform: PLATFORM.to_owned(),
         });
+        let _opening = Opening::new(self, key);
         match self.transport.request(key, request).await? {
             Response::ViewOpened(opened) => Ok(opened),
             _ => Err(CoreError::Connection {
@@ -574,6 +653,7 @@ impl Shared {
             }
             return;
         }
+        self.remember_assets(&key, &opened.plugin_id, &opened.files);
         let scripts = scripts_of(&opened.files);
         if scripts != files {
             match self.load(&key, &opened.plugin_id, &opened.files).await {
@@ -866,7 +946,9 @@ async fn write_aside(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         tokio::fs::create_dir_all(dir).await?;
     }
-    let aside = path.with_extension(format!("part{}", std::process::id()));
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    let aside = path.with_extension(format!("part{}-{n}", std::process::id()));
     tokio::fs::write(&aside, bytes).await?;
     tokio::fs::rename(&aside, path).await
 }

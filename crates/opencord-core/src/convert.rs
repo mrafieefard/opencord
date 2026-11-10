@@ -6,12 +6,13 @@ use crate::api::types::{
     Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, CommandRunState,
     ConnectAddress, CoreError, CoreEventPayload, CreatedPluginDevToken, EphemeralMessage,
     ErrorCode, GithubCheck, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite,
-    Plugin, PluginConfigField, PluginConfigKind, PluginConfigValue, PluginDevToken, PluginLogLevel,
-    PluginLogLine, PluginPermissionGrant, PluginReview, PluginSignature, PluginState, PluginUser,
-    Presence, PresenceStatus, PrivateSettings, ReadySnapshot, Role, S3Config,
-    ScreenShareResolution, ScreenStream, ServerAddresses, ServerInfo, SoundEffect, SoundboardSound,
-    StorageBackend, StorageInfo, StorageKind, StorageMove, StorageTestResult, StorageTestStep,
-    StreamSourceKind, UploadSettings, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Plugin, PluginChannelState, PluginChannelType, PluginConfigField, PluginConfigKind,
+    PluginConfigValue, PluginDevToken, PluginLogLevel, PluginLogLine, PluginPermissionGrant,
+    PluginReview, PluginSignature, PluginState, PluginUser, Presence, PresenceStatus,
+    PrivateSettings, ReadySnapshot, Role, S3Config, ScreenShareResolution, ScreenStream,
+    ServerAddresses, ServerInfo, SoundEffect, SoundboardSound, StorageBackend, StorageInfo,
+    StorageKind, StorageMove, StorageTestResult, StorageTestStep, StreamSourceKind, UploadSettings,
+    User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -61,6 +62,7 @@ pub fn channel_kind(kind: i32) -> ChannelKind {
     match proto::ChannelKind::try_from(kind) {
         Ok(proto::ChannelKind::Voice) => ChannelKind::Voice,
         Ok(proto::ChannelKind::Category) => ChannelKind::Category,
+        Ok(proto::ChannelKind::Plugin) => ChannelKind::Plugin,
         _ => ChannelKind::Text,
     }
 }
@@ -70,6 +72,27 @@ pub fn channel_kind_to_proto(kind: ChannelKind) -> proto::ChannelKind {
         ChannelKind::Text => proto::ChannelKind::Text,
         ChannelKind::Voice => proto::ChannelKind::Voice,
         ChannelKind::Category => proto::ChannelKind::Category,
+        ChannelKind::Plugin => proto::ChannelKind::Plugin,
+    }
+}
+
+/// A plugin channel's state; one the server didn't name can't be opened.
+pub fn plugin_channel_state(state: i32) -> PluginChannelState {
+    match proto::PluginChannelState::try_from(state) {
+        Ok(proto::PluginChannelState::Available) => PluginChannelState::Available,
+        Ok(proto::PluginChannelState::TypeGone) => PluginChannelState::TypeGone,
+        _ => PluginChannelState::PluginStopped,
+    }
+}
+
+pub fn plugin_channel_type(kind: proto::PluginChannelType) -> PluginChannelType {
+    PluginChannelType {
+        plugin_id: kind.plugin_id,
+        type_key: kind.type_key,
+        name: kind.name,
+        description: kind.description,
+        icon: kind.icon,
+        plugin_name: kind.plugin_name,
     }
 }
 
@@ -93,9 +116,14 @@ pub fn overwrite(overwrite: proto::PermissionOverwrite) -> PermissionOverwrite {
 }
 
 pub fn channel(channel: proto::Channel) -> Channel {
+    let kind = channel_kind(channel.kind);
+    let plugin = kind == ChannelKind::Plugin;
     Channel {
         id: channel.id,
-        kind: channel_kind(channel.kind),
+        kind,
+        plugin_id: channel.plugin_id.filter(|_| plugin),
+        type_key: channel.type_key.filter(|_| plugin),
+        plugin_state: plugin.then(|| plugin_channel_state(channel.plugin_state)),
         name: channel.name,
         topic: channel.topic,
         parent_id: channel.parent_id,
@@ -462,6 +490,11 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
         private_messages: ready.private_messages_v2,
         private_settings: private_settings(ready.private_settings.unwrap_or_default()),
         plugin_users: ready.plugin_users.into_iter().map(plugin_user).collect(),
+        plugin_channel_types: ready
+            .plugin_channel_types
+            .into_iter()
+            .map(plugin_channel_type)
+            .collect(),
     }
 }
 
@@ -639,6 +672,9 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         Kind::PluginUsersUpdate(event) => CoreEventPayload::PluginUsersUpdate(
             event.users.into_iter().map(plugin_user).collect(),
         ),
+        Kind::PluginChannelTypesUpdate(event) => CoreEventPayload::PluginChannelTypesUpdate(
+            event.types.into_iter().map(plugin_channel_type).collect(),
+        ),
         // With the server's clock: `music::event`.
         Kind::MusicSnapshot(_)
         | Kind::MusicUpdate(_)
@@ -650,10 +686,11 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         | Kind::UploadFailed(_)
         | Kind::PendingEvent(_)
         | Kind::PrivateTypingStart(_)
+        // For the views open on that server: `connection.rs` hands them to
+        // `Views`.
         | Kind::ViewMessage(_)
         | Kind::ViewClosed(_)
-        | Kind::ViewScriptsUpdate(_)
-        | Kind::PluginChannelTypesUpdate(_) => return None,
+        | Kind::ViewScriptsUpdate(_) => return None,
     })
 }
 

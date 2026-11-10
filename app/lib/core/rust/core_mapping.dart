@@ -68,11 +68,20 @@ Attachment attachmentFrom(core.Attachment a) => Attachment(
   animated: a.animated,
 );
 
+/// Plugin channels never get here: until plugins milestone 2's Task 18
+/// gives the model `ChannelKind.plugin`, [readyFrom] and the channel events
+/// leave them out ([isShownChannel]).
 ChannelKind channelKindFrom(core.ChannelKind kind) => switch (kind) {
   core.ChannelKind.text => ChannelKind.text,
   core.ChannelKind.voice => ChannelKind.voice,
   core.ChannelKind.category => ChannelKind.category,
+  core.ChannelKind.plugin => ChannelKind.text,
 };
+
+/// Whether the app models channels of this kind yet: not plugin channels
+/// before plugins milestone 2's Task 18.
+bool isShownChannel(core.Channel channel) =>
+    channel.kind != core.ChannelKind.plugin;
 
 /// Announcement channels are not in Phase 1's protocol; they go as text.
 core.ChannelKind channelKindTo(ChannelKind kind) => switch (kind) {
@@ -343,7 +352,10 @@ ReadySnapshot snapshotFrom(
 }) => ReadySnapshot(
   self: userFrom(ready.selfUser),
   info: serverInfoFrom(ready.server),
-  channels: [for (final channel in ready.channels) channelFrom(channel)],
+  channels: [
+    for (final channel in ready.channels)
+      if (isShownChannel(channel)) channelFrom(channel),
+  ],
   roles: [for (final role in ready.roles) roleFrom(role)],
   members: [for (final member in ready.members) memberFrom(member)],
   presences: {
