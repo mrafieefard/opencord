@@ -1,0 +1,211 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../controller.dart';
+import '../theme.dart';
+import '../view.dart';
+import 'dialogs.dart';
+
+/// Modal layer (§12.5): draws named modals from [BlocksRoots.modals] over a
+/// dimmed backdrop inside the plugin area. Focus stays trapped in the top modal,
+/// opening scales from 0.97 and fades in 180 ms ease-out, and closing is instant.
+class ModalLayer extends StatelessWidget {
+  const ModalLayer({
+    super.key,
+    required this.controller,
+    required this.theme,
+    required this.constraints,
+  });
+
+  final BlocksController controller;
+  final BlocksTheme theme;
+  final BoxConstraints constraints;
+
+  @override
+  Widget build(BuildContext context) {
+    final modals = controller.roots?.modals ?? const [];
+    final dialogs = controller.dialogs;
+
+    if (modals.isEmpty && dialogs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final isCompact = constraints.maxWidth < 600;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < modals.length; i++)
+          _ModalWidget(
+            key: ValueKey<String>('modal_${modals[i].name}'),
+            modal: modals[i],
+            isTop: i == modals.length - 1 && dialogs.isEmpty,
+            isCompact: isCompact,
+            constraints: constraints,
+            controller: controller,
+            theme: theme,
+          ),
+        QuickDialogsLayer(controller: controller, theme: theme),
+      ],
+    );
+  }
+}
+
+class _ModalWidget extends StatefulWidget {
+  const _ModalWidget({
+    super.key,
+    required this.modal,
+    required this.isTop,
+    required this.isCompact,
+    required this.constraints,
+    required this.controller,
+    required this.theme,
+  });
+
+  final BlocksModalRoot modal;
+  final bool isTop;
+  final bool isCompact;
+  final BoxConstraints constraints;
+  final BlocksController controller;
+  final BlocksTheme theme;
+
+  @override
+  State<_ModalWidget> createState() => _ModalWidgetState();
+}
+
+class _ModalWidgetState extends State<_ModalWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+  late final Animation<double> _curved;
+  late final FocusScopeNode _focusScopeNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )..forward();
+    _curved = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
+    _focusScopeNode = FocusScopeNode();
+  }
+
+  @override
+  void dispose() {
+    _focusScopeNode.dispose();
+    _anim.dispose();
+    super.dispose();
+  }
+
+  void _dismiss() {
+    if (widget.modal.dismissible) {
+      widget.controller.send({
+        'kind': 'modal_dismiss',
+        'name': widget.modal.name,
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final modal = widget.modal;
+    final theme = widget.theme;
+    final constraints = widget.constraints;
+
+    // At compact breakpoint (< 600 px), modal shows as sheet unless sheet == false
+    final isSheet = widget.isCompact
+        ? modal.sheet
+        : (modal.sheet && modal.size == 'sheet');
+
+    final double width;
+    if (modal.size == 'full') {
+      width = constraints.maxWidth;
+    } else if (isSheet) {
+      width = constraints.maxWidth;
+    } else {
+      final target = switch (modal.size) {
+        'small' => 360.0,
+        'medium' => 520.0,
+        'large' => 760.0,
+        _ => 520.0,
+      };
+      width = math.min(target, constraints.maxWidth);
+    }
+
+    Widget content = Container(
+      key: ValueKey<String>('modal_card_${modal.name}'),
+      width: width,
+      constraints: BoxConstraints(
+        maxHeight: constraints.maxHeight,
+        minHeight: modal.size == 'full' ? constraints.maxHeight : 0,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colors['elevated']!,
+        borderRadius: isSheet
+            ? const BorderRadius.vertical(top: Radius.circular(16))
+            : (modal.size == 'full'
+                  ? BorderRadius.zero
+                  : BorderRadius.circular(12)),
+        border: modal.size == 'full'
+            ? null
+            : Border.all(color: theme.colors['border']!, width: 1),
+        boxShadow: theme.shadows['lg'],
+      ),
+      child: ClipRRect(
+        borderRadius: isSheet
+            ? const BorderRadius.vertical(top: Radius.circular(16))
+            : (modal.size == 'full'
+                  ? BorderRadius.zero
+                  : BorderRadius.circular(12)),
+        child: BlockWidget(key: ValueKey<int>(modal.id), id: modal.id),
+      ),
+    );
+
+    // Opening animation: scales from 0.97 and fades in 180 ms ease-out
+    content = ScaleTransition(
+      scale: Tween<double>(begin: 0.97, end: 1.0).animate(_curved),
+      child: FadeTransition(opacity: _curved, child: content),
+    );
+
+    final alignment = isSheet
+        ? Alignment.bottomCenter
+        : (modal.size == 'full' ? Alignment.topLeft : Alignment.center);
+
+    Widget modalTree = Stack(
+      fit: StackFit.expand,
+      children: [
+        // Backdrop
+        GestureDetector(
+          key: ValueKey<String>('modal_backdrop_${modal.name}'),
+          behavior: HitTestBehavior.opaque,
+          onTap: _dismiss,
+          child: Container(color: Colors.black54),
+        ),
+        // Content container
+        Align(
+          alignment: alignment,
+          child: GestureDetector(
+            onTap: () {}, // Don't propagate tap to backdrop
+            behavior: HitTestBehavior.opaque,
+            child: content,
+          ),
+        ),
+      ],
+    );
+
+    if (widget.isTop) {
+      modalTree = CallbackShortcuts(
+        bindings: {const SingleActivator(LogicalKeyboardKey.escape): _dismiss},
+        child: FocusScope(
+          node: _focusScopeNode,
+          autofocus: true,
+          child: modalTree,
+        ),
+      );
+    }
+
+    return modalTree;
+  }
+}

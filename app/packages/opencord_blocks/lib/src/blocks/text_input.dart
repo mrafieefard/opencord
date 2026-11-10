@@ -38,8 +38,24 @@ class _TextInputWidgetState extends State<_TextInputWidget> {
     final initial = widget.build.props['value'] as String? ?? '';
     _controller = TextEditingController(text: initial);
     _lastSentValue = initial;
-    _focusNode = FocusNode();
+    _focusNode = FocusNode(onKeyEvent: _handleKey);
     _focusNode.addListener(_onFocusChange);
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    final lines = (widget.build.props['lines'] as num?)?.toInt() ?? 1;
+    final isSingleLine = lines <= 1;
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
+      if (isSingleLine) {
+        _submit();
+        return KeyEventResult.handled;
+      } else if (HardwareKeyboard.instance.isControlPressed ||
+          HardwareKeyboard.instance.isMetaPressed) {
+        _submit();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -140,72 +156,53 @@ class _TextInputWidgetState extends State<_TextInputWidget> {
 
     return Material(
       type: MaterialType.transparency,
-      child: Focus(
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.enter) {
-            if (isSingleLine) {
-              _submit();
-              return KeyEventResult.handled;
-            } else if (HardwareKeyboard.instance.isControlPressed ||
-                HardwareKeyboard.instance.isMetaPressed) {
-              _submit();
-              return KeyEventResult.handled;
-            }
-          }
-          return KeyEventResult.ignored;
-        },
-        child: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          enabled: !disabled,
-          obscureText: password,
-          maxLines: isSingleLine ? 1 : lines,
-          minLines: isSingleLine ? 1 : lines,
-          maxLength: maxLength > 0 ? maxLength : null,
-          maxLengthEnforcement: MaxLengthEnforcement.enforced,
-          buildCounter:
-              (
-                _, {
-                required currentLength,
-                required isFocused,
-                required maxLength,
-              }) => null,
-          onChanged: _onChanged,
-          onSubmitted: (_) => _submit(),
-          style: TextStyle(
-            fontFamily: theme.text.fontFamily ?? 'Inter',
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        enabled: !disabled,
+        obscureText: password,
+        maxLines: isSingleLine ? 1 : lines,
+        minLines: isSingleLine ? 1 : lines,
+        maxLength: maxLength > 0 ? maxLength : null,
+        maxLengthEnforcement: MaxLengthEnforcement.enforced,
+        buildCounter:
+            (
+              _, {
+              required currentLength,
+              required isFocused,
+              required maxLength,
+            }) => null,
+        onChanged: _onChanged,
+        onSubmitted: (_) => _submit(),
+        style: TextStyle(
+          fontFamily: theme.text.fontFamily ?? 'Inter',
+          fontSize: 14,
+          color: theme.colors['text']!,
+        ),
+        decoration: InputDecoration(
+          hintText: placeholder,
+          hintStyle: TextStyle(
+            color: theme.colors['text_muted']!,
             fontSize: 14,
-            color: theme.colors['text']!,
           ),
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: TextStyle(
-              color: theme.colors['text_muted']!,
-              fontSize: 14,
-            ),
-            filled: true,
-            fillColor: theme.colors['surface']!,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: theme.colors['border']!, width: 1),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: theme.colors['border']!, width: 1),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(
-                color: theme.colors['accent']!,
-                width: 1.5,
-              ),
-            ),
+          filled: true,
+          fillColor: theme.colors['surface']!,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: theme.colors['border']!, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: theme.colors['border']!, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: theme.colors['accent']!, width: 1.5),
           ),
         ),
       ),
