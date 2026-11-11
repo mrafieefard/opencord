@@ -377,6 +377,7 @@ async fn views_of_another_session_cant_be_used() {
 async fn losing_access_closes_the_view() {
     let mut w = world().await;
     let view = open_view(&mut w.member, w.channel_id).await.view_id;
+    wait_for_log(&mut w.admin, PLUGIN, &format!("open {view}")).await;
     let everyone = w.admin_ready.server.as_ref().unwrap().everyone_role_id;
     w.admin
         .ok(Kind::SetChannelOverwrite(proto::SetChannelOverwrite {
@@ -460,6 +461,7 @@ async fn views_survive_a_restart_and_the_new_vm_hears_them() {
 async fn stopping_closes_views() {
     let mut w = world().await;
     let view = open_view(&mut w.member, w.channel_id).await.view_id;
+    wait_for_log(&mut w.admin, PLUGIN, &format!("open {view}")).await;
     w.admin
         .ok(Kind::SetPluginRunning(proto::SetPluginRunning {
             plugin_id: PLUGIN.to_owned(),
