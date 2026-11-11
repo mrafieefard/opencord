@@ -90,6 +90,7 @@ class MockRepository implements OpencordRepository {
   MockPrivateWorld get privateWorld => _privateWorld;
 
   RepoException? createChannelError;
+  final List<String> closedViews = [];
 
   void emit(RepoEvent event) => _emit(event);
   RepoException? _privateUnavailable;
@@ -177,6 +178,9 @@ class MockRepository implements OpencordRepository {
             {'op': 'roots', 'main': 1, 'modals': <Object?>[]},
           ],
         });
+      }
+      if (!inputJson.contains('"event":"press"')) {
+        return null;
       }
       count++;
       seq++;
@@ -408,7 +412,6 @@ class MockRepository implements OpencordRepository {
   /// Adds `#scroll-test` with 10 000 messages to [serverKey].
   void debugStressChannel(String serverKey) {
     final server = _server(serverKey);
-    if (createChannelError != null) throw createChannelError!;
     final id = _world.ids.at(_clock());
     final channel = Channel(
       id: id,
@@ -1014,7 +1017,6 @@ class MockRepository implements OpencordRepository {
     bool? textInVoice,
   }) async {
     final server = _server(serverKey);
-    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     final channel =
         server.channels[channelId] ??
@@ -1050,7 +1052,6 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> deleteChannel(String serverKey, int channelId) async {
     final server = _server(serverKey);
-    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     await _latency();
     final channel = server.channels.remove(channelId);
@@ -1077,7 +1078,6 @@ class MockRepository implements OpencordRepository {
     Map<int, int> positions,
   ) async {
     final server = _server(serverKey);
-    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     await _latency();
     for (final MapEntry(key: id, value: position) in positions.entries) {
@@ -5701,10 +5701,15 @@ class MockRepository implements OpencordRepository {
 
   @override
   Future<void> closeView(String viewId) async {
+    closedViews.add(viewId);
     _activeViews.remove(viewId);
     _unclaimedOutputs.remove(viewId);
     _activeMockViews.remove(viewId);
   }
+
+  String Function(String serverKey, String pluginId, String path)?
+  onPluginAssetFile;
+  final List<(String, int, String)> uploadedViews = [];
 
   @override
   Future<String> pluginAssetFile(
@@ -5712,7 +5717,8 @@ class MockRepository implements OpencordRepository {
     String pluginId,
     String path,
     String sha256,
-  ) async => 'assets/$path';
+  ) async =>
+      onPluginAssetFile?.call(serverKey, pluginId, path) ?? 'assets/$path';
 
   @override
   Future<String?> pluginImageFile(
@@ -5722,7 +5728,9 @@ class MockRepository implements OpencordRepository {
   ) async => null;
 
   @override
-  Future<void> viewUpload(String viewId, int nodeId, String path) async {}
+  Future<void> viewUpload(String viewId, int nodeId, String path) async {
+    uploadedViews.add((viewId, nodeId, path));
+  }
 
   @override
   Future<Channel> createPluginChannel(

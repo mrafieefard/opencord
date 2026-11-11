@@ -47,40 +47,85 @@ fn ticket_client_script_opens_modal_and_submits_ticket() {
     assert_eq!(modals.len(), 1, "expected 1 modal open");
     assert_eq!(modals[0].name, "new_ticket");
 
-    // Find the text inputs by placeholder
+    // Find the text inputs by placeholder and segmented control
     let mut title_id = None;
     let mut body_id = None;
+    let mut priority_id = None;
     for op in seen.ops() {
         if let Patch::Create {
             id, block, props, ..
         } = op
-            && block == "text_input"
         {
-            if props.get("placeholder") == Some(&json!("Title")) {
-                title_id = Some(id);
-            } else if props.get("placeholder") == Some(&json!("Description")) {
-                body_id = Some(id);
+            if block == "text_input" {
+                if props.get("placeholder") == Some(&json!("Title")) {
+                    title_id = Some(id);
+                } else if props.get("placeholder") == Some(&json!("Description")) {
+                    body_id = Some(id);
+                }
+            } else if block == "segmented" {
+                priority_id = Some(id);
             }
         }
     }
     let title_id = title_id.expect("expected title text_input");
     let body_id = body_id.expect("expected body text_input");
+    let priority_id = priority_id.expect("expected priority segmented");
     let submit_btn = seen.node("button", "Open ticket");
 
     // 3. Submitting sends ticket.create with typed values
-    event(&view, *title_id, "change", json!("Printer on fire"));
+    // Fails if on_change handler does not read .value from data table.
+    event(
+        &view,
+        *title_id,
+        "change",
+        json!({"value": "Printer on fire"}),
+    );
     event(
         &view,
         *body_id,
         "change",
-        json!("There is smoke coming out of tray 2"),
+        json!({"value": "There is smoke coming out of tray 2"}),
     );
+    event(&view, *priority_id, "change", json!({"value": "high"}));
     event(&view, submit_btn, "press", json!({}));
     let seen = settle(&view, &recorder);
+
+    for op in seen.ops() {
+        if let Patch::Error { message, details } = op {
+            panic!("unexpected Patch::Error after change: {message} ({details:?})");
+        }
+    }
 
     let created = seen.sent("ticket.create");
     assert_eq!(created.len(), 1, "expected ticket.create sent once");
     assert_eq!(created[0]["title"], "Printer on fire");
     assert_eq!(created[0]["body"], "There is smoke coming out of tray 2");
-    assert_eq!(created[0]["priority"], "normal");
+    assert_eq!(created[0]["priority"], "high");
+
+    // 4. Receiving a ticket.list with one ticket renders badges without error
+    // Fails if badge uses "variant" instead of "tone".
+    view.server_message(
+        "ticket.list".to_string(),
+        json!({
+            "tickets": [
+                {
+                    "id": 1,
+                    "title": "Printer on fire",
+                    "body": "There is smoke coming out of tray 2",
+                    "state": "open",
+                    "priority": "high",
+                    "author_id": "123",
+                    "author_name": "Alice"
+                }
+            ]
+        })
+        .to_string(),
+    );
+    let seen = settle(&view, &recorder);
+    for op in seen.ops() {
+        if let Patch::Error { message, details } = op {
+            panic!("unexpected Patch::Error on ticket.list: {message} ({details:?})");
+        }
+    }
+    let _ = seen.node("text", "Printer on fire");
 }

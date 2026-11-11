@@ -262,12 +262,13 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
             onSubmitted: (_) => _create(),
           ),
           // Private means overwrites, which need Manage roles.
-          if (ref.watch(
-                serverProvider(
-                  widget.serverKey,
-                ).select((s) => s.data?.can(Permissions.manageRoles)),
-              ) ??
-              false) ...[
+          if (_selectedPluginType == null &&
+              (ref.watch(
+                    serverProvider(
+                      widget.serverKey,
+                    ).select((s) => s.data?.can(Permissions.manageRoles)),
+                  ) ??
+                  false)) ...[
             const SizedBox(height: OcSpace.s16),
             Row(
               children: [
@@ -327,9 +328,7 @@ class _KindCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.oc;
     Widget iconWidget;
-    if (iconFile != null &&
-        iconFile!.isNotEmpty &&
-        File(iconFile!).existsSync()) {
+    if (iconFile != null && iconFile!.isNotEmpty) {
       iconWidget = Image.file(
         File(iconFile!),
         width: OcSize.iconButton,

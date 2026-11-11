@@ -9,12 +9,23 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 import 'package:opencord_blocks/opencord_blocks.dart';
 
+/// A [BlocksController] that also exposes the real backend [viewId] once open.
+class PluginBlocksController extends BlocksController {
+  final ValueNotifier<String?> viewId = ValueNotifier<String?>(null);
+
+  @override
+  void dispose() {
+    viewId.dispose();
+    super.dispose();
+  }
+}
+
 /// One plugin view's controller: connects its renderer to the server and
 /// closes it when the page leaves.
 final pluginViewProvider = Provider.autoDispose
-    .family<BlocksController, ChannelRef>((ref, channel) {
+    .family<PluginBlocksController, ChannelRef>((ref, channel) {
       final repository = ref.watch(repositoryProvider);
-      final controller = BlocksController();
+      final controller = PluginBlocksController();
 
       StreamSubscription<ViewOutput>? outputSub;
       StreamSubscription<String>? inputSub;
@@ -98,6 +109,7 @@ final pluginViewProvider = Provider.autoDispose
             return;
           }
           openViewId = viewId;
+          controller.viewId.value = viewId;
 
           for (final early in earlyOutputs) {
             if (early.viewId == viewId) {

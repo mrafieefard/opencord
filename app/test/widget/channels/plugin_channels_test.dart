@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/ui/widgets/oc_switch.dart';
 
 import '../../support/app.dart';
 
@@ -19,22 +22,101 @@ void main() {
 
   // Fails if a plugin channel does not show its registered type icon
   // or extension glyph fallback, or if unread/mention badges are rendered.
+  // Mutation: channel_glyph.dart forces iconFile: null -> Image widget is never built.
   testWidgets('a_plugin_channel_shows_its_type_icon', (tester) async {
+    final tempDir = Directory.systemTemp;
+    final iconFile = File('${tempDir.path}/test_tickets_icon.png');
+    // Valid 1x1 transparent PNG bytes
+    iconFile.writeAsBytesSync([
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A,
+      0x00,
+      0x00,
+      0x00,
+      0x0D,
+      0x49,
+      0x48,
+      0x44,
+      0x52,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x08,
+      0x06,
+      0x00,
+      0x00,
+      0x00,
+      0x1F,
+      0x15,
+      0xC4,
+      0x89,
+      0x00,
+      0x00,
+      0x00,
+      0x0A,
+      0x49,
+      0x44,
+      0x41,
+      0x54,
+      0x78,
+      0x9C,
+      0x63,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x05,
+      0x00,
+      0x01,
+      0x0D,
+      0x0A,
+      0x2D,
+      0xB4,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x49,
+      0x45,
+      0x4E,
+      0x44,
+      0xAE,
+      0x42,
+      0x60,
+      0x82,
+    ]);
+
     final app = await MockApp.pump(tester, size: const Size(1440, 1200));
+    app.repository.onPluginAssetFile = (server, plugin, asset) => iconFile.path;
+
     final server = app.repository.mockServer(serverKey);
-    server.pluginChannelTypes.clear();
-    server.pluginChannelTypes.add(
+    final typesWithIcon = [
       const PluginChannelType(
         pluginId: 'support-tickets',
         typeKey: 'tickets',
         name: 'Tickets',
         description: 'Support desk',
-        icon: '',
+        icon: 'ticket.png',
         pluginName: 'Support Tickets',
       ),
-    );
+    ];
+    server.pluginChannelTypes.clear();
+    server.pluginChannelTypes.addAll(typesWithIcon);
+    app.repository.emit(PluginChannelTypesUpdated(serverKey, typesWithIcon));
 
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     // Verify channel row exists and shows its name
     final ticketsRowFinder = find.byWidgetPredicate(
@@ -55,7 +137,29 @@ void main() {
       findsNothing,
     );
 
-    // Verify fallback to OcIcons.extension when icon path is empty
+    // Verify Image widget is built when icon resolves to a file
+    expect(
+      find.descendant(of: ticketsRowFinder, matching: find.byType(Image)),
+      findsOneWidget,
+    );
+
+    // Fallback to OcIcons.extension when icon path is empty
+    final typesWithoutIcon = [
+      const PluginChannelType(
+        pluginId: 'support-tickets',
+        typeKey: 'tickets',
+        name: 'Tickets',
+        description: 'Support desk',
+        icon: '',
+        pluginName: 'Support Tickets',
+      ),
+    ];
+    server.pluginChannelTypes.clear();
+    server.pluginChannelTypes.addAll(typesWithoutIcon);
+    app.repository.emit(PluginChannelTypesUpdated(serverKey, typesWithoutIcon));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
     expect(
       find.descendant(
         of: ticketsRowFinder,
@@ -64,11 +168,15 @@ void main() {
       findsOneWidget,
     );
 
+    try {
+      iconFile.deleteSync();
+    } on Object catch (_) {}
     await app.dispose(tester);
   });
 
   // Fails if an unavailable channel can be opened by row click, keyboard
   // navigation, or app link, or fails to display "This channel is unavailable".
+  // Mutation: NavigationNotifier.openChannel skips cannotOpenReason guard.
   testWidgets('an_unavailable_channel_shows_why_and_doesnt_open', (
     tester,
   ) async {
@@ -99,12 +207,23 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
 
     // 2. Keyboard navigation path
-    // Press Alt + Down arrow to step navigation
-    await tester.sendKeyEvent(LogicalKeyboardKey.alt);
+    // Open 'tickets' channel first, which is immediately before 'legacy-help'
+    final ticketsId = server.channels.values
+        .firstWhere((c) => c.name == 'tickets')
+        .id;
+    app.read(navigationProvider.notifier).openChannel(serverKey, ticketsId);
+    await tester.pumpAndSettle();
+    expect(app.read(currentChannelProvider), ticketsId);
+
+    // Hold Alt and press Down arrow to step navigation towards legacy-help
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.alt);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.pump();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.alt);
+    await tester.pump();
 
-    expect(app.read(currentChannelProvider), isNot(equals(channelId)));
+    expect(app.read(currentChannelProvider), ticketsId);
+    expect(find.text('This channel is unavailable'), findsOneWidget);
 
     // 3. Link path: opencord://serverKey/c/channelId
     final parsed = parseAppLink('opencord://$serverKey/c/$channelId');
@@ -180,9 +299,25 @@ void main() {
     expect(find.text('Tickets'), findsOneWidget);
     expect(find.text('Support Tickets'), findsOneWidget);
 
+    // Verify private channel switch is initially shown for standard channels
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is OcSwitch && w.semanticLabel == 'Private channel',
+      ),
+      findsOneWidget,
+    );
+
     // Select the plugin channel type card
     await tester.tap(find.text('Tickets'));
     await tester.pumpAndSettle();
+
+    // Verify private channel switch is hidden for plugin channels (mutation: remove `_selectedPluginType == null`)
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is OcSwitch && w.semanticLabel == 'Private channel',
+      ),
+      findsNothing,
+    );
 
     // Type name in dialog's text field
     final dialogField = find.descendant(

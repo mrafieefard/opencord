@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:opencord/core/hotkeys.dart';
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
-import 'package:opencord/core/settings/keybinds.dart';
-import 'package:opencord/features/chat/connection_banner.dart';
 import 'package:opencord/features/plugins/blocks_host.dart';
 import 'package:opencord/features/plugins/blocks_theme.dart';
 import 'package:opencord/features/shell/shortcuts.dart';
@@ -37,17 +34,19 @@ class PluginAreaState extends ConsumerState<PluginArea>
     with WidgetsBindingObserver {
   late final FocusNode _focusNode;
   OpencordBlocksHost? _blocksHost;
-  bool? _lastConnectionUnreachable;
 
   BlocksHost get blocksHost {
     final serverData = ref.read(serverProvider(widget.serverKey)).data;
     final channel = serverData?.channels[widget.channelId];
+    final controller = ref.read(
+      pluginViewProvider((server: widget.serverKey, channel: widget.channelId)),
+    );
     return _blocksHost ??= OpencordBlocksHost(
       context: context,
       ref: ref,
       serverKey: widget.serverKey,
       pluginId: channel?.pluginId ?? '',
-      viewId: 'view_${widget.channelId}',
+      viewId: controller.viewId,
     );
   }
 
@@ -67,6 +66,10 @@ class PluginAreaState extends ConsumerState<PluginArea>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final serverData = ref.read(serverProvider(widget.serverKey)).data;
+    final channel = serverData?.channels[widget.channelId];
+    if (channel?.pluginState != PluginChannelState.available) return;
+
     final controller = ref.read(
       pluginViewProvider((server: widget.serverKey, channel: widget.channelId)),
     );
@@ -74,9 +77,9 @@ class PluginAreaState extends ConsumerState<PluginArea>
       case AppLifecycleState.resumed:
         controller.send({'kind': 'lifecycle', 'event': 'resume'});
       case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
         controller.send({'kind': 'lifecycle', 'event': 'pause'});
+      case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         break;
     }
@@ -89,12 +92,8 @@ class PluginAreaState extends ConsumerState<PluginArea>
       return KeyEventResult.ignored;
     }
 
-    // Check if any bound in-app hotkey matches this event
-    for (final binding in ref.read(keybindsProvider).bound) {
-      final accelerator = Accelerator.parse(binding.keys);
-      if (accelerator != null && event.logicalKey == accelerator.key) {
-        return KeyEventResult.ignored;
-      }
+    if (!_focusNode.hasPrimaryFocus) {
+      return KeyEventResult.ignored;
     }
 
     // Check if any shell shortcut matches this event
@@ -185,33 +184,12 @@ class PluginAreaState extends ConsumerState<PluginArea>
     final serverData = ref.watch(serverProvider(widget.serverKey)).data;
     final channel = serverData?.channels[widget.channelId];
 
-    // Connection lifecycle monitoring
-    final unreachable = ref.watch(
-      serverProvider(
-        widget.serverKey,
-      ).select((s) => serverUnreachable(s.connection)),
-    );
-    if (_lastConnectionUnreachable != null &&
-        _lastConnectionUnreachable != unreachable) {
-      final controller = ref.read(
-        pluginViewProvider((
-          server: widget.serverKey,
-          channel: widget.channelId,
-        )),
-      );
-      if (unreachable) {
-        controller.send({'kind': 'lifecycle', 'event': 'connection_lost'});
-      } else {
-        controller.send({'kind': 'lifecycle', 'event': 'connection_back'});
-      }
-    }
-    _lastConnectionUnreachable = unreachable;
-
     // Window focus lifecycle monitoring
     ref.listen(windowStatusProvider.select((s) => s.focused), (
       before,
       focused,
     ) {
+      if (channel?.pluginState != PluginChannelState.available) return;
       final controller = ref.read(
         pluginViewProvider((
           server: widget.serverKey,

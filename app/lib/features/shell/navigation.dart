@@ -81,6 +81,26 @@ bool canOpen(BuildContext context, Channel channel) {
   return true;
 }
 
+/// Navigates to [channelId] on [serverKey], displaying a toast if unavailable.
+bool openChannelWithToast(
+  BuildContext context,
+  WidgetRef ref,
+  String serverKey,
+  int channelId,
+) {
+  final serverData = ref.read(serverProvider(serverKey)).data;
+  final channel = serverData?.channels[channelId];
+  if (channel != null) {
+    final reason = cannotOpenReason(channel);
+    if (reason != null) {
+      showOcToast(context, reason);
+      return false;
+    }
+  }
+  ref.read(navigationProvider.notifier).openChannel(serverKey, channelId);
+  return true;
+}
+
 /// The item [delta] steps from [current], wrapping around; the first item
 /// when [current] is not in [order].
 T? neighbor<T>(List<T> order, T? current, int delta) {

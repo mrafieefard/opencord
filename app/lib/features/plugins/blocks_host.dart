@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +36,7 @@ class OpencordBlocksHost implements BlocksHost {
   final WidgetRef ref;
   final String serverKey;
   final String pluginId;
-  final String viewId;
+  final ValueListenable<String?> viewId;
 
   @override
   IconData? icon(String name) => pluginIcons[name];
@@ -42,25 +44,12 @@ class OpencordBlocksHost implements BlocksHost {
   @override
   Future<ImageProvider?> image(Map<String, Object?> source) async {
     final repo = ref.read(repositoryProvider);
-    final kind = source['kind'] as String?;
-    if (kind == 'attachment') {
-      final id = source['id'];
+    if (source.containsKey('attachment')) {
+      final id = source['attachment'];
       final attachmentId = id is int ? id : int.tryParse(id.toString());
       if (attachmentId == null) return null;
       final bytes = await repo.attachmentBytes(serverKey, attachmentId);
       return MemoryImage(bytes);
-    }
-    if (kind == 'asset') {
-      final path = source['path'] as String?;
-      if (path == null) return null;
-      final sha256 = source['sha256'] as String? ?? '';
-      final file = await repo.pluginAssetFile(
-        serverKey,
-        pluginId,
-        path,
-        sha256,
-      );
-      return FileImage(File(file));
     }
     final file = await repo.pluginImageFile(serverKey, pluginId, source);
     return file != null ? FileImage(File(file)) : null;
@@ -141,10 +130,14 @@ class OpencordBlocksHost implements BlocksHost {
   }
 
   @override
-  void copy(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    if (context.mounted) {
-      showOcToast(context, 'Copied');
+  void copy(String text) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (context.mounted) {
+        showOcToast(context, 'Copied');
+      }
+    } on Object catch (error) {
+      appLog('copy to clipboard failed: $error', name: 'views');
     }
   }
 
@@ -152,7 +145,7 @@ class OpencordBlocksHost implements BlocksHost {
   void openChannel(String id) {
     final channelId = int.tryParse(id);
     if (channelId != null) {
-      ref.read(navigationProvider.notifier).openChannel(serverKey, channelId);
+      openChannelWithToast(context, ref, serverKey, channelId);
     }
   }
 
@@ -162,10 +155,12 @@ class OpencordBlocksHost implements BlocksHost {
     double volume,
     VoidCallback onEnd,
   ) async {
+    final repo = ref.read(repositoryProvider);
+    int? draftId;
     try {
-      final repo = ref.read(repositoryProvider);
       final file = await repo.pluginAssetFile(serverKey, pluginId, asset, '');
       final draft = await repo.openSoundDraft(file);
+      draftId = draft.id;
       await repo.previewSoundDraft(
         SoundWindow(
           draftId: draft.id,
@@ -174,8 +169,22 @@ class OpencordBlocksHost implements BlocksHost {
           volume: (volume.clamp(0.0, 1.0) * 100).round(),
         ),
       );
-      Future.delayed(draft.duration, onEnd);
+      Future.delayed(draft.duration, () {
+        try {
+          repo.closeSoundDraft(draft.id);
+        } on Object catch (err) {
+          appLog('failed to close sound draft: $err', name: 'views');
+        }
+        onEnd();
+      });
     } on Object catch (error) {
+      if (draftId != null) {
+        try {
+          repo.closeSoundDraft(draftId);
+        } on Object catch (err) {
+          appLog('failed to close sound draft: $err', name: 'views');
+        }
+      }
       appLog('plugin playSound failed: $error', name: 'views');
       onEnd();
     }
@@ -196,6 +205,22 @@ class OpencordBlocksHost implements BlocksHost {
 
   @override
   Future<void> upload(int nodeId, String path) async {
-    await ref.read(repositoryProvider).viewUpload(viewId, nodeId, path);
+    var id = viewId.value;
+    if (id == null) {
+      final completer = Completer<String>();
+      void listener() {
+        if (viewId.value != null && !completer.isCompleted) {
+          completer.complete(viewId.value!);
+        }
+      }
+
+      viewId.addListener(listener);
+      try {
+        id = await completer.future.timeout(const Duration(seconds: 10));
+      } finally {
+        viewId.removeListener(listener);
+      }
+    }
+    await ref.read(repositoryProvider).viewUpload(id, nodeId, path);
   }
 }

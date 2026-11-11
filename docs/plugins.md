@@ -120,7 +120,7 @@ All sensitive operations require explicit permissions declared in the manifest a
 | `read_channels` | Read channel lists and details. |
 | `manage_channels` | Create, update, reorder, and delete channels. |
 | `create_channel_types` | Create custom plugin channels. |
-| `register_activities` | Register voice and channel activities (milestone 2). |
+| `register_activities` | Register voice and channel activities (milestone 3). |
 | `register_commands` | Register slash commands and handle autocomplete. |
 | `read_members` | Read the server member list and receive member join/leave/update events. |
 | `read_roles` | Read role names, colors, and permissions. |
@@ -202,7 +202,7 @@ All API functions and type signatures are defined in `crates/opencord-plugins/ap
   - `files.delete(path)`
   - `files.list(prefix?): { FileInfo }`
 - `http`:
-  - `http.request({ url, method, headers, body, timeout_s }): HttpResponse` (requires `internet`)
+  - `http.request({ url, method, headers, body, timeout }): HttpResponse` (requires `internet`)
 - `hooks`:
   - `hooks.on(path, function(request) return { status = 200, body = "ok" } end)` (requires `receive_web_requests`)
 - `timer`:
@@ -318,7 +318,7 @@ Client scripts access view state, server messaging, device storage, timers, and 
 - `app.confirm(text)`: displays a confirmation dialog and pauses the handler coroutine until answered (`true` or `false`).
 - `app.alert(text)`: displays an alert dialog and pauses until dismissed.
 - `app.prompt(text, default?)`: prompts for text input and returns the typed string or `nil`.
-- `app.after(seconds, handler)`: schedules a one-shot timer (up to 1,000 active timers per view).
+- `app.after(seconds, handler)`: schedules a one-shot timer (up to 100 active timers per view).
 - `app.every(seconds, handler)`: schedules a repeating timer (minimum 100 ms interval).
 - `app.cancel(timer_id)`: cancels an active timer.
 - `app.on_frame(handler)`: runs a handler on each animation frame (`dt` in seconds) within an 8 ms budget; pauses when hidden.
@@ -410,16 +410,69 @@ Containers (`row`, `column`, `stack`, `grid`, `scroll`, `box`, `list`) accept `b
 |---|---|---|---|
 | `canvas` | `items`, `ink` | `on_pointer_down`, `on_pointer_move`, `on_pointer_up`, `on_pointer_cancel`, `on_wheel`, `on_pan`, `on_scale`, `on_stroke` | Retained vector canvas with freehand ink |
 
+#### Event Data Shapes
+
+Event handlers receive a single data table matching the event's wire shape:
+
+| Event | Data shape | Description |
+|---|---|---|
+| `on_change` | `{ value: T }` | Value of input/control (`boolean` for checkbox/switch/radio, `number` for slider, `string` for text_input, `any` for select/tabs/segmented) |
+| `on_change_end` | `{ value: number }` | Slider final value when drag completes |
+| `on_submit` | `{ value: string }` | Text input submit / Enter pressed |
+| `on_scroll` | `{ offset: number, extent: number }` | Scroll position and maximum scroll extent in pixels |
+| `on_reach_start` | `{}` | Reached beginning of scroll viewport |
+| `on_reach_end` | `{}` | Reached end of scroll viewport |
+| `on_press` | `{}` | Tap or click |
+| `on_double_press` | `{}` | Double tap or double click |
+| `on_long_press` | `{}` | Long press |
+| `on_secondary_press` | `{ x: number, y: number }` | Secondary click / right click coordinates |
+| `on_hover_enter` | `{}` | Pointer entered bounding box |
+| `on_hover_exit` | `{}` | Pointer exited bounding box |
+| `on_load` | `{ width: number, height: number }` | Image loaded with dimensions |
+| `on_error` | `{ message: string }` | Image failed to load |
+| `on_upload` | `{ name: string, size: number }` | File picked and uploaded to server |
+| `on_upload_error` | `{ message: string }` | File upload failed with error reason |
+| `on_select` | `{ value: any }` | Menu item selected |
+| `on_dismiss` | `{}` | Modal, sheet, or toast dismissed |
+| `on_pointer_down` | `{ x, y, pointer, kind, buttons, pressure? }` | Canvas pointer down |
+| `on_pointer_move` | `{ x, y, pointer, kind, buttons, pressure? }` | Canvas pointer move |
+| `on_pointer_up` | `{ x, y, pointer, kind, buttons, pressure? }` | Canvas pointer up |
+| `on_pointer_cancel` | `{ x, y, pointer, kind, buttons, pressure? }` | Canvas pointer cancel |
+| `on_wheel` | `{ x, y, dx, dy }` | Canvas mouse wheel / touchpad scroll |
+| `on_pan` | `{ x, y, dx, dy, phase }` | Canvas pan gesture (`"start"`, `"update"`, `"end"`) |
+| `on_scale` | `{ x, y, scale, phase }` | Canvas pinch/scale gesture (`"start"`, `"update"`, `"end"`) |
+| `on_stroke` | `{ stroke, points, done }` | Freehand ink stroke batch with coordinates `[x, y, pressure, ...]` |
+| `on_animation_end` | `{}` | Entry, exit, or layout animation finished |
+
+Example reading `data.value`:
+```luau
+ui.text_input({
+    value = state.title,
+    placeholder = "Ticket title",
+    on_change = function(data)
+        app.set(function(s)
+            s.title = data.value
+        end)
+    end,
+})
+```
+
 ### 4. Images and Uploads
 
 The `image` block supports five distinct sources:
 1. `asset = "assets/logo.png"`: bundled static asset.
 2. `file = "avatars/1.png"` or `file_token = token`: file stored in the plugin's dedicated files quota (optionally loaded with an authenticated token generated via server `files.token(path, view)`).
 3. `url = "https://..."`: external web image fetched through the server proxy.
-4. `attachment = id`: Opencord channel attachment image, loaded locally as a `MemoryImage` via `attachmentBytes(id, AttachmentVariant.original)` without going through `pluginImageFile`.
+4. `attachment = id`: Opencord channel attachment image, fetched by its attachment ID.
 5. `bytes = data`: inline image raw bytes (base64 or buffer, capped at 256 KB).
 
-Files can be picked and uploaded using `image_picker` and `file_picker`, delivering `{ id, name, size }` upon upload completion.
+#### Uploads Round Trip
+
+When a user selects a file through `image_picker` or `file_picker`:
+1. The client app displays the file selector and uploads the selected file to the Opencord server.
+2. The client script receives the picker's `on_upload` event with `{ name = string, size = number }`.
+3. The server plugin receives the `file_uploaded` event on its gateway dispatcher with the uploaded file object.
+4. The server script stores the file into plugin storage using `files.put(path, file)`.
 
 ### 5. Available Icons
 
@@ -439,15 +492,27 @@ The `icon` block and button controls support 43 standard icon names:
 | SQLite database | 1 GB per plugin |
 | File storage | 5 GB per plugin |
 | Web hook payload | Max 1 MB request body |
-| HTTP request timeout | Max 10 s |
+| HTTP request timeout | Max 10 s (`timeout` option) |
 | CPU share | 25 % of one core, averaged over 10 seconds; past it, events wait in the queue. Plugin threads run at a lower priority. |
 | Registered commands | Max 100 commands per plugin |
 | Commands thinking at once | Max 100 per plugin |
-| Active timers | Max 1,000 active timers per plugin |
+| Active timers | Max 1,000 active timers per plugin (server), max 100 active timers per view (client) |
 | Log history | Kept up to 5,000 lines in memory and disk per plugin |
 | Client handler CPU time | 50 ms per handler |
 | Frame budget (`on_frame`) | 8 ms per frame |
-| View events rate | 60 to view / 30 from view per second |
+| Tree size | Max 20,000 blocks and max 64 deep per view |
+| Tree props total | Max 16 MiB per tree |
+| String props | Max 10,000 characters per string prop (`text` and `rich_text` text max 20,000) |
+| Canvas items | Max 20,000 items, max 10,000 points per path |
+| List range | Max 200 items requested per lazy list range |
+| Open views | Max 4 views open per session |
+| View bandwidth | Max 512 KiB/s to view, max 128 KiB/s from view |
+| View events rate | Max 60 to view / max 30 from view per second |
+| External image fetch | Max 10 MiB, max 40 megapixels |
+| File tokens | Good for 1 hour |
+| Custom channel types | Max 20 channel types per server |
+| Dialog text | Max 2,000 characters for confirm/alert/prompt |
+| Error reports | At most 1 per 10 seconds, max 2,000 characters |
 | Raw image bytes | Max 256 KB |
 | Device storage | 1 MB per plugin |
 

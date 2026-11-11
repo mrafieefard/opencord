@@ -118,15 +118,11 @@ class ChannelRow extends ConsumerWidget {
               isReadOnly(channel, data.info.everyoneRoleId);
 
     return Hoverable(
-      onTap: () {
-        if (canOpen(context, channel)) {
-          ref
-              .read(navigationProvider.notifier)
-              .openChannel(serverKey, channel.id);
-        }
-      },
+      onTap: () => openChannelWithToast(context, ref, serverKey, channel.id),
       onSecondaryTap: (position) => _showMenu(context, ref, position, muted),
-      semanticLabel: '${channel.name}, ${activity.read.unread} unread',
+      semanticLabel: isPlugin
+          ? channel.name
+          : '${channel.name}, ${activity.read.unread} unread',
       selected: selected,
       cursor: SystemMouseCursors.basic,
       builder: (context, state) {

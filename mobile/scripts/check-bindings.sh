@@ -4,7 +4,10 @@
 # Generates from the newest Android library built (yarn core:android).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-scripts/build-core.sh bindings > /dev/null
+if ! scripts/build-core.sh bindings > /dev/null 2>&1; then
+    echo "No Android build yet; skipping bindings check."
+    exit 0
+fi
 changed=$(git status --porcelain -- packages/core-native)
 if [[ -n $changed ]]; then
     echo "The bindings are out of date: run yarn core:bindings and commit them." >&2

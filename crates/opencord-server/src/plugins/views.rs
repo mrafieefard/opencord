@@ -100,7 +100,8 @@ impl ViewInfo {
         if let Some(member) = state.guild().members.get(&self.user_id) {
             let roles: Vec<serde_json::Value> = member.role_ids.iter().map(|&r| id(r)).collect();
             if let serde_json::Value::Object(ref mut map) = user {
-                map.insert("roles".to_owned(), serde_json::Value::Array(roles));
+                map.insert("roles".to_owned(), serde_json::Value::Array(roles.clone()));
+                map.insert("role_ids".to_owned(), serde_json::Value::Array(roles));
             }
         }
         serde_json::json!({

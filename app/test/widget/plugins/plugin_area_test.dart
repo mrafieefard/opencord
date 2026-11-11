@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/model/server.dart';
@@ -12,6 +13,7 @@ import 'package:opencord/core/repository/events.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/features/plugins/plugin_area.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/switcher/quick_switcher.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 import 'package:opencord/ui/widgets/oc_spinner.dart';
 
@@ -259,11 +261,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(PluginArea), findsNothing);
+    expect(app.repository.closedViews, isNotEmpty);
 
     await app.dispose(tester);
   });
 
-  // Fails if keyboard focus inside the plugin area prevents push-to-talk hotkeys from activating.
+  // Fails if keyboard focus inside the plugin area prevents push-to-talk hotkeys or shell shortcuts from activating.
   testWidgets('push_to_talk_still_works_with_the_area_focused', (tester) async {
     final app = await MockApp.pump(tester, size: const Size(1440, 1200));
     final server = app.repository.mockServer(serverKey);
@@ -295,6 +298,147 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.backquote);
     await tester.pump();
     expect(app.repository.pushToTalkHeld, isFalse);
+
+    // Press Ctrl+K with area focused; quick switcher opens
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(find.byType(QuickSwitcher), findsOneWidget);
+
+    // Close quick switcher
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(QuickSwitcher), findsNothing);
+
+    await app.dispose(tester);
+  });
+
+  // Fails if focusing a plugin text input claims key events at the plugin area focus node.
+  // Mutation: plugin_area.dart returns KeyEventResult.handled unconditionally for every key event.
+  testWidgets('plugin_text_inputs_receive_keyboard_input_on_desktop', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1440, 1200));
+    final server = app.repository.mockServer(serverKey);
+    final ticketsId = server.channels.values
+        .firstWhere((c) => c.name == 'tickets')
+        .id;
+
+    app.repository.registerMockView('support-tickets', (viewId) {
+      return (input) => jsonEncode({
+        'view': viewId,
+        'seq': 1,
+        'ops': [
+          {
+            'op': 'create',
+            'id': 1,
+            'block': 'text_input',
+            'props': {'value': 'test'},
+            'events': ['change'],
+            'children': <int>[],
+          },
+          {'op': 'roots', 'main': 1, 'modals': <Object?>[]},
+        ],
+      });
+    });
+
+    app.read(navigationProvider.notifier).openChannel(serverKey, ticketsId);
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(PluginArea),
+        matching: find.byType(EditableText),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final handled = await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    expect(handled, isFalse);
+
+    await app.dispose(tester);
+  });
+
+  // Fails if picker uploads use the placeholder 'view_${channelId}' instead of the real openView ID.
+  // Mutation: plugin_area passes 'view_${channelId}' to OpencordBlocksHost or does not await viewId.value.
+  testWidgets('view_uploads_use_real_open_view_id_not_placeholder', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1440, 1200));
+    final server = app.repository.mockServer(serverKey);
+    final ticketsId = server.channels.values
+        .firstWhere((c) => c.name == 'tickets')
+        .id;
+
+    app.read(navigationProvider.notifier).openChannel(serverKey, ticketsId);
+    await tester.pumpAndSettle();
+
+    final pluginAreaState = tester.state<PluginAreaState>(
+      find.byType(PluginArea),
+    );
+    await pluginAreaState.blocksHost.upload(1, '/test/file.png');
+
+    expect(app.repository.uploadedViews, isNotEmpty);
+    final (uploadedViewId, nodeId, path) = app.repository.uploadedViews.first;
+    expect(uploadedViewId, startsWith('mock_view_'));
+    expect(uploadedViewId, isNot(equals('view_$ticketsId')));
+    expect(nodeId, 1);
+    expect(path, '/test/file.png');
+
+    await app.dispose(tester);
+  });
+
+  // Fails if attachment images do not return a MemoryImage from repo.attachmentBytes.
+  // Mutation: blocks_host.dart checks source['kind'] == 'attachment' instead of source.containsKey('attachment').
+  testWidgets('attachment_images_return_memory_image', (tester) async {
+    final app = await MockApp.pump(tester, size: const Size(1440, 1200));
+    final server = app.repository.mockServer(serverKey);
+    final ticketsId = server.channels.values
+        .firstWhere((c) => c.name == 'tickets')
+        .id;
+
+    app.read(navigationProvider.notifier).openChannel(serverKey, ticketsId);
+    await tester.pumpAndSettle();
+
+    final pluginAreaState = tester.state<PluginAreaState>(
+      find.byType(PluginArea),
+    );
+    final imageFuture = pluginAreaState.blocksHost.image({'attachment': '5'});
+    await tester.pump(const Duration(milliseconds: 100));
+    final imageProvider = await imageFuture;
+
+    expect(imageProvider, isA<MemoryImage>());
+
+    await app.dispose(tester);
+  });
+
+  // Fails if a plugin's app.open_channel can navigate to an unavailable channel.
+  // Mutation: NavigationNotifier.openChannel skips the cannotOpenReason guard.
+  testWidgets('plugin_open_channel_to_unavailable_channel_does_not_open', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(1440, 1200));
+    final server = app.repository.mockServer(serverKey);
+    final ticketsId = server.channels.values
+        .firstWhere((c) => c.name == 'tickets')
+        .id;
+    final legacyHelpId = server.channels.values
+        .firstWhere((c) => c.name == 'legacy-help')
+        .id;
+
+    app.read(navigationProvider.notifier).openChannel(serverKey, ticketsId);
+    await tester.pumpAndSettle();
+
+    final pluginAreaState = tester.state<PluginAreaState>(
+      find.byType(PluginArea),
+    );
+    pluginAreaState.blocksHost.openChannel(legacyHelpId.toString());
+    await tester.pump();
+
+    expect(app.read(currentChannelProvider), ticketsId);
+    expect(app.read(currentChannelProvider), isNot(equals(legacyHelpId)));
+    expect(find.text('This channel is unavailable'), findsOneWidget);
 
     await app.dispose(tester);
   });

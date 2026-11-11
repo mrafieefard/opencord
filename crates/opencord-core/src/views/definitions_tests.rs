@@ -5,7 +5,44 @@
 
 use super::test_support::{open, settle, spec};
 
-// Fails if the client VM globals or app/ui methods are missing or have wrong types.
+const DEFINITIONS: &str = include_str!("../../../opencord-plugins/api/opencord.d.luau");
+
+fn parse_declare_app_fields(defs: &str) -> Vec<String> {
+    let mut in_app = false;
+    let mut fields = Vec::new();
+    let mut depth = 0;
+    for line in defs.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("declare app: {") {
+            in_app = true;
+            depth = 1;
+            continue;
+        }
+        if in_app {
+            if trimmed.contains('{') {
+                depth += 1;
+            }
+            if trimmed.contains('}') {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            if depth == 1
+                && let Some((name, _)) = trimmed.split_once(':')
+            {
+                let name = name.trim();
+                if !name.is_empty() && !name.starts_with("--") {
+                    fields.push(name.to_owned());
+                }
+            }
+        }
+    }
+    fields
+}
+
+// Fails if the client VM globals or app/ui methods are missing or have wrong types,
+// or if any field declared in opencord.d.luau's `declare app` is missing from the client VM.
 #[test]
 fn client_vm_globals_and_shapes_match_specification() {
     let script = r#"
@@ -96,6 +133,11 @@ function render(state)
         assert(type(app.input) == "string", "app.input missing")
         assert(type(app.text_scale) == "number", "app.text_scale missing")
 
+        local app_keys = {}
+        for k in pairs(app) do
+            table.insert(app_keys, k)
+        end
+        app.send("app_keys", app_keys)
         app.send("verified", true)
     end
 
@@ -113,5 +155,20 @@ end
     let verified = seen.sent("verified");
     assert_eq!(verified.len(), 1, "app.send('verified') must have run");
     assert_eq!(verified[0], serde_json::json!(true));
+
+    let expected_app_fields = parse_declare_app_fields(DEFINITIONS);
+    assert!(
+        !expected_app_fields.is_empty(),
+        "failed to parse fields from declare app in opencord.d.luau"
+    );
+
+    let app_keys: Vec<String> = serde_json::from_value(seen.sent("app_keys")[0].clone()).unwrap();
+    for field in &expected_app_fields {
+        assert!(
+            app_keys.contains(field),
+            "client VM app table is missing field '{field}' from declare app in opencord.d.luau"
+        );
+    }
+
     handle.close();
 }

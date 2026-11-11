@@ -48,6 +48,27 @@ opencord.on("start", function()
     log.info("tickets plugin started")
 end)
 
+local function broadcast_ticket_event(place, event_name, payload, skip_view_id, author_id)
+    local support_role = config.get("support_role")
+    for _, v in ipairs(ui.views(place)) do
+        if v.id ~= skip_view_id then
+            local is_support = false
+            if type(support_role) == "string" and support_role ~= "" and v.user and (v.user.roles or v.user.role_ids) then
+                local roles = v.user.roles or v.user.role_ids
+                for _, r in ipairs(roles) do
+                    if r == support_role then
+                        is_support = true
+                        break
+                    end
+                end
+            end
+            if is_support or (author_id and v.user and v.user.id == author_id) then
+                v:send(event_name, payload)
+            end
+        end
+    end
+end
+
 ui.on("ticket.list", function(view, _data)
     local is_support = has_role(view.user, config.get("support_role"))
     local rows
@@ -124,11 +145,7 @@ ui.on("ticket.create", function(view, data)
     end
 
     view:send("ticket.created", { ticket = ticket })
-
-    local support_role = config.get("support_role")
-    if type(support_role) == "string" and support_role ~= "" then
-        ui.send_role(support_role, "ticket.created", { ticket = ticket })
-    end
+    broadcast_ticket_event(view.place, "ticket.created", { ticket = ticket }, view.id, ticket.author_id)
 end)
 
 ui.on("ticket.open", function(view, data)
@@ -210,17 +227,7 @@ ui.on("ticket.reply", function(view, data)
     }
 
     view:send("ticket.replied", { ticket_id = ticket_id, reply = reply })
-
-    local support_role = config.get("support_role")
-    if type(support_role) == "string" and support_role ~= "" then
-        ui.send_role(support_role, "ticket.replied", { ticket_id = ticket_id, reply = reply })
-    end
-
-    for _, v in ipairs(ui.views(view.place)) do
-        if v.user.id == ticket.author_id and v.id ~= view.id then
-            v:send("ticket.replied", { ticket_id = ticket_id, reply = reply })
-        end
-    end
+    broadcast_ticket_event(view.place, "ticket.replied", { ticket_id = ticket_id, reply = reply }, view.id, ticket.author_id)
 end)
 
 ui.on("ticket.close", function(view, data)
@@ -252,15 +259,5 @@ ui.on("ticket.close", function(view, data)
     ticket.state = "closed"
 
     view:send("ticket.closed", { ticket = ticket })
-
-    local support_role = config.get("support_role")
-    if type(support_role) == "string" and support_role ~= "" then
-        ui.send_role(support_role, "ticket.closed", { ticket = ticket })
-    end
-
-    for _, v in ipairs(ui.views(view.place)) do
-        if v.user.id == ticket.author_id and v.id ~= view.id then
-            v:send("ticket.closed", { ticket = ticket })
-        end
-    end
+    broadcast_ticket_event(view.place, "ticket.closed", { ticket = ticket }, view.id, ticket.author_id)
 end)

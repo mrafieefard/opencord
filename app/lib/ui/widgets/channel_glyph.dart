@@ -52,9 +52,7 @@ class ChannelGlyph extends StatelessWidget {
         ? colors.onAccent
         : colors.textSecondary;
     Widget iconWidget;
-    if (iconFile != null &&
-        iconFile!.isNotEmpty &&
-        File(iconFile!).existsSync()) {
+    if (iconFile != null && iconFile!.isNotEmpty) {
       iconWidget = Image.file(
         File(iconFile!),
         width: size * 0.5,

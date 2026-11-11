@@ -454,9 +454,7 @@ class _MessageListState extends ConsumerState<MessageList>
             showMemberProfile(context, serverKey: _channel.server, userId: id),
         onChannel: (id) {
           if (data.channels[id] != null) {
-            ref
-                .read(navigationProvider.notifier)
-                .openChannel(_channel.server, id);
+            openChannelWithToast(context, ref, _channel.server, id);
           }
         },
       ),

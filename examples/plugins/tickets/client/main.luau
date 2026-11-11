@@ -75,7 +75,7 @@ app.modals.new_ticket = function(s, props)
                 value = s.new_title,
                 on_change = function(t)
                     app.set(function(state)
-                        state.new_title = t
+                        state.new_title = (type(t) == "table" and t.value) or t
                     end)
                 end,
             }),
@@ -85,7 +85,7 @@ app.modals.new_ticket = function(s, props)
                 value = s.new_body,
                 on_change = function(b)
                     app.set(function(state)
-                        state.new_body = b
+                        state.new_body = (type(b) == "table" and b.value) or b
                     end)
                 end,
             }),
@@ -98,7 +98,7 @@ app.modals.new_ticket = function(s, props)
                 value = s.new_priority,
                 on_change = function(p)
                     app.set(function(state)
-                        state.new_priority = p
+                        state.new_priority = (type(p) == "table" and p.value) or p
                     end)
                 end,
             }),
@@ -164,7 +164,7 @@ local function render_ticket_list(s)
                             ui.text({ text = t.title, weight = "semibold" }),
                             ui.badge({
                                 text = t.state or "open",
-                                variant = (t.state == "closed") and "neutral" or "accent",
+                                tone = (t.state == "closed") and "neutral" or "accent",
                             }),
                         }),
                         ui.row({ gap = 8 }, {
@@ -229,9 +229,9 @@ local function render_ticket_detail(s, is_compact)
                     ui.text({ text = "By " .. (t.author_name or "Unknown"), size = 12 }),
                     ui.badge({
                         text = t.state or "open",
-                        variant = (t.state == "closed") and "neutral" or "accent",
+                        tone = (t.state == "closed") and "neutral" or "accent",
                     }),
-                    ui.badge({ text = t.priority or "normal", variant = "neutral" }),
+                    ui.badge({ text = t.priority or "normal", tone = "neutral" }),
                 }),
             }),
             action_btn,
@@ -267,7 +267,7 @@ local function render_ticket_detail(s, is_compact)
                 value = s.reply_body,
                 on_change = function(b)
                     app.set(function(state)
-                        state.reply_body = b
+                        state.reply_body = (type(b) == "table" and b.value) or b
                     end)
                 end,
             }),

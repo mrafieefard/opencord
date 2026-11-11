@@ -266,9 +266,19 @@ export type ViewPlace = {
     channel_id: string,
 }
 
+export type ViewUser = {
+    id: string,
+    name: string,
+    discriminator: string?,
+    avatar: string?,
+    bot: boolean?,
+    roles: { string }?,
+    role_ids: { string }?,
+}
+
 export type View = {
     id: string,
-    user: User,
+    user: ViewUser,
     place: ViewPlace,
     platform: string,
     send: (self: View, name: string, data: any) -> boolean,
@@ -511,21 +521,6 @@ declare files: {
     token: (path: string, view: View | { id: string }) -> string,
 }
 
-declare ui: {
-    --- Permission: create_channel_types. Server only.
-    register_channel_type: (key: string, spec: ChannelTypeSpec) -> (),
-    --- Server only.
-    on: (name: string, handler: (view: View, data: any) -> ()) -> (),
-    --- Server only.
-    views: (place: ViewPlace?) -> { View },
-    --- Server only.
-    send_place: (place: ViewPlace, name: string, data: any) -> number,
-    --- Server only.
-    send_role: (role_id: string, name: string, data: any) -> number,
-    --- Server only.
-    send_all: (name: string, data: any) -> number,
-}
-
 declare hooks: {
     --- Permission: receive_web_requests
     on: (path: string, handler: (request: WebHookRequest) -> WebHookResponse) -> (),
@@ -687,7 +682,7 @@ export type GridProps = ContainerProps & {
 
 export type ScrollProps = ContainerProps & {
     direction: ("vertical" | "horizontal")?,
-    on_scroll: ((position: number) -> ())?,
+    on_scroll: ((data: { offset: number, extent: number }) -> ())?,
     on_reach_start: (() -> ())?,
     on_reach_end: (() -> ())?,
 }
@@ -696,7 +691,7 @@ export type BoxProps = ContainerProps & {
     on_press: (() -> ())?,
     on_double_press: (() -> ())?,
     on_long_press: (() -> ())?,
-    on_secondary_press: (() -> ())?,
+    on_secondary_press: ((data: { x: number, y: number }) -> ())?,
     on_hover_enter: (() -> ())?,
     on_hover_exit: (() -> ())?,
 }
@@ -716,7 +711,7 @@ export type ListProps = ContainerProps & {
     gap: number?,
     item_height: number?,
     item: (index: number) -> BlockNode?,
-    on_scroll: ((position: number) -> ())?,
+    on_scroll: ((data: { offset: number, extent: number }) -> ())?,
     on_reach_start: (() -> ())?,
     on_reach_end: (() -> ())?,
 }
@@ -748,8 +743,8 @@ export type ImageProps = CommonProps & {
     radius: number?,
     placeholder: Color?,
     version: number?,
-    on_load: (() -> ())?,
-    on_error: (() -> ())?,
+    on_load: ((data: { width: number, height: number }) -> ())?,
+    on_error: ((data: { message: string }) -> ())?,
 }
 
 export type IconProps = CommonProps & {
@@ -798,21 +793,21 @@ export type CheckboxProps = CommonProps & {
     value: boolean?,
     text: string?,
     disabled: boolean?,
-    on_change: ((value: boolean) -> ())?,
+    on_change: ((data: { value: boolean }) -> ())?,
 }
 
 export type SwitchProps = CommonProps & {
     value: boolean?,
     text: string?,
     disabled: boolean?,
-    on_change: ((value: boolean) -> ())?,
+    on_change: ((data: { value: boolean }) -> ())?,
 }
 
 export type RadioProps = CommonProps & {
     value: boolean?,
     text: string?,
     disabled: boolean?,
-    on_change: ((value: boolean) -> ())?,
+    on_change: ((data: { value: boolean }) -> ())?,
 }
 
 export type SliderProps = CommonProps & {
@@ -821,8 +816,8 @@ export type SliderProps = CommonProps & {
     max: number?,
     step: number?,
     disabled: boolean?,
-    on_change: ((value: number) -> ())?,
-    on_change_end: ((value: number) -> ())?,
+    on_change: ((data: { value: number }) -> ())?,
+    on_change_end: ((data: { value: number }) -> ())?,
 }
 
 export type SelectProps = CommonProps & {
@@ -830,19 +825,19 @@ export type SelectProps = CommonProps & {
     options: { SelectOption },
     placeholder: string?,
     disabled: boolean?,
-    on_change: ((value: any) -> ())?,
+    on_change: ((data: { value: any }) -> ())?,
 }
 
 export type TabsProps = CommonProps & {
     value: any?,
     options: { SelectOption },
-    on_change: ((value: any) -> ())?,
+    on_change: ((data: { value: any }) -> ())?,
 }
 
 export type SegmentedProps = CommonProps & {
     value: any?,
     options: { SelectOption },
-    on_change: ((value: any) -> ())?,
+    on_change: ((data: { value: any }) -> ())?,
 }
 
 export type TextInputProps = CommonProps & {
@@ -852,23 +847,23 @@ export type TextInputProps = CommonProps & {
     max_length: number?,
     lines: number?,
     disabled: boolean?,
-    on_change: ((text: string) -> ())?,
-    on_submit: ((text: string) -> ())?,
+    on_change: ((data: { value: string }) -> ())?,
+    on_submit: ((data: { value: string }) -> ())?,
     on_focus: (() -> ())?,
     on_blur: (() -> ())?,
 }
 
 export type ImagePickerProps = CommonProps & {
     text: string?,
-    on_upload: ((file: { id: string, name: string, size: number }) -> ())?,
-    on_upload_error: ((err: string) -> ())?,
+    on_upload: ((data: { name: string, size: number }) -> ())?,
+    on_upload_error: ((data: { message: string }) -> ())?,
 }
 
 export type FilePickerProps = CommonProps & {
     text: string?,
     accept: { string }?,
-    on_upload: ((file: { id: string, name: string, size: number }) -> ())?,
-    on_upload_error: ((err: string) -> ())?,
+    on_upload: ((data: { name: string, size: number }) -> ())?,
+    on_upload_error: ((data: { message: string }) -> ())?,
 }
 
 export type ModalProps = CommonProps & {
@@ -888,7 +883,7 @@ export type SheetProps = CommonProps & {
 
 export type MenuProps = CommonProps & {
     items: { MenuItem },
-    on_select: ((value: any) -> ())?,
+    on_select: ((data: { value: any }) -> ())?,
 }
 
 export type TooltipProps = CommonProps & {
@@ -902,17 +897,54 @@ export type ToastProps = CommonProps & {
     on_dismiss: (() -> ())?,
 }
 
+export type CanvasPointerData = {
+    x: number,
+    y: number,
+    pointer: number,
+    kind: "mouse" | "touch" | "stylus" | "eraser" | "trackpad" | "unknown",
+    buttons: number,
+    pressure: number?,
+}
+
+export type CanvasWheelData = {
+    x: number,
+    y: number,
+    dx: number,
+    dy: number,
+}
+
+export type CanvasPanData = {
+    x: number,
+    y: number,
+    dx: number,
+    dy: number,
+    phase: "start" | "update" | "end",
+}
+
+export type CanvasScaleData = {
+    x: number,
+    y: number,
+    scale: number,
+    phase: "start" | "update" | "end",
+}
+
+export type CanvasStrokeData = {
+    stroke: string,
+    points: { number },
+    done: boolean,
+}
+
 export type CanvasProps = CommonProps & {
     items: { CanvasItem }?,
     ink: Stroke?,
-    on_pointer_down: ((event: any) -> ())?,
-    on_pointer_move: ((event: any) -> ())?,
-    on_pointer_up: ((event: any) -> ())?,
-    on_pointer_cancel: ((event: any) -> ())?,
-    on_wheel: ((event: any) -> ())?,
-    on_pan: ((event: any) -> ())?,
-    on_scale: ((event: any) -> ())?,
-    on_stroke: ((points: { CanvasPoint }) -> ())?,
+    on_pointer_down: ((data: CanvasPointerData) -> ())?,
+    on_pointer_move: ((data: CanvasPointerData) -> ())?,
+    on_pointer_up: ((data: CanvasPointerData) -> ())?,
+    on_pointer_cancel: ((data: CanvasPointerData) -> ())?,
+    on_wheel: ((data: CanvasWheelData) -> ())?,
+    on_pan: ((data: CanvasPanData) -> ())?,
+    on_scale: ((data: CanvasScaleData) -> ())?,
+    on_stroke: ((data: CanvasStrokeData) -> ())?,
 }
 
 export type ModalHandle = {
@@ -957,6 +989,20 @@ export type ViewContext = {
 }
 
 declare ui: {
+    --- Permission: create_channel_types. Server only.
+    register_channel_type: (key: string, spec: ChannelTypeSpec) -> (),
+    --- Server only.
+    on: (name: string, handler: (view: View, data: any) -> ()) -> (),
+    --- Server only.
+    views: (place: ViewPlace?) -> { View },
+    --- Server only.
+    send_place: (place: ViewPlace, name: string, data: any) -> number,
+    --- Server only.
+    send_role: (role_id: string, name: string, data: any) -> number,
+    --- Server only.
+    send_all: (name: string, data: any) -> number,
+
+    --- Client only.
     row: (props: RowProps?, children: { BlockNode }?) -> BlockNode,
     column: (props: ColumnProps?, children: { BlockNode }?) -> BlockNode,
     stack: (props: StackProps?, children: { BlockNode }?) -> BlockNode,

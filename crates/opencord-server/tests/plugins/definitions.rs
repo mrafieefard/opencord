@@ -112,25 +112,40 @@ async fn definitions_match_the_api() {
     // 3. Parse declare blocks for function names
     let mut declared_functions = BTreeSet::new();
     let mut current_table: Option<String> = None;
+    let mut in_client_only = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("--- Client only") {
-            break;
+        if trimmed == "--- Client only" {
+            in_client_only = true;
         }
         if let Some(rest) = trimmed.strip_prefix("declare ") {
             if let Some((name, _)) = rest.split_once(':') {
                 let name = name.trim();
                 current_table = Some(name.to_owned());
+                if name == "ui" {
+                    in_client_only = false;
+                }
             }
         } else if trimmed.starts_with('}') {
             current_table = None;
         } else if let Some(table_name) = &current_table {
+            if trimmed.contains("Client only") {
+                in_client_only = true;
+                continue;
+            } else if trimmed.contains("Server only") {
+                in_client_only = false;
+                continue;
+            }
             // Check for function declaration: `<fn_name>: (`
             if let Some((fn_name, rest)) = trimmed.split_once(':') {
                 let fn_name = fn_name.trim();
                 let rest = rest.trim();
-                if rest.starts_with('(') && !fn_name.contains(' ') {
+                if rest.starts_with('(')
+                    && !fn_name.contains(' ')
+                    && !in_client_only
+                    && table_name != "app"
+                {
                     declared_functions.insert(format!("{table_name}.{fn_name}"));
                 }
             }
@@ -166,9 +181,9 @@ fn client_definitions_match_blocks_and_docs() {
     });
 
     let client_section = content
-        .split("--- Client only")
-        .nth(1)
-        .expect("opencord.d.luau must contain a '--- Client only' section");
+        .split_once("\n--- Client only\n")
+        .expect("opencord.d.luau must contain a '--- Client only' section")
+        .1;
 
     // 1. All 43 icons must be in IconName union in client definitions
     const ICONS: &[&str] = &[

@@ -169,11 +169,21 @@ async fn the_ticket_system_works_end_to_end() {
         .or_else(|| ticket["id"].as_str().and_then(|s| s.parse().ok()))
         .expect("ticket id");
 
-    // Author (member 1) gets ticket.created as well
+    // Author (member 1) gets ticket.created as well (exactly once, even though they hold the support role)
     let msg1 = message(&mut admin, "ticket.created").await;
     let created1: serde_json::Value =
         serde_json::from_str(&msg1.data_json).expect("valid ticket.created json");
     assert_eq!(created1["ticket"]["id"], ticket_id);
+
+    let second_for_admin = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        message(&mut admin, "ticket.created"),
+    )
+    .await;
+    assert!(
+        second_for_admin.is_err(),
+        "support member author must receive ticket.created only once"
+    );
 
     // log_channel receives "Ticket #{id} opened by {name}: {title}"
     let log_msg = owner_client
