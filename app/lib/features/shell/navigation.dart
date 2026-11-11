@@ -1,11 +1,12 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
+import 'package:opencord/ui/widgets/toast.dart';
 
 /// A category (or the loose channels above all categories) with its
 /// channels in display order.
@@ -30,7 +31,10 @@ List<ChannelGroup> channelTree(Iterable<Channel> channels) {
     ..sort(_byPosition);
   final categoryIds = {for (final category in categories) category.id};
   List<Channel> sorted(Iterable<Channel> group) => [
-    ...group.where((c) => c.kind.isTextLike).toList()..sort(_byPosition),
+    ...group
+        .where((c) => c.kind.isTextLike || c.kind == ChannelKind.plugin)
+        .toList()
+      ..sort(_byPosition),
     ...group.where((c) => c.kind == ChannelKind.voice).toList()
       ..sort(_byPosition),
   ];
@@ -47,12 +51,35 @@ List<ChannelGroup> channelTree(Iterable<Channel> channels) {
   ];
 }
 
-/// Text and announcement channels in sidebar order: what Alt+↑/↓ steps
+/// Text, announcement and plugin channels in sidebar order: what Alt+↑/↓ steps
 /// through (§7).
 List<Channel> navigableChannels(Iterable<Channel> channels) => [
   for (final group in channelTree(channels))
-    ...group.channels.where((c) => c.kind.isTextLike),
+    ...group.channels.where(
+      (c) => c.kind.isTextLike || c.kind == ChannelKind.plugin,
+    ),
 ];
+
+/// Why a channel cannot be opened, or null if it can.
+String? cannotOpenReason(Channel channel) {
+  if (channel.kind != ChannelKind.plugin) return null;
+  return switch (channel.pluginState) {
+    PluginChannelState.available => null,
+    PluginChannelState.typeGone =>
+      'This plugin no longer provides this channel',
+    PluginChannelState.pluginStopped || null => 'This channel is unavailable',
+  };
+}
+
+/// Checks whether [channel] can be opened, displaying a toast if not.
+bool canOpen(BuildContext context, Channel channel) {
+  final reason = cannotOpenReason(channel);
+  if (reason != null) {
+    showOcToast(context, reason);
+    return false;
+  }
+  return true;
+}
 
 /// The item [delta] steps from [current], wrapping around; the first item
 /// when [current] is not in [order].
@@ -230,8 +257,14 @@ final currentChannelProvider = Provider<int?>((ref) {
     navigationProvider.select((selection) => selection.channels[server]),
   );
   final chosen = channels[wanted];
-  if (chosen != null && !chosen.isCategory) return chosen.id;
-  return navigableChannels(channels.values).firstOrNull?.id;
+  if (chosen != null &&
+      !chosen.isCategory &&
+      cannotOpenReason(chosen) == null) {
+    return chosen.id;
+  }
+  return navigableChannels(
+    channels.values,
+  ).where((c) => cannotOpenReason(c) == null).firstOrNull?.id;
 });
 
 final currentChannelRefProvider = Provider<ChannelRef?>((ref) {

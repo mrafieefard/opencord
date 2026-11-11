@@ -45,7 +45,9 @@ Future<void> showQuickSwitcher(BuildContext context, WidgetRef ref) async {
   final navigation = ref.read(navigationProvider.notifier);
   switch (picked) {
     case SwitcherChannel(:final serverKey, :final channel):
-      navigation.openChannel(serverKey, channel.id);
+      if (canOpen(context, channel)) {
+        navigation.openChannel(serverKey, channel.id);
+      }
     case SwitcherServer(:final serverKey):
       navigation.openServer(serverKey);
     case SwitcherMember(:final serverKey, :final member):

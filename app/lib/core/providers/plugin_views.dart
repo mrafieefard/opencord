@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/providers/providers.dart' show ChannelRef;
@@ -121,4 +122,45 @@ final pluginViewProvider = Provider.autoDispose
       }();
 
       return controller;
+    });
+
+/// A reference to a plugin asset file: server, plugin and file path.
+@immutable
+class PluginAssetRef {
+  const PluginAssetRef({
+    required this.serverKey,
+    required this.pluginId,
+    required this.path,
+    this.sha256 = '',
+  });
+
+  final String serverKey;
+  final String pluginId;
+  final String path;
+  final String sha256;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginAssetRef &&
+          other.serverKey == serverKey &&
+          other.pluginId == pluginId &&
+          other.path == path &&
+          other.sha256 == sha256;
+
+  @override
+  int get hashCode => Object.hash(serverKey, pluginId, path, sha256);
+}
+
+/// Loads a plugin asset onto disk and yields its local path.
+final pluginAssetFileProvider = FutureProvider.autoDispose
+    .family<String, PluginAssetRef>((ref, asset) async {
+      if (asset.path.isEmpty) return '';
+      final repository = ref.watch(repositoryProvider);
+      return repository.pluginAssetFile(
+        asset.serverKey,
+        asset.pluginId,
+        asset.path,
+        asset.sha256,
+      );
     });

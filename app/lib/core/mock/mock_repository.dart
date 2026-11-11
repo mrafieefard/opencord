@@ -84,9 +84,12 @@ class MockRepository implements OpencordRepository {
   final bool simulateLife;
 
   late MockWorld _world;
+  MockWorld get world => _world;
   late final MockPrivateWorld _privateWorld;
 
   MockPrivateWorld get privateWorld => _privateWorld;
+
+  RepoException? createChannelError;
 
   void emit(RepoEvent event) => _emit(event);
   RepoException? _privateUnavailable;
@@ -405,6 +408,7 @@ class MockRepository implements OpencordRepository {
   /// Adds `#scroll-test` with 10 000 messages to [serverKey].
   void debugStressChannel(String serverKey) {
     final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
     final id = _world.ids.at(_clock());
     final channel = Channel(
       id: id,
@@ -936,6 +940,7 @@ class MockRepository implements OpencordRepository {
     bool private = false,
   }) async {
     final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -1009,6 +1014,7 @@ class MockRepository implements OpencordRepository {
     bool? textInVoice,
   }) async {
     final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     final channel =
         server.channels[channelId] ??
@@ -1044,6 +1050,7 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> deleteChannel(String serverKey, int channelId) async {
     final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     await _latency();
     final channel = server.channels.remove(channelId);
@@ -1070,6 +1077,7 @@ class MockRepository implements OpencordRepository {
     Map<int, int> positions,
   ) async {
     final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     await _latency();
     for (final MapEntry(key: id, value: position) in positions.entries) {
@@ -5726,6 +5734,7 @@ class MockRepository implements OpencordRepository {
     int? parentId,
   }) async {
     final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
     final id = _world.ids.at(_clock());
     final position = server.channels.values
         .where((c) => c.parentId == parentId && !c.isCategory)

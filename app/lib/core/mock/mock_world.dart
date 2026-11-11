@@ -739,6 +739,22 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     topic: 'Ask anything about running a server',
   );
   final offTopic = b.channel('off-topic', ChannelKind.text, parent: text);
+  final maintainers = b.channel(
+    'maintainers',
+    ChannelKind.text,
+    parent: text,
+    topic: 'Release planning',
+    overwrites: [
+      b.everyoneDeny(Permissions.viewChannel),
+      b.roleAllow(maintainer, Permissions.viewChannel),
+    ],
+  );
+  final voice = b.category('Voice');
+  final generalVoice = b.channel('General', ChannelKind.voice, parent: voice);
+  b.channel('Pairing', ChannelKind.voice, parent: voice);
+  b.channel('Late night', ChannelKind.voice, parent: voice);
+
+  final plugins = b.category('Plugins');
   server.pluginChannelTypes.add(
     const PluginChannelType(
       pluginId: 'support-tickets',
@@ -754,7 +770,7 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     pluginId: 'support-tickets',
     typeKey: 'tickets',
     pluginState: PluginChannelState.available,
-    parent: text,
+    parent: plugins,
     topic: 'Support tickets',
   );
   b.pluginChannel(
@@ -762,23 +778,9 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     pluginId: 'support-tickets',
     typeKey: 'legacy',
     pluginState: PluginChannelState.pluginStopped,
-    parent: text,
+    parent: plugins,
     topic: 'Archived tickets',
   );
-  final maintainers = b.channel(
-    'maintainers',
-    ChannelKind.text,
-    parent: text,
-    topic: 'Release planning',
-    overwrites: [
-      b.everyoneDeny(Permissions.viewChannel),
-      b.roleAllow(maintainer, Permissions.viewChannel),
-    ],
-  );
-  final voice = b.category('Voice');
-  final generalVoice = b.channel('General', ChannelKind.voice, parent: voice);
-  b.channel('Pairing', ChannelKind.voice, parent: voice);
-  b.channel('Late night', ChannelKind.voice, parent: voice);
 
   b.inVoice(generalVoice, const [
     VoiceParticipant(userId: mira),

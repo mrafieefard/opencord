@@ -261,6 +261,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
         ? neighborWhere(order, current, delta, (id) => activity.of(id).unread)
         : neighbor(order, current, delta);
     if (next != null) {
+      final nextChannel = channels[next];
+      if (nextChannel != null && !canOpen(context, nextChannel)) return;
       ref.read(navigationProvider.notifier).openChannel(server, next);
     }
   }

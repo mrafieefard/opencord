@@ -49,6 +49,7 @@ export 'package:opencord/core/providers/music_state.dart';
 export 'package:opencord/core/providers/network_state.dart';
 export 'package:opencord/core/providers/pins_state.dart';
 export 'package:opencord/core/providers/playback_state.dart';
+export 'package:opencord/core/providers/plugin_views.dart';
 export 'package:opencord/core/providers/plugins_state.dart';
 export 'package:opencord/core/providers/presence_state.dart';
 export 'package:opencord/core/providers/private_state.dart';
