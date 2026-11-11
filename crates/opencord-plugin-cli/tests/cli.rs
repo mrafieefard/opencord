@@ -21,6 +21,7 @@ fn init_creates_a_working_plugin() {
     assert!(plugin_dir.is_dir());
     assert!(plugin_dir.join("manifest.lua").is_file());
     assert!(plugin_dir.join("server/main.luau").is_file());
+    assert!(plugin_dir.join("client/main.luau").is_file());
     assert!(plugin_dir.join("opencord.d.luau").is_file());
     assert!(plugin_dir.join(".luaurc").is_file());
     assert!(plugin_dir.join(".gitignore").is_file());
@@ -39,6 +40,8 @@ fn init_creates_a_working_plugin() {
     let parsed_manifest = manifest::evaluate(manifest_src).expect("manifest evaluates");
     assert_eq!(parsed_manifest.id, id);
     assert_eq!(parsed_manifest.api, 1);
+    assert_eq!(parsed_manifest.client.as_deref(), Some("client/main.luau"));
+    assert!(parsed_manifest.permissions.contains(&"create_channel_types".to_string()));
 }
 
 #[test]

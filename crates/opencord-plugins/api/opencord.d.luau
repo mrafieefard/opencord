@@ -553,3 +553,490 @@ declare config: {
     --- Permission: none
     get: (key: string) -> any,
 }
+
+--------------------------------------------------------------------------------
+--- Client only
+--------------------------------------------------------------------------------
+
+export type IconName =
+    | "add"
+    | "arrow_back"
+    | "arrow_forward"
+    | "arrow_up"
+    | "arrow_down"
+    | "check"
+    | "close"
+    | "delete"
+    | "edit"
+    | "search"
+    | "settings"
+    | "info"
+    | "warning"
+    | "error"
+    | "star"
+    | "person"
+    | "group"
+    | "chat"
+    | "send"
+    | "image"
+    | "link"
+    | "lock"
+    | "lock_open"
+    | "refresh"
+    | "play"
+    | "pause"
+    | "stop"
+    | "music"
+    | "mic"
+    | "volume"
+    | "schedule"
+    | "history"
+    | "pin"
+    | "tag"
+    | "copy"
+    | "download"
+    | "upload"
+    | "more"
+    | "menu"
+    | "visibility"
+    | "visibility_off"
+    | "palette"
+    | "extension"
+
+export type ColorName =
+    | "text"
+    | "text_secondary"
+    | "text_muted"
+    | "background"
+    | "surface"
+    | "elevated"
+    | "border"
+    | "accent"
+    | "on_accent"
+    | "selected"
+    | "hover"
+    | "danger"
+
+export type Color = ColorName | string | { from: ColorName | string, to: ColorName | string, angle: number? }
+export type Insets = number | { top: number?, right: number?, bottom: number?, left: number? } | { x: number?, y: number? }
+export type Size = number | "fill" | "fit"
+export type Stroke = { width: number?, color: Color? }
+export type SelectOption = { value: any, label: string, icon: (IconName | string)? }
+export type MenuItem = { value: any, label: string, icon: (IconName | string)?, danger: boolean? }
+export type CanvasItem = { id: string, [string]: any }
+export type CanvasPoint = { x: number, y: number, pressure: number? }
+
+export type CommonProps = {
+    key: (string | number)?,
+    width: Size?,
+    height: Size?,
+    min_width: Size?,
+    max_width: Size?,
+    min_height: Size?,
+    max_height: Size?,
+    flex: number?,
+    padding: Insets?,
+    opacity: number?,
+    visible: boolean?,
+    tooltip: string?,
+    label: string?,
+    animate: any?,
+    enter: any?,
+    exit: any?,
+    x: number?,
+    y: number?,
+    right: number?,
+    bottom: number?,
+    on_animation_end: (() -> ())?,
+}
+
+export type ContainerProps = CommonProps & {
+    background: Color?,
+    border: Stroke?,
+    radius: number?,
+    shadow: ("none" | "small" | "medium" | "large")?,
+}
+
+export type BlockNode = {
+    block: string,
+    props: any?,
+    children: (BlockNode | { BlockNode })?,
+}
+
+export type RowProps = ContainerProps & {
+    gap: number?,
+    align: ("start" | "center" | "end" | "space_between" | "space_around")?,
+    cross: ("start" | "center" | "end" | "stretch")?,
+    wrap: boolean?,
+}
+
+export type ColumnProps = ContainerProps & {
+    gap: number?,
+    align: ("start" | "center" | "end" | "space_between" | "space_around")?,
+    cross: ("start" | "center" | "end" | "stretch")?,
+    wrap: boolean?,
+}
+
+export type StackProps = ContainerProps & {}
+
+export type GridProps = ContainerProps & {
+    columns: number?,
+    min_column_width: number?,
+    gap: number?,
+}
+
+export type ScrollProps = ContainerProps & {
+    direction: ("vertical" | "horizontal")?,
+    on_scroll: ((position: number) -> ())?,
+    on_reach_start: (() -> ())?,
+    on_reach_end: (() -> ())?,
+}
+
+export type BoxProps = ContainerProps & {
+    on_press: (() -> ())?,
+    on_double_press: (() -> ())?,
+    on_long_press: (() -> ())?,
+    on_secondary_press: (() -> ())?,
+    on_hover_enter: (() -> ())?,
+    on_hover_exit: (() -> ())?,
+}
+
+export type SpacerProps = CommonProps & {
+    size: number?,
+}
+
+export type DividerProps = CommonProps & {
+    color: Color?,
+    thickness: number?,
+}
+
+export type ListProps = ContainerProps & {
+    count: number,
+    reverse: boolean?,
+    gap: number?,
+    item_height: number?,
+    item: (index: number) -> BlockNode?,
+    on_scroll: ((position: number) -> ())?,
+    on_reach_start: (() -> ())?,
+    on_reach_end: (() -> ())?,
+}
+
+export type TextProps = CommonProps & {
+    text: string,
+    size: number?,
+    weight: ("regular" | "medium" | "semibold" | "bold")?,
+    italic: boolean?,
+    color: Color?,
+    align: ("start" | "center" | "end")?,
+    max_lines: number?,
+    selectable: boolean?,
+    font: string?,
+}
+
+export type RichTextProps = CommonProps & {
+    text: string,
+}
+
+export type ImageProps = CommonProps & {
+    asset: string?,
+    file: string?,
+    file_token: string?,
+    url: string?,
+    attachment: string?,
+    bytes: (string | buffer)?,
+    fit: ("cover" | "contain" | "fill" | "none")?,
+    radius: number?,
+    placeholder: Color?,
+    version: number?,
+    on_load: (() -> ())?,
+    on_error: (() -> ())?,
+}
+
+export type IconProps = CommonProps & {
+    name: IconName | string,
+    size: number?,
+    color: Color?,
+}
+
+export type UserProps = CommonProps & {
+    id: string,
+    size: number?,
+    show_name: boolean?,
+}
+
+export type BadgeProps = CommonProps & {
+    text: string,
+    tone: ("neutral" | "accent" | "danger")?,
+}
+
+export type ProgressProps = CommonProps & {
+    value: number?,
+    style: ("bar" | "ring")?,
+}
+
+export type SpinnerProps = CommonProps & {
+    size: number?,
+}
+
+export type ButtonProps = CommonProps & {
+    text: string?,
+    variant: ("primary" | "secondary" | "danger" | "plain")?,
+    icon: (IconName | string)?,
+    loading: boolean?,
+    disabled: boolean?,
+    on_press: (() -> ())?,
+    on_long_press: (() -> ())?,
+}
+
+export type IconButtonProps = CommonProps & {
+    icon: IconName | string,
+    disabled: boolean?,
+    on_press: (() -> ())?,
+}
+
+export type CheckboxProps = CommonProps & {
+    value: boolean?,
+    text: string?,
+    disabled: boolean?,
+    on_change: ((value: boolean) -> ())?,
+}
+
+export type SwitchProps = CommonProps & {
+    value: boolean?,
+    text: string?,
+    disabled: boolean?,
+    on_change: ((value: boolean) -> ())?,
+}
+
+export type RadioProps = CommonProps & {
+    value: boolean?,
+    text: string?,
+    disabled: boolean?,
+    on_change: ((value: boolean) -> ())?,
+}
+
+export type SliderProps = CommonProps & {
+    value: number?,
+    min: number?,
+    max: number?,
+    step: number?,
+    disabled: boolean?,
+    on_change: ((value: number) -> ())?,
+    on_change_end: ((value: number) -> ())?,
+}
+
+export type SelectProps = CommonProps & {
+    value: any?,
+    options: { SelectOption },
+    placeholder: string?,
+    disabled: boolean?,
+    on_change: ((value: any) -> ())?,
+}
+
+export type TabsProps = CommonProps & {
+    value: any?,
+    options: { SelectOption },
+    on_change: ((value: any) -> ())?,
+}
+
+export type SegmentedProps = CommonProps & {
+    value: any?,
+    options: { SelectOption },
+    on_change: ((value: any) -> ())?,
+}
+
+export type TextInputProps = CommonProps & {
+    value: string?,
+    placeholder: string?,
+    password: boolean?,
+    max_length: number?,
+    lines: number?,
+    disabled: boolean?,
+    on_change: ((text: string) -> ())?,
+    on_submit: ((text: string) -> ())?,
+    on_focus: (() -> ())?,
+    on_blur: (() -> ())?,
+}
+
+export type ImagePickerProps = CommonProps & {
+    text: string?,
+    on_upload: ((file: { id: string, name: string, size: number }) -> ())?,
+    on_upload_error: ((err: string) -> ())?,
+}
+
+export type FilePickerProps = CommonProps & {
+    text: string?,
+    accept: { string }?,
+    on_upload: ((file: { id: string, name: string, size: number }) -> ())?,
+    on_upload_error: ((err: string) -> ())?,
+}
+
+export type ModalProps = CommonProps & {
+    open: boolean?,
+    size: ("small" | "medium" | "large" | "full")?,
+    sheet: boolean?,
+    dismissible: boolean?,
+    title: string?,
+    on_dismiss: (() -> ())?,
+}
+
+export type SheetProps = CommonProps & {
+    open: boolean?,
+    dismissible: boolean?,
+    on_dismiss: (() -> ())?,
+}
+
+export type MenuProps = CommonProps & {
+    items: { MenuItem },
+    on_select: ((value: any) -> ())?,
+}
+
+export type TooltipProps = CommonProps & {
+    text: string,
+}
+
+export type ToastProps = CommonProps & {
+    text: string,
+    open: boolean?,
+    duration: number?,
+    on_dismiss: (() -> ())?,
+}
+
+export type CanvasProps = CommonProps & {
+    items: { CanvasItem }?,
+    ink: Stroke?,
+    on_pointer_down: ((event: any) -> ())?,
+    on_pointer_move: ((event: any) -> ())?,
+    on_pointer_up: ((event: any) -> ())?,
+    on_pointer_cancel: ((event: any) -> ())?,
+    on_wheel: ((event: any) -> ())?,
+    on_pan: ((event: any) -> ())?,
+    on_scale: ((event: any) -> ())?,
+    on_stroke: ((points: { CanvasPoint }) -> ())?,
+}
+
+export type ModalHandle = {
+    name: string,
+    close: (self: ModalHandle, result: any?) -> (),
+    update: (self: ModalHandle, props: any?) -> (),
+}
+
+export type ViewViewer = {
+    id: string,
+    name: string,
+    roles: { string },
+}
+
+export type ViewPlace = {
+    kind: string,
+    channel_id: string,
+}
+
+export type ViewSize = {
+    width: number,
+    height: number,
+}
+
+export type ViewSafeArea = {
+    top: number,
+    right: number,
+    bottom: number,
+    left: number,
+}
+
+export type ViewContext = {
+    viewer: ViewViewer,
+    place: ViewPlace,
+    platform: string,
+    size: ViewSize,
+    safe_area: ViewSafeArea,
+    theme: "dark" | "light",
+    breakpoint: "compact" | "medium" | "expanded",
+    input: "mouse" | "touch",
+    text_scale: number,
+}
+
+declare ui: {
+    row: (props: RowProps?, children: { BlockNode }?) -> BlockNode,
+    column: (props: ColumnProps?, children: { BlockNode }?) -> BlockNode,
+    stack: (props: StackProps?, children: { BlockNode }?) -> BlockNode,
+    grid: (props: GridProps?, children: { BlockNode }?) -> BlockNode,
+    scroll: (props: ScrollProps?, child: { BlockNode }?) -> BlockNode,
+    box: (props: BoxProps?, child: { BlockNode }?) -> BlockNode,
+    spacer: (props: SpacerProps?) -> BlockNode,
+    divider: (props: DividerProps?) -> BlockNode,
+    list: (props: ListProps) -> BlockNode,
+    text: (props: TextProps) -> BlockNode,
+    rich_text: (props: RichTextProps) -> BlockNode,
+    image: (props: ImageProps) -> BlockNode,
+    icon: (props: IconProps) -> BlockNode,
+    user: (props: UserProps) -> BlockNode,
+    badge: (props: BadgeProps) -> BlockNode,
+    progress: (props: ProgressProps?) -> BlockNode,
+    spinner: (props: SpinnerProps?) -> BlockNode,
+    button: (props: ButtonProps?) -> BlockNode,
+    icon_button: (props: IconButtonProps) -> BlockNode,
+    checkbox: (props: CheckboxProps?) -> BlockNode,
+    switch: (props: SwitchProps?) -> BlockNode,
+    radio: (props: RadioProps?) -> BlockNode,
+    slider: (props: SliderProps?) -> BlockNode,
+    select: (props: SelectProps) -> BlockNode,
+    tabs: (props: TabsProps) -> BlockNode,
+    segmented: (props: SegmentedProps) -> BlockNode,
+    text_input: (props: TextInputProps?) -> BlockNode,
+    image_picker: (props: ImagePickerProps?) -> BlockNode,
+    file_picker: (props: FilePickerProps?) -> BlockNode,
+    modal: (props: ModalProps?, child: { BlockNode }?) -> BlockNode,
+    sheet: (props: SheetProps?, child: { BlockNode }?) -> BlockNode,
+    menu: (props: MenuProps, child: { BlockNode }?) -> BlockNode,
+    tooltip: (props: TooltipProps, child: { BlockNode }?) -> BlockNode,
+    toast: (props: ToastProps) -> BlockNode,
+    canvas: (props: CanvasProps?) -> BlockNode,
+}
+
+declare app: {
+    state: any,
+    set: (updater: (state: any) -> ()) -> (),
+    send: (name: string, data: any?) -> (),
+    on: (name: string, handler: (data: any) -> ()) -> (),
+    listen: (name: string, handler: (event: any) -> ()) -> (),
+    copy: (text: string) -> (),
+    on_back: (handler: () -> ()) -> (),
+    open_link: (url: string) -> (),
+    open_channel: (channel_id: string) -> (),
+    play_sound: (asset: string, options: { volume: number?, on_end: (() -> ())? }?) -> (),
+    modal: {
+        open: (name: string, props: any?) -> ModalHandle,
+        ask: (name: string, props: any?) -> any,
+        close: (name_or_result: any?) -> (),
+        close_all: () -> (),
+        is_open: (name: string) -> boolean,
+    },
+    modals: { [string]: (state: any, props: any) -> BlockNode },
+    confirm: (text: string) -> boolean,
+    alert: (text: string) -> (),
+    prompt: (text: string, default: string?) -> string?,
+    after: (seconds: number, handler: () -> ()) -> number,
+    every: (seconds: number, handler: () -> ()) -> number,
+    cancel: (timer_id: number) -> (),
+    on_frame: (handler: (dt: number) -> ()) -> (),
+    off_frame: () -> (),
+    storage: {
+        get: (key: string) -> any?,
+        set: (key: string, value: any?) -> (),
+        delete: (key: string) -> (),
+    },
+    viewer: ViewViewer,
+    place: ViewPlace,
+    platform: string,
+    size: ViewSize,
+    safe_area: ViewSafeArea,
+    theme: "dark" | "light",
+    breakpoint: "compact" | "medium" | "expanded",
+    input: "mouse" | "touch",
+    text_scale: number,
+}
+
+declare function init(ctx: ViewContext): any
+declare function render(state: any): BlockNode
+declare function migrate(old_state: any): any

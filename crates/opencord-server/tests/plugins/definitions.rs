@@ -115,6 +115,9 @@ async fn definitions_match_the_api() {
 
     for line in content.lines() {
         let trimmed = line.trim();
+        if trimmed.starts_with("--- Client only") {
+            break;
+        }
         if let Some(rest) = trimmed.strip_prefix("declare ") {
             if let Some((name, _)) = rest.split_once(':') {
                 let name = name.trim();
@@ -141,5 +144,163 @@ async fn definitions_match_the_api() {
     assert!(
         missing_in_d_luau.is_empty() && extra_in_d_luau.is_empty(),
         "definitions mismatch!\nMissing in opencord.d.luau: {missing_in_d_luau:?}\nExtra in opencord.d.luau: {extra_in_d_luau:?}"
+    );
+}
+
+// Fails if client definitions in opencord.d.luau don't match BLOCKS or if docs/plugins.md misses blocks or limits.
+#[test]
+fn client_definitions_match_blocks_and_docs() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let d_luau_path = manifest_dir
+        .parent()
+        .unwrap()
+        .join("opencord-plugins")
+        .join("api")
+        .join("opencord.d.luau");
+
+    let content = std::fs::read_to_string(&d_luau_path).unwrap_or_else(|err| {
+        panic!("could not read opencord.d.luau at {}: {err}", d_luau_path.display())
+    });
+
+    let client_section = content
+        .split("--- Client only")
+        .nth(1)
+        .expect("opencord.d.luau must contain a '--- Client only' section");
+
+    // 1. All 43 icons must be in IconName union in client definitions
+    const ICONS: &[&str] = &[
+        "add", "arrow_back", "arrow_forward", "arrow_up", "arrow_down", "check", "close",
+        "delete", "edit", "search", "settings", "info", "warning", "error", "star",
+        "person", "group", "chat", "send", "image", "link", "lock", "lock_open",
+        "refresh", "play", "pause", "stop", "music", "mic", "volume", "schedule",
+        "history", "pin", "tag", "copy", "download", "upload", "more", "menu",
+        "visibility", "visibility_off", "palette", "extension",
+    ];
+    for &icon in ICONS {
+        assert!(
+            client_section.contains(&format!("\"{icon}\"")),
+            "IconName missing icon '{icon}'"
+        );
+    }
+
+    // 2. All 35 blocks in BLOCKS must have constructors in `declare ui: { ... }`
+    for spec in opencord_plugins::blocks::BLOCKS {
+        let constructor = format!("{}: (", spec.name);
+        assert!(
+            client_section.contains(&constructor),
+            "client definitions missing ui.{} constructor",
+            spec.name
+        );
+    }
+
+    // 3. Every block's specific props and events must be present in client definitions
+    for spec in opencord_plugins::blocks::BLOCKS {
+        for &(prop, _) in spec.props {
+            assert!(
+                client_section.contains(&format!("{prop}:")),
+                "prop '{prop}' of block '{}' missing in client definitions",
+                spec.name
+            );
+        }
+        for &event in spec.events {
+            assert!(
+                client_section.contains(&format!("on_{event}:")),
+                "event 'on_{event}' of block '{}' missing in client definitions",
+                spec.name
+            );
+        }
+    }
+
+    // 4. Common props and container props
+    for &(prop, _) in opencord_plugins::blocks::COMMON_PROPS {
+        assert!(
+            client_section.contains(&format!("{prop}:")),
+            "common prop '{prop}' missing in client definitions"
+        );
+    }
+    for &(prop, _) in opencord_plugins::blocks::CONTAINER_PROPS {
+        assert!(
+            client_section.contains(&format!("{prop}:")),
+            "container prop '{prop}' missing in client definitions"
+        );
+    }
+    for &(prop, _) in opencord_plugins::blocks::STACK_CHILD_PROPS {
+        assert!(
+            client_section.contains(&format!("{prop}:")),
+            "stack child prop '{prop}' missing in client definitions"
+        );
+    }
+    for &event in opencord_plugins::blocks::COMMON_EVENTS {
+        assert!(
+            client_section.contains(&format!("on_{event}:")),
+            "common event 'on_{event}' missing in client definitions"
+        );
+    }
+
+    // 5. Globals: declare function init, render, migrate; declare app
+    assert!(
+        client_section.contains("declare function init(")
+            || client_section.contains("declare init:"),
+        "init declaration missing"
+    );
+    assert!(
+        client_section.contains("declare function render(")
+            || client_section.contains("declare render:"),
+        "render declaration missing"
+    );
+    assert!(
+        client_section.contains("declare function migrate(")
+            || client_section.contains("declare migrate:"),
+        "migrate declaration missing"
+    );
+    assert!(
+        client_section.contains("declare app:"),
+        "app declaration missing"
+    );
+
+    // 6. Verify docs/plugins.md has all blocks, corrected limits, and icons
+    let docs_path = manifest_dir
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("docs")
+        .join("plugins.md");
+    let docs_content = std::fs::read_to_string(&docs_path).unwrap_or_else(|err| {
+        panic!("could not read docs/plugins.md at {}: {err}", docs_path.display())
+    });
+
+    for spec in opencord_plugins::blocks::BLOCKS {
+        assert!(
+            docs_content.contains(&format!("`{}`", spec.name)),
+            "docs/plugins.md missing block `{}`",
+            spec.name
+        );
+    }
+
+    // Corrected limits table rows
+    assert!(
+        docs_content.contains("2,000"),
+        "docs/plugins.md limits table must specify 2,000 files in a zip"
+    );
+    assert!(
+        docs_content.contains("1 GB"),
+        "docs/plugins.md limits table must specify 1 GB database"
+    );
+    assert!(
+        docs_content.contains("5 GB"),
+        "docs/plugins.md limits table must specify 5 GB files"
+    );
+    assert!(
+        docs_content.contains("10 s") || docs_content.contains("10 seconds"),
+        "docs/plugins.md limits table must specify 10 s HTTP timeout"
+    );
+    assert!(
+        docs_content.contains("1,000"),
+        "docs/plugins.md limits table must specify 1,000 timers"
+    );
+    assert!(
+        docs_content.contains("100 ms"),
+        "docs/plugins.md limits table must specify 100 ms handler time"
     );
 }

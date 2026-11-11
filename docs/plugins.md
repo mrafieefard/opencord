@@ -227,10 +227,10 @@ API errors throw Luau runtime errors. Use `pcall(fn)` to catch errors where a fa
 ## Storage, Files, Network, Web Hooks, and Timers
 
 ### SQLite Database
-Each plugin has a dedicated SQLite database located in `data/plugins/{id}/db.sqlite`. The database runs in WAL mode with a 100 MB quota. Tables and indices are managed directly by your script using `db.exec`.
+Each plugin has a dedicated SQLite database located in `data/plugins/{id}/db.sqlite`. The database runs in WAL mode with a 1 GB quota. Tables and indices are managed directly by your script using `db.exec`.
 
 ### File Storage
-Binary files are stored in `data/plugins/{id}/files/` (up to 500 MB total quota). Paths must be relative and cannot escape the folder. Files with `public = true` can be served to clients via media URLs.
+Binary files are stored in `data/plugins/{id}/files/` (up to 5 GB total quota). Paths must be relative and cannot escape the folder. Files with `public = true` can be served to clients via media URLs.
 
 ### Outbound Network
 With the `internet` permission, plugins can perform outbound HTTPS requests via `http.request`. The target host must be explicitly listed in the manifest `domains` table. IP literals, internal private networks, and localhost are strictly blocked to prevent Server-Side Request Forgery (SSRF).
@@ -289,23 +289,167 @@ Watches the plugin directory for file changes (polling every 300 ms). On start a
 
 ---
 
+## Client Scripts and Custom Channels
+
+Plugins can register custom channel types and provide interactive user interfaces using client-side scripts. Client scripts run on member devices inside Opencord's core (`opencord-core`), executing in dedicated Luau virtual machines sandboxed with strict memory and CPU limits.
+
+### 1. The Redraw Model
+
+- **One VM per View:** Opening a plugin channel starts an isolated Luau VM for that view.
+- **Initialization:** The script defines `init(ctx)`, which receives the view context (`ctx.viewer`, `ctx.place`, `ctx.size`, `ctx.theme`, `ctx.platform`) and returns the view's initial state table.
+- **Rendering:** `render(state)` returns a declarative tree of blocks created with `ui.<block>(props, children?)`. The core reconciles the returned tree against the previous tree and emits compact diff batches to the host renderer.
+- **State Updates:** Calling `app.set(function(state) ... end)` modifies the state and marks the view dirty. The core re-renders the view after the current turn. Calling `app.set` directly inside `render` is forbidden.
+- **Hot Reloading:** In live development mode, updated client scripts preserve state across reloads. If the script defines `migrate(old_state)`, its return value becomes the new state; otherwise, the existing state is preserved as-is. Note that state must consist of plain JSON-compatible data (booleans, numbers, strings, tables)—functions and userdata cannot cross reload boundaries.
+
+### 2. Client API (`app`)
+
+Client scripts access view state, server messaging, device storage, timers, and dialogs via the global `app` table:
+
+#### Methods
+- `app.set(fn)`: updates the view's state table and queues a re-render.
+- `app.send(name, data)`: sends a view event (up to 64 KiB JSON) to the plugin's server script, delivered to `ui.on(name, handler)`.
+- `app.on(name, handler)`: registers a handler for events sent by the server via `view:send(name, data)`.
+- `app.listen(event_name, handler)`: listens for view lifecycle and input events (`"close"`, `"pause"`, `"resume"`, `"resize"`, `"theme_change"`, `"connection_change"`, `"focus"`, `"blur"`, `"key_down"`, `"key_up"`).
+- `app.copy(text)`: copies text to the system clipboard (allowed only during press handlers).
+- `app.on_back(handler)`: registers a handler for the system back action/gesture.
+- `app.open_link(url)`: prompts the user to open an external HTTP or HTTPS URL.
+- `app.open_channel(channel_id)`: navigates to a channel.
+- `app.play_sound(asset, options?)`: plays a local audio asset from `assets/` with optional volume and `on_end` callback.
+- `app.confirm(text)`: displays a confirmation dialog and pauses the handler coroutine until answered (`true` or `false`).
+- `app.alert(text)`: displays an alert dialog and pauses until dismissed.
+- `app.prompt(text, default?)`: prompts for text input and returns the typed string or `nil`.
+- `app.after(seconds, handler)`: schedules a one-shot timer (up to 1,000 active timers per view).
+- `app.every(seconds, handler)`: schedules a repeating timer (minimum 100 ms interval).
+- `app.cancel(timer_id)`: cancels an active timer.
+- `app.on_frame(handler)`: runs a handler on each animation frame (`dt` in seconds) within an 8 ms budget; pauses when hidden.
+- `app.off_frame()`: stops the frame loop.
+- `app.modal.open(name, props?)`: opens a modal registered in `app.modals` and returns a handle with `:close(result?)` and `:update(props)`.
+- `app.modal.ask(name, props?)`: opens a modal and pauses until the modal closes with a result.
+- `app.modal.close(name_or_result?)`: closes the named modal or the topmost modal.
+- `app.modal.close_all()`: closes all open modals.
+- `app.modal.is_open(name)`: returns whether a modal is currently open.
+- `app.modals`: table of modal rendering functions `app.modals[name] = function(state, props) ... end`.
+- `app.storage.get(key)`: retrieves plain data from device storage.
+- `app.storage.set(key, value)`: stores plain data in device storage (up to 1 MB per plugin).
+- `app.storage.delete(key)`: removes a key from device storage.
+
+#### Context Fields
+- `app.state`: read-only access to the current state table.
+- `app.viewer`: `{ id: string, name: string, roles: { string } }`.
+- `app.place`: `{ kind: "channel", channel_id: string }`.
+- `app.platform`: platform name (`"desktop"`).
+- `app.size`: `{ width: number, height: number }`.
+- `app.safe_area`: `{ top: number, right: number, bottom: number, left: number }`.
+- `app.theme`: `"dark"` or `"light"`.
+- `app.breakpoint`: `"compact"` (< 600px), `"medium"` (600–840px), or `"expanded"` (> 840px).
+- `app.input`: `"mouse"` or `"touch"`.
+- `app.text_scale`: system font scaling factor.
+
+### 3. Block Catalog
+
+Blocks are organized into six functional groups:
+
+#### Layout
+| Block | Props | Events | Description |
+|---|---|---|---|
+| `row` | `gap`, `align`, `cross`, `wrap` | — | Flex row container |
+| `column` | `gap`, `align`, `cross`, `wrap` | — | Flex column container |
+| `stack` | — | — | Layered container; children position with `x`, `y`, `right`, `bottom` |
+| `grid` | `columns`, `min_column_width`, `gap` | — | Multi-column grid |
+| `scroll` | `direction` (`"vertical"` / `"horizontal"`) | `on_scroll`, `on_reach_start`, `on_reach_end` | Scrollable viewport |
+| `box` | — | `on_press`, `on_double_press`, `on_long_press`, `on_secondary_press`, `on_hover_enter`, `on_hover_exit` | Tappable styled container |
+| `spacer` | `size` | — | Flexible or fixed spacing |
+| `divider` | `color`, `thickness` | — | Horizontal or vertical separator |
+
+Containers (`row`, `column`, `stack`, `grid`, `scroll`, `box`, `list`) accept `background`, `border`, `radius`, and `shadow`. All blocks accept common layout props (`width`, `height`, `min_width`, `max_width`, `min_height`, `max_height`, `flex`, `padding`, `opacity`, `visible`, `tooltip`, `label`, `animate`, `enter`, `exit`, `key`) and `on_animation_end`.
+
+#### Lists
+| Block | Props | Events | Description |
+|---|---|---|---|
+| `list` | `count`, `reverse`, `gap`, `item_height`, `item(index)` | `on_scroll`, `on_reach_start`, `on_reach_end` | Virtualized lazy list |
+
+#### Content
+| Block | Props | Events | Description |
+|---|---|---|---|
+| `text` | `text`, `size`, `weight`, `italic`, `color`, `align`, `max_lines`, `selectable`, `font` | — | Formatted text |
+| `rich_text` | `text` | — | Markdown text with emoji, mentions, links |
+| `image` | `asset`, `file`, `file_token`, `url`, `attachment`, `bytes`, `fit`, `radius`, `placeholder`, `version` | `on_load`, `on_error` | Image renderer |
+| `icon` | `name`, `size`, `color` | — | System icon |
+| `user` | `id`, `size`, `show_name` | — | User avatar and display name |
+| `badge` | `text`, `tone` (`"neutral"`, `"accent"`, `"danger"`) | — | Status badge |
+| `progress` | `value` (0.0 to 1.0), `style` (`"bar"`, `"ring"`) | — | Progress indicator |
+| `spinner` | `size` | — | Activity spinner |
+
+#### Controls
+| Block | Props | Events | Description |
+|---|---|---|---|
+| `button` | `text`, `variant` (`"primary"`, `"secondary"`, `"danger"`, `"plain"`), `icon`, `loading`, `disabled` | `on_press`, `on_long_press` | Push button |
+| `icon_button` | `icon`, `disabled` | `on_press` | Icon-only button |
+| `checkbox` | `value`, `text`, `disabled` | `on_change` | Checkbox toggle |
+| `switch` | `value`, `text`, `disabled` | `on_change` | Toggle switch |
+| `radio` | `value`, `text`, `disabled` | `on_change` | Radio option |
+| `slider` | `value`, `min`, `max`, `step`, `disabled` | `on_change`, `on_change_end` | Range slider |
+| `select` | `value`, `options`, `placeholder`, `disabled` | `on_change` | Dropdown picker |
+| `tabs` | `value`, `options` | `on_change` | Tab bar |
+| `segmented` | `value`, `options` | `on_change` | Segmented control |
+| `text_input` | `value`, `placeholder`, `password`, `max_length`, `lines`, `disabled` | `on_change`, `on_submit`, `on_focus`, `on_blur` | Text input field |
+| `image_picker` | `text` | `on_upload`, `on_upload_error` | Image upload button |
+| `file_picker` | `text`, `accept` | `on_upload`, `on_upload_error` | File upload button |
+
+#### Overlays
+| Block | Props | Events | Description |
+|---|---|---|---|
+| `modal` | `open`, `size` (`"small"`, `"medium"`, `"large"`, `"full"`), `sheet`, `dismissible`, `title` | `on_dismiss` | Modal dialog within plugin area |
+| `sheet` | `open`, `dismissible` | `on_dismiss` | Bottom sheet within plugin area |
+| `menu` | `items` | `on_select` | Context menu |
+| `tooltip` | `text` | — | Hover tooltip |
+| `toast` | `text`, `open`, `duration` | `on_dismiss` | Floating notification |
+
+#### Drawing
+| Block | Props | Events | Description |
+|---|---|---|---|
+| `canvas` | `items`, `ink` | `on_pointer_down`, `on_pointer_move`, `on_pointer_up`, `on_pointer_cancel`, `on_wheel`, `on_pan`, `on_scale`, `on_stroke` | Retained vector canvas with freehand ink |
+
+### 4. Images and Uploads
+
+The `image` block supports five distinct sources:
+1. `asset = "assets/logo.png"`: bundled static asset.
+2. `file = "avatars/1.png"` or `file_token = token`: file stored in the plugin's dedicated files quota (optionally loaded with an authenticated token generated via server `files.token(path, view)`).
+3. `url = "https://..."`: external web image fetched through the server proxy.
+4. `attachment = id`: Opencord channel attachment image, loaded locally as a `MemoryImage` via `attachmentBytes(id, AttachmentVariant.original)` without going through `pluginImageFile`.
+5. `bytes = data`: inline image raw bytes (base64 or buffer, capped at 256 KB).
+
+Files can be picked and uploaded using `image_picker` and `file_picker`, delivering `{ id, name, size }` upon upload completion.
+
+### 5. Available Icons
+
+The `icon` block and button controls support 43 standard icon names:
+`add`, `arrow_back`, `arrow_forward`, `arrow_up`, `arrow_down`, `check`, `close`, `delete`, `edit`, `search`, `settings`, `info`, `warning`, `error`, `star`, `person`, `group`, `chat`, `send`, `image`, `link`, `lock`, `lock_open`, `refresh`, `play`, `pause`, `stop`, `music`, `mic`, `volume`, `schedule`, `history`, `pin`, `tag`, `copy`, `download`, `upload`, `more`, `menu`, `visibility`, `visibility_off`, `palette`, `extension`.
+
+---
+
 ## Runtime Limits and Quotas
 
 | Resource | Limit |
 |---|---|
-| Unpacked zip files | Max 10,000 files, max 200 MB total |
+| Unpacked zip files | Max 2,000 files, max 200 MB total |
 | Single package file | Max 50 MB |
-| Luau VM memory | 128 MB per plugin |
-| CPU execution budget | 100,000,000 VM instructions per event handler (~100 ms) |
-| SQLite database | 100 MB per plugin |
-| File storage | 500 MB per plugin |
+| Luau VM memory | 128 MB (server), 32 MB (client) |
+| CPU execution budget | 100 ms per event handler (~100,000,000 instructions) |
+| SQLite database | 1 GB per plugin |
+| File storage | 5 GB per plugin |
 | Web hook payload | Max 1 MB request body |
-| HTTP request timeout | Max 30 seconds |
+| HTTP request timeout | Max 10 s |
 | CPU share | 25 % of one core, averaged over 10 seconds; past it, events wait in the queue. Plugin threads run at a lower priority. |
 | Registered commands | Max 100 commands per plugin |
 | Commands thinking at once | Max 100 per plugin |
-| Active timers | Max 50 active timers per plugin |
+| Active timers | Max 1,000 active timers per plugin |
 | Log history | Kept up to 5,000 lines in memory and disk per plugin |
+| Client handler CPU time | 50 ms per handler |
+| Frame budget (`on_frame`) | 8 ms per frame |
+| View events rate | 60 to view / 30 from view per second |
+| Raw image bytes | Max 256 KB |
+| Device storage | 1 MB per plugin |
 
 ---
 

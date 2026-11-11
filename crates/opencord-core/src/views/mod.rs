@@ -24,6 +24,9 @@ mod runtime;
 mod storage;
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+#[path = "definitions_tests.rs"]
+mod definitions_tests;
 mod timers;
 
 use std::collections::BTreeMap;
