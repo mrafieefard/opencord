@@ -11,6 +11,7 @@ import 'package:opencord/features/chat/markdown.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
 import 'package:opencord/features/plugins/plugin_icons.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/avatar.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -92,7 +93,7 @@ class OpencordBlocksHost implements BlocksHost {
         userName: (id) => serverData?.authorOf(id).name,
         channelName: (id) => serverData?.channels[id]?.name,
       ),
-      color: style.color ?? Colors.white,
+      color: style.color ?? context.oc.text,
     );
   }
 
