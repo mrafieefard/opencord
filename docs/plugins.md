@@ -453,6 +453,15 @@ The `icon` block and button controls support 43 standard icon names:
 
 ---
 
+## Example Plugins
+
+Two complete, real-world examples are included in the repository under `examples/plugins/`:
+
+- **Welcome Bot** (`examples/plugins/welcome-bot/`): A server bot demonstrating slash commands, event handlers (member joins, message moderation), background statistics tracking with SQLite, and configuration options.
+- **Support Tickets** (`examples/plugins/tickets/`): A custom channel type and interactive view demonstrating custom channels (`ui.register_channel_type`), interactive UI with declarative client blocks, named modals (`app.modals.new_ticket`), responsive layouts (`app.breakpoint`), SQLite persistence for tickets and replies, and role-based permissions (`ui.send_role`).
+
+---
+
 ## Protecting Your Work
 
 Code executed on Opencord cannot be hidden from the machines running it: server scripts run on the server administrator's hardware, and client scripts run on viewers' devices. Opencord does not support bytecode obfuscation or encryption.

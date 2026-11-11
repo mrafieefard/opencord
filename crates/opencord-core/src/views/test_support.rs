@@ -37,7 +37,7 @@ impl Seen {
         named.map(|(_, data)| data.clone()).collect()
     }
 
-    fn ops(&self) -> impl Iterator<Item = &Patch> {
+    pub(super) fn ops(&self) -> impl Iterator<Item = &Patch> {
         self.batches.iter().flat_map(|batch| &batch.ops)
     }
 

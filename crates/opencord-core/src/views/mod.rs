@@ -14,6 +14,9 @@ mod api_ui;
 mod carry;
 pub mod client;
 mod context;
+#[cfg(test)]
+#[path = "definitions_tests.rs"]
+mod definitions_tests;
 mod dialogs;
 mod draw;
 mod frames;
@@ -25,8 +28,8 @@ mod storage;
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]
-#[path = "definitions_tests.rs"]
-mod definitions_tests;
+#[path = "tests/tickets.rs"]
+mod tickets_tests;
 mod timers;
 
 use std::collections::BTreeMap;

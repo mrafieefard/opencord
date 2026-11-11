@@ -40,6 +40,8 @@ mod roles;
 mod runtime;
 #[path = "plugins/support.rs"]
 mod support;
+#[path = "plugins/tickets.rs"]
+mod tickets;
 #[path = "plugins/timers.rs"]
 mod timers;
 #[path = "plugins/uploads.rs"]

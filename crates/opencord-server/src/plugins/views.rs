@@ -96,7 +96,13 @@ pub struct ViewInfo {
 impl ViewInfo {
     /// The view as plugins see it: `{ id, user, place, platform }`.
     pub fn to_json(&self, state: &AppState) -> serde_json::Value {
-        let user = user_table(&state.guild(), self.user_id);
+        let mut user = user_table(&state.guild(), self.user_id);
+        if let Some(member) = state.guild().members.get(&self.user_id) {
+            let roles: Vec<serde_json::Value> = member.role_ids.iter().map(|&r| id(r)).collect();
+            if let serde_json::Value::Object(ref mut map) = user {
+                map.insert("roles".to_owned(), serde_json::Value::Array(roles));
+            }
+        }
         serde_json::json!({
             "id": id(self.id),
             "user": user,

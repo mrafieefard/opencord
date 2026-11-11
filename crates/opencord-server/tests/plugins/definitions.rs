@@ -159,7 +159,10 @@ fn client_definitions_match_blocks_and_docs() {
         .join("opencord.d.luau");
 
     let content = std::fs::read_to_string(&d_luau_path).unwrap_or_else(|err| {
-        panic!("could not read opencord.d.luau at {}: {err}", d_luau_path.display())
+        panic!(
+            "could not read opencord.d.luau at {}: {err}",
+            d_luau_path.display()
+        )
     });
 
     let client_section = content
@@ -169,12 +172,49 @@ fn client_definitions_match_blocks_and_docs() {
 
     // 1. All 43 icons must be in IconName union in client definitions
     const ICONS: &[&str] = &[
-        "add", "arrow_back", "arrow_forward", "arrow_up", "arrow_down", "check", "close",
-        "delete", "edit", "search", "settings", "info", "warning", "error", "star",
-        "person", "group", "chat", "send", "image", "link", "lock", "lock_open",
-        "refresh", "play", "pause", "stop", "music", "mic", "volume", "schedule",
-        "history", "pin", "tag", "copy", "download", "upload", "more", "menu",
-        "visibility", "visibility_off", "palette", "extension",
+        "add",
+        "arrow_back",
+        "arrow_forward",
+        "arrow_up",
+        "arrow_down",
+        "check",
+        "close",
+        "delete",
+        "edit",
+        "search",
+        "settings",
+        "info",
+        "warning",
+        "error",
+        "star",
+        "person",
+        "group",
+        "chat",
+        "send",
+        "image",
+        "link",
+        "lock",
+        "lock_open",
+        "refresh",
+        "play",
+        "pause",
+        "stop",
+        "music",
+        "mic",
+        "volume",
+        "schedule",
+        "history",
+        "pin",
+        "tag",
+        "copy",
+        "download",
+        "upload",
+        "more",
+        "menu",
+        "visibility",
+        "visibility_off",
+        "palette",
+        "extension",
     ];
     for &icon in ICONS {
         assert!(
@@ -267,7 +307,10 @@ fn client_definitions_match_blocks_and_docs() {
         .join("docs")
         .join("plugins.md");
     let docs_content = std::fs::read_to_string(&docs_path).unwrap_or_else(|err| {
-        panic!("could not read docs/plugins.md at {}: {err}", docs_path.display())
+        panic!(
+            "could not read docs/plugins.md at {}: {err}",
+            docs_path.display()
+        )
     });
 
     for spec in opencord_plugins::blocks::BLOCKS {

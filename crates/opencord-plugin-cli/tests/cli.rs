@@ -41,7 +41,11 @@ fn init_creates_a_working_plugin() {
     assert_eq!(parsed_manifest.id, id);
     assert_eq!(parsed_manifest.api, 1);
     assert_eq!(parsed_manifest.client.as_deref(), Some("client/main.luau"));
-    assert!(parsed_manifest.permissions.contains(&"create_channel_types".to_string()));
+    assert!(
+        parsed_manifest
+            .permissions
+            .contains(&"create_channel_types".to_string())
+    );
 }
 
 #[test]
