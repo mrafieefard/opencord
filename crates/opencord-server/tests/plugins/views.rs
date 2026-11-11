@@ -412,6 +412,7 @@ async fn losing_access_closes_the_view() {
 async fn deleting_the_channel_closes_its_views() {
     let mut w = world().await;
     let view = open_view(&mut w.member, w.channel_id).await.view_id;
+    wait_for_log(&mut w.admin, PLUGIN, &format!("open {view}")).await;
     w.admin
         .ok(Kind::DeleteChannel(proto::DeleteChannel {
             channel_id: w.channel_id,
