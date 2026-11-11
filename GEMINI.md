@@ -159,7 +159,9 @@ Every rule here was broken at least once and caught in review.
 - **The screen's bottom edge belongs to the system.** Whatever sits at the very bottom stands on `insets.bottom`; look at the screenshot's navigation buttons.
 - **A screenshot with a red dev banner over it isn't done:** dismiss the banner (its ✕) or fix what it says, then take it again.
 - **What the system needs is part of the feature.** URL schemes, permissions and intent filters go in `app.config.ts` in the task that needs them, checked from outside the app.
-- **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
+- **Events and calls carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value. A call's argument the plan gives no source for (a view's context, an id) is a question for the plan's owner, never `'{}'` with the error caught.
+- **A plugin's UI stays inside its area and lives as long as its block.** No `opencord_blocks` block reaches the app's `Navigator` or `Overlay` (`PopupMenuButton`, `showDialog`, `showModalBottomSheet`), and none uses Material `Icons.*` (the app ships no Material icon font; glyphs come from `host.icon`). A popup goes into the plugin area's own overlay; the block's `State` owns the entry and removes it in `dispose` and on Esc. An in-tree `modal`, `sheet` or `toast` draws in the overlay layer, never in place in a column.
+- **Text goes to the framework as given.** No zero-width spaces or other characters to steer wrapping: Flutter already breaks long words, and inserted characters end up in what the user copies.
 - **A retry starts clean and sends the same thing.**
   - It resets what belongs to one attempt: progress, errors.
   - If part of the original request is gone, it refuses rather than sending less (a message without its files).
@@ -188,6 +190,7 @@ Every rule here was broken at least once and caught in review.
   - Remove the entry where it is used, and on every error path. A guard whose `Drop` removes it covers both.
   - No map may grow with the number of uploads, messages or users ever seen, and an emptied entry leaves too.
   - State that belongs to something with a life (a VM, a session) leaves however that life ends: stop, restart, crash, a start that was cancelled. Clear it in the one place every end passes through.
+  - A buffer that holds things while it waits (outputs until an id comes back, inputs until a reply) fills only during that wait. When the wait fails, its subscription is cancelled and the buffer emptied: otherwise it collects everyone else's traffic for as long as the error shows.
 - **A task that follows a stream is started once per stream,** not once per start of its owner, and goes on after a hiccup: a loop on a `broadcast` receiver skips `Lagged` and ends only on `Closed`.
 - **Feeding something that plays in real time (a speaker, the call), wait for room.**
   - Write only while the queue is under a small target (tens of milliseconds), as the audio engine does with its speaker. Never push with `let _ =` and drop what doesn't fit.
@@ -224,6 +227,8 @@ Every rule here was broken at least once and caught in review.
 - **Check both themes.** Theme colours (`colors.text`, `colors.scrim`) flip with the theme. Anything drawn on a photo or a video uses the fixed dark set, `OcColors.dark`, as the image grid's overlay does.
 - **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
 - **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
+  - A wire format change (a field made optional and left out when unset) changes both parsers in the same commit, and a test feeds the reading side the exact JSON the writing side now sends, with the field left out.
+- **An event two blocks send has one shape and one limit.** A second sender of an existing event (a list's `scroll`, like the scroll block's) uses the first one's helper, with the fields from the plan's wire table and the same rate cap. Writing it again invents fields.
 - **A rule ported from another language matches its meaning, not its look.**
   - Rust's `chars()` counts Unicode scalar values; Dart's `length` counts UTF-16 units, so use `runes`.
   - Rust's `is_control()` includes U+0080–U+009F.
@@ -249,6 +254,8 @@ Every rule here was broken at least once and caught in review.
   - A task's review focus is a list of tests. Each item it names (count, size, blocked extension) gets its own test, and its own mutation shown failing.
   - A test of a retry sees the second attempt. A message printed before the wait proves nothing, and output that piles up already holds earlier matches: wait for a count.
   - A test of what an event does sends the event down the road it takes in the app. A fake's stream that reaches no provider, or a dialog with no route under it to pop, passes with the fix removed.
+  - A test of a rule doesn't set up the input that makes the result true anyway. A test of "compact turns a modal into a sheet" leaves `sheet` unset; a test of a mid-drag guard redraws when nothing else (a pending throttled value) would hold the thumb.
+  - Renderer tests build their batches from what the core sends for that action: copy a fixture from `crates/opencord-plugins/tests/fixtures/patches/` or the core's own output. A removal comes with its `drop`, a move with its `children` op, and prop names come from the schema table in `blocks.rs`. A batch written from memory tests a sender that doesn't exist.
 - **A UI test pins the design's number, not your code's.** Read it from the prototype's CSS or `measure.json`, then measure the widget where it's really used. M0's `@` badge test pinned the width 18 the code had; the prototype's is 21. A badge in a `Column` stretches to the window's width, so measure it in a `Row`.
 - **A failing test outside your plan's scope is reported, not changed.** Read the log, find out why it failed, re-run the job once and say what you found. M0 lowered a noise test in `crates/` from 40 to 35 dB to turn CI green. It had most likely failed because a loaded runner made High fall back to Standard, which the lower number hides from everyone after you.
 - **Flutter's tests draw no shadow blur** unless `debugDisableShadows` is false, so a float gets a hard band under it. Anything that judges a shadow runs in `withRealShadows` (`test/support/floating_scenes.dart`).
@@ -296,7 +303,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 - **A number in a report comes from output you saw.** Paste it, don't recall it. M1's report gave a spring's stiffness 380, damping 34, settle 370 ms and a 200 ms scrim; the real values are 503.6, 44.9, 342 ms and 120 ms. Its pull request described a 32 px title bar, a 44 px header and breakpoints that don't exist.
 - **Never `git add -f`.** What's ignored stays out of the repository. That includes `.superpowers/sdd/`, where the ledger and the scorecard live: M1 force-added both, so don't commit them at all.
 - **A rule covers every site.** When the plan or a review states a rule ("errors are strings", "every change logs an action with names"), find every place it applies before calling it done, and paste the grep that must now print nothing (`grep -rn 'to_str()?' crates/opencord-server/src/plugins`). "All" in the ledger means that grep came back empty; a review that names sites gives examples, not the whole list. Show the grep finding a known bad line first: one that can't match comes back empty too.
-- **A claim names something you ran.** A test in the ledger is one you grepped for. A mutation in the ledger pastes the line of the test that failed; if you didn't run it, don't claim it.
+- **A claim names something you ran.** A test in the ledger is one you grepped for. A mutation in the ledger names the exact edit (file, line, old → new) and pastes the line of the test that failed; a different edit that happens to fail the test doesn't count, and if you didn't run it, don't claim it. A test count is copied from the run's `test result:` line, not from an earlier entry.
 - **Every command in the ledger has its result beside it** (`→ 103 passed; 0 failed`).
 - **A required step you skipped leads the report** (screenshots, a check, a by-hand step), with why. The ledger alone doesn't count.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.
