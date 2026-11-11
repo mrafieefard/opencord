@@ -512,10 +512,14 @@ void main() {
       expect(endPos.dy, 100.0);
     });
 
-    // Fails if container block decoration does not use AnimatedContainer when animate prop is set.
+    // Fails if `decorate` ignores `animate` (the new colour shows at once),
+    // or if any layer paints the new background at full strength while the
+    // decoration is still on its way there.
     testWidgets('container_decoration_animates_with_animate_prop', (
       tester,
     ) async {
+      const red = Color(0xFFFF0000);
+      const blue = Color(0xFF0000FF);
       final controller = _show([
         create(
           1,
@@ -523,7 +527,7 @@ void main() {
           props: {
             'width': 100,
             'height': 100,
-            'background': 'surface',
+            'background': '#ff0000',
             'animate': {'duration': 200, 'curve': 'linear'},
           },
         ),
@@ -532,11 +536,34 @@ void main() {
       await pumpView(tester, controller, width: 300, height: 300);
       await tester.pumpAndSettle();
 
-      final decorated = tester
-          .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
-          .where((w) => w.decoration != null)
-          .toList();
-      expect(decorated.length, 1);
+      List<Color> painted() => [
+        for (final box in tester.widgetList<DecoratedBox>(
+          find.byType(DecoratedBox),
+        ))
+          if (box.decoration case BoxDecoration(:final color?)) color,
+      ];
+      expect(painted(), contains(red));
+
+      controller.applyBatch(
+        batch(2, [
+          {
+            'op': 'props',
+            'id': 1,
+            'set': {'background': '#0000ff'},
+            'unset': <String>[],
+          },
+        ]),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final halfway = painted();
+      expect(halfway, isNot(contains(blue)));
+      expect(halfway, isNot(contains(red)));
+      expect(halfway.where((c) => c.r > 0.2 && c.b > 0.2), isNotEmpty);
+
+      await tester.pumpAndSettle();
+      expect(painted(), contains(blue));
     });
   });
 }

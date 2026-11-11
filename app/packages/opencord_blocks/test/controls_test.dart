@@ -299,6 +299,59 @@ void main() {
         expect((changes.last['data'] as Map)['value'], greaterThan(0.0));
       },
     );
+
+    // Fails if didUpdateWidget drops its `!_dragging` guard: with nothing
+    // pending, a redraw carrying the old value snaps the held thumb back.
+    testWidgets('a_redraw_mid_drag_with_nothing_pending_keeps_the_thumb', (
+      tester,
+    ) async {
+      final controller = _show([
+        create(
+          1,
+          'slider',
+          props: {'value': 0.0, 'min': 0.0, 'max': 1.0},
+          events: ['change', 'change_end'],
+        ),
+      ], 1);
+      final inputs = Inputs(controller);
+      addTearDown(inputs.cancel);
+      await pumpView(tester, controller, width: 300, height: 100);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(Slider)),
+      );
+      await tester.pump();
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump(const Duration(milliseconds: 10));
+      await gesture.moveBy(const Offset(30, 0));
+      // Past the 50 ms throttle: the pending value has gone out, nothing
+      // waits, and the finger is still down.
+      await tester.pump(const Duration(milliseconds: 60));
+      final sent = inputs
+          .of('event')
+          .where((e) => e['event'] == 'change')
+          .toList();
+      expect(sent.length, 2);
+      final held = tester.widget<Slider>(find.byType(Slider)).value;
+      expect(held, greaterThan(0.0));
+
+      // The plugin's answer to an older change arrives mid-drag.
+      controller.applyBatch(
+        batch(2, [
+          {
+            'op': 'props',
+            'id': 1,
+            'set': {'value': 0.0},
+            'unset': <String>[],
+          },
+        ]),
+      );
+      await tester.pump();
+      expect(tester.widget<Slider>(find.byType(Slider)).value, held);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
   });
 
   group('select', () {

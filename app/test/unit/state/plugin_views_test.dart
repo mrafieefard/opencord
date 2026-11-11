@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -416,4 +417,46 @@ void main() {
     expect(controller.roots, isNotNull);
     expect(controller.seq, 1);
   });
+
+  // Fails if a failed open leaves the provider listening to every view's
+  // output: with no view id to match, it would hold each one for good.
+  test('a_failed_open_stops_listening_to_view_outputs', () async {
+    final repository = _FailingOpenRepository();
+    final container = ProviderContainer(
+      overrides: [repositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    final sub = container.listen(
+      pluginViewProvider((server: 'srv1', channel: 10)),
+      (_, _) {},
+    );
+    final controller = sub.read();
+    controller.send({'kind': 'context', 'width': 800.0, 'height': 600.0});
+    await pumpEventQueue();
+
+    expect(repository.opens, 1);
+    expect(controller.error?.message, 'channel not found');
+    // The page still shows the error, so the provider is alive.
+    expect(repository.outputs.hasListener, isFalse);
+  });
+}
+
+/// Refuses every open, and lets the test see who listens to view outputs.
+class _FailingOpenRepository extends MockRepository {
+  final outputs = StreamController<ViewOutput>.broadcast();
+  var opens = 0;
+
+  @override
+  Stream<ViewOutput> get viewOutputs => outputs.stream;
+
+  @override
+  Future<String> openView(
+    String serverKey,
+    int channelId,
+    String contextJson,
+  ) async {
+    opens++;
+    throw const RepoException(RepoErrorKind.notFound, 'channel not found');
+  }
 }
