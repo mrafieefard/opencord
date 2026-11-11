@@ -197,7 +197,7 @@ void main() {
       expect(find.text('Msg 44'), findsOneWidget);
     });
 
-    // Fails if list does not dispatch scroll event with offset and max when scrolled.
+    // Fails if list does not dispatch throttled scroll events with offset and extent fields.
     testWidgets('list_sends_scroll_events', (tester) async {
       final controller = _show([
         create(
@@ -213,15 +213,40 @@ void main() {
       await pumpView(tester, controller, width: 300, height: 200);
       await tester.pumpAndSettle();
 
-      await tester.drag(find.byType(ListView), const Offset(0, -200));
-      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(ListView)),
+      );
+      for (var i = 0; i < 5; i++) {
+        await gesture.moveBy(const Offset(0, -20));
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await gesture.up();
 
-      final scrollEvents = inputs
+      // Within 50 ms, throttling (100 ms interval) must cap events to at most 1
+      final earlyEvents = inputs
           .of('event')
           .where((e) => e['event'] == 'scroll')
           .toList();
-      expect(scrollEvents.isNotEmpty, isTrue);
-      expect((scrollEvents.first['data'] as Map)['offset'], greaterThan(0));
+      expect(earlyEvents.length, 1);
+      final firstData = earlyEvents.first['data'] as Map;
+      expect(firstData.containsKey('offset'), isTrue);
+      expect(firstData.containsKey('extent'), isTrue);
+      expect(firstData.containsKey('max'), isFalse);
+      expect(firstData['offset'], greaterThan(0));
+      expect(firstData['extent'], greaterThan(0));
+
+      // After 100 ms passes, the pending trailing scroll event flushes
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      final allEvents = inputs
+          .of('event')
+          .where((e) => e['event'] == 'scroll')
+          .toList();
+      expect(allEvents.length, 2);
+      final lastData = allEvents.last['data'] as Map;
+      expect(lastData['offset'], greaterThan(firstData['offset']));
+      expect(lastData.containsKey('extent'), isTrue);
     });
   });
 
@@ -429,6 +454,89 @@ void main() {
       // C is now above A!
       expect(cRectAfter.top, lessThan(aRectAfter.top));
       expect(find.text('B, moved'), findsOneWidget);
+    });
+
+    // Fails if stack child with animate prop does not animate its positioned coordinates via AnimatedPositioned.
+    testWidgets('stack_child_position_animates_with_animate_prop', (
+      tester,
+    ) async {
+      final controller = _show([
+        create(
+          2,
+          'box',
+          props: {
+            'width': 40,
+            'height': 40,
+            'x': 0,
+            'y': 0,
+            'animate': {'duration': 200, 'curve': 'linear'},
+          },
+        ),
+        create(1, 'stack', children: [2]),
+      ], 1);
+
+      await pumpView(tester, controller, width: 300, height: 300);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AnimatedPositioned), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey<int>(2))),
+        Offset.zero,
+      );
+
+      // Animate child 2 position to x: 100, y: 100
+      controller.applyBatch(
+        batch(2, [
+          {
+            'op': 'props',
+            'id': 2,
+            'set': {'x': 100, 'y': 100},
+            'unset': <String>[],
+          },
+        ]),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final midPos = tester.getTopLeft(find.byKey(const ValueKey<int>(2)));
+      // Mid-transition at 100 ms linear: should be around 50 px
+      expect(midPos.dx, greaterThan(20.0));
+      expect(midPos.dx, lessThan(80.0));
+      expect(midPos.dy, greaterThan(20.0));
+      expect(midPos.dy, lessThan(80.0));
+
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      final endPos = tester.getTopLeft(find.byKey(const ValueKey<int>(2)));
+      expect(endPos.dx, 100.0);
+      expect(endPos.dy, 100.0);
+    });
+
+    // Fails if container block decoration does not use AnimatedContainer when animate prop is set.
+    testWidgets('container_decoration_animates_with_animate_prop', (
+      tester,
+    ) async {
+      final controller = _show([
+        create(
+          1,
+          'box',
+          props: {
+            'width': 100,
+            'height': 100,
+            'background': 'surface',
+            'animate': {'duration': 200, 'curve': 'linear'},
+          },
+        ),
+      ], 1);
+
+      await pumpView(tester, controller, width: 300, height: 300);
+      await tester.pumpAndSettle();
+
+      final decorated = tester
+          .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
+          .where((w) => w.decoration != null)
+          .toList();
+      expect(decorated.length, 1);
     });
   });
 }

@@ -90,40 +90,100 @@ class _InTreeModalState extends State<_InTreeModal>
         if (children.isEmpty) return const SizedBox.shrink();
         final childId = children.first;
 
+        final title = props['title'] as String?;
         final size = props['size'] as String? ?? 'medium';
-        final targetWidth = switch (size) {
-          'small' => 360.0,
-          'medium' => 520.0,
-          'large' => 760.0,
-          _ => 520.0,
-        };
+        final isSheetProp = props['sheet'] as bool?;
 
         return LayoutBuilder(
           builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 600;
+            final isSheet =
+                isSheetProp == true || (isCompact && isSheetProp != false);
+
+            final double width;
+            if (size == 'full') {
+              width = constraints.maxWidth;
+            } else if (isSheet) {
+              width = constraints.maxWidth;
+            } else {
+              final target = switch (size) {
+                'small' => 360.0,
+                'medium' => 520.0,
+                'large' => 760.0,
+                _ => 520.0,
+              };
+              width = math.min(target, constraints.maxWidth);
+            }
+
+            final borderRadius = isSheet
+                ? const BorderRadius.vertical(top: Radius.circular(16))
+                : (size == 'full'
+                      ? BorderRadius.zero
+                      : BorderRadius.circular(12));
+
+            final border = size == 'full'
+                ? null
+                : Border.all(color: theme.colors['border']!, width: 1);
+
             Widget content = Container(
-              width: math.min(targetWidth, constraints.maxWidth),
+              key: const ValueKey<String>('in_tree_modal_card'),
+              width: width,
               constraints: BoxConstraints(
-                maxHeight: constraints.maxHeight - 32,
+                maxHeight: constraints.maxHeight,
+                minHeight: size == 'full' ? constraints.maxHeight : 0,
               ),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: theme.colors['elevated']!,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.colors['border']!, width: 1),
+                borderRadius: borderRadius,
+                border: border,
                 boxShadow: theme.shadows['lg'],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: borderRadius,
                 child: SingleChildScrollView(
-                  child: BlockWidget(key: ValueKey<int>(childId), id: childId),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (title != null && title.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            title,
+                            key: const ValueKey<String>('in_tree_modal_title'),
+                            style: theme.text.copyWith(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colors['text'],
+                            ),
+                          ),
+                        ),
+                      BlockWidget(key: ValueKey<int>(childId), id: childId),
+                    ],
+                  ),
                 ),
               ),
             );
 
-            content = ScaleTransition(
-              scale: Tween<double>(begin: 0.97, end: 1.0).animate(_curved),
-              child: FadeTransition(opacity: _curved, child: content),
-            );
+            if (isSheet) {
+              content = SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 1),
+                  end: Offset.zero,
+                ).animate(_curved),
+                child: content,
+              );
+            } else {
+              content = ScaleTransition(
+                scale: Tween<double>(begin: 0.97, end: 1.0).animate(_curved),
+                child: FadeTransition(opacity: _curved, child: content),
+              );
+            }
+
+            final alignment = isSheet
+                ? Alignment.bottomCenter
+                : (size == 'full' ? Alignment.topLeft : Alignment.center);
 
             return CallbackShortcuts(
               bindings: {
@@ -140,7 +200,8 @@ class _InTreeModalState extends State<_InTreeModal>
                       onTap: _dismiss,
                       child: Container(color: Colors.black54),
                     ),
-                    Center(
+                    Align(
+                      alignment: alignment,
                       child: GestureDetector(
                         onTap: () {},
                         behavior: HitTestBehavior.opaque,

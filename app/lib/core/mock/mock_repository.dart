@@ -126,6 +126,8 @@ class MockRepository implements OpencordRepository {
   Uint8List? _clipboardImage;
   int _nextViewId = 0;
   final _viewOutputsController = StreamController<ViewOutput>.broadcast();
+  final _activeViews = <String>{};
+  final _unclaimedOutputs = <String, List<ViewOutput>>{};
   final _mockViewFactories = <String, MockViewFactory>{};
   final _activeMockViews = <String, MockViewScript>{};
 
@@ -265,6 +267,8 @@ class MockRepository implements OpencordRepository {
     _speaking?.cancel();
     _levels?.cancel();
     _viewOutputsController.close();
+    _activeViews.clear();
+    _unclaimedOutputs.clear();
     _activeMockViews.clear();
     _events.close();
   }
@@ -5657,18 +5661,22 @@ class MockRepository implements OpencordRepository {
 
     final initialBatch = script('{"kind":"init"}');
     if (initialBatch != null) {
+      _unclaimedOutputs
+          .putIfAbsent(viewId, () => [])
+          .add(ViewOutput(viewId: viewId, json: initialBatch));
+    }
+
+    _activeViews.add(viewId);
+    final unconsumed = _unclaimedOutputs.remove(viewId);
+    if (unconsumed != null && unconsumed.isNotEmpty) {
       scheduleMicrotask(() {
-        scheduleMicrotask(() {
-          if (_activeMockViews.containsKey(viewId) &&
-              !_viewOutputsController.isClosed) {
-            _viewOutputsController.add(
-              ViewOutput(viewId: viewId, json: initialBatch),
-            );
+        if (_activeViews.contains(viewId) && !_viewOutputsController.isClosed) {
+          for (final output in unconsumed) {
+            _viewOutputsController.add(output);
           }
-        });
+        }
       });
     }
-    await Future<void>.value();
     return viewId;
   }
 
@@ -5685,6 +5693,8 @@ class MockRepository implements OpencordRepository {
 
   @override
   Future<void> closeView(String viewId) async {
+    _activeViews.remove(viewId);
+    _unclaimedOutputs.remove(viewId);
     _activeMockViews.remove(viewId);
   }
 

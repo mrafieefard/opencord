@@ -1,11 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme.dart';
 
 /// Shows a popup menu clamped within the plugin's [Overlay] area.
-void showBlocksPopup({
+OverlayEntry? showBlocksPopup({
   required BuildContext context,
   required BlocksTheme theme,
   required List<Widget> Function(VoidCallback close) itemsBuilder,
@@ -14,7 +15,7 @@ void showBlocksPopup({
   final overlay = Overlay.of(context);
   final overlayBox = overlay.context.findRenderObject() as RenderBox?;
   final triggerBox = context.findRenderObject() as RenderBox?;
-  if (overlayBox == null || triggerBox == null) return;
+  if (overlayBox == null || triggerBox == null) return null;
 
   final triggerOffset = triggerBox.localToGlobal(
     Offset.zero,
@@ -33,58 +34,68 @@ void showBlocksPopup({
   entry = OverlayEntry(
     builder: (context) {
       final items = itemsBuilder(close);
-      return Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: close,
-              child: const ColoredBox(color: Colors.transparent),
-            ),
-          ),
-          CustomSingleChildLayout(
-            delegate: _BlocksPopupLayoutDelegate(
-              triggerOffset: triggerOffset,
-              triggerSize: triggerSize,
-              overlaySize: overlaySize,
-              minWidth: minWidth,
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: theme.colors['elevated']!,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.colors['border']!, width: 1),
-                  boxShadow: [
-                    const BoxShadow(
-                      color: Color(0x33000000),
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
+      return CallbackShortcuts(
+        bindings: {const SingleActivator(LogicalKeyboardKey.escape): close},
+        child: FocusScope(
+          autofocus: true,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: close,
+                  child: const ColoredBox(color: Colors.transparent),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SingleChildScrollView(
-                    child: IntrinsicWidth(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: items,
+              ),
+              CustomSingleChildLayout(
+                delegate: _BlocksPopupLayoutDelegate(
+                  triggerOffset: triggerOffset,
+                  triggerSize: triggerSize,
+                  overlaySize: overlaySize,
+                  minWidth: minWidth,
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colors['elevated']!,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.colors['border']!,
+                        width: 1,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SingleChildScrollView(
+                        child: IntrinsicWidth(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: items,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       );
     },
   );
 
   overlay.insert(entry);
+  return entry;
 }
 
 class _BlocksPopupLayoutDelegate extends SingleChildLayoutDelegate {

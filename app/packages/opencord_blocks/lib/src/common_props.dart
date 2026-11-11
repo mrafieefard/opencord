@@ -59,7 +59,12 @@ EdgeInsets? insetsProp(Object? value) {
 /// Draws the container props around [content]: `background` (a colour or a
 /// gradient), `border` `{width, color}` (inside the block's size, like CSS's
 /// border-box), `radius` (clipping the content too) and `shadow`.
-Widget decorate(BlocksTheme theme, Map<String, Object?> props, Widget content) {
+Widget decorate(
+  BlocksTheme theme,
+  Map<String, Object?> props,
+  Widget content, {
+  (Duration, Curve)? anim,
+}) {
   final background = props['background'];
   final radius = numberProp(props['radius']) ?? 0;
   final border = switch (props['border']) {
@@ -79,16 +84,26 @@ Widget decorate(BlocksTheme theme, Map<String, Object?> props, Widget content) {
     inside = Padding(padding: border.dimensions, child: inside);
   }
   if (corners != null) inside = ClipRRect(borderRadius: corners, child: inside);
-  return DecoratedBox(
-    decoration: BoxDecoration(
-      color: theme.resolveColor(background),
-      gradient: theme.resolveGradient(background),
-      border: border,
-      borderRadius: corners,
-      boxShadow: shadow,
-    ),
-    child: inside,
+
+  final decoration = BoxDecoration(
+    color: theme.resolveColor(background),
+    gradient: theme.resolveGradient(background),
+    border: border,
+    borderRadius: corners,
+    boxShadow: shadow,
   );
+
+  if (anim != null) {
+    final (duration, curve) = anim;
+    return AnimatedContainer(
+      duration: duration,
+      curve: curve,
+      decoration: decoration,
+      child: inside,
+    );
+  }
+
+  return DecoratedBox(decoration: decoration, child: inside);
 }
 
 /// `width`/`height` and their `min_`/`max_`: a number, `fill` (all the room

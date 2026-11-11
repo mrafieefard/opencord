@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../common_props.dart';
 import '../view.dart';
+import 'scroll.dart';
 
 /// `list` (design §12.2): lazy `ListView` over `count` items with `reverse`,
 /// range inputs, blank placeholders of `item_height`, and scroll events.
@@ -25,6 +26,7 @@ class _ListWidget extends StatefulWidget {
 
 class _ListWidgetState extends State<_ListWidget> {
   late final ScrollController _controller;
+  final BlocksScrollThrottle _scrollThrottle = BlocksScrollThrottle();
   bool _nearStart = false;
   bool _nearEnd = false;
   int _lastSentStart = -1;
@@ -95,6 +97,7 @@ class _ListWidgetState extends State<_ListWidget> {
 
   @override
   void dispose() {
+    _scrollThrottle.dispose();
     _pendingRangeTimer?.cancel();
     _controller.removeListener(_onScroll);
     _controller.dispose();
@@ -108,10 +111,14 @@ class _ListWidgetState extends State<_ListWidget> {
     final max = position.maxScrollExtent;
     final node = widget.build.node;
 
-    // scroll event
-    if (node.handles('scroll')) {
-      widget.build.send('scroll', {'offset': pixels, 'max': max});
-    }
+    // scroll event (throttled to at most 10/s with offset and extent)
+    _scrollThrottle.handleScroll(
+      position: position,
+      handlesScroll: node.handles('scroll'),
+      sendScroll: (data) {
+        if (mounted) widget.build.send('scroll', data);
+      },
+    );
 
     // reach_start check
     if (pixels <= 48) {

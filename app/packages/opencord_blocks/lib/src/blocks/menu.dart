@@ -11,13 +11,36 @@ Widget _content(BlockBuild b) {
   return _MenuWidget(b: b);
 }
 
-class _MenuWidget extends StatelessWidget {
+class _MenuWidget extends StatefulWidget {
   const _MenuWidget({required this.b});
 
   final BlockBuild b;
 
   @override
+  State<_MenuWidget> createState() => _MenuWidgetState();
+}
+
+class _MenuWidgetState extends State<_MenuWidget> {
+  OverlayEntry? _entry;
+
+  @override
+  void dispose() {
+    _closePopup();
+    super.dispose();
+  }
+
+  void _closePopup() {
+    if (_entry != null) {
+      if (_entry!.mounted) {
+        _entry!.remove();
+      }
+      _entry = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final b = widget.b;
     final props = b.props;
     final theme = b.theme;
     final children = b.node.children;
@@ -25,7 +48,7 @@ class _MenuWidget extends StatelessWidget {
 
     final triggerChild = BlockWidget(id: children.first);
 
-    final rawItems = props['items'] ?? props['options'];
+    final rawItems = props['items'];
     final items = <Map<String, Object?>>[
       if (rawItems is List)
         for (final item in rawItems)
@@ -37,7 +60,8 @@ class _MenuWidget extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          showBlocksPopup(
+          _closePopup();
+          _entry = showBlocksPopup(
             context: context,
             theme: theme,
             itemsBuilder: (close) => [
@@ -48,6 +72,7 @@ class _MenuWidget extends StatelessWidget {
                   hostIcon: (name) => b.host.icon(name),
                   onTap: () {
                     close();
+                    _entry = null;
                     if (b.node.handles('select')) {
                       b.send('select', {'value': opt['value']});
                     }

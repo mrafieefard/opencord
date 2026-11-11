@@ -122,7 +122,7 @@ void main() {
       expect(bottomBackdrop, equals(topBackdrop));
     });
 
-    // Fails if adaptive modal does not render as a bottom sheet at compact width.
+    // Fails if an unset sheet modal does not adaptively render as a sheet at 400 wide and a card at 800 wide.
     testWidgets('compact_turns_a_modal_into_a_sheet', (tester) async {
       final controller = _showWithModals(
         nodes: [
@@ -135,25 +135,63 @@ void main() {
             'id': 2,
             'name': 'adaptive_modal',
             'size': 'medium',
-            'sheet': true,
             'dismissible': true,
           },
         ],
       );
 
-      // Compact width < 600 px (e.g. 500 px width, 400 px height).
-      await pumpView(tester, controller, width: 500, height: 400);
+      // At 400 wide (compact < 600): draws as a bottom sheet (bottom == 300, width == 400).
+      await pumpView(tester, controller, width: 400, height: 300);
       await tester.pumpAndSettle();
 
       final sheetFinder = find.byKey(
         const ValueKey<String>('modal_card_adaptive_modal'),
       );
       expect(sheetFinder, findsOneWidget);
-      final sheetRect = tester.getRect(sheetFinder);
+      var rect = tester.getRect(sheetFinder);
+      expect(rect.bottom, 300);
+      expect(rect.width, 400);
 
-      // In sheet mode, the card aligns to the bottom of the area (bottom == 400).
-      expect(sheetRect.bottom, 400);
-      expect(sheetRect.width, 500); // stretches full width in sheet mode
+      // At 800 wide (non-compact): draws as a centred card (width == 520, not pinned to bottom).
+      await pumpView(tester, controller, width: 800, height: 600);
+      await tester.pumpAndSettle();
+
+      rect = tester.getRect(sheetFinder);
+      expect(rect.width, 520);
+      expect(rect.bottom, lessThan(600));
+    });
+
+    // Fails if an explicit sheet = false modal turns into a sheet at compact width.
+    testWidgets('explicit_sheet_false_stays_card_at_compact_width', (
+      tester,
+    ) async {
+      final controller = _showWithModals(
+        nodes: [
+          create(1, 'box'),
+          create(2, 'text', props: {'text': 'Card Body'}),
+        ],
+        main: 1,
+        modals: [
+          {
+            'id': 2,
+            'name': 'card_modal',
+            'size': 'medium',
+            'sheet': false,
+            'dismissible': true,
+          },
+        ],
+      );
+
+      // At 400 wide (compact < 600) with sheet: false, it stays a centred card!
+      await pumpView(tester, controller, width: 400, height: 300);
+      await tester.pumpAndSettle();
+
+      final cardFinder = find.byKey(
+        const ValueKey<String>('modal_card_card_modal'),
+      );
+      expect(cardFinder, findsOneWidget);
+      final rect = tester.getRect(cardFinder);
+      expect(rect.bottom, lessThan(300));
     });
 
     // Fails if Escape key dismisses a non-dismissible modal or fails to dismiss a dismissible modal.
@@ -322,6 +360,164 @@ void main() {
         expect(find.text('In-tree Sheet Content'), findsOneWidget);
       },
     );
+
+    // Fails if in-tree modal size full does not fill the area width and height or small is not 360 px wide.
+    testWidgets('in_tree_modal_sizes_and_full_size_fills_area', (tester) async {
+      // 1. Small modal at 800 wide
+      final smallController = _showWithModals(
+        nodes: [
+          create(2, 'text', props: {'text': 'Small Body'}),
+          create(
+            3,
+            'modal',
+            props: {'open': true, 'size': 'small', 'sheet': false},
+            children: [2],
+          ),
+          create(1, 'box', children: [3]),
+        ],
+        main: 1,
+      );
+
+      await pumpView(tester, smallController, width: 800, height: 600);
+      await tester.pumpAndSettle();
+
+      final smallCard = find.byKey(
+        const ValueKey<String>('in_tree_modal_card'),
+      );
+      expect(smallCard, findsOneWidget);
+      expect(tester.getRect(smallCard).width, 360);
+
+      // 2. Full size modal at 800x600
+      final fullController = _showWithModals(
+        nodes: [
+          create(2, 'text', props: {'text': 'Full Body'}),
+          create(
+            3,
+            'modal',
+            props: {'open': true, 'size': 'full'},
+            children: [2],
+          ),
+          create(1, 'box', children: [3]),
+        ],
+        main: 1,
+      );
+
+      await pumpView(tester, fullController, width: 800, height: 600);
+      await tester.pumpAndSettle();
+
+      final fullCard = find.byKey(const ValueKey<String>('in_tree_modal_card'));
+      expect(fullCard, findsOneWidget);
+      final fullRect = tester.getRect(fullCard);
+      expect(fullRect.width, 800);
+      expect(fullRect.height, 600);
+    });
+
+    // Fails if in-tree modal does not adapt to sheet at compact width or respect explicit sheet props.
+    testWidgets('in_tree_modal_compact_and_explicit_sheet', (tester) async {
+      // At 400 wide without sheet prop: adaptively turns into a bottom sheet!
+      final adaptiveController = _showWithModals(
+        nodes: [
+          create(2, 'text', props: {'text': 'Adaptive Body'}),
+          create(
+            3,
+            'modal',
+            props: {'open': true, 'size': 'medium'},
+            children: [2],
+          ),
+          create(1, 'box', children: [3]),
+        ],
+        main: 1,
+      );
+
+      await pumpView(tester, adaptiveController, width: 400, height: 300);
+      await tester.pumpAndSettle();
+
+      final cardFinder = find.byKey(
+        const ValueKey<String>('in_tree_modal_card'),
+      );
+      expect(cardFinder, findsOneWidget);
+      var rect = tester.getRect(cardFinder);
+      expect(rect.bottom, 300);
+      expect(rect.width, 400);
+
+      // At 800 wide with sheet = true: explicitly draws as a bottom sheet
+      final explicitSheetController = _showWithModals(
+        nodes: [
+          create(2, 'text', props: {'text': 'Explicit Sheet Body'}),
+          create(
+            3,
+            'modal',
+            props: {'open': true, 'size': 'medium', 'sheet': true},
+            children: [2],
+          ),
+          create(1, 'box', children: [3]),
+        ],
+        main: 1,
+      );
+
+      await pumpView(tester, explicitSheetController, width: 800, height: 600);
+      await tester.pumpAndSettle();
+
+      final explicitCardFinder = find.byKey(
+        const ValueKey<String>('in_tree_modal_card'),
+      );
+      rect = tester.getRect(explicitCardFinder);
+      expect(rect.bottom, 600);
+      expect(rect.width, 800);
+
+      // At 400 wide with sheet = false: stays a centred card!
+      final explicitCardController = _showWithModals(
+        nodes: [
+          create(2, 'text', props: {'text': 'Explicit Card Body'}),
+          create(
+            3,
+            'modal',
+            props: {'open': true, 'size': 'medium', 'sheet': false},
+            children: [2],
+          ),
+          create(1, 'box', children: [3]),
+        ],
+        main: 1,
+      );
+
+      await pumpView(tester, explicitCardController, width: 400, height: 300);
+      await tester.pumpAndSettle();
+
+      final cardOnlyFinder = find.byKey(
+        const ValueKey<String>('in_tree_modal_card'),
+      );
+      rect = tester.getRect(cardOnlyFinder);
+      expect(rect.bottom, lessThan(300));
+    });
+
+    // Fails if in-tree modal title prop is not rendered above content in 18pt font.
+    testWidgets('in_tree_modal_renders_title_above_content', (tester) async {
+      final controller = _showWithModals(
+        nodes: [
+          create(2, 'text', props: {'text': 'Body Content'}),
+          create(
+            3,
+            'modal',
+            props: {'open': true, 'title': 'Modal Header Title'},
+            children: [2],
+          ),
+          create(1, 'box', children: [3]),
+        ],
+        main: 1,
+      );
+
+      await pumpView(tester, controller, width: 800, height: 600);
+      await tester.pumpAndSettle();
+
+      final titleFinder = find.byKey(
+        const ValueKey<String>('in_tree_modal_title'),
+      );
+      expect(titleFinder, findsOneWidget);
+      final textWidget = tester.widget<Text>(titleFinder);
+      expect(textWidget.data, 'Modal Header Title');
+      expect(textWidget.style?.fontSize, 18);
+      expect(textWidget.style?.fontWeight, FontWeight.w600);
+    });
 
     // Fails if modal card stretches to full height instead of sizing to fit its content.
     testWidgets('modal_card_fits_content_height_and_scrolls_when_taller', (

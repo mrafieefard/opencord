@@ -291,7 +291,7 @@ class BlocksModalRoot {
     required this.id,
     required this.name,
     required this.size,
-    required this.sheet,
+    this.sheet,
     required this.dismissible,
   });
 
@@ -300,7 +300,7 @@ class BlocksModalRoot {
 
   /// `small`, `medium`, `large` or `full`.
   final String size;
-  final bool sheet;
+  final bool? sheet;
   final bool dismissible;
 }
 
@@ -524,7 +524,9 @@ BlocksModalRoot _modal(Map<String, Object?> modal, String at) =>
         'large',
         'full',
       ]),
-      sheet: _bool(modal['sheet'], '$at.sheet'),
+      sheet: modal.containsKey('sheet') && modal['sheet'] != null
+          ? _bool(modal['sheet'], '$at.sheet')
+          : null,
       dismissible: _bool(modal['dismissible'], '$at.dismissible'),
     );
 

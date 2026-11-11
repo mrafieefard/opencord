@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/providers/providers.dart' show ChannelRef;
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 import 'package:opencord_blocks/opencord_blocks.dart';
 
 /// One plugin view's controller: connects its renderer to the server and
@@ -38,6 +39,17 @@ final pluginViewProvider = Provider.autoDispose
       () async {
         final pendingInputs = <String>[];
         final contextCompleter = Completer<String>();
+        final earlyOutputs = <ViewOutput>[];
+
+        outputSub = repository.viewOutputs.listen((output) {
+          if (openViewId != null) {
+            if (output.viewId == openViewId) {
+              controller.applyBatch(output.json);
+            }
+          } else {
+            earlyOutputs.add(output);
+          }
+        });
 
         inputSub = controller.inputs.listen((json) {
           if (openViewId != null) {
@@ -50,7 +62,13 @@ final pluginViewProvider = Provider.autoDispose
                   contextCompleter.complete(json);
                   return;
                 }
-              } catch (_) {}
+              } on FormatException catch (error) {
+                appLog(
+                  'Malformed view input JSON before view open: $error',
+                  name: 'views',
+                  level: LogLevel.warn,
+                );
+              }
             }
             pendingInputs.add(json);
           }
@@ -78,11 +96,12 @@ final pluginViewProvider = Provider.autoDispose
           }
           openViewId = viewId;
 
-          outputSub = repository.viewOutputs
-              .where((output) => output.viewId == viewId)
-              .listen((output) {
-                controller.applyBatch(output.json);
-              });
+          for (final early in earlyOutputs) {
+            if (early.viewId == viewId) {
+              controller.applyBatch(early.json);
+            }
+          }
+          earlyOutputs.clear();
 
           for (final pending in pendingInputs) {
             repository.viewInput(viewId, pending);

@@ -13,9 +13,9 @@ class _GoldenHost extends FakeHost {
 
   @override
   IconData? icon(String name) => switch (name) {
-    'star' => Icons.star,
-    'tag' => Icons.tag,
-    'person' => Icons.person,
+    'star' => const IconData(0xf09a, fontFamily: 'MaterialSymbolsRounded'),
+    'tag' => const IconData(0xe9ef, fontFamily: 'MaterialSymbolsRounded'),
+    'person' => const IconData(0xf0d3, fontFamily: 'MaterialSymbolsRounded'),
     _ => null,
   };
 

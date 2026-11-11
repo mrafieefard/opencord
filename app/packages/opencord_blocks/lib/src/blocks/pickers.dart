@@ -40,19 +40,21 @@ class _PickerWidgetState extends State<_PickerWidget> {
           if (item is String) item,
     ];
 
-    final path = await b.host.pickFile(image: widget.isImage, accept: accept);
-    if (path == null) return;
-
-    if (mounted) setState(() => _uploading = true);
     try {
+      final path = await b.host.pickFile(image: widget.isImage, accept: accept);
+      if (path == null) return;
+
+      if (mounted) setState(() => _uploading = true);
       await b.host.upload(b.node.id, path);
-    } catch (e, stack) {
+    } on Exception catch (error, stack) {
       FlutterError.reportError(
         FlutterErrorDetails(
-          exception: e,
+          exception: error,
           stack: stack,
           library: 'opencord_blocks',
-          context: ErrorDescription('while uploading file from picker'),
+          context: ErrorDescription(
+            'while picking or uploading file from picker',
+          ),
         ),
       );
     } finally {

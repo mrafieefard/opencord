@@ -19,6 +19,52 @@ Widget _content(BlockBuild b) {
   );
 }
 
+/// Throttles scroll events to at most 10 per second (100 ms) and formats
+/// the event payload as `{'offset': pixels, 'extent': maxScrollExtent}`.
+class BlocksScrollThrottle {
+  DateTime _lastScrollSent = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _pendingScrollTimer;
+  Map<String, Object?>? _pendingScrollData;
+
+  void handleScroll({
+    required ScrollPosition position,
+    required bool handlesScroll,
+    required void Function(Map<String, Object?> data) sendScroll,
+  }) {
+    if (!handlesScroll) return;
+    final data = {
+      'offset': position.pixels,
+      'extent': position.maxScrollExtent,
+    };
+    final now = DateTime.now();
+    final elapsed = now.difference(_lastScrollSent).inMilliseconds;
+    if (elapsed >= 100) {
+      _lastScrollSent = now;
+      _pendingScrollTimer?.cancel();
+      _pendingScrollTimer = null;
+      _pendingScrollData = null;
+      sendScroll(data);
+    } else {
+      _pendingScrollData = data;
+      _pendingScrollTimer ??= Timer(Duration(milliseconds: 100 - elapsed), () {
+        _pendingScrollTimer = null;
+        final pending = _pendingScrollData;
+        _pendingScrollData = null;
+        if (pending != null) {
+          _lastScrollSent = DateTime.now();
+          sendScroll(pending);
+        }
+      });
+    }
+  }
+
+  void dispose() {
+    _pendingScrollTimer?.cancel();
+    _pendingScrollTimer = null;
+    _pendingScrollData = null;
+  }
+}
+
 class _ScrollArea extends StatefulWidget {
   const _ScrollArea({required this.build, required this.child});
 
@@ -31,11 +77,9 @@ class _ScrollArea extends StatefulWidget {
 
 class _ScrollAreaState extends State<_ScrollArea> {
   late final ScrollController _controller;
+  final BlocksScrollThrottle _throttle = BlocksScrollThrottle();
   bool _nearStart = false;
   bool _nearEnd = false;
-  DateTime _lastScrollSent = DateTime.fromMillisecondsSinceEpoch(0);
-  Timer? _pendingScrollTimer;
-  Map<String, Object?>? _pendingScrollData;
 
   @override
   void initState() {
@@ -49,7 +93,7 @@ class _ScrollAreaState extends State<_ScrollArea> {
 
   @override
   void dispose() {
-    _pendingScrollTimer?.cancel();
+    _throttle.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -86,32 +130,13 @@ class _ScrollAreaState extends State<_ScrollArea> {
     }
 
     // Handle scroll event (at most 10 a second = 100 ms)
-    if (node.handles('scroll')) {
-      final data = {'offset': pixels, 'extent': max};
-      final now = DateTime.now();
-      final elapsed = now.difference(_lastScrollSent).inMilliseconds;
-      if (elapsed >= 100) {
-        _lastScrollSent = now;
-        _pendingScrollTimer?.cancel();
-        _pendingScrollData = null;
-        widget.build.send('scroll', data);
-      } else {
-        _pendingScrollData = data;
-        _pendingScrollTimer ??= Timer(
-          Duration(milliseconds: 100 - elapsed),
-          () {
-            _pendingScrollTimer = null;
-            if (!mounted) return;
-            final pending = _pendingScrollData;
-            _pendingScrollData = null;
-            if (pending != null) {
-              _lastScrollSent = DateTime.now();
-              widget.build.send('scroll', pending);
-            }
-          },
-        );
-      }
-    }
+    _throttle.handleScroll(
+      position: position,
+      handlesScroll: node.handles('scroll'),
+      sendScroll: (data) {
+        if (mounted) widget.build.send('scroll', data);
+      },
+    );
   }
 
   @override

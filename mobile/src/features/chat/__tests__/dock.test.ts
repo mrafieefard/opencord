@@ -25,10 +25,10 @@ async function dockOn(os: 'ios' | 'android'): Promise<{ bottom: number; lift: nu
 describe('the chat dock', () => {
   it('on iOS stands on the home indicator, a little lower, and the keyboard lifts it less that', async () => {
     expect(await dockOn('ios')).toEqual({ bottom: 44, lift: 36, messages: 36 });
-  }, 15000);
+  });
 
   it('on Android stands just above the navigation bar the screen ends on, and the keyboard, which counts that bar, lifts it less the bar', async () => {
     // The messages a point less: at exactly the bar's height a Modal moves them (useMessagesLift).
     expect(await dockOn('android')).toEqual({ bottom: 8, lift: WINDOW_BOTTOM, messages: WINDOW_BOTTOM - 1 });
-  }, 15000);
+  });
 });

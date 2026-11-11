@@ -276,6 +276,10 @@ void main() {
           ]),
         );
         await tester.pump();
+        expect(
+          tester.widget<Slider>(find.byType(Slider)).value,
+          greaterThan(0.0),
+        );
 
         // Release flushes pending change before change_end
         await gesture.up();
@@ -426,6 +430,118 @@ void main() {
           'data': {'value': 'item1'},
         },
       ]);
+    });
+
+    // Fails if menu or select popup overlay entry outlives its block when dropped or ignores Escape key.
+    testWidgets('menu_and_select_popups_close_on_block_drop_and_escape', (
+      tester,
+    ) async {
+      final host = _ControlsHost();
+
+      // 1. Menu popup Escape and drop
+      final menuController = _show([
+        create(2, 'button', props: {'text': 'Trigger'}),
+        create(
+          1,
+          'menu',
+          props: {
+            'items': [
+              {'value': 'item1', 'label': 'Ephemeral Item'},
+            ],
+          },
+          events: ['select'],
+          children: [2],
+        ),
+      ], 1);
+
+      await pumpView(
+        tester,
+        menuController,
+        host: host,
+        width: 300,
+        height: 300,
+      );
+
+      // Open menu
+      await tester.tap(find.text('Trigger'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ephemeral Item'), findsOneWidget);
+
+      // Escape closes it
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Ephemeral Item'), findsNothing);
+
+      // Open menu again
+      await tester.tap(find.text('Trigger'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ephemeral Item'), findsOneWidget);
+
+      // Drop the menu block via patch batch
+      menuController.applyBatch(
+        batch(2, [
+          create(3, 'box'),
+          roots(3),
+          {
+            'op': 'drop',
+            'ids': [1, 2],
+          },
+        ]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Ephemeral Item'), findsNothing);
+
+      // 2. Select popup Escape and drop
+      final selectController = _show([
+        create(
+          1,
+          'select',
+          props: {
+            'value': 'val1',
+            'options': [
+              {'value': 'val1', 'label': 'Option 1'},
+              {'value': 'val2', 'label': 'Select Option 2'},
+            ],
+          },
+        ),
+      ], 1);
+
+      await pumpView(
+        tester,
+        selectController,
+        host: host,
+        width: 300,
+        height: 300,
+      );
+
+      // Open select
+      await tester.tap(find.text('Option 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Select Option 2'), findsOneWidget);
+
+      // Escape closes select popup
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Select Option 2'), findsNothing);
+
+      // Open select again
+      await tester.tap(find.text('Option 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Select Option 2'), findsOneWidget);
+
+      // Drop select block
+      selectController.applyBatch(
+        batch(2, [
+          create(3, 'box'),
+          roots(3),
+          {
+            'op': 'drop',
+            'ids': [1],
+          },
+        ]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Select Option 2'), findsNothing);
     });
   });
 

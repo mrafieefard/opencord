@@ -103,21 +103,15 @@ class _AnimatedBlockState extends State<AnimatedBlock> {
     final opacity = (numberProp(props['opacity']) ?? 1.0).clamp(0.0, 1.0);
     final width = numberProp(props['width']);
     final height = numberProp(props['height']);
-    final tx = numberProp(props['translate_x']) ?? 0.0;
-    final ty = numberProp(props['translate_y']) ?? 0.0;
-    final bg = widget.build.theme.resolveColor(props['background']);
 
     Widget result = widget.child;
 
-    final hasTransform = tx != 0.0 || ty != 0.0;
-    if (width != null || height != null || bg != null || hasTransform) {
+    if (width != null || height != null) {
       result = AnimatedContainer(
         duration: duration,
         curve: curve,
         width: width,
         height: height,
-        color: bg,
-        transform: hasTransform ? Matrix4.translationValues(tx, ty, 0) : null,
         child: result,
       );
     }

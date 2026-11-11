@@ -416,7 +416,12 @@ class _BlockWidgetState extends State<BlockWidget> {
       drawn = Padding(padding: padding, child: drawn);
     }
     if (containerBlocks.contains(b.node.block)) {
-      drawn = decorate(b.theme, props, drawn);
+      drawn = decorate(
+        b.theme,
+        props,
+        drawn,
+        anim: readAnimate(props, b.context),
+      );
     }
     if (renderer.around case final around?) drawn = around(b, drawn);
     final width = AxisSize.read(

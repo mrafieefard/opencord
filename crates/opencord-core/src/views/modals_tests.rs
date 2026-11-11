@@ -236,3 +236,33 @@ fn modal_calls_check_where_they_run_and_what_they_get() {
         seen.errors
     );
 }
+
+// Fails if a modal root's sheet option does not distinguish unset (None),
+// explicit sheet (Some(true)), and explicit modal card (Some(false)).
+#[test]
+fn modal_roots_reflect_sheet_option() {
+    let script = r#"
+    function init() return {} end
+    app.modals.sheet_root = function() return ui.sheet({}, { ui.text({ text = "sheet" }) }) end
+    app.modals.modal_root = function() return ui.modal({ sheet = false }, { ui.text({ text = "card" }) }) end
+    app.modals.plain_root = function() return ui.box({}, { ui.text({ text = "plain" }) }) end
+    app.on("open_all", function()
+        app.modal.open("sheet_root")
+        app.modal.open("modal_root")
+        app.modal.open("plain_root")
+    end)
+    function render() return ui.text({ text = "root" }) end
+    "#;
+    let (view, recorder) = open(spec(script));
+    recorder.first_batch();
+    view.server_message("open_all".into(), "null".into());
+    let seen = settle(&view, &recorder);
+    let (_, modals) = seen.roots();
+    assert_eq!(modals.len(), 3);
+    assert_eq!(modals[0].name, "sheet_root");
+    assert_eq!(modals[0].sheet, Some(true));
+    assert_eq!(modals[1].name, "modal_root");
+    assert_eq!(modals[1].sheet, Some(false));
+    assert_eq!(modals[2].name, "plain_root");
+    assert_eq!(modals[2].sheet, None);
+}

@@ -25,6 +25,13 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     );
   }
   await inter.load();
+  final symbols = FontLoader('MaterialSymbolsRounded');
+  symbols.addFont(
+    File(
+      '../../assets/fonts/MaterialSymbolsRounded.ttf',
+    ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
+  );
+  await symbols.load();
   final comparator = goldenFileComparator;
   if (comparator is LocalFileComparator) {
     goldenFileComparator = _TolerantComparator(

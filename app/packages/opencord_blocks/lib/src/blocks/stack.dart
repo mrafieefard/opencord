@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../animation.dart';
 import '../common_props.dart';
 import '../view.dart';
 
@@ -27,18 +28,37 @@ Widget _content(BlockBuild b) {
 
         final isPositioned =
             x != null || y != null || right != null || bottom != null;
-        children.add(
-          isPositioned
-              ? Positioned(
-                  key: ValueKey<int>(id),
-                  left: x,
-                  top: y,
-                  right: right,
-                  bottom: bottom,
-                  child: BlockWidget(id: id),
-                )
-              : BlockWidget(key: ValueKey<int>(id), id: id),
-        );
+        if (isPositioned) {
+          final anim = readAnimate(props, context);
+          if (anim != null) {
+            final (duration, curve) = anim;
+            children.add(
+              AnimatedPositioned(
+                key: ValueKey<int>(id),
+                left: x,
+                top: y,
+                right: right,
+                bottom: bottom,
+                duration: duration,
+                curve: curve,
+                child: BlockWidget(id: id),
+              ),
+            );
+          } else {
+            children.add(
+              Positioned(
+                key: ValueKey<int>(id),
+                left: x,
+                top: y,
+                right: right,
+                bottom: bottom,
+                child: BlockWidget(id: id),
+              ),
+            );
+          }
+        } else {
+          children.add(BlockWidget(key: ValueKey<int>(id), id: id));
+        }
       }
       return LayoutBuilder(
         builder: (context, constraints) {

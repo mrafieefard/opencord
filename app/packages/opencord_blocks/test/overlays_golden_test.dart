@@ -7,8 +7,8 @@ import 'support.dart';
 class _GoldenHost extends FakeHost {
   @override
   IconData? icon(String name) => switch (name) {
-    'star' => Icons.star,
-    'close' => Icons.close,
+    'star' => const IconData(0xf09a, fontFamily: 'MaterialSymbolsRounded'),
+    'close' => const IconData(0xe5cd, fontFamily: 'MaterialSymbolsRounded'),
     _ => null,
   };
 }

@@ -11,13 +11,36 @@ Widget _content(BlockBuild b) {
   return _SelectWidget(b: b);
 }
 
-class _SelectWidget extends StatelessWidget {
+class _SelectWidget extends StatefulWidget {
   const _SelectWidget({required this.b});
 
   final BlockBuild b;
 
   @override
+  State<_SelectWidget> createState() => _SelectWidgetState();
+}
+
+class _SelectWidgetState extends State<_SelectWidget> {
+  OverlayEntry? _entry;
+
+  @override
+  void dispose() {
+    _closePopup();
+    super.dispose();
+  }
+
+  void _closePopup() {
+    if (_entry != null) {
+      if (_entry!.mounted) {
+        _entry!.remove();
+      }
+      _entry = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final b = widget.b;
     final props = b.props;
     final currentValue = props['value'];
     final placeholder = props['placeholder'] as String? ?? 'Select...';
@@ -80,7 +103,8 @@ class _SelectWidget extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          showBlocksPopup(
+          _closePopup();
+          _entry = showBlocksPopup(
             context: context,
             theme: theme,
             itemsBuilder: (close) => [
@@ -91,6 +115,7 @@ class _SelectWidget extends StatelessWidget {
                   theme: theme,
                   onTap: () {
                     close();
+                    _entry = null;
                     if (b.node.handles('change')) {
                       b.send('change', {'value': opt['value']});
                     }
