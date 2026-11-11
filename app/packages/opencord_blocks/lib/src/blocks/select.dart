@@ -33,6 +33,7 @@ class _SelectWidgetState extends State<_SelectWidget> {
     if (_entry != null) {
       if (_entry!.mounted) {
         _entry!.remove();
+        _entry!.dispose();
       }
       _entry = null;
     }

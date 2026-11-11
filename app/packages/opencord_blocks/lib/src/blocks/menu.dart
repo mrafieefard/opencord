@@ -33,6 +33,7 @@ class _MenuWidgetState extends State<_MenuWidget> {
     if (_entry != null) {
       if (_entry!.mounted) {
         _entry!.remove();
+        _entry!.dispose();
       }
       _entry = null;
     }

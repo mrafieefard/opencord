@@ -28,6 +28,7 @@ OverlayEntry? showBlocksPopup({
   void close() {
     if (entry.mounted) {
       entry.remove();
+      entry.dispose();
     }
   }
 
