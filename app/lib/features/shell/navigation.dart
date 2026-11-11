@@ -257,9 +257,7 @@ final currentChannelProvider = Provider<int?>((ref) {
     navigationProvider.select((selection) => selection.channels[server]),
   );
   final chosen = channels[wanted];
-  if (chosen != null &&
-      !chosen.isCategory &&
-      cannotOpenReason(chosen) == null) {
+  if (chosen != null && !chosen.isCategory) {
     return chosen.id;
   }
   return navigableChannels(
