@@ -128,4 +128,56 @@ fn ticket_client_script_opens_modal_and_submits_ticket() {
         }
     }
     let _ = seen.node("text", "Printer on fire");
+
+    // 5. Press the ticket's row to open ticket detail
+    // Change that must fail it: changing tone to variant on priority badge at client/main.luau:234 causes Patch::Error on ticket detail render
+    let mut ticket_row = None;
+    for op in seen.ops() {
+        if let Patch::Create {
+            id, block, events, ..
+        } = op
+            && block == "box"
+            && events.iter().any(|e| e == "press")
+        {
+            ticket_row = Some(*id);
+            break;
+        }
+    }
+    let ticket_row = ticket_row.expect("expected ticket row with press event");
+
+    event(&view, ticket_row, "press", json!({}));
+    let seen = settle(&view, &recorder);
+    for op in seen.ops() {
+        if let Patch::Error { message, details } = op {
+            panic!("unexpected Patch::Error opening ticket detail: {message} ({details:?})");
+        }
+    }
+    assert!(
+        !seen.sent("ticket.open").is_empty(),
+        "must send ticket.open on pressing ticket row"
+    );
+
+    // Also verify receiving ticket.detail with ticket and replies
+    view.server_message(
+        "ticket.detail".to_string(),
+        json!({
+            "ticket": {
+                "id": 1,
+                "title": "Printer on fire",
+                "body": "There is smoke coming out of tray 2",
+                "state": "open",
+                "priority": "high",
+                "author_id": "123",
+                "author_name": "Alice"
+            },
+            "replies": []
+        })
+        .to_string(),
+    );
+    let seen = settle(&view, &recorder);
+    for op in seen.ops() {
+        if let Patch::Error { message, details } = op {
+            panic!("unexpected Patch::Error on ticket.detail: {message} ({details:?})");
+        }
+    }
 }

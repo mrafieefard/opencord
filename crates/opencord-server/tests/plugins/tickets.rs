@@ -67,7 +67,7 @@ async fn the_ticket_system_works_end_to_end() {
     let server = TestServer::start().await;
     let (mut owner_client, _) = owner(&server).await;
     let (mut admin, admin_ready) = session(&server, 1, None, &[FEATURE]).await;
-    let admin_id = self_id(&admin_ready);
+    let _admin_id = self_id(&admin_ready);
     let general_id = channel_id(&admin_ready, "general");
 
     // 1. Create a "Support" role
@@ -137,13 +137,15 @@ async fn the_ticket_system_works_end_to_end() {
     };
 
     // 5. Open views as admin (member 1) and support member (member 2)
-    let view1 = open_view(&mut admin, channel_id).await;
+    let _view1 = open_view(&mut admin, channel_id).await;
     let view2 = open_view(&mut member2, channel_id).await;
 
-    // 6. Member 1 creates a ticket
-    admin
+    // 6. Member 2 (support member) creates a ticket from view2
+    // Change that must fail it: adding ui.send_role(config.get("support_role"), "ticket.created", ...)
+    // in server/main.luau ticket.create causes member 2 to receive duplicate ticket.created.
+    member2
         .ok(send(
-            view1.view_id,
+            view2.view_id,
             "ticket.create",
             &serde_json::json!({
                 "title": "Need assistance",
@@ -154,14 +156,14 @@ async fn the_ticket_system_works_end_to_end() {
         ))
         .await;
 
-    // Support member gets the update
+    // Support member author (member 2) gets ticket.created
     let msg2 = message(&mut member2, "ticket.created").await;
     let created2: serde_json::Value =
         serde_json::from_str(&msg2.data_json).expect("valid ticket.created json");
     let ticket = &created2["ticket"];
     assert_eq!(ticket["title"], "Need assistance");
     assert_eq!(ticket["body"], "Cannot access server dashboard");
-    assert_eq!(ticket["author_id"], admin_id.to_string());
+    assert_eq!(ticket["author_id"], member2_id.to_string());
     assert_eq!(ticket["priority"], "high");
     assert_eq!(ticket["state"], "open");
     let ticket_id = ticket["id"]
@@ -169,20 +171,26 @@ async fn the_ticket_system_works_end_to_end() {
         .or_else(|| ticket["id"].as_str().and_then(|s| s.parse().ok()))
         .expect("ticket id");
 
-    // Author (member 1) gets ticket.created as well (exactly once, even though they hold the support role)
-    let msg1 = message(&mut admin, "ticket.created").await;
-    let created1: serde_json::Value =
-        serde_json::from_str(&msg1.data_json).expect("valid ticket.created json");
-    assert_eq!(created1["ticket"]["id"], ticket_id);
+    // Member 2 receives ticket.created only once (even though they are author and hold the support role)
+    let second_for_member2 = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        message(&mut member2, "ticket.created"),
+    )
+    .await;
+    assert!(
+        second_for_member2.is_err(),
+        "support member author must receive ticket.created only once"
+    );
 
-    let second_for_admin = tokio::time::timeout(
+    // Admin (member 1, not holding support role and not author) receives no ticket.created
+    let for_admin = tokio::time::timeout(
         std::time::Duration::from_millis(100),
         message(&mut admin, "ticket.created"),
     )
     .await;
     assert!(
-        second_for_admin.is_err(),
-        "support member author must receive ticket.created only once"
+        for_admin.is_err(),
+        "admin without support role receives no ticket.created for another's ticket"
     );
 
     // log_channel receives "Ticket #{id} opened by {name}: {title}"
@@ -243,10 +251,25 @@ async fn the_ticket_system_works_end_to_end() {
     assert_eq!(closed2_json["ticket"]["id"], ticket_id);
     assert_eq!(closed2_json["ticket"]["state"], "closed");
 
-    // Author (member 1) also receives ticket.closed
-    let closed1 = message(&mut admin, "ticket.closed").await;
-    let closed1_json: serde_json::Value =
-        serde_json::from_str(&closed1.data_json).expect("valid ticket.closed json");
-    assert_eq!(closed1_json["ticket"]["id"], ticket_id);
-    assert_eq!(closed1_json["ticket"]["state"], "closed");
+    // Closer (member 2) receives ticket.closed only once
+    let second_closed2 = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        message(&mut member2, "ticket.closed"),
+    )
+    .await;
+    assert!(
+        second_closed2.is_err(),
+        "closer support author must receive ticket.closed only once"
+    );
+
+    // Admin (not author, not support) does not receive ticket.closed
+    let closed1 = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        message(&mut admin, "ticket.closed"),
+    )
+    .await;
+    assert!(
+        closed1.is_err(),
+        "non-support non-author receives no ticket.closed"
+    );
 }

@@ -471,8 +471,17 @@ The `image` block supports five distinct sources:
 When a user selects a file through `image_picker` or `file_picker`:
 1. The client app displays the file selector and uploads the selected file to the Opencord server.
 2. The client script receives the picker's `on_upload` event with `{ name = string, size = number }`.
-3. The server plugin receives the `file_uploaded` event on its gateway dispatcher with the uploaded file object.
-4. The server script stores the file into plugin storage using `files.put(path, file)`.
+3. The server plugin receives the `file_uploaded` event via `opencord.on("file_uploaded", function(event) ... end)` with `event.view` (`{ id, place, user }`) and `event.file` (`{ id, name, size, content_type }`). Handling uploads requires the `accept_uploads` permission in the plugin manifest.
+4. The server script persists the file into plugin storage using `files.put(path, event.file)`.
+
+```lua
+opencord.on("file_uploaded", function(event)
+    -- Requires 'accept_uploads' permission in manifest.lua
+    local dest_path = "uploads/" .. event.file.name
+    files.put(dest_path, event.file)
+    log.info("Saved upload " .. event.file.name .. " to " .. dest_path)
+end)
+```
 
 ### 5. Available Icons
 
@@ -510,9 +519,9 @@ The `icon` block and button controls support 43 standard icon names:
 | View events rate | Max 60 to view / max 30 from view per second |
 | External image fetch | Max 10 MiB, max 40 megapixels |
 | File tokens | Good for 1 hour |
-| Custom channel types | Max 20 channel types per server |
+| Custom channel types | Max 20 channel types per plugin |
 | Dialog text | Max 2,000 characters for confirm/alert/prompt |
-| Error reports | At most 1 per 10 seconds, max 2,000 characters |
+| Error reports | At most 1 per view per 10 seconds, max 2,000 characters |
 | Raw image bytes | Max 256 KB |
 | Device storage | 1 MB per plugin |
 

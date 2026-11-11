@@ -266,12 +266,7 @@ export type ViewPlace = {
     channel_id: string,
 }
 
-export type ViewUser = {
-    id: string,
-    name: string,
-    discriminator: string?,
-    avatar: string?,
-    bot: boolean?,
+export type ViewUser = User & {
     roles: { string }?,
     role_ids: { string }?,
 }
@@ -1004,39 +999,73 @@ declare ui: {
 
     --- Client only.
     row: (props: RowProps?, children: { BlockNode }?) -> BlockNode,
+    --- Client only.
     column: (props: ColumnProps?, children: { BlockNode }?) -> BlockNode,
+    --- Client only.
     stack: (props: StackProps?, children: { BlockNode }?) -> BlockNode,
+    --- Client only.
     grid: (props: GridProps?, children: { BlockNode }?) -> BlockNode,
+    --- Client only.
     scroll: (props: ScrollProps?, child: { BlockNode }?) -> BlockNode,
+    --- Client only.
     box: (props: BoxProps?, child: { BlockNode }?) -> BlockNode,
+    --- Client only.
     spacer: (props: SpacerProps?) -> BlockNode,
+    --- Client only.
     divider: (props: DividerProps?) -> BlockNode,
+    --- Client only.
     list: (props: ListProps) -> BlockNode,
+    --- Client only.
     text: (props: TextProps) -> BlockNode,
+    --- Client only.
     rich_text: (props: RichTextProps) -> BlockNode,
+    --- Client only.
     image: (props: ImageProps) -> BlockNode,
+    --- Client only.
     icon: (props: IconProps) -> BlockNode,
+    --- Client only.
     user: (props: UserProps) -> BlockNode,
+    --- Client only.
     badge: (props: BadgeProps) -> BlockNode,
+    --- Client only.
     progress: (props: ProgressProps?) -> BlockNode,
+    --- Client only.
     spinner: (props: SpinnerProps?) -> BlockNode,
+    --- Client only.
     button: (props: ButtonProps?) -> BlockNode,
+    --- Client only.
     icon_button: (props: IconButtonProps) -> BlockNode,
+    --- Client only.
     checkbox: (props: CheckboxProps?) -> BlockNode,
+    --- Client only.
     switch: (props: SwitchProps?) -> BlockNode,
+    --- Client only.
     radio: (props: RadioProps?) -> BlockNode,
+    --- Client only.
     slider: (props: SliderProps?) -> BlockNode,
+    --- Client only.
     select: (props: SelectProps) -> BlockNode,
+    --- Client only.
     tabs: (props: TabsProps) -> BlockNode,
+    --- Client only.
     segmented: (props: SegmentedProps) -> BlockNode,
+    --- Client only.
     text_input: (props: TextInputProps?) -> BlockNode,
+    --- Client only.
     image_picker: (props: ImagePickerProps?) -> BlockNode,
+    --- Client only.
     file_picker: (props: FilePickerProps?) -> BlockNode,
+    --- Client only.
     modal: (props: ModalProps?, child: { BlockNode }?) -> BlockNode,
+    --- Client only.
     sheet: (props: SheetProps?, child: { BlockNode }?) -> BlockNode,
+    --- Client only.
     menu: (props: MenuProps, child: { BlockNode }?) -> BlockNode,
+    --- Client only.
     tooltip: (props: TooltipProps, child: { BlockNode }?) -> BlockNode,
+    --- Client only.
     toast: (props: ToastProps) -> BlockNode,
+    --- Client only.
     canvas: (props: CanvasProps?) -> BlockNode,
 }
 

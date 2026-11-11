@@ -25,10 +25,14 @@ local function init_db()
 end
 
 local function has_role(user, role_id)
-    if not user or not user.roles or not role_id or role_id == "" then
+    if not user or not role_id or role_id == "" then
         return false
     end
-    for _, r in ipairs(user.roles) do
+    local roles = user.roles or user.role_ids
+    if not roles then
+        return false
+    end
+    for _, r in ipairs(roles) do
         if r == role_id then
             return true
         end
@@ -52,16 +56,7 @@ local function broadcast_ticket_event(place, event_name, payload, skip_view_id, 
     local support_role = config.get("support_role")
     for _, v in ipairs(ui.views(place)) do
         if v.id ~= skip_view_id then
-            local is_support = false
-            if type(support_role) == "string" and support_role ~= "" and v.user and (v.user.roles or v.user.role_ids) then
-                local roles = v.user.roles or v.user.role_ids
-                for _, r in ipairs(roles) do
-                    if r == support_role then
-                        is_support = true
-                        break
-                    end
-                end
-            end
+            local is_support = has_role(v.user, support_role)
             if is_support or (author_id and v.user and v.user.id == author_id) then
                 v:send(event_name, payload)
             end

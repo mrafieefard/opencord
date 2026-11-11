@@ -10,6 +10,7 @@ import 'package:opencord/features/channels/channel_row.dart';
 import 'package:opencord/features/dialogs/create_channel_dialog.dart';
 import 'package:opencord/features/links/app_links.dart';
 import 'package:opencord/features/shell/navigation.dart';
+import 'package:opencord/features/shell/navigation_history.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
@@ -176,7 +177,7 @@ void main() {
 
   // Fails if an unavailable channel can be opened by row click, keyboard
   // navigation, or app link, or fails to display "This channel is unavailable".
-  // Mutation: NavigationNotifier.openChannel skips cannotOpenReason guard.
+  // Mutation: openChannelWithToast / canOpen skips cannotOpenReason guard.
   testWidgets('an_unavailable_channel_shows_why_and_doesnt_open', (
     tester,
   ) async {
@@ -390,6 +391,46 @@ void main() {
     // Dialog stays open and shows the server's error message
     expect(find.byType(CreateChannelDialog), findsOneWidget);
     expect(find.text('channel type unavailable'), findsOneWidget);
+
+    await app.dispose(tester);
+  });
+
+  // Fails if stepping back in navigation history can open an unavailable channel.
+  // Change that must fail it: removing cannotOpenReason check from navigation_history.dart:_isEntryValid.
+  testWidgets('navigation_history_back_does_not_open_unavailable_channel', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester);
+    final server = app.repository.mockServer(serverKey);
+    final ticketsChannel = server.channels.values.firstWhere(
+      (c) => c.name == 'tickets',
+    );
+    final generalChannel = server.channels.values.firstWhere(
+      (c) => c.name == 'general',
+    );
+
+    // 1. Open tickets, then open general
+    app.read(navigationProvider.notifier).openChannel(serverKey, ticketsChannel.id);
+    await tester.pumpAndSettle();
+    expect(app.read(currentChannelProvider), ticketsChannel.id);
+
+    app.read(navigationProvider.notifier).openChannel(serverKey, generalChannel.id);
+    await tester.pumpAndSettle();
+    expect(app.read(currentChannelProvider), generalChannel.id);
+
+    // 2. Mark tickets' plugin stopped
+    server.channels[ticketsChannel.id] = ticketsChannel.copyWith(
+      pluginState: () => PluginChannelState.pluginStopped,
+    );
+    app.repository.emit(Ready(serverKey, server.snapshot()));
+    await tester.pumpAndSettle();
+
+    // 3. Go back in navigation history
+    app.read(navigationHistoryProvider.notifier).back();
+    await tester.pumpAndSettle();
+
+    // currentChannelProvider must stay on general
+    expect(app.read(currentChannelProvider), generalChannel.id);
 
     await app.dispose(tester);
   });

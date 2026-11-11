@@ -414,7 +414,7 @@ void main() {
   });
 
   // Fails if a plugin's app.open_channel can navigate to an unavailable channel.
-  // Mutation: NavigationNotifier.openChannel skips the cannotOpenReason guard.
+  // Mutation: openChannelWithToast / canOpen skips the cannotOpenReason guard.
   testWidgets('plugin_open_channel_to_unavailable_channel_does_not_open', (
     tester,
   ) async {

@@ -75,7 +75,7 @@ app.modals.new_ticket = function(s, props)
                 value = s.new_title,
                 on_change = function(t)
                     app.set(function(state)
-                        state.new_title = (type(t) == "table" and t.value) or t
+                        state.new_title = t.value
                     end)
                 end,
             }),
@@ -85,7 +85,7 @@ app.modals.new_ticket = function(s, props)
                 value = s.new_body,
                 on_change = function(b)
                     app.set(function(state)
-                        state.new_body = (type(b) == "table" and b.value) or b
+                        state.new_body = b.value
                     end)
                 end,
             }),
@@ -98,7 +98,7 @@ app.modals.new_ticket = function(s, props)
                 value = s.new_priority,
                 on_change = function(p)
                     app.set(function(state)
-                        state.new_priority = (type(p) == "table" and p.value) or p
+                        state.new_priority = p.value
                     end)
                 end,
             }),
@@ -267,7 +267,7 @@ local function render_ticket_detail(s, is_compact)
                 value = s.reply_body,
                 on_change = function(b)
                     app.set(function(state)
-                        state.reply_body = (type(b) == "table" and b.value) or b
+                        state.reply_body = b.value
                     end)
                 end,
             }),
