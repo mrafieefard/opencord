@@ -24,18 +24,39 @@ class _ToastWidget extends StatefulWidget {
 
 class _ToastWidgetState extends State<_ToastWidget> {
   Timer? _dismissTimer;
+  late final OverlayPortalController _portalController;
+  bool _wasOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
+    _portalController = OverlayPortalController();
+    final isOpen = widget.build.props['open'] != false;
+    _wasOpen = isOpen;
+    if (isOpen) {
+      _portalController.show();
+      _startTimer();
+    }
   }
 
   @override
   void didUpdateWidget(_ToastWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _dismissTimer?.cancel();
-    _startTimer();
+    final isOpen = widget.build.props['open'] != false;
+    if (isOpen && !_wasOpen) {
+      _wasOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _portalController.show();
+      });
+      _startTimer();
+    } else if (!isOpen && _wasOpen) {
+      _wasOpen = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _portalController.hide();
+      });
+      _dismissTimer?.cancel();
+      _dismissTimer = null;
+    }
   }
 
   @override
@@ -57,34 +78,48 @@ class _ToastWidgetState extends State<_ToastWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = widget.build.theme;
-    final props = widget.build.props;
-    final text = props['text'] as String? ?? '';
-    final children = widget.build.node.children;
+    return OverlayPortal(
+      controller: _portalController,
+      overlayChildBuilder: (context) {
+        final theme = widget.build.theme;
+        final props = widget.build.props;
+        final text = props['text'] as String? ?? '';
+        final children = widget.build.node.children;
 
-    Widget content;
-    if (children.isNotEmpty) {
-      content = BlockWidget(id: children.first);
-    } else {
-      content = Text(
-        text,
-        style: TextStyle(
-          fontFamily: theme.text.fontFamily ?? 'Inter',
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: theme.colors['on_accent']!,
-        ),
-      );
-    }
+        Widget content;
+        if (children.isNotEmpty) {
+          content = BlockWidget(id: children.first);
+        } else {
+          content = Text(
+            text,
+            style: TextStyle(
+              fontFamily: theme.text.fontFamily ?? 'Inter',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: theme.colors['on_accent']!,
+            ),
+          );
+        }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colors['accent']!,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: theme.shadows['md'],
-      ),
-      child: content,
+        final card = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: theme.colors['accent']!,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: theme.shadows['md'],
+          ),
+          child: content,
+        );
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: card,
+          ),
+        );
+      },
+      child: const SizedBox.shrink(),
     );
   }
 }

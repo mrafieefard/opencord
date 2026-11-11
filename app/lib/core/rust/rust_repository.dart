@@ -3180,13 +3180,8 @@ class RustRepository implements OpencordRepository {
   }
 
   @override
-  void viewInput(String viewId, String json) {
-    try {
-      _core.viewInput(viewId: viewId, json: json);
-    } on Object catch (error) {
-      appLog('viewInput failed: $error', name: 'views', level: LogLevel.warn);
-    }
-  }
+  void viewInput(String viewId, String json) =>
+      _now(() => _core.viewInput(viewId: viewId, json: json));
 
   @override
   Future<void> closeView(String viewId) async {

@@ -1,7 +1,4 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart' show SelectableText;
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../common_props.dart';
@@ -26,9 +23,6 @@ class _TextBlockWidget extends StatefulWidget {
 }
 
 class _TextBlockWidgetState extends State<_TextBlockWidget> {
-  static final _loadedFonts = <String>{};
-  static final _loadingFonts = <String, Future<void>>{};
-
   @override
   void initState() {
     super.initState();
@@ -45,34 +39,12 @@ class _TextBlockWidgetState extends State<_TextBlockWidget> {
 
   void _checkFont() {
     final font = widget.build.props['font'] as String?;
-    if (font == null || font.isEmpty || _loadedFonts.contains(font)) return;
+    if (font == null || font.isEmpty) return;
+    final controller = widget.build.controller;
+    if (controller.resolvedFont(font) != null) return;
 
-    if (_loadingFonts.containsKey(font)) {
-      _loadingFonts[font]!.then((_) {
-        if (mounted) setState(() {});
-      });
-      return;
-    }
-
-    final future = () async {
-      try {
-        final data = await widget.build.host.font(font);
-        if (data != null) {
-          final loader = FontLoader(font);
-          loader.addFont(Future.value(data));
-          await loader.load();
-          _loadedFonts.add(font);
-        }
-      } catch (_) {
-        // Fall back to Inter.
-      } finally {
-        _loadingFonts.remove(font);
-      }
-    }();
-
-    _loadingFonts[font] = future;
-    future.then((_) {
-      if (mounted) setState(() {});
+    controller.loadFont(font, widget.build.host).then((family) {
+      if (mounted && family != null) setState(() {});
     });
   }
 
@@ -80,14 +52,13 @@ class _TextBlockWidgetState extends State<_TextBlockWidget> {
   Widget build(BuildContext context) {
     final b = widget.build;
     final props = b.props;
-    final rawText = props['text'] as String? ?? '';
-    if (rawText.isEmpty) return const SizedBox.shrink();
+    final text = props['text'] as String? ?? '';
+    if (text.isEmpty) return const SizedBox.shrink();
 
-    final text = _wrapLongWords(rawText);
     final font = props['font'] as String?;
-    final fontFamily = (font != null && _loadedFonts.contains(font))
-        ? font
-        : (b.theme.text.fontFamily ?? 'Inter');
+    final fontFamily =
+        (font != null ? b.controller.resolvedFont(font) : null) ??
+        (b.theme.text.fontFamily ?? 'Inter');
 
     final size = numberProp(props['size']) ?? b.theme.text.fontSize ?? 14.0;
     final weight = _weight(props['weight'] as String?);
@@ -99,7 +70,7 @@ class _TextBlockWidgetState extends State<_TextBlockWidget> {
         ? (props['max_lines'] as num).toInt()
         : null;
     final selectable = props['selectable'] == true;
-    final direction = textDirectionOf(rawText);
+    final direction = textDirectionOf(text);
 
     final style = TextStyle(
       fontFamily: fontFamily,
@@ -143,14 +114,6 @@ TextAlign _align(String? align) => switch (align) {
   'end' => TextAlign.end,
   _ => TextAlign.start,
 };
-
-/// Inserts zero-width spaces (\u200B) into long unbroken words so they wrap
-/// inside narrow containers without overflowing.
-String _wrapLongWords(String text) {
-  return text.replaceAllMapped(RegExp(r'\S{12,}'), (match) {
-    return match.group(0)!.characters.join('\u200B');
-  });
-}
 
 bool _isRtlRune(int rune) =>
     (rune >= 0x0590 && rune <= 0x08FF) ||

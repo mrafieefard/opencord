@@ -1001,7 +1001,7 @@ return m
         assert!(began.elapsed() < Duration::from_secs(1));
 
         assert_eq!(
-            refused("local t = {} while true do t[#t + 1] = string.rep('x', 65536) .. #t end"),
+            refused("local t = {} while true do t[#t + 1] = string.rep('x', 1048576) .. #t end"),
             "manifest: the plugin ran out of memory"
         );
     }

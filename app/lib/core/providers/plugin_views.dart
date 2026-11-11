@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:opencord/core/logs/app_log.dart';
 import 'package:opencord/core/providers/providers.dart' show ChannelRef;
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord_blocks/opencord_blocks.dart';
@@ -23,19 +25,55 @@ final pluginViewProvider = Provider.autoDispose
         inputSub?.cancel();
         controller.dispose();
         if (openViewId != null) {
-          unawaited(repository.closeView(openViewId!));
+          unawaited(
+            repository
+                .closeView(openViewId!)
+                .catchError(
+                  (Object e) => appLog('close view failed: $e', name: 'views'),
+                ),
+          );
         }
       });
 
       () async {
+        final pendingInputs = <String>[];
+        final contextCompleter = Completer<String>();
+
+        inputSub = controller.inputs.listen((json) {
+          if (openViewId != null) {
+            repository.viewInput(openViewId!, json);
+          } else {
+            if (!contextCompleter.isCompleted) {
+              try {
+                final decoded = jsonDecode(json);
+                if (decoded is Map && decoded['kind'] == 'context') {
+                  contextCompleter.complete(json);
+                  return;
+                }
+              } catch (_) {}
+            }
+            pendingInputs.add(json);
+          }
+        });
+
         try {
+          final contextJson = await contextCompleter.future;
+          if (disposed) return;
+
           final viewId = await repository.openView(
             channel.server,
             channel.channel,
-            '{}',
+            contextJson,
           );
           if (disposed) {
-            unawaited(repository.closeView(viewId));
+            unawaited(
+              repository
+                  .closeView(viewId)
+                  .catchError(
+                    (Object e) =>
+                        appLog('close view failed: $e', name: 'views'),
+                  ),
+            );
             return;
           }
           openViewId = viewId;
@@ -46,12 +84,14 @@ final pluginViewProvider = Provider.autoDispose
                 controller.applyBatch(output.json);
               });
 
-          inputSub = controller.inputs.listen((json) {
-            repository.viewInput(viewId, json);
-          });
-        } on Object {
+          for (final pending in pendingInputs) {
+            repository.viewInput(viewId, pending);
+          }
+          pendingInputs.clear();
+        } on RepoException catch (e) {
+          appLog('open view failed: $e', name: 'views');
           if (!disposed) {
-            // Any open error will be handled or closed
+            controller.reportError(e.message);
           }
         }
       }();

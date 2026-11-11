@@ -116,7 +116,8 @@ pub struct ModalRoot {
     pub id: u64,
     pub name: String,
     pub size: ModalSize,
-    pub sheet: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet: Option<bool>,
     pub dismissible: bool,
 }
 
@@ -163,7 +164,7 @@ mod tests {
                     id: 9,
                     name: "edit".into(),
                     size: ModalSize::Medium,
-                    sheet: false,
+                    sheet: Some(false),
                     dismissible: true,
                 }],
             },

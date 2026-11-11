@@ -138,19 +138,13 @@ class MockRepository implements OpencordRepository {
     var count = 0;
     var seq = 1;
     return (inputJson) {
-      if (inputJson.contains('"kind":"init"') || inputJson == '{}') {
+      if (inputJson.contains('"kind":"init"') ||
+          inputJson.contains('"kind":"context"') ||
+          inputJson == '{}') {
         return jsonEncode({
           'view': viewId,
           'seq': seq,
           'ops': [
-            {
-              'op': 'create',
-              'id': 1,
-              'block': 'column',
-              'props': <String, Object?>{},
-              'events': <String>[],
-              'children': [2, 3],
-            },
             {
               'op': 'create',
               'id': 2,
@@ -166,6 +160,14 @@ class MockRepository implements OpencordRepository {
               'props': {'text': 'Count'},
               'events': ['press'],
               'children': <int>[],
+            },
+            {
+              'op': 'create',
+              'id': 1,
+              'block': 'column',
+              'props': <String, Object?>{},
+              'events': <String>[],
+              'children': [2, 3],
             },
             {'op': 'roots', 'main': 1, 'modals': <Object?>[]},
           ],
@@ -5656,14 +5658,17 @@ class MockRepository implements OpencordRepository {
     final initialBatch = script('{"kind":"init"}');
     if (initialBatch != null) {
       scheduleMicrotask(() {
-        if (_activeMockViews.containsKey(viewId) &&
-            !_viewOutputsController.isClosed) {
-          _viewOutputsController.add(
-            ViewOutput(viewId: viewId, json: initialBatch),
-          );
-        }
+        scheduleMicrotask(() {
+          if (_activeMockViews.containsKey(viewId) &&
+              !_viewOutputsController.isClosed) {
+            _viewOutputsController.add(
+              ViewOutput(viewId: viewId, json: initialBatch),
+            );
+          }
+        });
       });
     }
+    await Future<void>.value();
     return viewId;
   }
 

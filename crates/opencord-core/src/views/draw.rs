@@ -229,8 +229,8 @@ fn split(from: Vec<Patch>, ops: &mut Vec<Patch>, dropped: &mut Vec<u64>) {
 }
 
 /// A named modal's size, sheet and dismissible: from its root when that's
-/// a `modal` or a `sheet` block, else medium, not a sheet, dismissible.
-fn options(root: &Node<Bound>) -> (ModalSize, bool, bool) {
+/// a `modal` or a `sheet` block, else medium, sheet not set, dismissible.
+fn options(root: &Node<Bound>) -> (ModalSize, Option<bool>, bool) {
     let flag = |name: &str, default: bool| {
         let value = root.props.get(name).and_then(serde_json::Value::as_bool);
         value.unwrap_or(default)
@@ -242,10 +242,11 @@ fn options(root: &Node<Bound>) -> (ModalSize, bool, bool) {
                 Some(size) => serde_json::from_value(size.clone()).unwrap_or(ModalSize::Medium),
                 None => ModalSize::Medium,
             };
-            (size, flag("sheet", false), flag("dismissible", true))
+            let sheet = root.props.get("sheet").and_then(serde_json::Value::as_bool);
+            (size, sheet, flag("dismissible", true))
         }
-        "sheet" => (ModalSize::Medium, true, flag("dismissible", true)),
-        _ => (ModalSize::Medium, false, true),
+        "sheet" => (ModalSize::Medium, Some(true), flag("dismissible", true)),
+        _ => (ModalSize::Medium, None, true),
     }
 }
 

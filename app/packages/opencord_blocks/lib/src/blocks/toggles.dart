@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
 import '../view.dart';
 
 /// `checkbox` (design §12.2): square check toggle with optional label.
@@ -31,9 +32,7 @@ Widget _checkbox(BlockBuild b) {
       ),
     ),
     alignment: Alignment.center,
-    child: value
-        ? Icon(Icons.check, size: 14, color: theme.colors['on_accent']!)
-        : null,
+    child: value ? _checkIcon(b, theme) : null,
   );
 
   return _wrapToggle(
@@ -175,4 +174,38 @@ Widget _wrapToggle({
       child: row,
     ),
   );
+}
+
+Widget _checkIcon(BlockBuild b, BlocksTheme theme) {
+  final icon = b.host.icon('check');
+  if (icon != null) {
+    return Icon(icon, size: 14, color: theme.colors['on_accent']!);
+  }
+  return CustomPaint(
+    size: const Size(14, 14),
+    painter: _CheckPainter(theme.colors['on_accent']!),
+  );
+}
+
+class _CheckPainter extends CustomPainter {
+  _CheckPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(size.width * 0.22, size.height * 0.52)
+      ..lineTo(size.width * 0.44, size.height * 0.74)
+      ..lineTo(size.width * 0.78, size.height * 0.28);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CheckPainter oldDelegate) => oldDelegate.color != color;
 }

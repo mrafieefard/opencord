@@ -108,6 +108,11 @@ class _ListWidgetState extends State<_ListWidget> {
     final max = position.maxScrollExtent;
     final node = widget.build.node;
 
+    // scroll event
+    if (node.handles('scroll')) {
+      widget.build.send('scroll', {'offset': pixels, 'max': max});
+    }
+
     // reach_start check
     if (pixels <= 48) {
       if (!_nearStart) {
@@ -215,35 +220,17 @@ class _ListWidgetState extends State<_ListWidget> {
     final gap = _readGap();
     final reverse = _isReverse();
     final children = widget.build.node.children;
-    final controller = widget.build.controller;
 
-    // Map children to item indices
-    int? anchorIndex;
-    for (var k = 0; k < children.length; k++) {
-      final childId = children[k];
-      final childNode = controller.node(childId);
-      final key = childNode?.key;
-      if (key != null && key.startsWith('#')) {
-        final parsed = int.tryParse(key.substring(1));
-        if (parsed != null) {
-          anchorIndex = parsed - k;
-          break;
-        }
-      }
-    }
-    final startIndex =
-        anchorIndex ?? (reverse ? math.max(0, count - children.length) : 0);
+    final startProp = widget.build.props['start'];
+    final startIndex = startProp is num && startProp.isFinite
+        ? startProp.toInt().clamp(0, count)
+        : (reverse ? math.max(0, count - children.length) : 0);
     final itemNodes = <int, int>{};
     for (var k = 0; k < children.length; k++) {
-      final childId = children[k];
-      final childNode = controller.node(childId);
-      final key = childNode?.key;
-      int? itemIndex;
-      if (key != null && key.startsWith('#')) {
-        itemIndex = int.tryParse(key.substring(1));
+      final itemIndex = startIndex + k;
+      if (itemIndex >= 0 && itemIndex < count) {
+        itemNodes[itemIndex] = children[k];
       }
-      itemIndex ??= startIndex + k;
-      itemNodes[itemIndex] = childId;
     }
 
     return ListView.builder(

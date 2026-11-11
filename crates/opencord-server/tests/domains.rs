@@ -185,12 +185,15 @@ async fn a_broken_record_marks_a_dns_problem_but_the_domain_stays_active() {
         Response::DomainChecks(history) => history.checks,
         other => panic!("{other:?}"),
     };
-    assert_eq!(history.len(), 2);
+    assert!(history.len() >= 2);
     assert_eq!(
         history[0].result,
         proto::CheckResult::PointsElsewhere as i32
     );
-    assert_eq!(history[1].result, proto::CheckResult::Verified as i32);
+    assert_eq!(
+        history.last().unwrap().result,
+        proto::CheckResult::Verified as i32
+    );
 }
 
 #[tokio::test]

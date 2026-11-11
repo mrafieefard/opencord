@@ -24,9 +24,9 @@ class _SliderWidget extends StatefulWidget {
 
 class _SliderWidgetState extends State<_SliderWidget> {
   double _value = 0.0;
-  DateTime _lastSent = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _throttleTimer;
   double? _pendingValue;
+  bool _dragging = false;
 
   @override
   void initState() {
@@ -37,7 +37,7 @@ class _SliderWidgetState extends State<_SliderWidget> {
   @override
   void didUpdateWidget(_SliderWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_pendingValue == null) {
+    if (!_dragging && _pendingValue == null) {
       _value = _readInitial();
     }
   }
@@ -56,37 +56,42 @@ class _SliderWidgetState extends State<_SliderWidget> {
     return val.clamp(min, max);
   }
 
+  void _onChangeStart(double startVal) {
+    _dragging = true;
+  }
+
   void _onChanged(double nextVal) {
+    _dragging = true;
     setState(() => _value = nextVal);
     final node = widget.build.node;
     if (!node.handles('change')) return;
 
-    final now = DateTime.now();
-    final elapsed = now.difference(_lastSent).inMilliseconds;
-    if (elapsed >= 50) {
-      _lastSent = now;
-      _throttleTimer?.cancel();
-      _pendingValue = null;
+    if (_throttleTimer == null) {
       widget.build.send('change', {'value': nextVal});
-    } else {
-      _pendingValue = nextVal;
-      _throttleTimer ??= Timer(Duration(milliseconds: 50 - elapsed), () {
+      _throttleTimer = Timer(const Duration(milliseconds: 50), () {
         _throttleTimer = null;
         if (!mounted) return;
         final pending = _pendingValue;
         _pendingValue = null;
         if (pending != null) {
-          _lastSent = DateTime.now();
-          widget.build.send('change', {'value': pending});
+          _onChanged(pending);
         }
       });
+    } else {
+      _pendingValue = nextVal;
     }
   }
 
   void _onChangeEnd(double endVal) {
+    _dragging = false;
     _throttleTimer?.cancel();
+    _throttleTimer = null;
+    final pending = _pendingValue;
     _pendingValue = null;
     final node = widget.build.node;
+    if (pending != null && node.handles('change')) {
+      widget.build.send('change', {'value': pending});
+    }
     if (node.handles('change_end')) {
       widget.build.send('change_end', {'value': endVal});
     }
@@ -126,6 +131,7 @@ class _SliderWidgetState extends State<_SliderWidget> {
           min: safeMin,
           max: safeMax,
           divisions: divisions,
+          onChangeStart: !disabled ? _onChangeStart : null,
           onChanged: !disabled ? _onChanged : null,
           onChangeEnd: !disabled ? _onChangeEnd : null,
         ),

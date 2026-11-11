@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show FontLoader;
 
+import 'host.dart';
 import 'node.dart';
 
 /// One view's state on the renderer's side: the nodes the core's batches
@@ -21,6 +23,8 @@ class BlocksController extends ChangeNotifier {
   final _inputs = StreamController<String>();
   final _effects = <BlocksEffect>[];
   final _dialogs = <BlocksDialog>[];
+  final _loadedFonts = <String, String>{};
+  final _loadingFonts = <String, Future<String?>>{};
   var _seq = 0;
   BlocksRoots? _roots;
   var _framesOn = false;
@@ -106,6 +110,13 @@ class BlocksController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Stops the view and sets an error message to display.
+  void reportError(String message, [String? details]) {
+    if (_disposed) return;
+    _stop(BlocksError(message, details: details));
+    notifyListeners();
+  }
+
   /// The side effects waiting, oldest first; they're the caller's now.
   List<BlocksEffect> takeEffects() {
     final taken = List.of(_effects);
@@ -113,14 +124,58 @@ class BlocksController extends ChangeNotifier {
     return taken;
   }
 
+  /// Loads a custom font for this view once; scoped so two plugins' fonts don't collide.
+  Future<String?> loadFont(String font, BlocksHost host) {
+    if (_disposed) return Future.value(null);
+    if (_loadedFonts.containsKey(font)) return Future.value(_loadedFonts[font]);
+    if (_loadingFonts.containsKey(font)) return _loadingFonts[font]!;
+
+    final future = () async {
+      try {
+        final data = await host.font(font);
+        if (data == null || _disposed) return null;
+        final family = 'view_${identityHashCode(this)}_$font';
+        final loader = FontLoader(family);
+        loader.addFont(Future.value(data));
+        await loader.load();
+        _loadedFonts[font] = family;
+        return family;
+      } on Object catch (error, stack) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'opencord_blocks',
+            context: ErrorDescription('loading font $font'),
+          ),
+        );
+        return null;
+      } finally {
+        _loadingFonts.remove(font);
+      }
+    }();
+
+    _loadingFonts[font] = future;
+    return future;
+  }
+
+  String? resolvedFont(String font) => _loadedFonts[font];
+
   @override
   void dispose() {
     _disposed = true;
     // The node notifiers aren't disposed: widgets for them may still be
     // unsubscribing in the frame that removes them. Nothing else holds them.
+    for (final timer in _exitSafetyTimers.values) {
+      timer.cancel();
+    }
+    _exitSafetyTimers.clear();
+    _retainedForExit.clear();
     _nodes.clear();
     _effects.clear();
     _dialogs.clear();
+    _loadedFonts.clear();
+    _loadingFonts.clear();
     unawaited(_inputs.close());
     super.dispose();
   }
@@ -163,11 +218,56 @@ class BlocksController extends ChangeNotifier {
     slot.value = change(slot.value!);
   }
 
+  final _retainedForExit = <int, Set<int>>{};
+  final _exitSafetyTimers = <int, Timer>{};
+
+  List<int> _descendants(int id) {
+    final result = <int>[];
+    void collect(int current) {
+      final node = _nodes[current]?.value;
+      if (node == null) return;
+      for (final childId in node.children) {
+        result.add(childId);
+        collect(childId);
+      }
+    }
+
+    collect(id);
+    return result;
+  }
+
   void _drop(List<int> ids) {
     for (final id in ids) {
+      if (_retainedForExit.values.any((s) => s.contains(id))) {
+        continue;
+      }
+      final node = _nodes[id]?.value;
+      if (node != null && node.props['exit'] != null) {
+        final allDescendants = {id, ..._descendants(id)};
+        _retainedForExit[id] = allDescendants;
+        _exitSafetyTimers[id]?.cancel();
+        _exitSafetyTimers[id] = Timer(const Duration(milliseconds: 2500), () {
+          _exitSafetyTimers.remove(id);
+          finishExit(id);
+        });
+        continue;
+      }
       final slot = _slot(id);
       _nodes.remove(id);
       slot.value = null;
+    }
+  }
+
+  /// Called when an exiting node has completed its exit animation transition.
+  void finishExit(int id) {
+    _exitSafetyTimers.remove(id)?.cancel();
+    final toDrop = _retainedForExit.remove(id);
+    if (toDrop != null) {
+      for (final dropId in toDrop) {
+        final slot = _slot(dropId);
+        _nodes.remove(dropId);
+        slot.value = null;
+      }
     }
   }
 

@@ -17,6 +17,7 @@ import '../../support/fake_core.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // Fails if core plugin channel or state cannot be mapped to model, or Ready ignores pluginChannelTypes.
   test('channel_kind_and_state_map_from_the_core', () {
     const coreChannel = core.Channel(
       id: 42,
@@ -122,6 +123,7 @@ void main() {
     expect(ready.pluginChannelTypes.first.name, 'Tickets');
   });
 
+  // Fails if output for one viewId is routed to another view controller.
   test(
     'a_view_output_reaches_only_its_controller (two views open: road core stream -> provider -> controller)',
     () async {
@@ -153,6 +155,9 @@ void main() {
       );
       final controller1 = sub1.read();
       final controller2 = sub2.read();
+
+      controller1.send({'kind': 'context', 'width': 800.0, 'height': 600.0});
+      controller2.send({'kind': 'context', 'width': 800.0, 'height': 600.0});
 
       // Wait for openView to complete
       await pumpEventQueue();
@@ -205,6 +210,7 @@ void main() {
     },
   );
 
+  // Fails if disposing the provider subscription does not close the view in repository and core.
   test('closing_the_provider_closes_the_view', () async {
     final fakeCore = FakeCoreApi();
     final repository = await RustRepository.open(
@@ -226,6 +232,7 @@ void main() {
       pluginViewProvider((server: 'srv1', channel: 10)),
       (_, _) {},
     );
+    sub.read().send({'kind': 'context', 'width': 800.0, 'height': 600.0});
     await pumpEventQueue();
 
     expect(fakeCore.closedViews, isEmpty);
@@ -237,62 +244,176 @@ void main() {
     expect(fakeCore.closedViews, contains('view_99'));
   });
 
+  // Fails if viewOpen does not receive the area's width and context from BlocksView,
+  // or if inputs before open are dropped.
+  test('view_open_receives_context_and_queues_early_inputs', () async {
+    final fakeCore = FakeCoreApi();
+    final repository = await RustRepository.open(
+      core: fakeCore,
+      identities: MemoryIdentityStore(),
+      store: MemoryKeyValueStore(),
+    );
+    repository.start();
+    addTearDown(repository.dispose);
+
+    final container = ProviderContainer(
+      overrides: [repositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    String? capturedContext;
+    fakeCore.viewOpenHandler = (serverKey, channelId, contextJson) async {
+      capturedContext = contextJson;
+      return 'view_ctx_1';
+    };
+
+    final sub = container.listen(
+      pluginViewProvider((server: 'srv1', channel: 10)),
+      (_, _) {},
+    );
+    final controller = sub.read();
+
+    // Send an early input before context
+    controller.send({'kind': 'early', 'data': 123});
+
+    // Send context input as BlocksView does on layout
+    controller.send({
+      'kind': 'context',
+      'width': 800.0,
+      'height': 600.0,
+      'theme': 'dark',
+      'input': 'mouse',
+      'safe_area': {'top': 0, 'right': 0, 'bottom': 0, 'left': 0},
+      'text_scale': 1.0,
+    });
+
+    await pumpEventQueue();
+
+    expect(capturedContext, isNotNull);
+    final decoded = jsonDecode(capturedContext!) as Map<String, Object?>;
+    expect(decoded['width'], 800.0);
+    expect(
+      fakeCore.viewInputs.any(
+        (i) => i.viewId == 'view_ctx_1' && i.json.contains('"data":123'),
+      ),
+      isTrue,
+    );
+  });
+
+  // Fails if repository openView error is swallowed instead of setting controller error state.
+  test('open_failure_sets_controller_error', () async {
+    final fakeCore = FakeCoreApi();
+    final repository = await RustRepository.open(
+      core: fakeCore,
+      identities: MemoryIdentityStore(),
+      store: MemoryKeyValueStore(),
+    );
+    repository.start();
+    addTearDown(repository.dispose);
+
+    final container = ProviderContainer(
+      overrides: [repositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    fakeCore.viewOpenHandler = (serverKey, channelId, contextJson) async {
+      throw const core.CoreError_InvalidInput(message: 'channel not found');
+    };
+
+    final sub = container.listen(
+      pluginViewProvider((server: 'srv1', channel: 10)),
+      (_, _) {},
+    );
+    final controller = sub.read();
+
+    controller.send({'kind': 'context', 'width': 800.0, 'height': 600.0});
+    await pumpEventQueue();
+
+    expect(controller.error, isNotNull);
+    expect(controller.error!.message, 'channel not found');
+  });
+
+  // Fails if the mock repository initial batch does not reach the controller through the provider,
+  // or if counter press does not update the count.
   test('the_mock_counter_counts', () async {
     final mockRepo = MockRepository();
-    final viewOutputs = <ViewOutput>[];
-    final sub = mockRepo.viewOutputs.listen(viewOutputs.add);
-    addTearDown(sub.cancel);
-
-    final viewId = await mockRepo.openView(
-      'opencord.example:7710',
-      10008,
-      '{}',
+    final container = ProviderContainer(
+      overrides: [repositoryProvider.overrideWithValue(mockRepo)],
     );
+    addTearDown(container.dispose);
+
+    final sub = container.listen(
+      pluginViewProvider((server: 'opencord.example:7710', channel: 10008)),
+      (_, _) {},
+    );
+    final controller = sub.read();
+
+    controller.send({'kind': 'context', 'width': 800.0, 'height': 600.0});
     await pumpEventQueue();
 
-    // Initial batch received with count 0
-    expect(viewOutputs, hasLength(1));
-    expect(viewOutputs.first.viewId, viewId);
-    final initialBatch =
-        jsonDecode(viewOutputs.first.json) as Map<String, Object?>;
-    expect(initialBatch['seq'], 1);
-    final initialOps = initialBatch['ops'] as List<Object?>;
-    expect(
-      initialOps.any(
-        (op) =>
-            op is Map<String, Object?> &&
-            op['op'] == 'create' &&
-            op['block'] == 'text' &&
-            (op['props'] as Map<String, Object?>?)?['text'] == 'Count: 0',
-      ),
-      isTrue,
-    );
+    // Initial batch received through provider into controller
+    expect(controller.roots, isNotNull);
+    expect(controller.seq, 1);
+    final textNode = controller.nodes.firstWhere((n) => n.block == 'text');
+    expect(textNode.props['text'], 'Count: 0');
 
-    // Send press input
-    mockRepo.viewInput(
-      viewId,
-      jsonEncode({
-        'kind': 'event',
-        'node': 3,
-        'event': 'press',
-        'data': <String, Object?>{},
-      }),
-    );
+    // Press the button
+    controller.event(3, 'press');
     await pumpEventQueue();
 
-    // Second batch received with count 1
-    expect(viewOutputs, hasLength(2));
-    final nextBatch = jsonDecode(viewOutputs.last.json) as Map<String, Object?>;
-    expect(nextBatch['seq'], 2);
-    final nextOps = nextBatch['ops'] as List<Object?>;
-    expect(
-      nextOps.any(
-        (op) =>
-            op is Map<String, Object?> &&
-            op['op'] == 'props' &&
-            (op['set'] as Map<String, Object?>?)?['text'] == 'Count: 1',
-      ),
-      isTrue,
+    expect(controller.seq, 2);
+    expect(controller.node(textNode.id)?.props['text'], 'Count: 1');
+  });
+
+  // Fails if outputs emitted by core before viewOpen returns are lost or not delivered to controller.
+  test('outputs_emitted_before_view_open_returns_are_delivered', () async {
+    final fakeCore = FakeCoreApi();
+    final repository = await RustRepository.open(
+      core: fakeCore,
+      identities: MemoryIdentityStore(),
+      store: MemoryKeyValueStore(),
     );
+    repository.start();
+    addTearDown(repository.dispose);
+
+    final container = ProviderContainer(
+      overrides: [repositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    final earlyBatch = jsonEncode({
+      'view': 'early_view',
+      'seq': 1,
+      'ops': [
+        {
+          'op': 'create',
+          'id': 1,
+          'block': 'box',
+          'props': <String, Object?>{},
+          'events': <String>[],
+          'children': <int>[],
+        },
+        {'op': 'roots', 'main': 1, 'modals': <Object?>[]},
+      ],
+    });
+
+    fakeCore.viewOpenHandler = (serverKey, channelId, contextJson) async {
+      fakeCore.emitViewOutput(
+        core.ViewOutput(viewId: 'early_view', json: earlyBatch),
+      );
+      return 'early_view';
+    };
+
+    final sub = container.listen(
+      pluginViewProvider((server: 'srv1', channel: 10)),
+      (_, _) {},
+    );
+    final controller = sub.read();
+    controller.send({'kind': 'context', 'width': 800.0, 'height': 600.0});
+    await pumpEventQueue();
+
+    expect(controller.node(1), isNotNull);
+    expect(controller.roots, isNotNull);
+    expect(controller.seq, 1);
   });
 }

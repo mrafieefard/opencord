@@ -33,7 +33,7 @@ fn edit_root(id: u64) -> ModalRoot {
         id,
         name: "edit".into(),
         size: ModalSize::Medium,
-        sheet: false,
+        sheet: None,
         dismissible: true,
     }
 }
@@ -146,7 +146,7 @@ fn a_non_dismissible_modal_ignores_dismiss() {
     assert_eq!(seen.first("modal"), root.id);
     assert_eq!(
         (root.size, root.sheet, root.dismissible),
-        (ModalSize::Large, false, false)
+        (ModalSize::Large, None, false)
     );
     let batches = seen.batches.len();
     input(&view, "modal_dismiss", json!({ "name": "edit" }));

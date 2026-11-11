@@ -26,11 +26,44 @@ class _LayoutHost extends FakeHost {
     return null;
   }
 
+  ImageProvider? customImageProvider;
+
   @override
   Future<ImageProvider?> image(Map<String, Object?> source) async {
     imageRequests.add(source);
     if (!returnImage) return null;
-    return _FakeImageProvider(fakeLoadedImage);
+    return customImageProvider ?? _FakeImageProvider(fakeLoadedImage);
+  }
+}
+
+class _MultiFrameCompleter extends ImageStreamCompleter {
+  void emitImage(ui.Image image) {
+    setImage(ImageInfo(image: image));
+  }
+
+  void emitError(Object exception) {
+    reportError(exception: exception, stack: StackTrace.empty);
+  }
+}
+
+class _StreamCompleterImageProvider
+    extends ImageProvider<_StreamCompleterImageProvider> {
+  const _StreamCompleterImageProvider(this.completer);
+  final ImageStreamCompleter completer;
+
+  @override
+  Future<_StreamCompleterImageProvider> obtainKey(
+    ImageConfiguration configuration,
+  ) {
+    return SynchronousFuture<_StreamCompleterImageProvider>(this);
+  }
+
+  @override
+  ImageStreamCompleter loadImage(
+    _StreamCompleterImageProvider key,
+    ImageDecoderCallback decode,
+  ) {
+    return completer;
   }
 }
 
@@ -80,6 +113,7 @@ BlocksController _show(List<Map<String, Object?>> creates, int root) {
 
 void main() {
   group('layout blocks', () {
+    // Fails if children with x, y, right, bottom are not positioned relative to stack, or unpositioned children do not fill a bounded stack.
     testWidgets('stack_positions_children_and_unpositioned_fills', (
       tester,
     ) async {
@@ -136,6 +170,42 @@ void main() {
       expect(r4.height, 200);
     });
 
+    // Fails if unpositioned stack children are wrapped in Positioned.fill inside unbounded containers like column, throwing layout exceptions.
+    testWidgets('stack_inside_column_sizes_to_unpositioned_child', (
+      tester,
+    ) async {
+      final controller = _show([
+        create(
+          2,
+          'box',
+          props: {'height': 80, 'width': 120, 'background': 'accent'},
+        ),
+        create(
+          3,
+          'box',
+          props: {
+            'x': 10,
+            'y': 10,
+            'width': 30,
+            'height': 30,
+            'background': 'danger',
+          },
+        ),
+        create(1, 'stack', children: [2, 3]),
+        create(4, 'column', children: [1]),
+      ], 4);
+      await pumpView(tester, controller, width: 200, height: 400);
+
+      expect(tester.takeException(), isNull);
+      final r1 = blockRect(tester, 1);
+      expect(r1.height, 80);
+      expect(r1.width, 120);
+      final r3 = blockRect(tester, 3);
+      expect(r3.left, 10);
+      expect(r3.top, 10);
+    });
+
+    // Fails if grid does not divide available width into equal columns minus gap or does not place wrapped items below previous rows.
     testWidgets('grid_columns_and_gap', (tester) async {
       final controller = _show([
         create(2, 'box', props: {'height': 40, 'background': 'accent'}),
@@ -164,6 +234,7 @@ void main() {
       expect(r4.top, r2.bottom + 10);
     });
 
+    // Fails if grid min_column_width does not adapt the column count based on available width and gap.
     testWidgets('grid_min_column_width_adapts', (tester) async {
       final controller = _show([
         for (var i = 2; i <= 5; i++)
@@ -189,6 +260,7 @@ void main() {
       expect(r5.top, greaterThan(r2.top));
     });
 
+    // Fails if scroll block does not emit reach_start at top offset or scroll and reach_end when dragged down.
     testWidgets('scroll_sends_scroll_reach_start_and_reach_end', (
       tester,
     ) async {
@@ -251,6 +323,7 @@ void main() {
       expect(reachEnds.isNotEmpty, isTrue);
     });
 
+    // Fails if spacer size is not respected in row or column layout.
     testWidgets('spacer_takes_size_or_flex', (tester) async {
       final controller = _show([
         create(2, 'box', props: {'width': 40, 'height': 40}),
@@ -265,6 +338,7 @@ void main() {
       expect(r4.left - r2.right, 20);
     });
 
+    // Fails if divider does not apply thickness and width properties.
     testWidgets('divider_draws_line', (tester) async {
       final controller = _show([
         create(
@@ -282,6 +356,7 @@ void main() {
   });
 
   group('content blocks', () {
+    // Fails if text properties weight, italic, color, size or selectable are ignored.
     testWidgets('text_weights_italics_colors_and_selectable', (tester) async {
       final controller = _show([
         create(
@@ -308,6 +383,7 @@ void main() {
       expect(selectable.style?.fontSize, 18);
     });
 
+    // Fails if a very long continuous word overflows its container width instead of wrapping onto multiple lines.
     testWidgets('a_very_long_word_wraps_inside_its_box', (tester) async {
       final longWord = 'A' * 60;
       final controller = _show([
@@ -326,6 +402,7 @@ void main() {
       expect(textBox.height, greaterThan(25)); // multi-line wrapped
     });
 
+    // Fails if RTL script does not detect textDirection as rtl or does not align to start.
     testWidgets('right_to_left_text_aligns_start', (tester) async {
       final controller = _show([
         create(
@@ -341,6 +418,7 @@ void main() {
       expect(textWidget.textAlign, TextAlign.start);
     });
 
+    // Fails if custom font specified in text block is not requested through host.font.
     testWidgets('text_loads_custom_font_via_host', (tester) async {
       final host = _LayoutHost();
       final controller = _show([
@@ -351,6 +429,7 @@ void main() {
       expect(host.fontRequests['custom.ttf'], 1);
     });
 
+    // Fails if rich_text block does not delegate markdown rendering to host.richText.
     testWidgets('rich_text_delegates_to_host', (tester) async {
       final host = _LayoutHost();
       final controller = _show([
@@ -361,6 +440,7 @@ void main() {
       expect(find.text('**Bold text**'), findsOneWidget);
     });
 
+    // Fails if image block does not request image from host or does not send load event with natural dimensions.
     testWidgets('image_loads_via_host_and_fires_load_event', (tester) async {
       final host = _LayoutHost();
       final controller = _show([
@@ -386,6 +466,83 @@ void main() {
       expect((loads.first['data'] as Map)['height'], 30.0);
     });
 
+    // Fails if image load error exposes internal file paths or animated frames fire load events multiple times.
+    testWidgets('image_error_sanitizes_message_and_animated_image_loads_once', (
+      tester,
+    ) async {
+      final host = _LayoutHost();
+      final completer = _MultiFrameCompleter();
+      host.customImageProvider = _StreamCompleterImageProvider(completer);
+
+      final controller = _show([
+        create(
+          1,
+          'image',
+          props: {'file': 'anim.gif'},
+          events: ['load', 'error'],
+        ),
+      ], 1);
+      final inputs = Inputs(controller);
+      addTearDown(inputs.cancel);
+
+      await pumpView(tester, controller, host: host);
+      await tester.pump();
+
+      final img = await _FakeImageProvider._createTestImage(
+        width: 50,
+        height: 50,
+      );
+      // First frame
+      completer.emitImage(img);
+      await tester.pump();
+
+      // Second frame
+      final img2 = await _FakeImageProvider._createTestImage(
+        width: 50,
+        height: 50,
+      );
+      completer.emitImage(img2);
+      await tester.pump();
+
+      final loads = inputs
+          .of('event')
+          .where((e) => e['event'] == 'load')
+          .toList();
+      expect(loads.length, 1);
+
+      // Test error sanitization
+      inputs.all.clear();
+      final errCompleter = _MultiFrameCompleter();
+      host.customImageProvider = _StreamCompleterImageProvider(errCompleter);
+
+      final errController = _show([
+        create(
+          1,
+          'image',
+          props: {'file': 'secret.png'},
+          events: ['load', 'error'],
+        ),
+      ], 1);
+      final errInputs = Inputs(errController);
+      addTearDown(errInputs.cancel);
+
+      await pumpView(tester, errController, host: host);
+      await tester.pump();
+
+      errCompleter.emitError(Exception('/home/alice/.secret/key.png failed'));
+      await tester.pump();
+
+      final errors = errInputs
+          .of('event')
+          .where((e) => e['event'] == 'error')
+          .toList();
+      expect(errors.length, 1);
+      final errorMsg = (errors.first['data'] as Map)['message'] as String;
+      expect(errorMsg, 'Image load failed');
+      expect(errorMsg.contains('home'), isFalse);
+    });
+
+    // Fails if updating image version prop does not trigger a new image request to the host.
     testWidgets('an_image_version_change_reloads', (tester) async {
       final host = _LayoutHost();
       final controller = _show([
@@ -409,6 +566,7 @@ void main() {
       expect(host.imageRequests.length, 2);
     });
 
+    // Fails if known icon is not rendered or missing icon name does not report error to FlutterError exactly once.
     testWidgets('icon_renders_and_missing_name_logs_once', (tester) async {
       final reported = <FlutterErrorDetails>[];
       final previous = FlutterError.onError;
@@ -440,6 +598,7 @@ void main() {
       }
     });
 
+    // Fails if user block does not delegate rendering to host.user.
     testWidgets('user_delegates_to_host', (tester) async {
       final host = _LayoutHost();
       final controller = _show([
@@ -450,6 +609,7 @@ void main() {
       expect(find.byType(SizedBox), findsWidgets);
     });
 
+    // Fails if badge does not render label text for various tones.
     testWidgets('badge_renders_tones', (tester) async {
       final controller = _show([
         create(2, 'badge', props: {'text': 'Neutral', 'tone': 'neutral'}),
@@ -464,6 +624,7 @@ void main() {
       expect(find.text('Danger'), findsOneWidget);
     });
 
+    // Fails if progress block does not render LinearProgressIndicator for bar and CircularProgressIndicator for ring.
     testWidgets('progress_renders_bar_and_ring', (tester) async {
       final controller = _show([
         create(2, 'progress', props: {'value': 0.5, 'style': 'bar'}),
@@ -476,6 +637,7 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
+    // Fails if spinner block does not render CircularProgressIndicator.
     testWidgets('spinner_renders_ring', (tester) async {
       final controller = _show([
         create(1, 'spinner', props: {'size': 20}),

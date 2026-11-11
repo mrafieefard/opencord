@@ -103,15 +103,21 @@ class _AnimatedBlockState extends State<AnimatedBlock> {
     final opacity = (numberProp(props['opacity']) ?? 1.0).clamp(0.0, 1.0);
     final width = numberProp(props['width']);
     final height = numberProp(props['height']);
+    final tx = numberProp(props['translate_x']) ?? 0.0;
+    final ty = numberProp(props['translate_y']) ?? 0.0;
+    final bg = widget.build.theme.resolveColor(props['background']);
 
     Widget result = widget.child;
 
-    if (width != null || height != null) {
+    final hasTransform = tx != 0.0 || ty != 0.0;
+    if (width != null || height != null || bg != null || hasTransform) {
       result = AnimatedContainer(
         duration: duration,
         curve: curve,
         width: width,
         height: height,
+        color: bg,
+        transform: hasTransform ? Matrix4.translationValues(tx, ty, 0) : null,
         child: result,
       );
     }
@@ -276,14 +282,19 @@ class _AnimatedChildrenState extends State<AnimatedChildren>
           );
 
           animController.reverse().then((_) {
-            if (!mounted) return;
+            if (!mounted) {
+              controller.finishExit(id);
+              return;
+            }
             final node = controller.node(id);
             if (node != null && node.handles('animation_end')) {
               controller.event(id, 'animation_end');
             }
+            controller.finishExit(id);
             _removeEntry(id);
           });
         } else if (entry != null && !entry.isExiting) {
+          controller.finishExit(id);
           _removeEntry(id);
         }
       }
@@ -334,7 +345,6 @@ class _AnimatedChildrenState extends State<AnimatedChildren>
             exitEffect: exitEffect,
           );
           _entries[id] = entry;
-          _insertIntoOrder(id, i, currentIds);
         } else {
           final entry = _ChildEntry(
             id: id,
@@ -343,7 +353,6 @@ class _AnimatedChildrenState extends State<AnimatedChildren>
             exitEffect: exitEffect,
           );
           _entries[id] = entry;
-          _insertIntoOrder(id, i, currentIds);
         }
       } else {
         final entry = _entries[id]!;
@@ -353,19 +362,26 @@ class _AnimatedChildrenState extends State<AnimatedChildren>
         }
       }
     }
-  }
 
-  void _insertIntoOrder(int id, int currentIndex, List<int> currentIds) {
-    if (_order.contains(id)) return;
-    if (currentIndex > 0) {
-      final prevId = currentIds[currentIndex - 1];
-      final prevIndex = _order.indexOf(prevId);
-      if (prevIndex >= 0 && prevIndex + 1 <= _order.length) {
-        _order.insert(prevIndex + 1, id);
-        return;
+    // Rebuild _order to match currentIds order, retaining any exiting children
+    final oldOrder = List<int>.from(_order);
+    final exiting = [
+      for (final id in oldOrder)
+        if (_entries[id]?.isExiting == true && !currentIds.contains(id)) id,
+    ];
+
+    _order.clear();
+    _order.addAll(currentIds);
+    for (final id in exiting) {
+      final oldIndex = oldOrder.indexOf(id);
+      final prevInOld = oldIndex > 0 ? oldOrder[oldIndex - 1] : null;
+      if (prevInOld != null && _order.contains(prevInOld)) {
+        final newIndex = _order.indexOf(prevInOld) + 1;
+        _order.insert(newIndex, id);
+      } else {
+        _order.add(id);
       }
     }
-    _order.add(id);
   }
 
   void _removeEntry(int id) {

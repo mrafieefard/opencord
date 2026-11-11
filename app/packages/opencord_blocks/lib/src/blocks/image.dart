@@ -28,6 +28,7 @@ class _ImageBlockWidgetState extends State<_ImageBlockWidget> {
   bool _hasError = false;
   Map<String, Object?>? _source;
   Object? _version;
+  int _loadId = 0;
 
   @override
   void initState() {
@@ -74,6 +75,7 @@ class _ImageBlockWidgetState extends State<_ImageBlockWidget> {
 
   void _load() {
     _cleanStream();
+    final currentLoadId = ++_loadId;
     final source = _source;
     if (source == null) {
       setState(() {
@@ -92,7 +94,7 @@ class _ImageBlockWidgetState extends State<_ImageBlockWidget> {
         .image(source)
         .then<void>(
           (provider) {
-            if (!mounted) return;
+            if (!mounted || currentLoadId != _loadId) return;
             if (provider == null) {
               setState(() {
                 _loading = false;
@@ -107,27 +109,37 @@ class _ImageBlockWidgetState extends State<_ImageBlockWidget> {
             _provider = provider;
             final stream = provider.resolve(ImageConfiguration.empty);
             _stream = stream;
-            final listener = ImageStreamListener(
+            var reportedLoad = false;
+            late final ImageStreamListener listener;
+            listener = ImageStreamListener(
               (info, synchronousCall) {
-                if (!mounted) return;
+                if (!mounted || currentLoadId != _loadId) return;
+                stream.removeListener(listener);
+                if (_stream == stream) {
+                  _stream = null;
+                  _listener = null;
+                }
                 setState(() {
                   _loading = false;
                 });
-                if (widget.build.node.handles('load')) {
-                  widget.build.send('load', {
-                    'width': info.image.width.toDouble(),
-                    'height': info.image.height.toDouble(),
-                  });
+                if (!reportedLoad) {
+                  reportedLoad = true;
+                  if (widget.build.node.handles('load')) {
+                    widget.build.send('load', {
+                      'width': info.image.width.toDouble(),
+                      'height': info.image.height.toDouble(),
+                    });
+                  }
                 }
               },
               onError: (exception, stackTrace) {
-                if (!mounted) return;
+                if (!mounted || currentLoadId != _loadId) return;
                 setState(() {
                   _loading = false;
                   _hasError = true;
                 });
                 if (widget.build.node.handles('error')) {
-                  widget.build.send('error', {'message': exception.toString()});
+                  widget.build.send('error', {'message': 'Image load failed'});
                 }
               },
             );
@@ -135,13 +147,13 @@ class _ImageBlockWidgetState extends State<_ImageBlockWidget> {
             stream.addListener(listener);
           },
           onError: (Object error) {
-            if (!mounted) return;
+            if (!mounted || currentLoadId != _loadId) return;
             setState(() {
               _loading = false;
               _hasError = true;
             });
             if (widget.build.node.handles('error')) {
-              widget.build.send('error', {'message': error.toString()});
+              widget.build.send('error', {'message': 'Image load failed'});
             }
           },
         );

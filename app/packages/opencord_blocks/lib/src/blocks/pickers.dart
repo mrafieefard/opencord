@@ -46,6 +46,15 @@ class _PickerWidgetState extends State<_PickerWidget> {
     if (mounted) setState(() => _uploading = true);
     try {
       await b.host.upload(b.node.id, path);
+    } catch (e, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: e,
+          stack: stack,
+          library: 'opencord_blocks',
+          context: ErrorDescription('while uploading file from picker'),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -73,11 +82,7 @@ class _PickerWidgetState extends State<_PickerWidget> {
       child = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            widget.isImage ? Icons.image_outlined : Icons.attach_file,
-            size: 16,
-            color: theme.colors['text']!,
-          ),
+          _pickerIcon(b, widget.isImage),
           const SizedBox(width: 8),
           Text(
             text,
@@ -109,4 +114,74 @@ class _PickerWidgetState extends State<_PickerWidget> {
       ),
     );
   }
+}
+
+Widget _pickerIcon(BlockBuild b, bool isImage) {
+  final name = isImage ? 'image' : 'upload';
+  final icon = b.host.icon(name);
+  if (icon != null) {
+    return Icon(icon, size: 16, color: b.theme.colors['text']!);
+  }
+  return CustomPaint(
+    size: const Size(16, 16),
+    painter: isImage
+        ? _ImageIconPainter(b.theme.colors['text']!)
+        : _UploadIconPainter(b.theme.colors['text']!),
+  );
+}
+
+class _ImageIconPainter extends CustomPainter {
+  _ImageIconPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+        const Radius.circular(2),
+      ),
+      paint,
+    );
+    final path = Path()
+      ..moveTo(3, size.height - 4)
+      ..lineTo(7, 7)
+      ..lineTo(10, 11)
+      ..lineTo(13, size.height - 4);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ImageIconPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _UploadIconPainter extends CustomPainter {
+  _UploadIconPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(size.width / 2, size.height - 3)
+      ..lineTo(size.width / 2, 3)
+      ..moveTo(3, 8)
+      ..lineTo(size.width / 2, 3)
+      ..lineTo(size.width - 3, 8);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_UploadIconPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

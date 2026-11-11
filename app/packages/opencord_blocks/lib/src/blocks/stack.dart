@@ -37,13 +37,19 @@ Widget _content(BlockBuild b) {
                   bottom: bottom,
                   child: BlockWidget(id: id),
                 )
-              : Positioned.fill(
-                  key: ValueKey<int>(id),
-                  child: BlockWidget(id: id),
-                ),
+              : BlockWidget(key: ValueKey<int>(id), id: id),
         );
       }
-      return Stack(clipBehavior: Clip.none, children: children);
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final hasBoundedWidth = constraints.hasBoundedWidth;
+          final hasBoundedHeight = constraints.hasBoundedHeight;
+          final fit = (hasBoundedWidth && hasBoundedHeight)
+              ? StackFit.expand
+              : StackFit.loose;
+          return Stack(fit: fit, clipBehavior: Clip.none, children: children);
+        },
+      );
     },
   );
 }

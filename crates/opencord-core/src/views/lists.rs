@@ -185,6 +185,8 @@ impl Filler<'_> {
             .get("reverse")
             .and_then(serde_json::Value::as_bool);
         let span = self.lists.span(&place, count, reverse.unwrap_or(false));
+        list.props
+            .insert("start".to_string(), serde_json::json!(span.start));
 
         let list_path = at.path.join(" > ");
         let mut keys = HashSet::new();

@@ -204,3 +204,36 @@ fn items_count_toward_the_tree_and_keep_their_keys() {
         Some("column > [0] list: two children have the key \"same\"")
     );
 }
+
+// Fails if a list does not include its 0-based range start in its node props,
+// or does not update `start` when a `range` input moves the window.
+#[test]
+fn a_list_sends_where_its_range_starts() {
+    let (view, recorder) = open(spec(&script(100, false)));
+    let seen = recorder.first_batch();
+    let list = seen.first("list");
+    let start = seen.batches[0].ops.iter().find_map(|op| match op {
+        Patch::Create { id, props, .. } if *id == list => props.get("start").cloned(),
+        _ => None,
+    });
+    assert_eq!(start, Some(json!(0)));
+
+    input(
+        &view,
+        "range",
+        json!({ "node": list, "start": 40, "end": 60 }),
+    );
+    let seen = settle(&view, &recorder);
+    let start_prop = seen
+        .batches
+        .last()
+        .unwrap()
+        .ops
+        .iter()
+        .find_map(|op| match op {
+            Patch::Props { id, set, .. } if *id == list => set.get("start").cloned(),
+            Patch::Create { id, props, .. } if *id == list => props.get("start").cloned(),
+            _ => None,
+        });
+    assert_eq!(start_prop, Some(json!(40)));
+}

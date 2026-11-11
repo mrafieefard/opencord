@@ -114,10 +114,9 @@ class _ModalWidgetState extends State<_ModalWidget>
     final theme = widget.theme;
     final constraints = widget.constraints;
 
-    // At compact breakpoint (< 600 px), modal shows as sheet unless sheet == false
-    final isSheet = widget.isCompact
-        ? modal.sheet
-        : (modal.sheet && modal.size == 'sheet');
+    // The renderer shows a sheet when sheet is true, or at compact width (< 600 px) when it isn't false
+    final isSheet =
+        modal.sheet == true || (widget.isCompact && modal.sheet != false);
 
     final double width;
     if (modal.size == 'full') {
@@ -159,15 +158,27 @@ class _ModalWidgetState extends State<_ModalWidget>
             : (modal.size == 'full'
                   ? BorderRadius.zero
                   : BorderRadius.circular(12)),
-        child: BlockWidget(key: ValueKey<int>(modal.id), id: modal.id),
+        child: SingleChildScrollView(
+          child: BlockWidget(key: ValueKey<int>(modal.id), id: modal.id),
+        ),
       ),
     );
 
-    // Opening animation: scales from 0.97 and fades in 180 ms ease-out
-    content = ScaleTransition(
-      scale: Tween<double>(begin: 0.97, end: 1.0).animate(_curved),
-      child: FadeTransition(opacity: _curved, child: content),
-    );
+    // Opening animation: sheet slides up from bottom; modal card scales from 0.97 and fades
+    if (isSheet) {
+      content = SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 1),
+          end: Offset.zero,
+        ).animate(_curved),
+        child: content,
+      );
+    } else {
+      content = ScaleTransition(
+        scale: Tween<double>(begin: 0.97, end: 1.0).animate(_curved),
+        child: FadeTransition(opacity: _curved, child: content),
+      );
+    }
 
     final alignment = isSheet
         ? Alignment.bottomCenter

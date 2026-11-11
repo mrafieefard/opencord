@@ -23,6 +23,7 @@ BlocksController _showWithModals({
 
 void main() {
   group('modals and sheets', () {
+    // Fails if modal backdrop or card overflows the plugin area bounds.
     testWidgets('a_modal_stays_inside_the_area', (tester) async {
       final controller = _showWithModals(
         nodes: [
@@ -78,6 +79,7 @@ void main() {
       expect(cardRect.right, lessThanOrEqualTo(400.01));
     });
 
+    // Fails if multiple named modals do not stack in order with top modal on top.
     testWidgets('named_modals_stack_in_order', (tester) async {
       final controller = _showWithModals(
         nodes: [
@@ -120,6 +122,7 @@ void main() {
       expect(bottomBackdrop, equals(topBackdrop));
     });
 
+    // Fails if adaptive modal does not render as a bottom sheet at compact width.
     testWidgets('compact_turns_a_modal_into_a_sheet', (tester) async {
       final controller = _showWithModals(
         nodes: [
@@ -153,6 +156,7 @@ void main() {
       expect(sheetRect.width, 500); // stretches full width in sheet mode
     });
 
+    // Fails if Escape key dismisses a non-dismissible modal or fails to dismiss a dismissible modal.
     testWidgets('esc_closes_only_dismissible_ones', (tester) async {
       final controller = _showWithModals(
         nodes: [
@@ -212,6 +216,7 @@ void main() {
       expect(dismisses.first['name'], 'locked');
     });
 
+    // Fails if tabbing past the last control escapes the modal instead of cycling inside.
     testWidgets('focus_stays_in_the_top_modal', (tester) async {
       final controller = _showWithModals(
         nodes: [
@@ -268,7 +273,14 @@ void main() {
       );
       expect(inside2Editable.focusNode.hasFocus, isTrue);
 
-      // Press Tab again: should cycle back inside the modal, NOT escape to outside input!
+      final inside1Editable = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byKey(const ValueKey<int>(21)),
+          matching: find.byType(EditableText),
+        ),
+      );
+
+      // Press Tab again: should cycle back inside the modal to inside_input_1!
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pumpAndSettle();
 
@@ -278,11 +290,73 @@ void main() {
           matching: find.byType(EditableText),
         ),
       );
+      expect(inside1Editable.focusNode.hasFocus, isTrue);
       expect(outsideEditable.focusNode.hasFocus, isFalse);
+    });
+
+    // Fails if in-tree modal or sheet expands in-tree inside an unbounded container like column.
+    testWidgets(
+      'in_tree_modal_and_sheet_inside_column_do_not_cause_layout_errors',
+      (tester) async {
+        final controller = _showWithModals(
+          nodes: [
+            create(2, 'text', props: {'text': 'In-tree Modal Content'}),
+            create(
+              3,
+              'modal',
+              props: {'open': true, 'size': 'small'},
+              children: [2],
+            ),
+            create(4, 'text', props: {'text': 'In-tree Sheet Content'}),
+            create(5, 'sheet', props: {'open': true}, children: [4]),
+            create(1, 'column', children: [3, 5]),
+          ],
+          main: 1,
+        );
+
+        await pumpView(tester, controller, width: 400, height: 400);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('In-tree Modal Content'), findsOneWidget);
+        expect(find.text('In-tree Sheet Content'), findsOneWidget);
+      },
+    );
+
+    // Fails if modal card stretches to full height instead of sizing to fit its content.
+    testWidgets('modal_card_fits_content_height_and_scrolls_when_taller', (
+      tester,
+    ) async {
+      final controller = _showWithModals(
+        nodes: [
+          create(1, 'box'),
+          create(2, 'box', props: {'height': 80, 'width': 200}),
+        ],
+        main: 1,
+        modals: [
+          {
+            'id': 2,
+            'name': 'short_modal',
+            'size': 'small',
+            'sheet': false,
+            'dismissible': true,
+          },
+        ],
+      );
+
+      await pumpView(tester, controller, width: 600, height: 800);
+      await tester.pumpAndSettle();
+
+      final cardFinder = find.byKey(
+        const ValueKey<String>('modal_card_short_modal'),
+      );
+      final cardRect = tester.getRect(cardFinder);
+      expect(cardRect.height, lessThan(200.0));
     });
   });
 
   group('dialogs and overlays', () {
+    // Fails if quick confirm dialog does not send dialog answers for cancel and ok.
     testWidgets('a_confirm_answers_true_and_false', (tester) async {
       final controller = BlocksController();
       addTearDown(controller.dispose);
@@ -342,6 +416,7 @@ void main() {
       expect(okAnswers.last['result'], true);
     });
 
+    // Fails if toast does not dismiss after duration seconds.
     testWidgets('a_toast_dismisses_after_its_duration', (tester) async {
       final controller = BlocksController();
       addTearDown(controller.dispose);
@@ -375,6 +450,76 @@ void main() {
       // Advance another 600 ms (past 1.0 s)
       await tester.pump(const Duration(milliseconds: 600));
 
+      final events = inputs.of('event');
+      expect(events.length, 1);
+      expect(events.first['event'], 'dismiss');
+    });
+
+    // Fails if toast ignores open=false, draws in-place instead of bottom, or restarts timer on rebuild.
+    testWidgets('toast_respects_open_and_does_not_restart_timer_on_rebuild', (
+      tester,
+    ) async {
+      final controller = BlocksController();
+      addTearDown(controller.dispose);
+      final inputs = Inputs(controller);
+      addTearDown(inputs.cancel);
+
+      controller.applyBatch(
+        batch(1, [
+          create(
+            2,
+            'toast',
+            props: {'text': 'Notice', 'open': false, 'duration': 1.0},
+            events: ['dismiss'],
+          ),
+          create(1, 'column', children: [2]),
+          roots(1),
+        ]),
+      );
+
+      await pumpView(tester, controller, width: 500, height: 400);
+      await tester.pump();
+
+      // open=false: should not draw
+      expect(find.text('Notice'), findsNothing);
+
+      // Open toast
+      controller.applyBatch(
+        batch(2, [
+          {
+            'op': 'props',
+            'id': 2,
+            'set': {'open': true},
+            'unset': <String>[],
+          },
+        ]),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Notice'), findsOneWidget);
+
+      // Verify toast is positioned at bottom of 400 height area (bottom > 300)
+      final toastRect = tester.getRect(find.text('Notice'));
+      expect(toastRect.bottom, greaterThan(300.0));
+
+      // Rebuild during 400ms (updating unrelated prop or re-rendering)
+      await tester.pump(const Duration(milliseconds: 400));
+      controller.applyBatch(
+        batch(3, [
+          {
+            'op': 'props',
+            'id': 2,
+            'set': {'text': 'Notice Updated'},
+            'unset': <String>[],
+          },
+        ]),
+      );
+      await tester.pump();
+
+      // Advance 700ms more (total 1100ms > 1000ms duration)
+      await tester.pump(const Duration(milliseconds: 700));
+
+      // Timer must NOT have been reset by batch 3: dismiss event sent!
       final events = inputs.of('event');
       expect(events.length, 1);
       expect(events.first['event'], 'dismiss');
