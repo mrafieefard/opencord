@@ -179,6 +179,7 @@ fn client_definitions_match_blocks_and_docs() {
             d_luau_path.display()
         )
     });
+    let content = content.replace("\r\n", "\n");
 
     let client_section = content
         .split_once("\n--- Client only\n")
@@ -327,6 +328,7 @@ fn client_definitions_match_blocks_and_docs() {
             docs_path.display()
         )
     });
+    let docs_content = docs_content.replace("\r\n", "\n");
 
     for spec in opencord_plugins::blocks::BLOCKS {
         assert!(
