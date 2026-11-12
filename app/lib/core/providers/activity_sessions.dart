@@ -156,7 +156,7 @@ class OpenActivitiesNotifier extends Notifier<Set<int>> {
     final channel = _channel;
     if (controller == null || server == null || channel == null) return;
     if (controller.viewId.value == null) return;
-    final members = {
+    final members = <int>{
       for (final participant
           in ref.read(voiceProvider(server))[channel] ?? const [])
         participant.userId,
