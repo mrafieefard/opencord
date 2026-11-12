@@ -7,6 +7,7 @@
 //! `opencord_plugins::lua_api`): an `Err` from a bare mlua callback would
 //! reach Lua as userdata instead.
 
+pub mod activity;
 pub mod bus;
 pub mod commands;
 pub mod config;
@@ -49,6 +50,7 @@ pub fn install(vm: &Vm, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     bus::install(&vm.lua, env)?;
     config::install(&vm.lua, env)?;
     ui::install(&vm.lua, env)?;
+    activity::install(&vm.lua, env)?;
     #[cfg(any(test, debug_assertions))]
     tests::install(&vm.lua, env)?;
     Ok(())

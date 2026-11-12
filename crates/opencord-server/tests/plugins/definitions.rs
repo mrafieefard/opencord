@@ -41,6 +41,7 @@ async fn definitions_match_the_api() {
         files_lock: Arc::new(tokio::sync::Mutex::new(())),
         files_reads: Arc::new(tokio::sync::Semaphore::new(10)),
         views_heard: Default::default(),
+        sessions_heard: Default::default(),
         views_skip_logged: Default::default(),
         hooks: Arc::new(RwLock::new(HashSet::new())),
         queue: Arc::new(EventQueue::default()),
@@ -78,6 +79,7 @@ async fn definitions_match_the_api() {
         "plugins",
         "config",
         "ui",
+        "activity",
     ];
 
     let mut api_functions = BTreeSet::new();
@@ -138,8 +140,13 @@ async fn definitions_match_the_api() {
                 continue;
             }
             // Check for function declaration: `<fn_name>: (`
+            // or `["<fn_name>"]: (` for a name that is a keyword.
             if let Some((fn_name, rest)) = trimmed.split_once(':') {
                 let fn_name = fn_name.trim();
+                let fn_name = fn_name
+                    .strip_prefix("[\"")
+                    .and_then(|name| name.strip_suffix("\"]"))
+                    .unwrap_or(fn_name);
                 let rest = rest.trim();
                 if rest.starts_with('(')
                     && !fn_name.contains(' ')

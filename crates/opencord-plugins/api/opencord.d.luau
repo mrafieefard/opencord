@@ -46,6 +46,8 @@ export type EventName =
     | "music_now_playing"
     | "music_queue_update"
     | "music_notice"
+    | "activity_start"
+    | "activity_end"
 
 export type User = {
     id: string,
@@ -299,6 +301,29 @@ export type ActivitySpec = {
     icon: string?,
 }
 
+-- A running activity session, as `activity_start` and `activity_end` give it.
+export type ActivitySession = {
+    id: string,
+    -- The activity's key.
+    activity: string,
+    -- The voice channel.
+    channel_id: string,
+    starter_id: string,
+    started_at_ms: number,
+}
+
+export type ActivityStartEvent = {
+    session: ActivitySession,
+    starter: User,
+    -- Who is in the call now, by user id, ascending.
+    call: { channel_id: string, member_ids: { string } },
+}
+
+export type ActivityEndEvent = {
+    session: ActivitySession,
+    reason: "ended" | "plugin" | "call_empty" | "plugin_stopping" | "unavailable",
+}
+
 export type ViewOpenEvent = {
     view: View,
 }
@@ -549,6 +574,13 @@ declare plugins: {
 declare config: {
     --- Permission: none
     get: (key: string) -> any,
+}
+
+declare activity: {
+    --- Permission: register_activities. Ends the plugin's own session:
+    --- true if it was running. `end` is a keyword: call it as
+    --- `activity["end"](session)`.
+    ["end"]: (session: ActivitySession | string) -> boolean,
 }
 
 --------------------------------------------------------------------------------

@@ -74,6 +74,20 @@ pub fn announce(state: &AppState, voice_state: proto::VoiceState, channels: &[i6
         disconnect_from_node(state, user_id, left);
         streams::left_channel(state, user_id, left);
     }
+    // Every road out of a call passes here: leaving, a move, a disconnect,
+    // lost access (`reconcile`), a deleted channel, a dropped connection
+    // (`expire_detached`). The guard is dropped before sessions end.
+    let emptied: Vec<i64> = {
+        let voice = state.voice();
+        channels
+            .iter()
+            .copied()
+            .filter(|channel_id| voice.in_channel(*channel_id).next().is_none())
+            .collect()
+    };
+    for channel_id in emptied {
+        crate::plugins::activities::call_emptied(state, channel_id);
+    }
     if let (Some(channel_id), Some(permissions)) = (current, permissions) {
         state.voice_nodes.send(
             channel_id,

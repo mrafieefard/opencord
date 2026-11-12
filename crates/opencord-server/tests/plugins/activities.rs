@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Activities: what plugins register (plan M3 Task 3, design 2026-11-07
-//! §15.1).
+//! §15.1) and the sessions members start in calls (Task 4, §15.2, §15.4).
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use opencord_common::limits::VOICE_GRACE_PERIOD;
+use opencord_common::permissions::Permissions;
 use opencord_proto::v1 as proto;
 use proto::event::Kind as Event;
 use proto::request::Kind;
+use proto::response::Result as Response;
 
-use crate::common::{TestClient, TestServer, invite, media_token, owner};
+use crate::common::{
+    Received, TestClient, TestServer, channel_id, invite, media_token, owner, self_id,
+};
 use crate::support::{install, log_lines, manifest, manifest_with, package, session, wait_for_log};
 
 /// What the desktop app lists in `Identify.features`.
@@ -27,22 +32,41 @@ async fn plugin_at(
     version: &str,
     source: &str,
 ) -> proto::Plugin {
+    plugin_with(
+        server,
+        client,
+        ready,
+        id,
+        version,
+        &["register_activities"],
+        source,
+    )
+    .await
+}
+
+/// [`plugin_at`], asking for and granted `permissions`.
+async fn plugin_with(
+    server: &TestServer,
+    client: &mut TestClient,
+    ready: &proto::Ready,
+    id: &str,
+    version: &str,
+    permissions: &[&str],
+    source: &str,
+) -> proto::Plugin {
     let zip = package(&[
         (
             "manifest.lua",
-            &manifest_with(id, version, &["register_activities"], ""),
+            &manifest_with(id, version, permissions, r#"client = "client/main.luau","#),
         ),
         ("server/main.luau", source),
+        (
+            "client/main.luau",
+            "return { init = function() return {} end }",
+        ),
         ("assets/paint.png", "not really a png"),
     ]);
-    install(
-        server,
-        client,
-        &media_token(ready),
-        zip,
-        &["register_activities"],
-    )
-    .await
+    install(server, client, &media_token(ready), zip, permissions).await
 }
 
 /// Waits up to 5 s for an event `pick` takes.
@@ -308,4 +332,741 @@ async fn stopping_takes_its_activities_away() {
     assert!(activities_update(&mut admin).await.is_empty());
     let (_later, stopped_ready) = session(&server, 1, None, &FEATURES).await;
     assert!(stopped_ready.plugin_activities.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Activity sessions (plan M3 Task 4).
+// ---------------------------------------------------------------------------
+
+/// The session tests' plugin: five activities, a log line for each start
+/// and end, and "quiz" ended by the plugin as it starts.
+const SESSIONS_SOURCE: &str = r#"
+for _, key in ipairs({ "paint", "chess", "cards", "quiz", "draw" }) do
+    ui.register_activity(key, { name = key })
+end
+opencord.on("activity_start", function(event)
+    local session = event.session
+    log.info(string.format("start %s %s by %s/%s in %s/%s at %s with %s",
+        session.id, session.activity, event.starter.id, session.starter_id,
+        event.call.channel_id, session.channel_id, type(session.started_at_ms),
+        table.concat(event.call.member_ids, ",")))
+    if session.activity == "quiz" then
+        local first = activity["end"](session)
+        local again = activity["end"](session.id)
+        log.info("plugin ended " .. tostring(first) .. " then " .. tostring(again))
+    end
+end)
+opencord.on("activity_end", function(event)
+    log.info("end " .. event.session.id .. " " .. event.session.activity .. " " .. event.reason)
+end)
+log.info("ready")
+"#;
+
+/// A server running [`SESSIONS_SOURCE`] as "paint", installed by the owner.
+struct World {
+    server: TestServer,
+    /// The owner: installs, stops and restarts the plugin, and manages
+    /// channels. Its app lists no features, so it hears of no session.
+    owner: TestClient,
+    owner_ready: proto::Ready,
+    code: String,
+    /// The voice channel "General".
+    voice: i64,
+}
+
+impl World {
+    async fn new() -> Self {
+        let server = TestServer::start_with(|config| config.gateway.identify_per_minute = 60).await;
+        let (mut owner, owner_ready) = owner(&server).await;
+        let code = invite(&mut owner, None).await;
+        plugin_at(
+            &server,
+            &mut owner,
+            &owner_ready,
+            "paint",
+            "1.0.0",
+            SESSIONS_SOURCE,
+        )
+        .await;
+        wait_for_log(&mut owner, "paint", "ready").await;
+        let voice = channel_id(&owner_ready, "General");
+        Self {
+            server,
+            owner,
+            owner_ready,
+            code,
+            voice,
+        }
+    }
+
+    /// A member's session for key `seed`, listing `features`: the client,
+    /// the member's id and the Ready.
+    async fn member(&self, seed: u8, features: &[&str]) -> (TestClient, i64, proto::Ready) {
+        let (client, ready) = session(&self.server, seed, Some(&self.code), features).await;
+        let id = self_id(&ready);
+        (client, id, ready)
+    }
+
+    /// Denies `user_id` `denied` in `channel_id`, by a member overwrite.
+    async fn deny(&mut self, channel_id: i64, user_id: i64, denied: Permissions) {
+        self.owner
+            .ok(Kind::SetChannelOverwrite(proto::SetChannelOverwrite {
+                channel_id,
+                overwrite: Some(proto::PermissionOverwrite {
+                    target_kind: proto::OverwriteTarget::Member as i32,
+                    target_id: user_id,
+                    allow: 0,
+                    deny: denied.bits(),
+                }),
+            }))
+            .await;
+    }
+
+    /// How many lines of the plugin's log start with `prefix`.
+    async fn log_count(&mut self, prefix: &str) -> usize {
+        log_lines(&mut self.owner, "paint")
+            .await
+            .iter()
+            .filter(|line| line.starts_with(prefix))
+            .count()
+    }
+
+    /// Waits for a line starting with `prefix`, lets late handlers run,
+    /// and returns how many there are.
+    async fn settled_count(&mut self, prefix: &str) -> usize {
+        wait_for_log(&mut self.owner, "paint", prefix).await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        self.log_count(prefix).await
+    }
+}
+
+fn join(channel_id: i64) -> Kind {
+    Kind::UpdateVoiceState(proto::UpdateVoiceState {
+        channel_id: Some(channel_id),
+        ..Default::default()
+    })
+}
+
+fn leave() -> Kind {
+    Kind::UpdateVoiceState(proto::UpdateVoiceState::default())
+}
+
+fn start_in(channel_id: i64, plugin_id: &str, key: &str) -> Kind {
+    Kind::StartActivity(proto::StartActivity {
+        channel_id,
+        plugin_id: plugin_id.to_owned(),
+        activity_key: key.to_owned(),
+    })
+}
+
+fn start(channel_id: i64, key: &str) -> Kind {
+    start_in(channel_id, "paint", key)
+}
+
+fn end(session_id: i64) -> Kind {
+    Kind::EndActivity(proto::EndActivity { session_id })
+}
+
+/// Sends `kind`, waiting out the request rate limit: the answer.
+async fn paced(client: &mut TestClient, kind: Kind) -> Response {
+    loop {
+        match client.request(kind.clone()).await {
+            Response::Error(error) if error.code == proto::ErrorCode::RateLimited as i32 => {
+                let wait = error.retry_after_ms.unwrap_or(100);
+                tokio::time::sleep(Duration::from_millis(wait)).await;
+            }
+            answer => return answer,
+        }
+    }
+}
+
+/// Starts `key` in `channel_id`: the session.
+async fn started(client: &mut TestClient, channel_id: i64, key: &str) -> proto::ActivitySession {
+    match paced(client, start(channel_id, key)).await {
+        Response::ActivitySession(session) => session,
+        other => panic!("not started: {other:?}"),
+    }
+}
+
+/// The error code `kind` is refused with.
+async fn refused(client: &mut TestClient, kind: Kind) -> proto::ErrorCode {
+    match paced(client, kind).await {
+        Response::Error(error) => proto::ErrorCode::try_from(error.code).unwrap(),
+        other => panic!("not refused: {other:?}"),
+    }
+}
+
+/// The next session `client` hears created.
+async fn created(client: &mut TestClient) -> proto::ActivitySession {
+    within(client, |event| match event {
+        Event::ActivitySessionCreate(create) => create.session.clone(),
+        _ => None,
+    })
+    .await
+}
+
+/// The delete of session `session_id` that `client` hears.
+async fn deleted(client: &mut TestClient, session_id: i64) -> proto::ActivitySessionDelete {
+    within(client, |event| match event {
+        Event::ActivitySessionDelete(delete) if delete.session_id == session_id => Some(*delete),
+        _ => None,
+    })
+    .await
+}
+
+fn is_session_event(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::ActivitySessionCreate(_)
+            | Event::ActivitySessionUpdate(_)
+            | Event::ActivitySessionDelete(_)
+    )
+}
+
+/// Asserts `client` hears nothing of any session for a while.
+async fn hears_no_session(client: &mut TestClient) {
+    client
+        .assert_no_event(Duration::from_millis(300), is_session_event)
+        .await;
+}
+
+fn reason(delete: &proto::ActivitySessionDelete) -> proto::ActivityEndReason {
+    proto::ActivityEndReason::try_from(delete.reason).unwrap()
+}
+
+#[tokio::test]
+async fn starting_needs_the_call_and_the_permission() {
+    // A is in the call with the permission (the starter's road). B is in
+    // the call, denied START_ACTIVITIES by an overwrite there (FORBIDDEN).
+    // C can see the channel but isn't in the call (INVALID_ARGUMENT). D is
+    // in the call, its app without "activities" (NOT_FOUND).
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, b_id, _) = world.member(3, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let (mut d, _, _) = world.member(5, &WITHOUT_ACTIVITIES).await;
+    let voice = world.voice;
+    world.deny(voice, b_id, Permissions::START_ACTIVITIES).await;
+    for client in [&mut a, &mut b, &mut d] {
+        client.ok(join(voice)).await;
+    }
+
+    let session = started(&mut a, voice, "paint").await;
+    assert_eq!(session.channel_id, voice);
+    assert_eq!(session.activity_key, "paint");
+    assert_eq!(
+        refused(&mut b, start(voice, "paint")).await,
+        proto::ErrorCode::Forbidden
+    );
+    assert_eq!(
+        refused(&mut c, start(voice, "paint")).await,
+        proto::ErrorCode::InvalidArgument
+    );
+    assert_eq!(
+        refused(&mut d, start(voice, "paint")).await,
+        proto::ErrorCode::NotFound
+    );
+}
+
+#[tokio::test]
+async fn a_started_activity_reaches_who_can_see_the_channel() {
+    // A starts it (the starter's road, and a call member). B is in the
+    // call (hears the create). C sees the channel and isn't in the call
+    // (hears the create). D can't see the channel (hears nothing). E sees
+    // the channel, its app without "activities" (hears nothing).
+    let mut world = World::new().await;
+    let (mut a, a_id, _) = world.member(2, &FEATURES).await;
+    let (mut b, b_id, _) = world.member(3, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let (mut d, d_id, _) = world.member(5, &FEATURES).await;
+    let (mut e, _, _) = world.member(6, &WITHOUT_ACTIVITIES).await;
+    let voice = world.voice;
+    world.deny(voice, d_id, Permissions::VIEW_CHANNEL).await;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+
+    let session = started(&mut a, voice, "paint").await;
+    assert_eq!(session.starter_id, a_id);
+    assert_eq!(session.plugin_id, "paint");
+    assert_eq!(session.name, "paint");
+    assert_eq!(session.plugin_name, "Test plugin");
+    assert!(session.started_at_ms > 0);
+    assert!(session.viewer_ids.is_empty());
+    assert_eq!(created(&mut b).await, session);
+    assert_eq!(created(&mut c).await, session);
+    hears_no_session(&mut d).await;
+    hears_no_session(&mut e).await;
+
+    let mut members = [a_id, b_id];
+    members.sort_unstable();
+    let expected = format!(
+        "start {} paint by {a_id}/{a_id} in {voice}/{voice} at number with {},{}",
+        session.id, members[0], members[1]
+    );
+    wait_for_log(&mut world.owner, "paint", &expected).await;
+}
+
+/// Sends `kind` as request `request_id` without waiting for the answer.
+async fn send_request(client: &mut TestClient, request_id: u64, kind: Kind) {
+    client
+        .send_envelope(proto::Envelope {
+            seq: 0,
+            request_id,
+            payload: Some(proto::envelope::Payload::Request(proto::Request {
+                kind: Some(kind),
+            })),
+        })
+        .await;
+}
+
+/// The answer to request `request_id`; events meanwhile are skipped.
+async fn answer(client: &mut TestClient, request_id: u64) -> Response {
+    loop {
+        match client.recv().await {
+            Received::Envelope(envelope) => match envelope.payload {
+                Some(proto::envelope::Payload::Response(response))
+                    if envelope.request_id == request_id =>
+                {
+                    return response.result.expect("a result");
+                }
+                _ => {}
+            },
+            Received::Closed(code) => panic!("closed ({code:?})"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn starting_twice_gives_the_running_session() {
+    // A and B are in the call and press start at once (both get the one
+    // session). C sees the channel, not in the call (hears one create).
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+
+    send_request(&mut a, 900_001, start(voice, "paint")).await;
+    send_request(&mut b, 900_002, start(voice, "paint")).await;
+    let Response::ActivitySession(first) = answer(&mut a, 900_001).await else {
+        panic!("A's start failed");
+    };
+    let Response::ActivitySession(second) = answer(&mut b, 900_002).await else {
+        panic!("B's start failed");
+    };
+    assert_eq!(first.id, second.id);
+
+    let creates = c
+        .collect_for(Duration::from_millis(500))
+        .await
+        .into_iter()
+        .filter(|event| matches!(event, Event::ActivitySessionCreate(_)))
+        .count();
+    assert_eq!(creates, 1);
+    assert_eq!(world.settled_count(&format!("start {}", first.id)).await, 1);
+}
+
+#[tokio::test]
+async fn a_fifth_activity_is_refused() {
+    // A is in General and starts four, then a fifth (refused). B is in
+    // another call and starts one there (fine: the limit is per call).
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    let other = match world
+        .owner
+        .ok(Kind::CreateChannel(proto::CreateChannel {
+            kind: proto::ChannelKind::Voice as i32,
+            name: "Second".to_owned(),
+            ..Default::default()
+        }))
+        .await
+    {
+        Response::Channel(channel) => channel.id,
+        other => panic!("expected a channel, got {other:?}"),
+    };
+    a.ok(join(voice)).await;
+    b.ok(join(other)).await;
+
+    for key in ["paint", "chess", "cards", "draw"] {
+        started(&mut a, voice, key).await;
+    }
+    let error = match paced(&mut a, start(voice, "quiz")).await {
+        Response::Error(error) => error,
+        other => panic!("a fifth started: {other:?}"),
+    };
+    assert_eq!(error.code, proto::ErrorCode::PluginLimit as i32);
+    assert_eq!(error.message, "this call already has 4 activities");
+    started(&mut b, other, "paint").await;
+}
+
+#[tokio::test]
+async fn an_unknown_or_stopped_activity_is_unavailable() {
+    // A is in the call with the permission throughout: an unknown key, an
+    // unknown plugin, then the plugin stopped by the owner.
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+
+    assert_eq!(
+        refused(&mut a, start(voice, "golf")).await,
+        proto::ErrorCode::PluginUnavailable
+    );
+    assert_eq!(
+        refused(&mut a, start_in(voice, "nope", "paint")).await,
+        proto::ErrorCode::PluginUnavailable
+    );
+    world.owner.ok(set_running(false)).await;
+    assert_eq!(
+        refused(&mut a, start(voice, "paint")).await,
+        proto::ErrorCode::PluginUnavailable
+    );
+}
+
+#[tokio::test]
+async fn only_the_starter_or_a_channel_manager_ends_it() {
+    // A starts both (the starter's road: ends "paint"). B is in the call,
+    // neither starter nor manager (FORBIDDEN, and hears each delete). The
+    // owner manages channels and didn't start "chess" (ends it).
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    let chess = started(&mut a, voice, "chess").await;
+
+    assert_eq!(
+        refused(&mut b, end(paint.id)).await,
+        proto::ErrorCode::Forbidden
+    );
+    assert_eq!(
+        refused(&mut b, end(paint.id + chess.id)).await,
+        proto::ErrorCode::NotFound
+    );
+    paced(&mut a, end(paint.id)).await;
+    assert_eq!(
+        reason(&deleted(&mut b, paint.id).await),
+        proto::ActivityEndReason::Ended
+    );
+    let Response::Ack(_) = paced(&mut world.owner, end(chess.id)).await else {
+        panic!("the owner couldn't end it");
+    };
+    assert_eq!(
+        reason(&deleted(&mut b, chess.id).await),
+        proto::ActivityEndReason::Ended
+    );
+    hears_no_session(&mut b).await;
+    for session in [&paint, &chess] {
+        let line = format!("end {} {} ended", session.id, session.activity_key);
+        assert_eq!(world.settled_count(&line).await, 1, "{line}");
+    }
+}
+
+#[tokio::test]
+async fn the_plugin_ends_its_own_session() {
+    // A starts "quiz", which the plugin ends as it starts (true, then
+    // false). B is in the call and hears the delete.
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+
+    let quiz = started(&mut a, voice, "quiz").await;
+    assert_eq!(
+        reason(&deleted(&mut b, quiz.id).await),
+        proto::ActivityEndReason::Plugin
+    );
+    wait_for_log(&mut world.owner, "paint", "plugin ended true then false").await;
+    wait_for_log(
+        &mut world.owner,
+        "paint",
+        &format!("ended activity session {}", quiz.id),
+    )
+    .await;
+    assert_eq!(
+        world
+            .settled_count(&format!("end {} quiz plugin", quiz.id))
+            .await,
+        1
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_cant_end_anothers_session() {
+    // A starts "paint" and posts its id in #general. The plugin "other"
+    // reads it and tries to end it (false). B is in the call and hears no
+    // delete.
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    let ready = world.owner_ready.clone();
+    plugin_with(
+        &world.server,
+        &mut world.owner,
+        &ready,
+        "other",
+        "1.0.0",
+        &["register_activities", "read_messages"],
+        r#"opencord.on("message_create", function(event)
+            log.info("other ended " .. tostring(activity["end"](event.message.content)))
+        end)"#,
+    )
+    .await;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+
+    a.ok(Kind::SendMessage(proto::SendMessage {
+        channel_id: channel_id(&ready, "general"),
+        content: paint.id.to_string(),
+        ..Default::default()
+    }))
+    .await;
+    wait_for_log(&mut world.owner, "other", "other ended false").await;
+    assert_eq!(created(&mut b).await.id, paint.id);
+    hears_no_session(&mut b).await;
+    assert_eq!(started(&mut a, voice, "paint").await.id, paint.id);
+}
+
+#[tokio::test]
+async fn the_call_emptying_ends_its_sessions() {
+    // A starts it and leaves first (the session stays). B is the last
+    // to leave (the session ends). C sees the channel, not in the call
+    // (hears the one delete).
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    created(&mut c).await;
+
+    a.ok(leave()).await;
+    hears_no_session(&mut c).await;
+    b.ok(leave()).await;
+    assert_eq!(
+        reason(&deleted(&mut c, paint.id).await),
+        proto::ActivityEndReason::CallEmpty
+    );
+    hears_no_session(&mut c).await;
+    assert_eq!(
+        world
+            .settled_count(&format!("end {} paint call_empty", paint.id))
+            .await,
+        1
+    );
+}
+
+/// Runs the voice reaper as of `at`, as the server's reaper does.
+async fn expire_voice(server: &TestServer, at: Instant) {
+    let state = server.state();
+    let _writes = state.write_lock().await;
+    opencord_server::voice::expire_detached(state, at);
+}
+
+#[tokio::test]
+async fn a_dropped_last_member_ends_the_session_after_the_grace() {
+    // A is alone in the call, starts it and drops (the session waits out
+    // the grace, then ends). C sees the channel, not in the call (hears
+    // the delete only after the grace).
+    let world = World::new().await;
+    let (mut a, _, a_ready) = world.member(2, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    created(&mut c).await;
+
+    a.close().await;
+    let state = world.server.state();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while state
+        .sessions
+        .get(&a_ready.session_id)
+        .and_then(|session| session.detached_for(Instant::now()))
+        .is_none()
+    {
+        assert!(Instant::now() < deadline, "A's session never detached");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    expire_voice(
+        &world.server,
+        Instant::now() + VOICE_GRACE_PERIOD - Duration::from_secs(1),
+    )
+    .await;
+    hears_no_session(&mut c).await;
+    expire_voice(
+        &world.server,
+        Instant::now() + VOICE_GRACE_PERIOD + Duration::from_secs(1),
+    )
+    .await;
+    assert_eq!(
+        reason(&deleted(&mut c, paint.id).await),
+        proto::ActivityEndReason::CallEmpty
+    );
+}
+
+#[tokio::test]
+async fn deleting_the_channel_ends_its_sessions() {
+    // A is in the call of "Temp" and starts it; the owner deletes "Temp".
+    // C could see "Temp", not in the call (hears the session go).
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let temp = match world
+        .owner
+        .ok(Kind::CreateChannel(proto::CreateChannel {
+            kind: proto::ChannelKind::Voice as i32,
+            name: "Temp".to_owned(),
+            ..Default::default()
+        }))
+        .await
+    {
+        Response::Channel(channel) => channel.id,
+        other => panic!("expected a channel, got {other:?}"),
+    };
+    a.ok(join(temp)).await;
+    let paint = started(&mut a, temp, "paint").await;
+    assert_eq!(created(&mut c).await.id, paint.id);
+
+    world
+        .owner
+        .ok(Kind::DeleteChannel(proto::DeleteChannel {
+            channel_id: temp,
+        }))
+        .await;
+    deleted(&mut c, paint.id).await;
+    hears_no_session(&mut c).await;
+    assert_eq!(
+        world
+            .settled_count(&format!("end {} paint call_empty", paint.id))
+            .await,
+        1
+    );
+}
+
+#[tokio::test]
+async fn stopping_ends_sessions() {
+    // A starts it; the owner stops the plugin. B is in the call and hears
+    // the delete; the plugin's stop grace runs its activity_end.
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    wait_for_log(&mut world.owner, "paint", &format!("start {}", paint.id)).await;
+
+    world.owner.ok(set_running(false)).await;
+    assert_eq!(
+        reason(&deleted(&mut b, paint.id).await),
+        proto::ActivityEndReason::PluginStopped
+    );
+    assert_eq!(
+        world
+            .settled_count(&format!("end {} paint plugin_stopping", paint.id))
+            .await,
+        1
+    );
+}
+
+#[tokio::test]
+async fn sessions_survive_a_restart_and_the_new_vm_hears_them() {
+    // A starts it; the owner restarts the plugin. B is in the call and
+    // hears no delete; the new VM hears the start once.
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    created(&mut b).await;
+    let line = format!("start {}", paint.id);
+    wait_for_log(&mut world.owner, "paint", &line).await;
+
+    world
+        .owner
+        .ok(Kind::RestartPlugin(proto::RestartPlugin {
+            plugin_id: "paint".to_owned(),
+        }))
+        .await;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while world.log_count(&line).await < 2 {
+        assert!(
+            Instant::now() < deadline,
+            "the new VM never heard the start"
+        );
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(world.log_count(&line).await, 2);
+    assert_eq!(world.log_count(&format!("end {}", paint.id)).await, 0);
+    hears_no_session(&mut b).await;
+    assert_eq!(started(&mut a, voice, "paint").await.id, paint.id);
+}
+
+#[tokio::test]
+async fn a_restart_without_the_activity_ends_its_sessions() {
+    // A starts "paint"; the owner updates the plugin to a version that
+    // registers only "chess". B is in the call and hears the delete.
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    let chess = started(&mut a, voice, "chess").await;
+
+    let ready = world.owner_ready.clone();
+    plugin_at(
+        &world.server,
+        &mut world.owner,
+        &ready,
+        "paint",
+        "1.0.1",
+        r#"ui.register_activity("chess", { name = "chess" })"#,
+    )
+    .await;
+    assert_eq!(
+        reason(&deleted(&mut b, paint.id).await),
+        proto::ActivityEndReason::Unavailable
+    );
+    hears_no_session(&mut b).await;
+    assert_eq!(started(&mut a, voice, "chess").await.id, chess.id);
+}
+
+#[tokio::test]
+async fn sessions_are_in_ready_only_for_apps_that_ask() {
+    // A starts it from the call. C sees the channel (its fresh Ready has
+    // it). E sees the channel, its app without "activities" (none). D
+    // can't see the channel (none).
+    let mut world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (_d, d_id, _) = world.member(5, &FEATURES).await;
+    let voice = world.voice;
+    world.deny(voice, d_id, Permissions::VIEW_CHANNEL).await;
+    a.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+
+    let (_c, _, c_ready) = world.member(4, &FEATURES).await;
+    assert_eq!(c_ready.activity_sessions, vec![paint]);
+    let (_e, _, e_ready) = world.member(6, &WITHOUT_ACTIVITIES).await;
+    assert!(e_ready.activity_sessions.is_empty());
+    let (_d_again, d_ready) = session(&world.server, 5, None, &FEATURES).await;
+    assert!(d_ready.activity_sessions.is_empty());
 }

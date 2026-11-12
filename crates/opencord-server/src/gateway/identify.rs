@@ -428,6 +428,10 @@ fn ready(
         } else {
             Vec::new()
         },
-        activity_sessions: Vec::new(),
+        activity_sessions: if session.has_feature(ACTIVITIES) {
+            state.plugins.activities.visible_to(&guild, user_id)
+        } else {
+            Vec::new()
+        },
     }
 }

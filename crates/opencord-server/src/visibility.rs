@@ -8,6 +8,7 @@ use opencord_common::channel::ChannelKind;
 use opencord_proto::v1 as proto;
 use proto::event::Kind;
 
+use crate::gateway::session::ACTIVITIES;
 use crate::plugins::events::Scope;
 use crate::state::AppState;
 
@@ -66,6 +67,18 @@ impl Visibility {
                 let added: BTreeSet<i64> =
                     visible_now.difference(visible_before).copied().collect();
                 for channel_id in removed {
+                    // Its sessions go first, as the app knew them by it.
+                    for session in state.plugins.activities.sessions_in(channel_id) {
+                        deliveries.push((
+                            *user_id,
+                            channel_id,
+                            Kind::ActivitySessionDelete(proto::ActivitySessionDelete {
+                                session_id: session.id,
+                                channel_id,
+                                reason: proto::ActivityEndReason::Unspecified as i32,
+                            }),
+                        ));
+                    }
                     deliveries.push((
                         *user_id,
                         channel_id,
@@ -87,6 +100,15 @@ impl Visibility {
                                 channel_id,
                                 Kind::VoiceStateUpdate(proto::VoiceStateUpdate {
                                     voice_state: Some(voice.to_proto(voice_state)),
+                                }),
+                            ));
+                        }
+                        for session in state.plugins.activities.sessions_in(channel_id) {
+                            deliveries.push((
+                                *user_id,
+                                channel_id,
+                                Kind::ActivitySessionCreate(proto::ActivitySessionCreate {
+                                    session: Some(session.to_proto(Vec::new())),
                                 }),
                             ));
                         }
@@ -122,9 +144,15 @@ impl Visibility {
         for (user_id, channel_id, kind) in deliveries {
             let plugin_channel = self.plugin_channels.contains(&channel_id)
                 || after.plugin_channels.contains(&channel_id);
+            let activity_session = matches!(
+                kind,
+                Kind::ActivitySessionCreate(_) | Kind::ActivitySessionDelete(_)
+            );
             let event = proto::Event { kind: Some(kind) };
             for session in state.sessions.for_user(user_id) {
-                if !plugin_channel || session.sees_kind(ChannelKind::Plugin) {
+                let shown = (!plugin_channel || session.sees_kind(ChannelKind::Plugin))
+                    && (!activity_session || session.has_feature(ACTIVITIES));
+                if shown {
                     session.push_event(&event, now);
                 }
             }

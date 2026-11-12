@@ -89,6 +89,9 @@ pub struct PluginEnv {
     /// The views this VM heard open and not yet close: each is announced
     /// to a VM once, and only those it heard open are heard closing.
     pub views_heard: Mutex<HashSet<i64>>,
+    /// The activity sessions this VM heard start and not yet end, the
+    /// same way.
+    pub sessions_heard: Mutex<HashSet<i64>>,
     /// When a broadcast to views last logged skipping limited ones.
     pub views_skip_logged: Mutex<Option<Instant>>,
 }
@@ -326,6 +329,7 @@ fn spawn_vm(
                 files_lock: handle.files_lock.clone(),
                 files_reads: handle.files_reads.clone(),
                 views_heard: Mutex::new(HashSet::new()),
+                sessions_heard: Mutex::new(HashSet::new()),
                 views_skip_logged: Mutex::new(None),
             });
             let last_report = reports.clone();
@@ -809,7 +813,32 @@ async fn stop_vm(
             ));
         }
     }
-    match tokio::time::timeout(STOP_GRACE, futures_util::future::join_all(calls)).await {
+    // Then sessions ended as it stops, after their views closed, within
+    // the same grace.
+    let ending = super::view_calls::ending(vm, env);
+    let end_handlers = match handlers_for(&vm.lua, "activity_end") {
+        Ok(handlers) => handlers,
+        Err(error) => {
+            failed(env, reports, "activity_end", error, limit);
+            Vec::new()
+        }
+    };
+    let mut ends = Vec::new();
+    for argument in ending {
+        for handler in &end_handlers {
+            ends.push(Budgeted::new(
+                env.budget.clone(),
+                limit,
+                handler.call_async::<()>(argument.clone()),
+            ));
+        }
+    }
+    let all = async {
+        let mut results = futures_util::future::join_all(calls).await;
+        results.extend(futures_util::future::join_all(ends).await);
+        results
+    };
+    match tokio::time::timeout(STOP_GRACE, all).await {
         Ok(results) => {
             for error in results.into_iter().filter_map(Result::err) {
                 failed(env, reports, "stop", error, limit);

@@ -602,6 +602,8 @@ impl Plugins {
     /// channels can't be opened after.
     pub async fn stop(&self, state: &AppState, id: &str) {
         views::plugin_stopping(state, id);
+        // After its views, so it hears them close first.
+        activities::plugin_stopping(state, id).await;
         if let Some(handle) = self.get(id) {
             handle.stop().await;
         }
@@ -614,6 +616,7 @@ impl Plugins {
         // Without a handle, no VM ever ran to issue file tokens.
         let Some(handle) = self.get(id) else { return };
         views::plugin_stopping(state, id);
+        activities::plugin_stopping(state, id).await;
         handle.stop().await;
         // After the stop: its `stop` handler may still issue one.
         self.file_tokens.forget_plugin(id);
