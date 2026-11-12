@@ -429,7 +429,10 @@ fn ready(
             Vec::new()
         },
         activity_sessions: if session.has_feature(ACTIVITIES) {
-            state.plugins.activities.visible_to(&guild, user_id)
+            state
+                .plugins
+                .activities
+                .visible_to(&guild, &state.plugins.views, user_id)
         } else {
             Vec::new()
         },

@@ -9,8 +9,11 @@
 //! channel's plugin stopping or dropping its type) also runs under the
 //! write lock and closes the views it affects before releasing it, so no
 //! view outlives its member's access.
+//!
+//! A view in an activity session (plan M3 Task 5, §15.3) also closes when
+//! its session ends and when its member's voice state leaves the call.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -88,14 +91,37 @@ pub struct ViewInfo {
     pub plugin_id: String,
     pub user_id: i64,
     pub session_id: String,
+    /// The plugin channel, or the activity session's voice channel.
     pub channel_id: i64,
+    /// The activity session it's open in (plan M3 Task 5); `None` for a
+    /// plugin channel's view.
+    pub activity: Option<i64>,
     /// `"desktop"` or `"phone"`.
     pub platform: String,
 }
 
 impl ViewInfo {
-    /// The view as plugins see it: `{ id, user, place, platform }`.
+    /// The view as plugins see it: `{ id, user, place, platform }`, its
+    /// place `{ kind = "channel", channel_id }` or `{ kind = "activity",
+    /// session_id, channel_id, activity }`.
     pub fn to_json(&self, state: &AppState) -> serde_json::Value {
+        let place = match self.activity {
+            None => serde_json::json!({ "kind": "channel", "channel_id": id(self.channel_id) }),
+            Some(session_id) => {
+                // A session's views close before it leaves (`activities::end`).
+                let activity = state
+                    .plugins
+                    .activities
+                    .session(session_id)
+                    .map(|session| session.activity_key);
+                serde_json::json!({
+                    "kind": "activity",
+                    "session_id": id(session_id),
+                    "channel_id": id(self.channel_id),
+                    "activity": activity,
+                })
+            }
+        };
         let mut user = user_table(&state.guild(), self.user_id);
         if let Some(member) = state.guild().members.get(&self.user_id) {
             let roles: Vec<serde_json::Value> = member.role_ids.iter().map(|&r| id(r)).collect();
@@ -107,7 +133,7 @@ impl ViewInfo {
         serde_json::json!({
             "id": id(self.id),
             "user": user,
-            "place": { "channel_id": id(self.channel_id) },
+            "place": place,
             "platform": self.platform,
         })
     }
@@ -130,6 +156,10 @@ pub enum Closed {
     Unavailable,
     /// The plugin stopped, was turned off or uninstalled.
     PluginStopped,
+    /// Its activity session ended.
+    ActivityEnded,
+    /// Its member's voice state left the activity session's call.
+    LeftCall,
 }
 
 impl Closed {
@@ -142,6 +172,8 @@ impl Closed {
             Closed::ChannelDeleted => "channel_deleted",
             Closed::Unavailable => "unavailable",
             Closed::PluginStopped => "plugin_stopping",
+            Closed::ActivityEnded => "activity_ended",
+            Closed::LeftCall => "left_call",
         }
     }
 
@@ -154,6 +186,21 @@ impl Closed {
             Closed::ChannelDeleted => Some(proto::ViewCloseReason::ChannelDeleted),
             Closed::Unavailable => Some(proto::ViewCloseReason::Unavailable),
             Closed::PluginStopped => Some(proto::ViewCloseReason::PluginStopped),
+            Closed::ActivityEnded => Some(proto::ViewCloseReason::ActivityEnded),
+            Closed::LeftCall => Some(proto::ViewCloseReason::LeftCall),
+        }
+    }
+
+    /// Whether an activity session outlives this close, so its viewers are
+    /// announced. Its session's end, its plugin stopping and its call's
+    /// channel going all end it next, and an end sends only the delete.
+    fn session_goes_on(self) -> bool {
+        match self {
+            Closed::ByClient | Closed::SessionEnded | Closed::LostAccess | Closed::LeftCall => true,
+            Closed::ChannelDeleted
+            | Closed::Unavailable
+            | Closed::PluginStopped
+            | Closed::ActivityEnded => false,
         }
     }
 }
@@ -195,6 +242,20 @@ impl Views {
     /// The view, while it's open.
     pub fn info(&self, view_id: i64) -> Option<ViewInfo> {
         self.lock().get(&view_id).map(|entry| entry.info.clone())
+    }
+
+    /// Who has the activity session open, by user id, ascending, each
+    /// once however many views they have.
+    pub fn viewers_of(&self, activity_session_id: i64) -> Vec<i64> {
+        let mut viewers: Vec<i64> = self
+            .lock()
+            .values()
+            .filter(|entry| entry.info.activity == Some(activity_session_id))
+            .map(|entry| entry.info.user_id)
+            .collect();
+        viewers.sort_unstable();
+        viewers.dedup();
+        viewers
     }
 
     /// The plugin's open views, oldest first.
@@ -386,6 +447,27 @@ pub fn plugin_stopping(state: &AppState, plugin_id: &str) {
     tell(state, closed, Closed::PluginStopped);
 }
 
+/// The activity session ends: its views close. Runs before the session
+/// leaves, so each view's place still names its activity. The caller holds
+/// the write lock.
+pub fn activity_ended(state: &AppState, activity_session_id: i64) {
+    let closed = state
+        .plugins
+        .views
+        .remove_where(|view| view.activity == Some(activity_session_id));
+    tell(state, closed, Closed::ActivityEnded);
+}
+
+/// `user_id`'s voice state left `channel_id`'s call: their views of its
+/// activity sessions close. The caller holds the write lock and no voice
+/// states guard.
+pub fn left_call(state: &AppState, user_id: i64, channel_id: i64) {
+    let closed = state.plugins.views.remove_where(|view| {
+        view.activity.is_some() && view.user_id == user_id && view.channel_id == channel_id
+    });
+    tell(state, closed, Closed::LeftCall);
+}
+
 /// Closes the views of sessions that ended or were forgotten.
 pub fn sessions_ended(state: &AppState) {
     let closed = state.plugins.views.remove_where(|view| {
@@ -398,9 +480,19 @@ pub fn sessions_ended(state: &AppState) {
 }
 
 /// Tells each closed view's session (unless it closed it, or is gone) and
-/// its plugin.
+/// its plugin, then announces the viewers of each activity session that
+/// goes on and lost one.
 fn tell(state: &AppState, closed: Vec<ViewInfo>, why: Closed) {
     let now = Instant::now();
+    // Each activity session's closed views' users, before `closed` goes.
+    let mut left: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    if why.session_goes_on() {
+        for view in &closed {
+            if let Some(session_id) = view.activity {
+                left.entry(session_id).or_default().push(view.user_id);
+            }
+        }
+    }
     for view in closed {
         tracing::debug!(
             plugin = %view.plugin_id,
@@ -433,6 +525,12 @@ fn tell(state: &AppState, closed: Vec<ViewInfo>, why: Closed) {
                 command: None,
             },
         );
+    }
+    for (session_id, users) in left {
+        let viewers = state.plugins.views.viewers_of(session_id);
+        if users.iter().any(|user_id| !viewers.contains(user_id)) {
+            super::activities::viewers_changed(state, session_id);
+        }
     }
 }
 

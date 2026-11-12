@@ -182,7 +182,7 @@ fn install_views(lua: &Lua, env: &Arc<PluginEnv>, ui: &Table) -> mlua::Result<()
             let state = list_env.state()?;
             let list = lua.create_table()?;
             for view in state.plugins.views.of_plugin(&list_env.plugin_id) {
-                if place.is_none_or(|channel_id| view.channel_id == channel_id) {
+                if place.is_none_or(|place| place.holds(&view)) {
                     list.raw_push(view_table(lua, &view.to_json(&state))?)?;
                 }
             }
@@ -196,10 +196,8 @@ fn install_views(lua: &Lua, env: &Arc<PluginEnv>, ui: &Table) -> mlua::Result<()
         function(
             lua,
             move |lua, (place, name, data): (Value, Value, Value)| {
-                let channel_id = place_arg(place)?;
-                broadcast(lua, &place_env, name, data, |_, view| {
-                    view.channel_id == channel_id
-                })
+                let place = place_arg(place)?;
+                broadcast(lua, &place_env, name, data, |_, view| place.holds(view))
             },
         )?,
     )?;
@@ -250,14 +248,40 @@ pub fn view_id(view: Value) -> mlua::Result<i64> {
     id_arg(view.raw_get("id")?, "view.id")
 }
 
-/// `{ channel_id = "…" }`: the channel's id.
-fn place_arg(place: Value) -> mlua::Result<i64> {
+/// Which views `ui.views` and `ui.send_place` take.
+#[derive(Debug, Clone, Copy)]
+enum Place {
+    /// A plugin channel's views; never an activity's.
+    Channel(i64),
+    /// An activity session's views.
+    ActivitySession(i64),
+}
+
+impl Place {
+    fn holds(self, view: &ViewInfo) -> bool {
+        match self {
+            Place::Channel(channel_id) => view.activity.is_none() && view.channel_id == channel_id,
+            Place::ActivitySession(session_id) => view.activity == Some(session_id),
+        }
+    }
+}
+
+/// `{ session_id = "…" }` or `{ channel_id = "…" }`. A view's own place
+/// has both for an activity, and names its session.
+fn place_arg(place: Value) -> mlua::Result<Place> {
+    const NOT_A_PLACE: &str = "INVALID_ARGUMENT: place must be a table such as \
+         { channel_id = \"…\" } or { session_id = \"…\" }";
     let Value::Table(place) = place else {
-        return Err(raise(
-            "INVALID_ARGUMENT: place must be a table such as { channel_id = \"…\" }",
-        ));
+        return Err(raise(NOT_A_PLACE));
     };
-    id_arg(place.raw_get("channel_id")?, "place.channel_id")
+    match (place.raw_get("session_id")?, place.raw_get("channel_id")?) {
+        (Value::Nil, Value::Nil) => Err(raise(NOT_A_PLACE)),
+        (Value::Nil, channel_id) => Ok(Place::Channel(id_arg(channel_id, "place.channel_id")?)),
+        (session_id, _) => Ok(Place::ActivitySession(id_arg(
+            session_id,
+            "place.session_id",
+        )?)),
+    }
 }
 
 fn event_name(name: Value) -> mlua::Result<String> {

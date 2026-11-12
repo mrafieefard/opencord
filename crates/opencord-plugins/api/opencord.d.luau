@@ -265,9 +265,22 @@ export type DbTx = {
     query: (sql: string, ...any) -> { { [string]: any } },
 }
 
+-- Where a view is open: a plugin channel, or an activity session in a call.
 export type ViewPlace = {
+    kind: "channel",
     channel_id: string,
+} | {
+    kind: "activity",
+    session_id: string,
+    -- The call's voice channel.
+    channel_id: string,
+    -- The activity's key.
+    activity: string,
 }
+
+-- Which views `ui.views` and `ui.send_place` take: a session's, or a plugin
+-- channel's (never an activity's). A view's own place works too.
+export type ViewPlaceSelector = { session_id: string } | { channel_id: string } | ViewPlace
 
 export type ViewUser = User & {
     roles: { string }?,
@@ -330,7 +343,14 @@ export type ViewOpenEvent = {
 
 export type ViewCloseEvent = {
     view: View,
-    reason: string,
+    reason: "closed"
+        | "disconnected"
+        | "lost_access"
+        | "channel_deleted"
+        | "unavailable"
+        | "plugin_stopping"
+        | "activity_ended"
+        | "left_call",
 }
 
 export type FileUploadedEvent = {
@@ -1030,9 +1050,9 @@ declare ui: {
     --- Server only.
     on: (name: string, handler: (view: View, data: any) -> ()) -> (),
     --- Server only.
-    views: (place: ViewPlace?) -> { View },
+    views: (place: ViewPlaceSelector?) -> { View },
     --- Server only.
-    send_place: (place: ViewPlace, name: string, data: any) -> number,
+    send_place: (place: ViewPlaceSelector, name: string, data: any) -> number,
     --- Server only.
     send_role: (role_id: string, name: string, data: any) -> number,
     --- Server only.

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! `OpenView`, `CloseView` and `SendViewEvent` (plan M2 Task 10, design
-//! 2026-11-07 §14.3).
+//! 2026-11-07 §14.3); views in activity sessions (plan M3 Task 5, §15.3).
+
+use std::sync::Arc;
 
 use opencord_common::channel::ChannelKind;
 use opencord_common::permissions::Permissions;
@@ -13,12 +15,14 @@ use proto::response::Result as Response;
 
 use super::{Ctx, ack};
 use crate::error::ApiError;
-use crate::gateway::session::{PLUGIN_CHANNELS, Session};
+use crate::gateway::session::{ACTIVITIES, PLUGIN_CHANNELS, Session};
 use crate::permissions::require_channel;
+use crate::plugins::PluginHandle;
+use crate::plugins::activities;
 use crate::plugins::assets::client_files;
 use crate::plugins::views::{self, ViewInfo, valid_event_name};
 
-fn session<'a>(ctx: &Ctx<'a>) -> Result<&'a std::sync::Arc<Session>, ApiError> {
+fn session<'a>(ctx: &Ctx<'a>) -> Result<&'a Arc<Session>, ApiError> {
     ctx.session
         .ok_or_else(|| ApiError::invalid_argument("only members' apps open views"))
 }
@@ -29,18 +33,32 @@ fn unavailable(message: &str) -> ApiError {
 
 pub async fn open(ctx: &Ctx<'_>, request: proto::OpenView) -> Result<Response, ApiError> {
     let session = session(ctx)?;
-    let channel_id = match request.place.and_then(|place| place.kind) {
-        Some(proto::view_place::Kind::ChannelId(channel_id)) => channel_id,
-        Some(proto::view_place::Kind::ActivitySessionId(_)) => {
-            return Err(ApiError::invalid_argument("not implemented"));
-        }
-        None => return Err(ApiError::invalid_argument("the view's place is missing")),
-    };
+    let place = request
+        .place
+        .and_then(|place| place.kind)
+        .ok_or_else(|| ApiError::invalid_argument("the view's place is missing"))?;
     if !matches!(request.platform.as_str(), "desktop" | "phone") {
         return Err(ApiError::invalid_argument(
             "platform must be desktop or phone",
         ));
     }
+    match place {
+        proto::view_place::Kind::ChannelId(channel_id) => {
+            open_channel(ctx, session, channel_id, request.platform).await
+        }
+        proto::view_place::Kind::ActivitySessionId(activity_session_id) => {
+            open_activity(ctx, session, activity_session_id, request.platform).await
+        }
+    }
+}
+
+/// A view of a plugin channel.
+async fn open_channel(
+    ctx: &Ctx<'_>,
+    session: &Session,
+    channel_id: i64,
+    platform: String,
+) -> Result<Response, ApiError> {
     // An app without plugin channels never heard of this one.
     if !session.has_feature(PLUGIN_CHANNELS) {
         return Err(ApiError::not_found("channel"));
@@ -52,20 +70,14 @@ pub async fn open(ctx: &Ctx<'_>, request: proto::OpenView) -> Result<Response, A
     if session.is_ended() {
         return Err(ApiError::invalid_session());
     }
-    let (plugin, show_errors) = {
+    let plugin = {
         let guild = state.guild();
         let channel = require_channel(&guild, ctx.user_id, channel_id, Permissions::VIEW_CHANNEL)?;
-        let plugin = channel
+        channel
             .plugin
             .clone()
             .filter(|_| channel.kind == ChannelKind::Plugin)
-            .ok_or_else(|| ApiError::invalid_argument("only plugin channels open views"))?;
-        // A dev token works only while its maker manages plugins (dev.rs),
-        // so holding one adds no one to who sees errors.
-        let show_errors = guild
-            .base_permissions(ctx.user_id)
-            .contains(Permissions::MANAGE_PLUGINS);
-        (plugin, show_errors)
+            .ok_or_else(|| ApiError::invalid_argument("only plugin channels open views"))?
     };
     if state.plugins.channel_types.state(&plugin) != proto::PluginChannelState::Available {
         return Err(unavailable("this channel is unavailable"));
@@ -79,25 +91,130 @@ pub async fn open(ctx: &Ctx<'_>, request: proto::OpenView) -> Result<Response, A
         .entry()
         .ok_or_else(|| unavailable("this plugin has no screen"))?
         .to_owned();
+    insert(
+        ctx,
+        session,
+        Opening {
+            handle,
+            entry,
+            channel_id,
+            activity: None,
+            platform,
+        },
+    )
+}
+
+/// A view of an activity session, for a member in its call (plan M3 Task 5,
+/// design 2026-11-07 §15.3).
+async fn open_activity(
+    ctx: &Ctx<'_>,
+    session: &Session,
+    activity_session_id: i64,
+    platform: String,
+) -> Result<Response, ApiError> {
+    // An app without activities never heard of this one.
+    if !session.has_feature(ACTIVITIES) {
+        return Err(ApiError::not_found("activity session"));
+    }
+    let state = ctx.state;
+    // Under the write lock: leaving the call and the session's end wait
+    // for it, then find this view.
+    let _writes = state.write_lock().await;
+    if session.is_ended() {
+        return Err(ApiError::invalid_session());
+    }
+    let activity = state
+        .plugins
+        .activities
+        .session(activity_session_id)
+        .ok_or_else(|| ApiError::not_found("activity session"))?;
+    let in_call = state
+        .voice()
+        .get(ctx.user_id)
+        .is_some_and(|voice_state| voice_state.channel_id == activity.channel_id);
+    if !in_call {
+        return Err(ApiError::forbidden("join the call to open this activity"));
+    }
+    let handle = state
+        .plugins
+        .get(&activity.plugin_id)
+        .filter(|handle| handle.state() == proto::PluginState::Running)
+        .ok_or_else(|| unavailable("this activity is unavailable"))?;
+    let entry = handle
+        .client
+        .entry()
+        .ok_or_else(|| unavailable("this activity is unavailable"))?
+        .to_owned();
+    insert(
+        ctx,
+        session,
+        Opening {
+            handle,
+            entry,
+            channel_id: activity.channel_id,
+            activity: Some(activity.id),
+            platform,
+        },
+    )
+}
+
+/// A view whose access was checked, under the write lock.
+struct Opening {
+    handle: Arc<PluginHandle>,
+    entry: String,
+    /// The plugin channel, or the activity session's voice channel.
+    channel_id: i64,
+    activity: Option<i64>,
+    platform: String,
+}
+
+/// Opens the view within the session's limit, tells its plugin and, when
+/// it adds a viewer to an activity session, everyone who sees the session.
+fn insert(ctx: &Ctx<'_>, session: &Session, opening: Opening) -> Result<Response, ApiError> {
+    let state = ctx.state;
     if state.plugins.views.count_for_session(&session.id) >= VIEWS_PER_SESSION {
         return Err(ApiError::new(
             proto::ErrorCode::PluginLimit,
             "too many open views",
         ));
     }
+    // A dev token works only while its maker manages plugins (dev.rs), so
+    // holding one adds no one to who sees errors.
+    let show_errors = state
+        .guild()
+        .base_permissions(ctx.user_id)
+        .contains(Permissions::MANAGE_PLUGINS);
+    let Opening {
+        handle,
+        entry,
+        channel_id,
+        activity,
+        platform,
+    } = opening;
+    let new_viewer = activity.is_some_and(|session_id| {
+        !state
+            .plugins
+            .views
+            .viewers_of(session_id)
+            .contains(&ctx.user_id)
+    });
     let view = ViewInfo {
         id: state.ids.next_id(),
-        plugin_id: plugin.plugin_id.clone(),
+        plugin_id: handle.id.clone(),
         user_id: ctx.user_id,
         session_id: session.id.clone(),
         channel_id,
-        platform: request.platform,
+        activity,
+        platform,
     };
     state.plugins.views.insert(view.clone());
+    if let Some(session_id) = activity.filter(|_| new_viewer) {
+        activities::viewers_changed(state, session_id);
+    }
     views::opened(state, &view);
     Ok(Response::ViewOpened(proto::ViewOpened {
         view_id: view.id,
-        plugin_id: plugin.plugin_id,
+        plugin_id: view.plugin_id,
         api: handle.client.api(),
         entry,
         files: client_files(&handle),

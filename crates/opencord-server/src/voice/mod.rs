@@ -85,6 +85,13 @@ pub fn announce(state: &AppState, voice_state: proto::VoiceState, channels: &[i6
             .filter(|channel_id| voice.in_channel(*channel_id).next().is_none())
             .collect()
     };
+    // A call that goes on loses the user's views of its activities; an
+    // emptied call's end closes them, with the session.
+    for left in channels.iter().copied().filter(|c| Some(*c) != current) {
+        if !emptied.contains(&left) {
+            crate::plugins::views::left_call(state, user_id, left);
+        }
+    }
     for channel_id in emptied {
         crate::plugins::activities::call_emptied(state, channel_id);
     }

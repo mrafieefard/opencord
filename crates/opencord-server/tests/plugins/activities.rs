@@ -376,18 +376,15 @@ struct World {
 
 impl World {
     async fn new() -> Self {
+        Self::running(SESSIONS_SOURCE).await
+    }
+
+    /// A server running `source` as "paint"; `source` logs "ready".
+    async fn running(source: &str) -> Self {
         let server = TestServer::start_with(|config| config.gateway.identify_per_minute = 60).await;
         let (mut owner, owner_ready) = owner(&server).await;
         let code = invite(&mut owner, None).await;
-        plugin_at(
-            &server,
-            &mut owner,
-            &owner_ready,
-            "paint",
-            "1.0.0",
-            SESSIONS_SOURCE,
-        )
-        .await;
+        plugin_at(&server, &mut owner, &owner_ready, "paint", "1.0.0", source).await;
         wait_for_log(&mut owner, "paint", "ready").await;
         let voice = channel_id(&owner_ready, "General");
         Self {
@@ -1069,4 +1066,413 @@ async fn sessions_are_in_ready_only_for_apps_that_ask() {
     assert!(e_ready.activity_sessions.is_empty());
     let (_d_again, d_ready) = session(&world.server, 5, None, &FEATURES).await;
     assert!(d_ready.activity_sessions.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Views in an activity session (plan M3 Task 5).
+// ---------------------------------------------------------------------------
+
+/// The view tests' plugin: "paint" registered, a log line for each view's
+/// open (with its place) and close, and for each session's end; "reach"
+/// sends to a place and lists its views.
+const VIEWS_SOURCE: &str = r#"
+ui.register_activity("paint", { name = "paint" })
+opencord.on("view_open", function(event)
+    local view = event.view
+    local place = view.place
+    log.info(string.format("open %s by %s %s %s %s %s", view.id, view.user.id,
+        tostring(place.kind), tostring(place.session_id), tostring(place.channel_id),
+        tostring(place.activity)))
+end)
+opencord.on("view_close", function(event)
+    log.info("close " .. event.view.id .. " " .. event.reason)
+end)
+opencord.on("activity_end", function(event)
+    log.info("end " .. event.session.id .. " " .. event.reason)
+end)
+ui.on("reach", function(view, data)
+    local here = ui.send_place({ session_id = data.session_id }, "here", {})
+    local voice = ui.send_place({ channel_id = data.channel_id }, "voice", {})
+    local ids = {}
+    for _, listed in ipairs(ui.views({ session_id = data.session_id })) do
+        table.insert(ids, listed.id)
+    end
+    local _, err = pcall(ui.views, {})
+    log.info(string.format("reach %d %d [%s] %s", here, voice, table.concat(ids, ","),
+        tostring(err)))
+end)
+log.info("ready")
+"#;
+
+fn open_in(session_id: i64) -> Kind {
+    Kind::OpenView(proto::OpenView {
+        place: Some(proto::ViewPlace {
+            kind: Some(proto::view_place::Kind::ActivitySessionId(session_id)),
+        }),
+        platform: "desktop".to_owned(),
+    })
+}
+
+/// Opens the activity session's view: the view's id.
+async fn open_view(client: &mut TestClient, session_id: i64) -> i64 {
+    match paced(client, open_in(session_id)).await {
+        Response::ViewOpened(opened) => opened.view_id,
+        other => panic!("not opened: {other:?}"),
+    }
+}
+
+fn close_view(view_id: i64) -> Kind {
+    Kind::CloseView(proto::CloseView { view_id })
+}
+
+/// The reason of the `ViewClosed` of `view_id` that `client` hears.
+async fn view_closed(client: &mut TestClient, view_id: i64) -> proto::ViewCloseReason {
+    within(client, |event| match event {
+        Event::ViewClosed(closed) if closed.view_id == view_id => {
+            Some(proto::ViewCloseReason::try_from(closed.reason).unwrap())
+        }
+        _ => None,
+    })
+    .await
+}
+
+/// The viewers of the next `ActivitySessionUpdate` `client` hears.
+async fn viewers_update(client: &mut TestClient) -> Vec<i64> {
+    within(client, |event| match event {
+        Event::ActivitySessionUpdate(update) => {
+            update.session.as_ref().map(|s| s.viewer_ids.clone())
+        }
+        _ => None,
+    })
+    .await
+}
+
+async fn hears_no_update(client: &mut TestClient) {
+    client
+        .assert_no_event(Duration::from_millis(300), |event| {
+            matches!(event, Event::ActivitySessionUpdate(_))
+        })
+        .await;
+}
+
+/// The plugin's log lines, waiting for one starting with `prefix`.
+async fn lines_after(world: &mut World, prefix: &str) -> Vec<String> {
+    wait_for_log(&mut world.owner, "paint", prefix).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    log_lines(&mut world.owner, "paint").await
+}
+
+fn sorted(mut ids: Vec<i64>) -> Vec<i64> {
+    ids.sort_unstable();
+    ids
+}
+
+#[tokio::test]
+async fn only_someone_in_the_call_opens_it() {
+    // A is in the call and starts and opens it (the opener's road, and a
+    // made-up session id: NOT_FOUND). B sees the channel, isn't in the
+    // call (FORBIDDEN). C is in the call, its app without "activities"
+    // (NOT_FOUND).
+    let world = World::running(VIEWS_SOURCE).await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &WITHOUT_ACTIVITIES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    c.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+
+    open_view(&mut a, paint.id).await;
+    assert_eq!(
+        refused(&mut b, open_in(paint.id)).await,
+        proto::ErrorCode::Forbidden
+    );
+    assert_eq!(
+        refused(&mut c, open_in(paint.id)).await,
+        proto::ErrorCode::NotFound
+    );
+    assert_eq!(
+        refused(&mut a, open_in(paint.id + 1)).await,
+        proto::ErrorCode::NotFound
+    );
+}
+
+#[tokio::test]
+async fn opening_tells_the_plugin_where() {
+    // A is in the call, starts it and opens it: the plugin's view_open has
+    // the activity's place.
+    let mut world = World::running(VIEWS_SOURCE).await;
+    let (mut a, a_id, _) = world.member(2, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+
+    let view = open_view(&mut a, paint.id).await;
+    wait_for_log(
+        &mut world.owner,
+        "paint",
+        &format!("open {view} by {a_id} activity {} {voice} paint", paint.id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn viewers_are_counted_by_person() {
+    // A is in the call and opens it from two apps (one viewer). B is in
+    // the call and opens it (a second viewer). C sees the channel, isn't
+    // in the call, and hears each update. D joins later (its Ready has the
+    // viewers).
+    let world = World::running(VIEWS_SOURCE).await;
+    let (mut a, a_id, _) = world.member(2, &FEATURES).await;
+    let (mut a_again, _) = session(&world.server, 2, None, &FEATURES).await;
+    let (mut b, b_id, _) = world.member(3, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    created(&mut c).await;
+
+    let first = open_view(&mut a, paint.id).await;
+    assert_eq!(viewers_update(&mut c).await, vec![a_id]);
+    let second = open_view(&mut a_again, paint.id).await;
+    hears_no_update(&mut c).await;
+    open_view(&mut b, paint.id).await;
+    assert_eq!(viewers_update(&mut c).await, sorted(vec![a_id, b_id]));
+
+    let (_d, _, d_ready) = world.member(5, &FEATURES).await;
+    assert_eq!(d_ready.activity_sessions.len(), 1);
+    assert_eq!(
+        d_ready.activity_sessions[0].viewer_ids,
+        sorted(vec![a_id, b_id])
+    );
+    assert_eq!(
+        started(&mut a, voice, "paint").await.viewer_ids,
+        sorted(vec![a_id, b_id]),
+        "starting it again answers the viewers too"
+    );
+
+    paced(&mut a, close_view(first)).await;
+    hears_no_update(&mut c).await;
+    paced(&mut a_again, close_view(second)).await;
+    assert_eq!(viewers_update(&mut c).await, vec![b_id]);
+}
+
+#[tokio::test]
+async fn leaving_the_call_closes_ones_view() {
+    // A and B are in the call with it open. A leaves (A's view closes,
+    // LEFT_CALL). B stays (B's view still gets the plugin's events).
+    let mut world = World::running(VIEWS_SOURCE).await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, b_id, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    let a_view = open_view(&mut a, paint.id).await;
+    let b_view = open_view(&mut b, paint.id).await;
+
+    a.ok(leave()).await;
+    assert_eq!(
+        view_closed(&mut a, a_view).await,
+        proto::ViewCloseReason::LeftCall
+    );
+    // B heard [A] and [A, B] as they opened it; the next is A leaving.
+    let mut viewers = Vec::new();
+    while viewers != vec![b_id] {
+        viewers = viewers_update(&mut b).await;
+    }
+    wait_for_log(
+        &mut world.owner,
+        "paint",
+        &format!("close {a_view} left_call"),
+    )
+    .await;
+
+    b.ok(Kind::SendViewEvent(proto::SendViewEvent {
+        view_id: b_view,
+        name: "reach".to_owned(),
+        data_json: format!(r#"{{"session_id":"{}","channel_id":"{voice}"}}"#, paint.id),
+    }))
+    .await;
+    within(&mut b, |event| match event {
+        Event::ViewClosed(closed) => panic!("B's view closed: {closed:?}"),
+        Event::ViewMessage(message) if message.view_id == b_view && message.name == "here" => {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn ending_a_session_closes_its_views_once() {
+    // A starts it and ends it, with it open. B is in the call with it
+    // open. C sees the channel, not in the call (hears the delete and no
+    // update before it).
+    let mut world = World::running(VIEWS_SOURCE).await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let (mut c, _, _) = world.member(4, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    let a_view = open_view(&mut a, paint.id).await;
+    let b_view = open_view(&mut b, paint.id).await;
+    let mut viewers = Vec::new();
+    while viewers.len() < 2 {
+        viewers = viewers_update(&mut c).await;
+    }
+
+    paced(&mut a, end(paint.id)).await;
+    for (client, view) in [(&mut a, a_view), (&mut b, b_view)] {
+        let closes: Vec<proto::ViewClosed> = client
+            .collect_for(Duration::from_millis(500))
+            .await
+            .into_iter()
+            .filter_map(|event| match event {
+                Event::ViewClosed(closed) => Some(closed),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            closes,
+            vec![proto::ViewClosed {
+                view_id: view,
+                reason: proto::ViewCloseReason::ActivityEnded as i32,
+            }]
+        );
+    }
+    let seen = within(&mut c, |event| match event {
+        Event::ActivitySessionUpdate(update) => Some(Err(update.clone())),
+        Event::ActivitySessionDelete(delete) => Some(Ok(*delete)),
+        _ => None,
+    })
+    .await;
+    assert_eq!(
+        reason(&seen.expect("an update came before the delete")),
+        proto::ActivityEndReason::Ended
+    );
+
+    let lines = lines_after(&mut world, &format!("end {}", paint.id)).await;
+    let at = |line: String| -> Vec<usize> {
+        lines
+            .iter()
+            .enumerate()
+            .filter(|(_, logged)| **logged == line)
+            .map(|(index, _)| index)
+            .collect()
+    };
+    let a_close = at(format!("close {a_view} activity_ended"));
+    let b_close = at(format!("close {b_view} activity_ended"));
+    let ended = at(format!("end {} ended", paint.id));
+    assert_eq!(
+        (a_close.len(), b_close.len(), ended.len()),
+        (1, 1, 1),
+        "{lines:#?}"
+    );
+    assert!(a_close[0] < ended[0] && b_close[0] < ended[0], "{lines:#?}");
+}
+
+#[tokio::test]
+async fn the_call_emptying_closes_the_last_view() {
+    // A is alone in the call with it open, and leaves: the view closes
+    // once, then the session ends.
+    let mut world = World::running(VIEWS_SOURCE).await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    let view = open_view(&mut a, paint.id).await;
+
+    a.ok(leave()).await;
+    let closes = a
+        .collect_for(Duration::from_millis(500))
+        .await
+        .into_iter()
+        .filter(|event| matches!(event, Event::ViewClosed(_)))
+        .count();
+    assert_eq!(closes, 1);
+    let lines = lines_after(&mut world, &format!("end {} call_empty", paint.id)).await;
+    let closes: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.starts_with(&format!("close {view} ")))
+        .map(|(index, _)| index)
+        .collect();
+    let ended = lines
+        .iter()
+        .position(|line| *line == format!("end {} call_empty", paint.id))
+        .unwrap();
+    assert_eq!(closes.len(), 1, "{lines:#?}");
+    assert!(closes[0] < ended, "{lines:#?}");
+}
+
+#[tokio::test]
+async fn events_reach_a_sessions_views_only() {
+    // A is in General with its session open. B is in "Second" with its
+    // own session of the same activity open (reached by neither of A's
+    // sends).
+    let mut world = World::running(VIEWS_SOURCE).await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    let second = match world
+        .owner
+        .ok(Kind::CreateChannel(proto::CreateChannel {
+            kind: proto::ChannelKind::Voice as i32,
+            name: "Second".to_owned(),
+            ..Default::default()
+        }))
+        .await
+    {
+        Response::Channel(channel) => channel.id,
+        other => panic!("expected a channel, got {other:?}"),
+    };
+    a.ok(join(voice)).await;
+    b.ok(join(second)).await;
+    let here = started(&mut a, voice, "paint").await;
+    let there = started(&mut b, second, "paint").await;
+    let a_view = open_view(&mut a, here.id).await;
+    let b_view = open_view(&mut b, there.id).await;
+
+    a.ok(Kind::SendViewEvent(proto::SendViewEvent {
+        view_id: a_view,
+        name: "reach".to_owned(),
+        data_json: format!(r#"{{"session_id":"{}","channel_id":"{voice}"}}"#, here.id),
+    }))
+    .await;
+    wait_for_log(
+        &mut world.owner,
+        "paint",
+        &format!(
+            "reach 1 0 [{a_view}] INVALID_ARGUMENT: place must be a table such as \
+             {{ channel_id = \"…\" }} or {{ session_id = \"…\" }}"
+        ),
+    )
+    .await;
+    b.assert_no_event(
+        Duration::from_millis(300),
+        |event| matches!(event, Event::ViewMessage(message) if message.view_id == b_view),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn an_activity_view_counts_toward_the_four() {
+    // A is in the call and opens it four times from one app; the fifth
+    // is refused.
+    let world = World::running(VIEWS_SOURCE).await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    for _ in 0..4 {
+        open_view(&mut a, paint.id).await;
+    }
+    assert_eq!(
+        refused(&mut a, open_in(paint.id)).await,
+        proto::ErrorCode::PluginLimit
+    );
 }

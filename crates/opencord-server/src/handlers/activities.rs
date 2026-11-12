@@ -64,7 +64,9 @@ pub async fn start(ctx: &Ctx<'_>, request: proto::StartActivity) -> Result<Respo
     if let Some(session) = in_this_call.iter().find(|session| {
         session.plugin_id == request.plugin_id && session.activity_key == request.activity_key
     }) {
-        return Ok(Response::ActivitySession(session.to_proto(Vec::new())));
+        return Ok(Response::ActivitySession(
+            session.shown(&state.plugins.views),
+        ));
     }
     if in_this_call.len() >= ACTIVITY_SESSIONS_PER_CALL {
         return Err(ApiError::new(

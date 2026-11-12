@@ -24,6 +24,7 @@ use opencord_proto::v1 as proto;
 
 use super::PluginEvent;
 use super::events::{id, user_table};
+use super::views::{self, Views};
 use crate::gateway::session::ACTIVITIES;
 use crate::guild::Guild;
 use crate::state::AppState;
@@ -72,9 +73,9 @@ impl Session {
         })
     }
 
-    /// As apps are sent it now.
-    fn shown(&self) -> proto::ActivitySession {
-        self.to_proto(Vec::new())
+    /// As apps are sent it now, with who has it open (plan M3 Task 5).
+    pub fn shown(&self, views: &Views) -> proto::ActivitySession {
+        self.to_proto(views.viewers_of(self.id))
     }
 }
 
@@ -153,10 +154,15 @@ impl Activities {
 
     /// The sessions in the voice channels `user_id` can see, as `Ready`
     /// holds them.
-    pub fn visible_to(&self, guild: &Guild, user_id: i64) -> Vec<proto::ActivitySession> {
+    pub fn visible_to(
+        &self,
+        guild: &Guild,
+        views: &Views,
+        user_id: i64,
+    ) -> Vec<proto::ActivitySession> {
         self.sessions_where(|session| guild.can_view(user_id, session.channel_id))
             .iter()
-            .map(Session::shown)
+            .map(|session| session.shown(views))
             .collect()
     }
 
@@ -330,7 +336,7 @@ pub fn add(state: &AppState, session: Session) -> proto::ActivitySession {
         channel = session.channel_id,
         "an activity session started"
     );
-    let shown = session.shown();
+    let shown = session.shown(&state.plugins.views);
     state
         .plugins
         .activities
@@ -355,10 +361,16 @@ pub fn add(state: &AppState, session: Session) -> proto::ActivitySession {
     shown
 }
 
-/// Ends the session, if it still runs: it leaves, everyone who can see its
-/// channel hears, and its plugin gets `activity_end`. False if it was
-/// already gone. The caller holds the write lock.
+/// Ends the session, if it still runs: its views close, it leaves,
+/// everyone who can see its channel hears, and its plugin gets
+/// `activity_end` after every `view_close` of it. False if it was already
+/// gone. The caller holds the write lock.
 pub fn end(state: &AppState, session_id: i64, reason: proto::ActivityEndReason) -> bool {
+    if state.plugins.activities.session(session_id).is_none() {
+        return false;
+    }
+    // While it's still there, so each view's place names its activity.
+    views::activity_ended(state, session_id);
     let removed = state.plugins.activities.lock_sessions().remove(&session_id);
     let Some(session) = removed else {
         return false;
@@ -393,6 +405,28 @@ pub fn end(state: &AppState, session_id: i64, reason: proto::ActivityEndReason) 
         },
     );
     true
+}
+
+/// Who has the session open changed: everyone who can see its channel
+/// hears the session with its viewers. The caller holds the write lock.
+pub fn viewers_changed(state: &AppState, session_id: i64) {
+    let Some(session) = state.plugins.activities.session(session_id) else {
+        return;
+    };
+    let shown = session.shown(&state.plugins.views);
+    tracing::debug!(
+        plugin = %session.plugin_id,
+        session = session.id,
+        viewers = shown.viewer_ids.len(),
+        "an activity session's viewers changed"
+    );
+    tell_audience(
+        state,
+        session.channel_id,
+        proto::event::Kind::ActivitySessionUpdate(proto::ActivitySessionUpdate {
+            session: Some(shown),
+        }),
+    );
 }
 
 /// `activity.end`: ends the plugin's own session; false if it has no such
