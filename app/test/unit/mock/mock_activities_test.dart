@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_repository.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/repository/repository.dart';
 
 // The mock's activities answer like the server and the core (plugins M3
@@ -282,6 +283,18 @@ void main() {
         startedAt: _base,
         viewerIds: const [],
       );
+      // The owner holds every permission, so self stops being the owner and
+      // loses its roles: neither starter nor channel manager.
+      final info = world.server.info;
+      world.server.info = ServerInfo(
+        serverIdHex: info.serverIdHex,
+        name: info.name,
+        description: info.description,
+        ownerId: kai,
+        openJoin: info.openJoin,
+        everyoneRoleId: info.everyoneRoleId,
+        iconHash: info.iconHash,
+      );
       world.server.members[self.id] = self.copyWith(roleIds: const []);
 
       expect(
@@ -291,6 +304,7 @@ void main() {
       expect(world.server.activitySessions.keys, [77]);
 
       world.server.members[self.id] = self;
+      world.server.info = info;
       world.run(world.repo.endActivity(_server, 77));
       expect(world.server.activitySessions, isEmpty);
     });

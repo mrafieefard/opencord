@@ -419,7 +419,9 @@ ActivitySession activitySessionFrom(core.ActivitySession session) =>
       pluginName: session.pluginName,
       starterId: session.starterId,
       startedAt: _time(session.startedAtMs),
-      viewerIds: List.unmodifiable(session.viewerIds),
+      viewerIds: List.unmodifiable([
+        for (final id in session.viewerIds) id.toInt(),
+      ]),
     );
 
 ActivityEndReason activityEndReasonFrom(core.ActivityEndReason reason) =>
