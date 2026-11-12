@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/logs/app_log.dart';
-import 'package:opencord/core/providers/providers.dart' show ChannelRef;
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 import 'package:opencord_blocks/opencord_blocks.dart';
@@ -20,10 +20,63 @@ class PluginBlocksController extends BlocksController {
   }
 }
 
+/// Where a plugin view opens: a plugin channel, or an activity session in a
+/// call (plugins M3, §15).
+@immutable
+sealed class ViewPlaceRef {
+  const ViewPlaceRef();
+
+  String get server;
+}
+
+/// A plugin channel's view.
+final class ChannelPlace extends ViewPlaceRef {
+  const ChannelPlace(this.server, this.channel);
+
+  @override
+  final String server;
+  final int channel;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChannelPlace &&
+      other.server == server &&
+      other.channel == channel;
+
+  @override
+  int get hashCode => Object.hash(ChannelPlace, server, channel);
+
+  @override
+  String toString() => 'ChannelPlace($server, $channel)';
+}
+
+/// An activity session's view. Equal by server and session id only: the
+/// session's viewers change while its view is open, and that's still the
+/// same place.
+final class ActivityPlace extends ViewPlaceRef {
+  const ActivityPlace(this.server, this.session);
+
+  @override
+  final String server;
+  final ActivitySession session;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ActivityPlace &&
+      other.server == server &&
+      other.session.id == session.id;
+
+  @override
+  int get hashCode => Object.hash(ActivityPlace, server, session.id);
+
+  @override
+  String toString() => 'ActivityPlace($server, ${session.id})';
+}
+
 /// One plugin view's controller: connects its renderer to the server and
 /// closes it when the page leaves.
 final pluginViewProvider = Provider.autoDispose
-    .family<PluginBlocksController, ChannelRef>((ref, channel) {
+    .family<PluginBlocksController, ViewPlaceRef>((ref, place) {
       final repository = ref.watch(repositoryProvider);
       final controller = PluginBlocksController();
 
@@ -92,11 +145,12 @@ final pluginViewProvider = Provider.autoDispose
             }
           });
 
-          final viewId = await repository.openView(
-            channel.server,
-            channel.channel,
-            contextJson,
-          );
+          final viewId = await switch (place) {
+            ChannelPlace(:final server, :final channel) =>
+              repository.openView(server, channel, contextJson),
+            ActivityPlace(:final server, :final session) =>
+              repository.openActivityView(server, session, contextJson),
+          };
           if (disposed) {
             unawaited(
               repository

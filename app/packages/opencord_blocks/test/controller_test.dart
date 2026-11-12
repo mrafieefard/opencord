@@ -169,6 +169,21 @@ void main() {
     expect(heard, 4);
   });
 
+  // Plugins M3: an activity's view closes when its session ends or its
+  // viewer leaves the call. Fails if either reason is refused as broken.
+  for (final reason in ['activity_ended', 'left_call']) {
+    test('closed_takes_$reason', () {
+      final controller = _controller();
+      controller.applyBatch(
+        batch(1, [
+          {'op': 'closed', 'reason': reason},
+        ]),
+      );
+      expect(controller.error, isNull);
+      expect(controller.closed, reason);
+    });
+  }
+
   // Fails if a dropped node stays in the store, or if a dropped node's
   // watcher isn't told it's gone.
   test('a_dropped_node_leaves_the_store', () {

@@ -149,11 +149,11 @@ void main() {
       };
 
       final sub1 = container.listen(
-        pluginViewProvider((server: 'srv1', channel: 10)),
+        pluginViewProvider(ChannelPlace('srv1', 10)),
         (_, _) {},
       );
       final sub2 = container.listen(
-        pluginViewProvider((server: 'srv1', channel: 20)),
+        pluginViewProvider(ChannelPlace('srv1', 20)),
         (_, _) {},
       );
       final controller1 = sub1.read();
@@ -232,7 +232,7 @@ void main() {
         'view_99';
 
     final sub = container.listen(
-      pluginViewProvider((server: 'srv1', channel: 10)),
+      pluginViewProvider(ChannelPlace('srv1', 10)),
       (_, _) {},
     );
     sub.read().send({'kind': 'context', 'width': 800.0, 'height': 600.0});
@@ -271,7 +271,7 @@ void main() {
     };
 
     final sub = container.listen(
-      pluginViewProvider((server: 'srv1', channel: 10)),
+      pluginViewProvider(ChannelPlace('srv1', 10)),
       (_, _) {},
     );
     final controller = sub.read();
@@ -324,7 +324,7 @@ void main() {
     };
 
     final sub = container.listen(
-      pluginViewProvider((server: 'srv1', channel: 10)),
+      pluginViewProvider(ChannelPlace('srv1', 10)),
       (_, _) {},
     );
     final controller = sub.read();
@@ -346,7 +346,7 @@ void main() {
     addTearDown(container.dispose);
 
     final sub = container.listen(
-      pluginViewProvider((server: 'opencord.example:7710', channel: 10008)),
+      pluginViewProvider(ChannelPlace('opencord.example:7710', 10008)),
       (_, _) {},
     );
     final controller = sub.read();
@@ -408,7 +408,7 @@ void main() {
     };
 
     final sub = container.listen(
-      pluginViewProvider((server: 'srv1', channel: 10)),
+      pluginViewProvider(ChannelPlace('srv1', 10)),
       (_, _) {},
     );
     final controller = sub.read();
@@ -430,7 +430,7 @@ void main() {
     addTearDown(container.dispose);
 
     final sub = container.listen(
-      pluginViewProvider((server: 'srv1', channel: 10)),
+      pluginViewProvider(ChannelPlace('srv1', 10)),
       (_, _) {},
     );
     final controller = sub.read();

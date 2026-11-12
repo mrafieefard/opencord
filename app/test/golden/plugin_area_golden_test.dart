@@ -68,7 +68,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final controller = app.read(
-          pluginViewProvider((server: serverKey, channel: ticketsId)),
+          pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
         );
         controller.reportError('Failed', 'Crash: Division by zero at line 42');
         await tester.pumpAndSettle();
@@ -118,7 +118,7 @@ void main() {
           await tester.pumpAndSettle();
 
           final controller = app.read(
-            pluginViewProvider((server: serverKey, channel: ticketsId)),
+            pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
           );
           controller.reportError(
             'Failed',
@@ -153,7 +153,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final controller = app.read(
-          pluginViewProvider((server: serverKey, channel: ticketsId)),
+          pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
         );
         controller.applyBatch(
           jsonEncode({
@@ -194,7 +194,7 @@ void main() {
           await tester.pumpAndSettle();
 
           final controller = app.read(
-            pluginViewProvider((server: serverKey, channel: ticketsId)),
+            pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
           );
           controller.applyBatch(
             jsonEncode({
@@ -234,7 +234,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final controller = app.read(
-          pluginViewProvider((server: serverKey, channel: ticketsId)),
+          pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
         );
         controller.applyBatch(
           jsonEncode({
@@ -275,7 +275,7 @@ void main() {
           await tester.pumpAndSettle();
 
           final controller = app.read(
-            pluginViewProvider((server: serverKey, channel: ticketsId)),
+            pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
           );
           controller.applyBatch(
             jsonEncode({
@@ -315,7 +315,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final controller = app.read(
-          pluginViewProvider((server: serverKey, channel: ticketsId)),
+          pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
         );
         controller.applyBatch(
           jsonEncode({

@@ -182,8 +182,7 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                 Expanded(
                   child: PluginArea(
                     key: ValueKey(('plugin', open)),
-                    serverKey: open.server,
-                    channelId: open.channel,
+                    place: ChannelPlace(open.server, open.channel),
                   ),
                 )
               else

@@ -57,7 +57,8 @@ class BlocksController extends ChangeNotifier {
   bool get tooOld => _tooOld;
 
   /// Why the server closed the view (`plugin_stopped`, `lost_access`,
-  /// `channel_deleted`, `unavailable`), or null while it's open.
+  /// `channel_deleted`, `unavailable`, and for an activity's view
+  /// `activity_ended` and `left_call`), or null while it's open.
   String? get closed => _closed;
 
   /// Applies one batch's ops in order and tells listeners once. A batch whose
@@ -508,6 +509,8 @@ _Op _op(Map<String, Object?> op, int index) {
         'lost_access',
         'channel_deleted',
         'unavailable',
+        'activity_ended',
+        'left_call',
       ]),
     ),
     _ => throw _Broken('op $index: unknown op'),

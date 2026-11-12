@@ -70,7 +70,7 @@ void main() {
 
     // 2. Error state
     final controller = app.read(
-      pluginViewProvider((server: serverKey, channel: ticketsId)),
+      pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
     );
     controller.reportError('Failed', 'Detailed crash info');
     await tester.pumpAndSettle();
@@ -178,7 +178,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final controller = app.read(
-      pluginViewProvider((server: serverKey, channel: ticketsId)),
+      pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
     );
     controller.reportError(
       'Failed',
@@ -222,7 +222,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final controller = app.read(
-      pluginViewProvider((server: serverKey, channel: ticketsId)),
+      pluginViewProvider(ChannelPlace(serverKey, ticketsId)),
     );
     controller.reportError('Failed', 'Detailed crash');
     await tester.pumpAndSettle();
