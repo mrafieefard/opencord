@@ -108,11 +108,12 @@ void main() {
     await tester.tap(_inActivity(session.id, find.text('Make large')));
     await _settle(tester);
 
-    expect(app.read(voiceFocusProvider((server: call.server, channel: call.channel))), (
-      userId: 0,
-      screen: false,
-      session: session.id,
-    ));
+    expect(
+      app.read(
+        voiceFocusProvider((server: call.server, channel: call.channel)),
+      ),
+      (userId: 0, screen: false, session: session.id),
+    );
     expect(tester.widget<ActivityTile>(_activity(session.id)).focused, isTrue);
     expect(tester.getSize(_activity(session.id)).height, greaterThan(500));
     for (final element in find.byType(VoiceTileView).evaluate()) {
@@ -123,7 +124,9 @@ void main() {
     await tester.tap(_inActivity(session.id, find.text('Back to grid')));
     await _settle(tester);
     expect(
-      app.read(voiceFocusProvider((server: call.server, channel: call.channel))),
+      app.read(
+        voiceFocusProvider((server: call.server, channel: call.channel)),
+      ),
       isNull,
     );
     expect(_inActivity(session.id, find.text('Make large')), findsOneWidget);
@@ -149,7 +152,10 @@ void main() {
 
     final tile = tester.widget<ActivityTile>(_activity(session.id));
     expect(tile.small, isTrue);
-    expect(_inActivity(session.id, find.text('Paint together')), findsOneWidget);
+    expect(
+      _inActivity(session.id, find.text('Paint together')),
+      findsOneWidget,
+    );
     expect(_inActivity(session.id, find.byType(PluginArea)), findsNothing);
     expect(_inActivity(session.id, find.text('Open')), findsNothing);
     expect(_inActivity(session.id, find.text('Close')), findsNothing);
@@ -278,7 +284,10 @@ void main() {
     }
     await tester.pump(const Duration(milliseconds: 150));
     expect(paint.calls, hasLength(3));
-    expect(paint.calls.last['speaking'], ids({speakers[9 % speakers.length], joining}));
+    expect(
+      paint.calls.last['speaking'],
+      ids({speakers[9 % speakers.length], joining}),
+    );
     await app.dispose(tester);
   });
 

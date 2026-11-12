@@ -164,9 +164,8 @@ class _StageState extends ConsumerState<_Stage> {
     // The call's activity sessions (plugins M3, §15.2), each a tile after
     // the people.
     final sessions = {
-      for (final session in ref
-          .watch(activitySessionsProvider(channel.server))
-          .values)
+      for (final session
+          in ref.watch(activitySessionsProvider(channel.server)).values)
         if (session.channelId == channel.channel) session.id: session,
     };
     final tiles = voiceTiles(

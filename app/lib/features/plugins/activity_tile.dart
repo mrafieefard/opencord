@@ -126,11 +126,7 @@ class ActivityTile extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Bar(
-              tile: this,
-              height: _barHeight,
-              onClose: () => _close(ref),
-            ),
+            _Bar(tile: this, height: _barHeight, onClose: () => _close(ref)),
             // Its modals cover only this part (§12.5).
             Expanded(
               child: ClipRect(
@@ -241,7 +237,11 @@ class _NotOpened extends StatelessWidget {
                     style: OcText.small.copyWith(color: colors.textMuted),
                   ),
                   const SizedBox(height: OcSpace.s10),
-                  OcButton.primary(label: 'Open', dense: true, onPressed: onOpen),
+                  OcButton.primary(
+                    label: 'Open',
+                    dense: true,
+                    onPressed: onOpen,
+                  ),
                 ],
               ),
             ),

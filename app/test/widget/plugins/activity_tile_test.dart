@@ -87,7 +87,10 @@ void main() {
       _inActivity(session.id, find.text('Paint together')),
       findsOneWidget,
     );
-    expect(_inActivity(session.id, find.text('Started by $self')), findsOneWidget);
+    expect(
+      _inActivity(session.id, find.text('Started by $self')),
+      findsOneWidget,
+    );
     expect(
       _inActivity(session.id, find.text('No one has it open')),
       findsOneWidget,
