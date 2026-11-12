@@ -63,7 +63,7 @@ pub(super) fn update(lua: &Lua, app: &Table, context: &ViewContext) -> mlua::Res
     writing(app, || set_fields(lua, app, context))
 }
 
-fn writing(app: &Table, change: impl FnOnce() -> mlua::Result<()>) -> mlua::Result<()> {
+pub(super) fn writing(app: &Table, change: impl FnOnce() -> mlua::Result<()>) -> mlua::Result<()> {
     app.set_readonly(false);
     let changed = change();
     app.set_readonly(true);
@@ -112,6 +112,16 @@ fn place_table(lua: &Lua, place: &Place) -> mlua::Result<Table> {
         Place::Channel { channel_id } => {
             table.raw_set("kind", "channel")?;
             table.raw_set("channel_id", channel_id.as_str())?;
+        }
+        Place::Activity {
+            session_id,
+            channel_id,
+            activity,
+        } => {
+            table.raw_set("kind", "activity")?;
+            table.raw_set("session_id", session_id.as_str())?;
+            table.raw_set("channel_id", channel_id.as_str())?;
+            table.raw_set("activity", activity.as_str())?;
         }
     }
     table.set_readonly(true);

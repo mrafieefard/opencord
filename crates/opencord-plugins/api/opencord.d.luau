@@ -1013,9 +1013,27 @@ export type ViewViewer = {
     roles: { string },
 }
 
-export type ViewPlace = {
-    kind: string,
+-- `app.call`: an activity's call, as the app last told it. Ids, by user.
+export type ViewCall = {
+    -- The call's voice channel.
     channel_id: string,
+    -- Who is in the call.
+    members: { string },
+    -- Who is speaking now.
+    speaking: { string },
+}
+
+-- `app.listen("call_members_change", …)`: the members now, and who joined
+-- and left since the last change.
+export type CallMembersChange = {
+    members: { string },
+    joined: { string },
+    left: { string },
+}
+
+-- `app.listen("speaking_change", …)`: who is speaking now.
+export type SpeakingChange = {
+    speaking: { string },
 }
 
 export type ViewSize = {
@@ -1135,7 +1153,7 @@ declare app: {
     set: (updater: (state: any) -> ()) -> (),
     send: (name: string, data: any?) -> (),
     on: (name: string, handler: (data: any) -> ()) -> (),
-    listen: (name: string, handler: (event: any) -> ()) -> (),
+    listen: ((name: "call_members_change", handler: (change: CallMembersChange) -> ()) -> ()) & ((name: "speaking_change", handler: (change: SpeakingChange) -> ()) -> ()) & ((name: string, handler: (event: any) -> ()) -> ()),
     copy: (text: string) -> (),
     on_back: (handler: () -> ()) -> (),
     open_link: (url: string) -> (),
@@ -1164,6 +1182,8 @@ declare app: {
     },
     viewer: ViewViewer,
     place: ViewPlace,
+    -- nil in a channel's view.
+    call: ViewCall?,
     platform: string,
     size: ViewSize,
     safe_area: ViewSafeArea,

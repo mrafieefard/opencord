@@ -18,6 +18,7 @@ use opencord_plugins::lua_api::{function, raise};
 use opencord_plugins::package::is_asset_path;
 use opencord_plugins::view::Patch;
 
+use super::call::is_id;
 use super::dialogs::Waits;
 use super::frames::Frames;
 use super::storage::{self, Store};
@@ -46,6 +47,10 @@ const LISTEN_NAMES: &[&str] = &[
     "blur",
     "key_down",
     "key_up",
+    // An activity's call (Task 6 of milestone 3); a channel's view may
+    // listen, and never hears them.
+    "call_members_change",
+    "speaking_change",
 ];
 
 /// The longest event name `app.send` and `app.on` take, in bytes.
@@ -406,12 +411,7 @@ fn link(url: &Value) -> mlua::Result<String> {
 /// A channel id: a decimal string that fits a `u64`.
 fn channel_id(id: &Value) -> mlua::Result<String> {
     match id {
-        Value::String(id)
-            if id.as_bytes().iter().all(u8::is_ascii_digit)
-                && id.to_str().is_ok_and(|id| id.parse::<u64>().is_ok()) =>
-        {
-            Ok(id.to_string_lossy())
-        }
+        Value::String(id) if id.to_str().is_ok_and(|id| is_id(&id)) => Ok(id.to_string_lossy()),
         _ => Err(raise("INVALID_ARGUMENT: channel_id must be an id string")),
     }
 }

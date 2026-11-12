@@ -3,11 +3,14 @@
 //! Tests that the client VM exposes every global, method, and context field
 //! required by the plugin specification (plan Task 25, design 2026-11-07 §11).
 
+use super::Place;
 use super::test_support::{open, settle, spec};
 
 const DEFINITIONS: &str = include_str!("../../../opencord-plugins/api/opencord.d.luau");
 
-fn parse_declare_app_fields(defs: &str) -> Vec<String> {
+/// The fields `declare app` lists, each with whether its type ends in `?`
+/// (a field that may be nil, so missing from `pairs`).
+fn parse_declare_app_fields(defs: &str) -> Vec<(String, bool)> {
     let mut in_app = false;
     let mut fields = Vec::new();
     let mut depth = 0;
@@ -29,11 +32,12 @@ fn parse_declare_app_fields(defs: &str) -> Vec<String> {
                 }
             }
             if depth == 1
-                && let Some((name, _)) = trimmed.split_once(':')
+                && let Some((name, kind)) = trimmed.split_once(':')
             {
                 let name = name.trim();
                 if !name.is_empty() && !name.starts_with("--") {
-                    fields.push(name.to_owned());
+                    let optional = kind.trim().trim_end_matches(',').ends_with('?');
+                    fields.push((name.to_owned(), optional));
                 }
             }
         }
@@ -163,12 +167,81 @@ end
     );
 
     let app_keys: Vec<String> = serde_json::from_value(seen.sent("app_keys")[0].clone()).unwrap();
-    for field in &expected_app_fields {
+    for (field, optional) in &expected_app_fields {
         assert!(
-            app_keys.contains(field),
+            *optional || app_keys.contains(field),
             "client VM app table is missing field '{field}' from declare app in opencord.d.luau"
         );
     }
+    assert!(
+        !app_keys.contains(&"call".to_owned()),
+        "a channel's view has no call"
+    );
 
     handle.close();
+}
+
+// Fails if an activity's view lacks a field `declare app` lists (`call`
+// among them), or `app.call` and the activity place don't have the shapes
+// `ViewCall` and `ViewPlace` give.
+#[test]
+fn an_activity_view_has_every_declared_field() {
+    let script = r#"
+function init(ctx)
+    assert(ctx.place.kind == "activity", "ctx.place.kind")
+    for _, field in { "session_id", "channel_id", "activity" } do
+        assert(type(ctx.place[field]) == "string", "ctx.place." .. field)
+    end
+    return {}
+end
+function render() return ui.text({ text = "OK" }) end
+app.on("check", function()
+    for _, field in { "session_id", "channel_id", "activity" } do
+        assert(type(app.place[field]) == "string", "app.place." .. field)
+    end
+    assert(type(app.call) == "table", "app.call")
+    assert(type(app.call.channel_id) == "string", "app.call.channel_id")
+    assert(type(app.call.members) == "table", "app.call.members")
+    assert(type(app.call.speaking) == "table", "app.call.speaking")
+    local keys = {}
+    for key in pairs(app) do
+        table.insert(keys, key)
+    end
+    app.send("app_keys", keys)
+end)
+"#;
+    let mut spec = spec(script);
+    spec.place = Place::Activity {
+        session_id: "9".into(),
+        channel_id: "5".into(),
+        activity: "paint".into(),
+    };
+    let (handle, recorder) = open(spec);
+    handle.server_message("check".into(), "null".into());
+    let seen = settle(&handle, &recorder);
+    assert!(seen.errors.is_empty(), "{:?}", seen.errors);
+    let app_keys: Vec<String> = serde_json::from_value(seen.sent("app_keys")[0].clone()).unwrap();
+    for (field, _) in parse_declare_app_fields(DEFINITIONS) {
+        assert!(app_keys.contains(&field), "app.{field} is missing");
+    }
+    handle.close();
+}
+
+// Fails if the definitions drop the listener names or argument types of
+// the call, or the activity place.
+#[test]
+fn the_definitions_declare_the_call_and_the_activity_place() {
+    for text in [
+        "call: ViewCall?,",
+        "name: \"call_members_change\", handler: (change: CallMembersChange) -> ()",
+        "name: \"speaking_change\", handler: (change: SpeakingChange) -> ()",
+        "kind: \"activity\",",
+        "session_id: string,",
+        "activity: string,",
+        "joined: { string },",
+        "left: { string },",
+        "speaking: { string },",
+    ] {
+        assert!(DEFINITIONS.contains(text), "{text}");
+    }
 }

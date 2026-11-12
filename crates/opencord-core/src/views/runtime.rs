@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use futures_util::StreamExt as _;
+use futures_util::{FutureExt as _, StreamExt as _};
 use mlua::{Compiler, Function, Lua, LuaSerdeExt as _, Table, Value};
 use opencord_plugins::limits::{
     VIEW_ERROR_REPORT_MAX_CHARS, VIEW_HANDLER_TIME, VIEW_MEMORY_BYTES, VIEW_START_TIME_FACTOR,
@@ -35,6 +35,7 @@ use tokio::sync::mpsc;
 
 use super::api_app::{self, LISTEN_KEY, ON_KEY, Phase, Shared};
 use super::api_ui;
+use super::call::{self, Call};
 use super::context::{self, PLATFORM};
 use super::draw::{Drawing, Failure, Scene};
 use super::frames;
@@ -141,6 +142,12 @@ enum Input {
         id: u64,
     },
     Context(ViewContext),
+    /// Who is in an activity's call and who speaks, as ids; checked by
+    /// `call::checked`, so a bad id is that input ignored and logged.
+    Call {
+        members: Vec<serde_json::Value>,
+        speaking: Vec<serde_json::Value>,
+    },
     Lifecycle {
         event: Lifecycle,
     },
@@ -205,6 +212,9 @@ struct View {
     context: ViewContext,
     viewer: Viewer,
     place: Place,
+    /// `app.call`: an activity's only. Kept across a reload, as is the
+    /// context: it's the renderer's, not the script's.
+    call: Option<Call>,
     show_errors: bool,
     shared: Arc<Shared>,
     live: Option<Live>,
@@ -231,6 +241,7 @@ impl View {
             sources: Arc::new(spec.sources),
             context: spec.context,
             viewer: spec.viewer,
+            call: Call::of(&spec.place),
             place: spec.place,
             show_errors: spec.show_errors,
             shared: Arc::new(Shared::new(sink, spec.storage_dir)),
@@ -263,6 +274,12 @@ impl View {
                 biased;
                 Some(finished) = self.running.next(), if !self.running.is_empty() => {
                     self.finished(finished);
+                    // The others that end now too, so the listeners one
+                    // input started redraw once, after all of them. The
+                    // next `select!` polls again with the loop's waker.
+                    while let Some(Some(finished)) = self.running.next().now_or_never() {
+                        self.finished(finished);
+                    }
                 }
                 command = commands.recv() => match command {
                     Some(Command::Input(json)) => self.input(&json),
@@ -340,6 +357,9 @@ impl View {
         api_ui::install(lua).map_err(setup)?;
         let app = api_app::install(lua, &self.shared).map_err(setup)?;
         context::install(lua, &app, &self.viewer, &self.place, &self.context).map_err(setup)?;
+        if let Some(call) = &self.call {
+            call::install(lua, &app, call).map_err(setup)?;
+        }
         let sources = self.sources.clone();
         install_require(lua, "client", move |path| sources.get(path).cloned()).map_err(setup)?;
         let decode = lua
@@ -415,9 +435,10 @@ impl View {
             }
         };
         match input {
-            // These two are the renderer's facts: a stopped view keeps them
+            // These are the renderer's facts: a stopped view keeps them
             // for its reload.
             Input::Context(next) => self.set_context(next),
+            Input::Call { members, speaking } => self.set_call(&members, &speaking),
             Input::Lifecycle { event } => self.lifecycle(event),
             input if !self.stopped => self.script_input(input),
             _ => {}
@@ -468,7 +489,7 @@ impl View {
                 tracing::debug!(view = %self.view_id, "a view input of a kind not handled yet");
             }
             // Handled by `input`.
-            Input::Context(_) | Input::Lifecycle { .. } => {}
+            Input::Context(_) | Input::Call { .. } | Input::Lifecycle { .. } => {}
         }
     }
 
@@ -499,6 +520,43 @@ impl View {
         if themed {
             let theme = serde_json::Value::from(self.context.theme.name());
             self.notify("theme_change", theme.to_string());
+        }
+    }
+
+    /// A `call` input: `app.call` holds the new lists before the listeners
+    /// of what changed run, members first. It asks for no redraw itself: a
+    /// script that draws the call sets its state in a listener, so one
+    /// input is one redraw.
+    fn set_call(&mut self, members: &[serde_json::Value], speaking: &[serde_json::Value]) {
+        let Some(current) = &mut self.call else {
+            tracing::debug!(view = %self.view_id, "a call input for a channel's view");
+            return;
+        };
+        let Some((members_ids, speaking_ids)) = call::checked(members, speaking) else {
+            // The renderer is ours; the counts, never the ids.
+            tracing::warn!(
+                view = %self.view_id,
+                members = members.len(),
+                speaking = speaking.len(),
+                "a call input with a bad id or too many was ignored"
+            );
+            return;
+        };
+        let changes = current.apply(members_ids, speaking_ids);
+        if changes == call::Changes::default() {
+            return;
+        }
+        if let Some(live) = &self.live
+            && let Err(error) = call::install(&live.vm.lua, &live.app, current)
+        {
+            tracing::warn!(view = %self.view_id, %error, "a view's call couldn't be set");
+            return;
+        }
+        if let Some(change) = changes.members {
+            self.notify("call_members_change", change);
+        }
+        if let Some(change) = changes.speaking {
+            self.notify("speaking_change", change);
         }
     }
 

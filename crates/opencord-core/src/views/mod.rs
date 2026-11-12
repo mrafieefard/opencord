@@ -11,6 +11,10 @@
 
 mod api_app;
 mod api_ui;
+mod call;
+#[cfg(test)]
+#[path = "call_tests.rs"]
+mod call_tests;
 mod carry;
 pub mod client;
 mod context;
@@ -109,11 +113,21 @@ pub struct Viewer {
     pub roles: Vec<String>,
 }
 
-/// Where the view is open.
+/// Where the view is open: a plugin channel, or an activity session in a
+/// call. Ids are decimal strings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Place {
-    Channel { channel_id: String },
+    Channel {
+        channel_id: String,
+    },
+    Activity {
+        session_id: String,
+        /// The call's voice channel.
+        channel_id: String,
+        /// The activity's key.
+        activity: String,
+    },
 }
 
 /// Where a view's output goes. Called on the view's own thread, so each

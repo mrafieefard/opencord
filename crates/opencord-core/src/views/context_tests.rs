@@ -125,7 +125,8 @@ fn listen_refuses_unknown_names() {
         local function nothing() end
         app.on("try", function()
             local names = {{ "close", "pause", "resume", "resize", "theme_change",
-                "connection_change", "focus", "blur", "key_down", "key_up" }}
+                "connection_change", "focus", "blur", "key_down", "key_up",
+                "call_members_change", "speaking_change" }}
             local refused = {{}}
             for _, name in names do
                 local answer = why(app.listen, name, nothing)
