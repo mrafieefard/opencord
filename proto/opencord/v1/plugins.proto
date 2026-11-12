@@ -274,15 +274,17 @@ message PluginFileRef {
   uint64 size_bytes = 3;
 }
 
-// Where a view is open. Activity sessions join in milestone 3.
+// Where a view is open: a plugin channel, or an activity session in a call.
 message ViewPlace {
   oneof kind {
     int64 channel_id = 1;
+    int64 activity_session_id = 2;
   }
 }
 
 // -> view_opened. VIEW_CHANNEL in an available plugin channel; the session
-// lists "plugin_channels"; at most 4 open views per session.
+// lists "plugin_channels"; at most 4 open views per session. For an activity
+// session: the caller is in its call, and the session lists "activities".
 message OpenView {
   ViewPlace place = 1;
   // "desktop" or "phone".
@@ -335,6 +337,8 @@ enum ViewCloseReason {
   VIEW_CLOSE_REASON_LOST_ACCESS = 2;
   VIEW_CLOSE_REASON_CHANNEL_DELETED = 3;
   VIEW_CLOSE_REASON_UNAVAILABLE = 4;
+  VIEW_CLOSE_REASON_ACTIVITY_ENDED = 5;
+  VIEW_CLOSE_REASON_LEFT_CALL = 6;
 }
 
 // The server closed a view.
@@ -353,4 +357,77 @@ message ViewScriptsUpdate {
 
 message PluginChannelTypesUpdate {
   repeated PluginChannelType types = 1;
+}
+
+// An activity a running plugin registered (§15.1).
+message PluginActivity {
+  string plugin_id = 1;
+  // [a-z0-9_], 1 to 40.
+  string activity_key = 2;
+  string name = 3;
+  string description = 4;
+  // A path under the plugin's assets/, or empty.
+  string icon = 5;
+  string plugin_name = 6;
+}
+
+// One activity running in one call (§15.2).
+message ActivitySession {
+  int64 id = 1;
+  // The voice channel.
+  int64 channel_id = 2;
+  string plugin_id = 3;
+  string activity_key = 4;
+  // As registered when it started.
+  string name = 5;
+  string icon = 6;
+  string plugin_name = 7;
+  int64 starter_id = 8;
+  int64 started_at_ms = 9;
+  // Who has it open, by user id, ascending.
+  repeated int64 viewer_ids = 10;
+}
+
+// -> activity_session. The caller is in this voice channel and holds
+// START_ACTIVITIES there; the session lists "activities". An activity
+// already running in the call answers with its session. At most 4 in a call.
+message StartActivity {
+  int64 channel_id = 1;
+  string plugin_id = 2;
+  string activity_key = 3;
+}
+
+// -> ack. The starter, or MANAGE_CHANNELS in the session's channel.
+message EndActivity {
+  int64 session_id = 1;
+}
+
+enum ActivityEndReason {
+  ACTIVITY_END_REASON_UNSPECIFIED = 0;
+  // A member ended it.
+  ACTIVITY_END_REASON_ENDED = 1;
+  // The plugin ended it.
+  ACTIVITY_END_REASON_PLUGIN = 2;
+  ACTIVITY_END_REASON_CALL_EMPTY = 3;
+  ACTIVITY_END_REASON_PLUGIN_STOPPED = 4;
+  // The plugin runs without the activity.
+  ACTIVITY_END_REASON_UNAVAILABLE = 5;
+}
+
+// To sessions that list "activities": the whole list.
+message PluginActivitiesUpdate {
+  repeated PluginActivity activities = 1;
+}
+
+// To sessions that list "activities" and can see the session's channel.
+message ActivitySessionCreate {
+  ActivitySession session = 1;
+}
+message ActivitySessionUpdate {
+  ActivitySession session = 1;
+}
+message ActivitySessionDelete {
+  int64 session_id = 1;
+  int64 channel_id = 2;
+  ActivityEndReason reason = 3;
 }

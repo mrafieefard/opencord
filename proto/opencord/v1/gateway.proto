@@ -62,7 +62,7 @@ message Identify {
   // tunnel or proxy, the client sees the proxy's.
   string host = 8;
   bytes host_signature = 9;
-  // Plugin features the app supports (design 2026-11-07 §11.7): "plugin_users", "plugin_channels".
+  // Plugin features the app supports (design 2026-11-07 §11.7): "plugin_users", "plugin_channels", "activities".
   repeated string features = 10;
 }
 
@@ -116,6 +116,8 @@ message Ready {
   // Every plugin user, installed or not (design 2026-11-07).
   repeated PluginUser plugin_users = 24;
   repeated PluginChannelType plugin_channel_types = 25;
+  repeated PluginActivity plugin_activities = 26;
+  repeated ActivitySession activity_sessions = 27;
 }
 
 // Sent after the missed events have been replayed.

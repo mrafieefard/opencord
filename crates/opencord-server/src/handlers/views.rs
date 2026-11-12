@@ -31,6 +31,9 @@ pub async fn open(ctx: &Ctx<'_>, request: proto::OpenView) -> Result<Response, A
     let session = session(ctx)?;
     let channel_id = match request.place.and_then(|place| place.kind) {
         Some(proto::view_place::Kind::ChannelId(channel_id)) => channel_id,
+        Some(proto::view_place::Kind::ActivitySessionId(_)) => {
+            return Err(ApiError::invalid_argument("not implemented"));
+        }
         None => return Err(ApiError::invalid_argument("the view's place is missing")),
     };
     if !matches!(request.platform.as_str(), "desktop" | "phone") {

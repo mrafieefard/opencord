@@ -55,7 +55,7 @@ Client                                         Server
    - **Valid claim token:** the user becomes the server **owner**, and the token is invalidated.
    - **Existing member:** `display_name` is ignored; use `UpdateProfile` to change it.
 6. `Ready` contains only the channels the user can view. `channel_permissions` maps each of those channels to the user's resolved permissions there.
-7. `Identify.features` advertises client capabilities, such as `"plugin_users"`.
+7. `Identify.features` advertises client capabilities, such as `"plugin_users"`, `"plugin_channels"`, and `"activities"`.
 8. `Ready.plugin_users` lists all server plugin bot identities (`user_id`, `plugin_id`, `name`, `avatar_hash`, `installed`), allowing clients to resolve messages and actions authored by plugins.
 
 Identify attempts are limited to 5 per minute per IP address. Over the limit, the server sends `RATE_LIMITED` and closes the connection (4008).
@@ -178,10 +178,12 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `CreatePluginDevToken { plugin_id, days }` | `created_plugin_dev_token` | Base `MANAGE_PLUGINS` |
 | `RevokePluginDevToken { token_id }` | `ack` | Base `MANAGE_PLUGINS` |
 | `FetchPluginDevTokens {}` | `plugin_dev_tokens` | Base `MANAGE_PLUGINS` |
-| `OpenView { place, platform }` | `view_opened` | `VIEW_CHANNEL` in an available plugin channel; session lists `"plugin_channels"`; at most 4 open views per session |
+| `OpenView { place, platform }` | `view_opened` | `VIEW_CHANNEL` in an available plugin channel or member in activity's call; session lists `"plugin_channels"` or `"activities"`; at most 4 open views per session |
 | `CloseView { view_id }` | `ack` | One's own open view |
 | `SendViewEvent { view_id, name, data_json }` | `ack` | One's own open view; 30/s and 128 KiB/s per view; data <= 64 KiB |
 | `ReportViewError { view_id, text }` | `ack` | One's own open view; 1 per view per 10 s; at most 2,000 characters |
+| `StartActivity { channel_id, plugin_id, activity_key }` | `activity_session` | In voice channel and holds `START_ACTIVITIES`; session lists `"activities"`. At most 4 in a call |
+| `EndActivity { session_id }` | `ack` | The starter, or `MANAGE_CHANNELS` in session's channel |
 | `ExecuteCommand { channel_id, name, options, nonce, source }` | `command_result` | `SEND_MESSAGES` in channel and command permissions |
 | `AutocompleteCommand { channel_id, name, option, value }` | `command_choices` | `SEND_MESSAGES` in channel; 5 per second |
 | `FetchCommandSettings {}` | `command_settings` | Base `MANAGE_SERVER` |
@@ -230,6 +232,10 @@ Every event goes to every session of the server, with these exceptions:
 | `ViewClosed` | The one session whose view was closed |
 | `ViewScriptsUpdate` | Sessions with an open view of that plugin |
 | `PluginChannelTypesUpdate` | Every session supporting `"plugin_channels"` |
+| `PluginActivitiesUpdate` | Every session supporting `"activities"` |
+| `ActivitySessionCreate` | Sessions supporting `"activities"` that can see the session's channel |
+| `ActivitySessionUpdate` | Sessions supporting `"activities"` that can see the session's channel |
+| `ActivitySessionDelete` | Sessions supporting `"activities"` that can see the session's channel |
 | `CommandsUpdate` | Every session |
 
 Other events:
@@ -703,5 +709,20 @@ Opencord plugins provide server-side scripting (bots, custom commands, moderatio
 - `ViewClosed`: server notification that an open view was closed with a `ViewCloseReason`.
 - `ViewScriptsUpdate`: announces updated client scripts and assets for hot reload.
 - `PluginChannelTypesUpdate`: broadcasts the updated list of available plugin channel types.
+
+### Activities
+
+- `Ready.plugin_activities`: lists all registered plugin activities on initial connection for sessions listing `"activities"`.
+- `Ready.activity_sessions`: lists all active activity sessions in channels the user can view for sessions listing `"activities"`.
+- `Identify.features`: includes `"activities"` when the client supports activities in voice channels.
+- `StartActivity`: starts an activity in a voice channel, answering `activity_session` (`ActivitySession`).
+- `EndActivity`: ends an active activity session, answering `ack`.
+- `PluginActivitiesUpdate`: broadcasts the updated list of registered activities.
+- `ActivitySessionCreate`: announces a newly started activity session.
+- `ActivitySessionUpdate`: announces updates to an activity session (e.g. viewers list).
+- `ActivitySessionDelete`: announces that an activity session ended, with an `ActivityEndReason` (`ACTIVITY_END_REASON_ENDED`, `ACTIVITY_END_REASON_PLUGIN`, `ACTIVITY_END_REASON_CALL_EMPTY`, `ACTIVITY_END_REASON_PLUGIN_STOPPED`, `ACTIVITY_END_REASON_UNAVAILABLE`).
+- `ViewPlace`: opens a view in a channel (`channel_id`) or an activity session (`activity_session_id`).
+- `ViewCloseReason`: includes `VIEW_CLOSE_REASON_ACTIVITY_ENDED` (5) and `VIEW_CLOSE_REASON_LEFT_CALL` (6).
+
 
 

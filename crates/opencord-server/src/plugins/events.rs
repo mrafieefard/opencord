@@ -157,6 +157,10 @@ pub fn route(kind: &Kind) -> Option<Route> {
         | Kind::ViewClosed(_)
         | Kind::ViewScriptsUpdate(_)
         | Kind::PluginChannelTypesUpdate(_)
+        | Kind::PluginActivitiesUpdate(_)
+        | Kind::ActivitySessionCreate(_)
+        | Kind::ActivitySessionUpdate(_)
+        | Kind::ActivitySessionDelete(_)
         // §10.4 names no event for these: a session's first music state
         // (plugins read it with `music.state`) and the music settings.
         | Kind::MusicSnapshot(_)

@@ -170,6 +170,8 @@ message Request {
     CloseView close_view = 225;
     SendViewEvent send_view_event = 226;
     ReportViewError report_view_error = 227;
+    StartActivity start_activity = 228;
+    EndActivity end_activity = 229;
   }
 }
 
@@ -233,6 +235,7 @@ message Response {
     PluginDevTokens plugin_dev_tokens = 48;
     CreatedPluginDevToken created_plugin_dev_token = 49;
     ViewOpened view_opened = 50;
+    ActivitySession activity_session = 51;
   }
 }
 

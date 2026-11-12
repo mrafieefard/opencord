@@ -13,7 +13,7 @@ use crate::guild::{Guild, Member, PluginUser, User};
 use crate::plugins::permissions::PluginPermission::{self, *};
 
 /// How many kinds `proto::event::Kind` has.
-const KINDS: usize = 56;
+const KINDS: usize = 60;
 
 /// A distinct number per kind. There's no catch-all arm, so a new kind
 /// stops this building until it's given a number and a row in `table`.
@@ -75,6 +75,10 @@ fn number(kind: &Kind) -> usize {
         Kind::ViewClosed(_) => 53,
         Kind::ViewScriptsUpdate(_) => 54,
         Kind::PluginChannelTypesUpdate(_) => 55,
+        Kind::PluginActivitiesUpdate(_) => 56,
+        Kind::ActivitySessionCreate(_) => 57,
+        Kind::ActivitySessionUpdate(_) => 58,
+        Kind::ActivitySessionDelete(_) => 59,
     }
 }
 
@@ -226,6 +230,10 @@ fn table() -> Vec<(Kind, Expected)> {
         (Kind::ViewClosed(Default::default()), None),
         (Kind::ViewScriptsUpdate(Default::default()), None),
         (Kind::PluginChannelTypesUpdate(Default::default()), None),
+        (Kind::PluginActivitiesUpdate(Default::default()), None),
+        (Kind::ActivitySessionCreate(Default::default()), None),
+        (Kind::ActivitySessionUpdate(Default::default()), None),
+        (Kind::ActivitySessionDelete(Default::default()), None),
     ]
 }
 

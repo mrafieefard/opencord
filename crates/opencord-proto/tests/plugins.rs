@@ -416,3 +416,170 @@ fn plugin_channels_and_views_round_trip() {
         assert_eq!(ev, decoded);
     }
 }
+
+// fails if a field number or name below changes
+#[test]
+fn activities_round_trip() {
+    use opencord_proto::v1::{
+        ActivityEndReason, ActivitySession, ActivitySessionCreate, ActivitySessionDelete,
+        ActivitySessionUpdate, EndActivity, PluginActivitiesUpdate, PluginActivity, StartActivity,
+        ViewCloseReason, ViewPlace, event, request, response, view_place,
+    };
+
+    let activity = PluginActivity {
+        plugin_id: "paint_plugin".into(),
+        activity_key: "whiteboard".into(),
+        name: "Whiteboard".into(),
+        description: "Shared drawing board".into(),
+        icon: "assets/icon.png".into(),
+        plugin_name: "Paint".into(),
+    };
+    let activity_encoded = activity.encode_to_vec();
+    let activity_decoded = PluginActivity::decode(&activity_encoded[..]).unwrap();
+    assert_eq!(activity, activity_decoded);
+
+    let session = ActivitySession {
+        id: 1001,
+        channel_id: 2002,
+        plugin_id: "paint_plugin".into(),
+        activity_key: "whiteboard".into(),
+        name: "Whiteboard".into(),
+        icon: "assets/icon.png".into(),
+        plugin_name: "Paint".into(),
+        starter_id: 3003,
+        started_at_ms: 1700000000000,
+        viewer_ids: vec![3003, 4004],
+    };
+    let session_encoded = session.encode_to_vec();
+    let session_decoded = ActivitySession::decode(&session_encoded[..]).unwrap();
+    assert_eq!(session, session_decoded);
+
+    let start = StartActivity {
+        channel_id: 2002,
+        plugin_id: "paint_plugin".into(),
+        activity_key: "whiteboard".into(),
+    };
+    let start_encoded = start.encode_to_vec();
+    let start_decoded = StartActivity::decode(&start_encoded[..]).unwrap();
+    assert_eq!(start, start_decoded);
+
+    let end = EndActivity { session_id: 1001 };
+    let end_encoded = end.encode_to_vec();
+    let end_decoded = EndActivity::decode(&end_encoded[..]).unwrap();
+    assert_eq!(end, end_decoded);
+
+    let activities_update = PluginActivitiesUpdate {
+        activities: vec![activity.clone()],
+    };
+    let activities_update_encoded = activities_update.encode_to_vec();
+    let activities_update_decoded =
+        PluginActivitiesUpdate::decode(&activities_update_encoded[..]).unwrap();
+    assert_eq!(activities_update, activities_update_decoded);
+
+    let session_create = ActivitySessionCreate {
+        session: Some(session.clone()),
+    };
+    let session_create_encoded = session_create.encode_to_vec();
+    let session_create_decoded =
+        ActivitySessionCreate::decode(&session_create_encoded[..]).unwrap();
+    assert_eq!(session_create, session_create_decoded);
+
+    let session_update = ActivitySessionUpdate {
+        session: Some(session.clone()),
+    };
+    let session_update_encoded = session_update.encode_to_vec();
+    let session_update_decoded =
+        ActivitySessionUpdate::decode(&session_update_encoded[..]).unwrap();
+    assert_eq!(session_update, session_update_decoded);
+
+    let session_delete = ActivitySessionDelete {
+        session_id: 1001,
+        channel_id: 2002,
+        reason: ActivityEndReason::CallEmpty as i32,
+    };
+    let session_delete_encoded = session_delete.encode_to_vec();
+    let session_delete_decoded =
+        ActivitySessionDelete::decode(&session_delete_encoded[..]).unwrap();
+    assert_eq!(session_delete, session_delete_decoded);
+
+    let view_place_act = ViewPlace {
+        kind: Some(view_place::Kind::ActivitySessionId(1001)),
+    };
+    let view_place_act_encoded = view_place_act.encode_to_vec();
+    let view_place_act_decoded = ViewPlace::decode(&view_place_act_encoded[..]).unwrap();
+    assert_eq!(view_place_act, view_place_act_decoded);
+
+    assert_eq!(ViewCloseReason::ActivityEnded as i32, 5);
+    assert_eq!(ViewCloseReason::LeftCall as i32, 6);
+
+    assert_eq!(ActivityEndReason::Unspecified as i32, 0);
+    assert_eq!(ActivityEndReason::Ended as i32, 1);
+    assert_eq!(ActivityEndReason::Plugin as i32, 2);
+    assert_eq!(ActivityEndReason::CallEmpty as i32, 3);
+    assert_eq!(ActivityEndReason::PluginStopped as i32, 4);
+    assert_eq!(ActivityEndReason::Unavailable as i32, 5);
+
+    // Request wire enum numbers
+    let req_start = Request {
+        kind: Some(request::Kind::StartActivity(start)),
+    };
+    let req_start_encoded = req_start.encode_to_vec();
+    let req_start_decoded = Request::decode(&req_start_encoded[..]).unwrap();
+    assert_eq!(req_start, req_start_decoded);
+
+    let req_end = Request {
+        kind: Some(request::Kind::EndActivity(end)),
+    };
+    let req_end_encoded = req_end.encode_to_vec();
+    let req_end_decoded = Request::decode(&req_end_encoded[..]).unwrap();
+    assert_eq!(req_end, req_end_decoded);
+
+    // Response wire enum numbers
+    let resp_act = Response {
+        result: Some(response::Result::ActivitySession(session.clone())),
+    };
+    let resp_act_encoded = resp_act.encode_to_vec();
+    let resp_act_decoded = Response::decode(&resp_act_encoded[..]).unwrap();
+    assert_eq!(resp_act, resp_act_decoded);
+
+    // Event wire enum numbers
+    let ev_update = Event {
+        kind: Some(event::Kind::PluginActivitiesUpdate(activities_update)),
+    };
+    assert_eq!(
+        ev_update,
+        Event::decode(&ev_update.encode_to_vec()[..]).unwrap()
+    );
+
+    let ev_create = Event {
+        kind: Some(event::Kind::ActivitySessionCreate(session_create)),
+    };
+    assert_eq!(
+        ev_create,
+        Event::decode(&ev_create.encode_to_vec()[..]).unwrap()
+    );
+
+    let ev_session_upd = Event {
+        kind: Some(event::Kind::ActivitySessionUpdate(session_update)),
+    };
+    assert_eq!(
+        ev_session_upd,
+        Event::decode(&ev_session_upd.encode_to_vec()[..]).unwrap()
+    );
+
+    let ev_delete = Event {
+        kind: Some(event::Kind::ActivitySessionDelete(session_delete)),
+    };
+    assert_eq!(
+        ev_delete,
+        Event::decode(&ev_delete.encode_to_vec()[..]).unwrap()
+    );
+
+    // Ready wire enum fields
+    let ready = Ready {
+        plugin_activities: vec![activity],
+        activity_sessions: vec![session],
+        ..Default::default()
+    };
+    assert_eq!(ready, Ready::decode(&ready.encode_to_vec()[..]).unwrap());
+}

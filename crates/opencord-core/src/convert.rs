@@ -690,7 +690,11 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         // `Views`.
         | Kind::ViewMessage(_)
         | Kind::ViewClosed(_)
-        | Kind::ViewScriptsUpdate(_) => return None,
+        | Kind::ViewScriptsUpdate(_)
+        | Kind::PluginActivitiesUpdate(_)
+        | Kind::ActivitySessionCreate(_)
+        | Kind::ActivitySessionUpdate(_)
+        | Kind::ActivitySessionDelete(_) => return None,
     })
 }
 

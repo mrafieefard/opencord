@@ -109,6 +109,10 @@ message Event {
     ViewClosed view_closed = 137;
     ViewScriptsUpdate view_scripts_update = 138;
     PluginChannelTypesUpdate plugin_channel_types_update = 139;
+    PluginActivitiesUpdate plugin_activities_update = 140;
+    ActivitySessionCreate activity_session_create = 141;
+    ActivitySessionUpdate activity_session_update = 142;
+    ActivitySessionDelete activity_session_delete = 143;
   }
 }
 

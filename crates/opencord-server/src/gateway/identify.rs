@@ -423,5 +423,7 @@ fn ready(
         } else {
             Vec::new()
         },
+        plugin_activities: Vec::new(),
+        activity_sessions: Vec::new(),
     }
 }
