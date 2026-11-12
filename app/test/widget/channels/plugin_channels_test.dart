@@ -410,11 +410,15 @@ void main() {
     );
 
     // 1. Open tickets, then open general
-    app.read(navigationProvider.notifier).openChannel(serverKey, ticketsChannel.id);
+    app
+        .read(navigationProvider.notifier)
+        .openChannel(serverKey, ticketsChannel.id);
     await tester.pumpAndSettle();
     expect(app.read(currentChannelProvider), ticketsChannel.id);
 
-    app.read(navigationProvider.notifier).openChannel(serverKey, generalChannel.id);
+    app
+        .read(navigationProvider.notifier)
+        .openChannel(serverKey, generalChannel.id);
     await tester.pumpAndSettle();
     expect(app.read(currentChannelProvider), generalChannel.id);
 

@@ -106,9 +106,7 @@ void main() {
       async.flushMicrotasks();
 
       expect(container.read(activitySessionsProvider(server)).keys, [1]);
-      expect(container.read(activitySessionsProvider(_otherServer)).keys, [
-        44,
-      ]);
+      expect(container.read(activitySessionsProvider(_otherServer)).keys, [44]);
     });
   });
 
