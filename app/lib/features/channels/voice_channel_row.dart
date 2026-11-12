@@ -15,6 +15,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_ring.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
+import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -303,7 +304,7 @@ class _Participant extends ConsumerWidget {
               channel: channelId,
             )).notifier,
           )
-          .focus((userId: participant.userId, screen: true)),
+          .focus(personTile(participant.userId, screen: true)),
     );
   }
 

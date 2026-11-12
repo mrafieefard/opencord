@@ -40,9 +40,8 @@ class PluginAreaState extends ConsumerState<PluginArea>
   /// The window is hidden or minimized.
   bool _windowHidden = false;
 
-  /// What the view was last told: `pause` (true) or `resume` (false). A
-  /// view starts running.
-  bool _toldPaused = false;
+  /// The controller this area draws, told when it stops drawing it.
+  PluginBlocksController? _attached;
 
   ViewPlaceRef get _place => widget.place;
 
@@ -92,6 +91,7 @@ class PluginAreaState extends ConsumerState<PluginArea>
 
   @override
   void dispose() {
+    _attached?.detachArea(this);
     WidgetsBinding.instance.removeObserver(this);
     _focusNode.dispose();
     super.dispose();
@@ -112,17 +112,23 @@ class PluginAreaState extends ConsumerState<PluginArea>
     _tellPaused();
   }
 
-  /// Tells the view `pause` or `resume` when whether it should run changed
-  /// since it was last told: once per change, whichever of the window and
-  /// [PluginArea.paused] caused it.
+  /// Draws [controller]'s view from now on: a new one after Reload or a
+  /// new place, the same one on every other build.
+  void _attach(PluginBlocksController controller) {
+    if (identical(controller, _attached)) return;
+    _attached?.detachArea(this);
+    _attached = controller;
+    controller.attachArea(this);
+    _tellPaused();
+  }
+
+  /// Whether this area holds the view paused: the window hidden, or
+  /// [PluginArea.paused]. The controller tells the view `pause` or `resume`
+  /// once per change, whichever of its holders caused it.
   void _tellPaused() {
-    final pause = _windowHidden || widget.paused;
-    if (pause == _toldPaused || !_viewRuns) return;
-    _toldPaused = pause;
-    ref.read(pluginViewProvider(_place)).send({
-      'kind': 'lifecycle',
-      'event': pause ? 'pause' : 'resume',
-    });
+    final controller = _attached;
+    if (controller == null || !_viewRuns) return;
+    controller.setPausedBy(this, paused: _windowHidden || widget.paused);
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -255,6 +261,7 @@ class PluginAreaState extends ConsumerState<PluginArea>
 
     final place = _place;
     final controller = ref.watch(pluginViewProvider(place));
+    _attach(controller);
 
     return ListenableBuilder(
       listenable: controller,

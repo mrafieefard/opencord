@@ -9,6 +9,7 @@ import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/members/member_actions.dart';
+import 'package:opencord/features/plugins/activity_tile.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/music/music_stage.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
@@ -160,7 +161,19 @@ class _StageState extends ConsumerState<_Stage> {
     final videoOnly = ref.watch(
       voiceViewPrefsProvider.select((prefs) => prefs.hideNonVideo),
     );
-    final tiles = voiceTiles(participants, videoOnly: videoOnly);
+    // The call's activity sessions (plugins M3, §15.2), each a tile after
+    // the people.
+    final sessions = {
+      for (final session in ref
+          .watch(activitySessionsProvider(channel.server))
+          .values)
+        if (session.channelId == channel.channel) session.id: session,
+    };
+    final tiles = voiceTiles(
+      participants,
+      videoOnly: videoOnly,
+      sessions: sessions.values,
+    );
     final focused = switch (ref.watch(focus)) {
       final tile? when tiles.contains(tile) => tile,
       _ => null,
@@ -183,6 +196,21 @@ class _StageState extends ConsumerState<_Stage> {
     // What moves the tiles, not a resize or a pane on its way.
     final generation = '${tiles.join(',')}|$focused|${music != null}';
     Widget tile(VoiceTileId id, Size size, {bool small = false}) {
+      if (sessions[id.session] case final session?) {
+        return FlipBox(
+          key: _tileKeys.putIfAbsent(id, GlobalKey.new),
+          generation: generation,
+          arriveDelay: FlipBox.stagger(tiles.indexOf(id)),
+          child: ActivityTile(
+            key: ValueKey(id),
+            serverKey: channel.server,
+            session: session,
+            focused: id == focused,
+            small: small,
+            onFocus: () => ref.read(focus.notifier).toggle(id),
+          ),
+        );
+      }
       final participant = byUser[id.userId];
       final own = id.userId == self;
       final stream = id.screen && !own
@@ -196,9 +224,13 @@ class _StageState extends ConsumerState<_Stage> {
           : null;
       final watched = stream != null && watching.contains(stream.key);
       final video = switch (id) {
-        (screen: false, :final userId) => feeds.of(userId, self: self),
+        (screen: false, :final userId, session: _) => feeds.of(
+          userId,
+          self: self,
+        ),
         _ when own => ownShare?.preview,
-        (screen: true, :final userId) when watched => feeds.screens[userId],
+        (screen: true, :final userId, session: _) when watched =>
+          feeds.screens[userId],
         _ => null,
       };
       if (video != null) {

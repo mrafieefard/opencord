@@ -8,12 +8,72 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 import 'package:opencord_blocks/opencord_blocks.dart';
 
-/// A [BlocksController] that also exposes the real backend [viewId] once open.
+/// A [BlocksController] that also exposes the real backend [viewId] once open,
+/// and tells its view `pause` and `resume`.
 class PluginBlocksController extends BlocksController {
   final ValueNotifier<String?> viewId = ValueNotifier<String?>(null);
 
+  /// The areas drawing the view now, and those of them that hold it paused
+  /// (their window hidden, or the area's `paused`).
+  final _areas = <Object>{};
+  final _pausedBy = <Object>{};
+
+  /// Kept running while no area draws it (an opened activity while its
+  /// page is elsewhere): then it's paused while none does, once one has.
+  bool _keptWithoutArea = false;
+  bool _drawn = false;
+
+  /// What the view was last told: `pause` (true) or `resume`. A view starts
+  /// running.
+  bool _toldPaused = false;
+  bool _disposed = false;
+
+  /// [area] draws the view now.
+  void attachArea(Object area) {
+    _areas.add(area);
+    _drawn = true;
+    _tellPaused();
+  }
+
+  /// [area] no longer draws the view. A view nothing keeps goes with its
+  /// area, so it's told nothing more.
+  void detachArea(Object area) {
+    _areas.remove(area);
+    _pausedBy.remove(area);
+    if (_keptWithoutArea) _tellPaused();
+  }
+
+  /// Whether [area] holds the view paused.
+  void setPausedBy(Object area, {required bool paused}) {
+    if (paused) {
+      _pausedBy.add(area);
+    } else {
+      _pausedBy.remove(area);
+    }
+    _tellPaused();
+  }
+
+  /// The view goes on while no area draws it, paused.
+  void keepWithoutArea() {
+    if (_keptWithoutArea) return;
+    _keptWithoutArea = true;
+    _tellPaused();
+  }
+
+  /// Tells the view `pause` or `resume` when whether it should run changed
+  /// since it was last told: once per change, whatever caused it.
+  void _tellPaused() {
+    if (_disposed) return;
+    final pause =
+        _pausedBy.isNotEmpty || (_keptWithoutArea && _drawn && _areas.isEmpty);
+    if (pause == _toldPaused) return;
+    _toldPaused = pause;
+    send({'kind': 'lifecycle', 'event': pause ? 'pause' : 'resume'});
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     viewId.dispose();
     super.dispose();
   }

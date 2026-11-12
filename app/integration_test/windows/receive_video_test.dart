@@ -7,6 +7,7 @@ import 'package:opencord/core/model/voice.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
+import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/src/rust/api/client.dart' as core;
 import 'package:opencord/ui/widgets/oc_button.dart';
 
@@ -118,7 +119,7 @@ void main() {
           server: session.serverKey!,
           channel: session.channelId!,
         );
-        final tile = (userId: camera.key, screen: false);
+        final tile = personTile(camera.key);
         container.read(voiceFocusProvider(channel).notifier).focus(tile);
         await tester.pump(const Duration(milliseconds: 300));
         await waitUntil(
