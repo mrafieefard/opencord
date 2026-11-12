@@ -194,7 +194,9 @@ void main() {
       'paint',
       'paint',
     );
-    await tester.pumpAndSettle();
+    // Short of the dock's 2.5 s hide delay, so its button stays hittable.
+    await tester.pump();
+    await tester.pump();
     await _openPicker(tester);
 
     expect(
@@ -244,7 +246,9 @@ void main() {
         activity.activityKey,
       );
     }
-    await tester.pumpAndSettle();
+    // Short of the dock's 2.5 s hide delay, so its button stays hittable.
+    await tester.pump();
+    await tester.pump();
     await _openPicker(tester);
 
     expect(find.text('This call already has 4 activities.'), findsOneWidget);

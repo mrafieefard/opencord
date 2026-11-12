@@ -110,7 +110,7 @@ void main() {
           session.copyWith(viewerIds: viewers),
         ),
       );
-      await tester.pump();
+      await _settle(tester);
       expect(_inActivity(session.id, find.text(line)), findsOneWidget);
     }
     await app.dispose(tester);
