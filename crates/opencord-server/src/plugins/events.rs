@@ -387,6 +387,10 @@ pub const MEMBER_PERMISSIONS: &[(opencord_common::permissions::Permissions, &str
         "music_all_local_songs",
     ),
     (
+        opencord_common::permissions::Permissions::START_ACTIVITIES,
+        "start_activities",
+    ),
+    (
         opencord_common::permissions::Permissions::ADMINISTRATOR,
         "administrator",
     ),

@@ -362,6 +362,55 @@ async fn the_rebuild_keeps_channels_overwrites_and_messages() {
     }
 }
 
+#[tokio::test]
+async fn the_upgrade_gives_everyone_start_activities_and_nothing_else() {
+    // Fails if 0017 drops its WHERE (the second role gains the bit too) or
+    // sets another bit than START_ACTIVITIES.
+    use opencord_common::permissions::Permissions;
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(SqliteConnectOptions::new().in_memory(true))
+        .await
+        .unwrap();
+    migrations_through(16).run(&pool).await.unwrap();
+    let everyone = Permissions::VIEW_CHANNEL | Permissions::CONNECT;
+    let speaker = Permissions::SPEAK;
+    sqlx::query(
+        "INSERT OR REPLACE INTO server_meta (key, value) VALUES ('everyone_role_id', '900')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO roles (id, name, position, permissions)
+         VALUES (900, '@everyone', 0, ?), (901, 'Speakers', 1, ?)",
+    )
+    .bind(everyone.bits() as i64)
+    .bind(speaker.bits() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    migrations_through(17).run(&pool).await.unwrap();
+
+    let permissions = |id: i64| {
+        let pool = pool.clone();
+        async move {
+            let bits: i64 = sqlx::query_scalar("SELECT permissions FROM roles WHERE id = ?")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            Permissions::from_bits_retain(bits as u64)
+        }
+    };
+    assert_eq!(
+        permissions(900).await,
+        everyone | Permissions::START_ACTIVITIES
+    );
+    assert_eq!(permissions(901).await, speaker);
+}
+
 // --- Creating one ------------------------------------------------------
 
 #[tokio::test]

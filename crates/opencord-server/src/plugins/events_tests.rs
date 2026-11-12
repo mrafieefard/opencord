@@ -457,3 +457,18 @@ fn enum_names_lose_their_prefix() {
         serde_json::json!("online")
     );
 }
+
+#[test]
+fn start_activities_has_its_name() {
+    // Fails if the bit loses its row in the names table, or the row's name
+    // differs from the definitions file's.
+    use opencord_common::permissions::Permissions;
+    assert_eq!(
+        super::permissions_to_names(Permissions::START_ACTIVITIES),
+        vec!["start_activities".to_owned()]
+    );
+    assert_eq!(
+        super::member_permission_from_name("start_activities"),
+        Some(Permissions::START_ACTIVITIES)
+    );
+}

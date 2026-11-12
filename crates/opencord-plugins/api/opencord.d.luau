@@ -127,6 +127,7 @@ export type PermissionName =
     | "music_manage_queue"
     | "music_manage"
     | "music_all_local_songs"
+    | "start_activities"
     | "administrator"
 
 export type Role = {

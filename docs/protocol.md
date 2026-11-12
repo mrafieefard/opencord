@@ -332,6 +332,7 @@ The bits are listed below.
 | 14 | `SEND_VOICE_MESSAGES` | 30 | `MUSIC_MANAGE_QUEUE` |
 | 15 | `MANAGE_PLUGINS` | 31 | `MUSIC_MANAGE` |
 | | | 32 | `MUSIC_ALL_LOCAL_SONGS` (search every uploaded song, not only one's own) |
+| | | 33 | `START_ACTIVITIES` (start an activity in a call one is in; on for @everyone) |
 | | | 63 | `ADMINISTRATOR` |
 
 Resolution:
@@ -349,7 +350,7 @@ Hierarchy:
 - Members can only manage roles below their rank, and only kick, ban or rename members of lower rank. The owner outranks everyone; nobody outranks the owner.
 - Nobody can grant or deny a permission they do not have, unless they are an administrator or the owner.
 
-A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREATE_INVITE | ATTACH_FILES | SEND_VOICE_MESSAGES | CHANGE_NICKNAME | CONNECT | SPEAK | VIDEO | SCREENSHARE | USE_VOICE_ACTIVITY | USE_SOUNDBOARD | USE_EXTERNAL_SOUNDS`. Servers created before voice existed get the last three added to @everyone when they upgrade, and servers from before attachments get `ATTACH_FILES`, `SEND_VOICE_MESSAGES` and a 50 MB upload limit. The server starts with a `#general` text channel and a `General` voice channel.
+A new server's @everyone has `VIEW_CHANNEL | SEND_MESSAGES | READ_HISTORY | CREATE_INVITE | ATTACH_FILES | SEND_VOICE_MESSAGES | CHANGE_NICKNAME | CONNECT | SPEAK | VIDEO | SCREENSHARE | USE_VOICE_ACTIVITY | USE_SOUNDBOARD | USE_EXTERNAL_SOUNDS | MUSIC_ADD | MUSIC_CONTROL | START_ACTIVITIES`. Servers created before voice existed get `USE_VOICE_ACTIVITY`, `USE_SOUNDBOARD` and `USE_EXTERNAL_SOUNDS` added to @everyone when they upgrade, servers from before activities get `START_ACTIVITIES`, and servers from before attachments get `ATTACH_FILES`, `SEND_VOICE_MESSAGES` and a 50 MB upload limit. The server starts with a `#general` text channel and a `General` voice channel.
 
 ## Limits
 
