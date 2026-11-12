@@ -59,23 +59,41 @@ Stage 0 is signing. Stages 1 and later are the background updates. They are one 
 
 ### Changes
 
-1. **The owner makes the key and sets it.** This happens once, on the owner's machine. First create an environment named `release` (Settings → Environments) that only `beta`, `canary` and `main` may deploy from (change 6), then:
-   ```sh
-   mkdir -p ~/.config/opencord-release && cd ~/.config/opencord-release
-   openssl genpkey -algorithm ed25519 -out update-key.pem && chmod 600 update-key.pem
-   gh secret set UPDATE_SIGNING_KEY --env release --repo mrafieefard/opencord < update-key.pem
-   openssl pkey -in update-key.pem -pubout -outform DER | openssl base64 -A \
-     | gh variable set UPDATE_PUBLIC_KEY --repo mrafieefard/opencord
-   ```
-   Back `update-key.pem` up offline. There is no rotation, so if it is lost or leaked, every user has to reinstall by hand. The plan says this to the owner, and Claude doesn't run these commands.
+Changes 1–6 are workflow and code. The key itself is set last, under "Turning it on".
+
+1. **The `release` environment.** The release job runs in a GitHub environment named `release`. The environment holds `UPDATE_SIGNING_KEY`.
 2. **CI refuses half a setup.** If only one of the secret and the variable is set, the release job fails before anything is released. The check has to run in the release job, the one in the `release` environment, because no other job, and no pull request run, can see an environment's secret.
 3. **CI checks that the two keys match.** The run fails before anything is released when:
    - the public key derived from the secret differs from `UPDATE_PUBLIC_KEY` (compare the raw 32 bytes, since the variable may be raw or DER), or
    - `release.json.sig` doesn't verify against `UPDATE_PUBLIC_KEY` itself. Today the `Sign` step checks it only against the key it derived from the secret.
 4. **A bad public key fails the build, not the launcher.** Today a key that doesn't parse panics in `signature::built_in_key` on every start of every user's launcher. Instead, parse and check it at build time (a `build.rs`, or a check in CI before `cargo build`), so a mistyped variable breaks the build.
 5. **The app's build gets the key too.** Stage 1 checks signatures in `opencord-core`, which the `flutter build` steps compile on all three systems. Give those steps `OPENCORD_UPDATE_PUBLIC_KEY` as well.
-6. **Keep the secret to release branches.** Put `UPDATE_SIGNING_KEY` in a GitHub environment that only `beta`, `canary` and `main` may use, and run the release job in it. Today any workflow run in the repository can read the secret. (My call.)
-7. **Docs.** Update the Signing section of docs/updater.md and docs/releasing.md, and add a decision to docs/decisions.md under the next free D number.
+6. **Docs.** Update the Signing section of docs/updater.md and docs/releasing.md, and add a decision to docs/decisions.md under the next free D number.
+
+Only `beta`, `canary` and `main` may deploy to the environment, so no other branch's runs can read the secret. Today a repository secret would be readable by any workflow run in the repository. (My call.)
+
+### Turning it on
+
+**Order matters.**
+- `UPDATE_PUBLIC_KEY` is a repository variable, so the moment it is set, every branch's next launcher build demands signatures.
+- A branch still on the old workflow can't see a secret kept in the `release` environment. Its `Sign` step would warn and publish an unsigned release, which its own new launchers then refuse. On Windows and Linux they would already have replaced themselves, so that track would stop updating.
+
+So:
+1. The workflow changes reach `beta`, `canary` and `main`, through the usual pull requests from one track to the next.
+2. Only then does the owner set the key. This happens once, on the owner's machine:
+   1. Create the `release` environment (Settings → Environments), allowing only `beta`, `canary` and `main` to deploy.
+   2. Run:
+      ```sh
+      mkdir -p ~/.config/opencord-release && cd ~/.config/opencord-release
+      openssl genpkey -algorithm ed25519 -out update-key.pem && chmod 600 update-key.pem
+      gh secret set UPDATE_SIGNING_KEY --env release --repo mrafieefard/opencord < update-key.pem
+      openssl pkey -in update-key.pem -pubout -outform DER | openssl base64 -A \
+        | gh variable set UPDATE_PUBLIC_KEY --repo mrafieefard/opencord
+      ```
+   3. Back `update-key.pem` up offline. There is no rotation, so if it is lost or leaked, every user has to reinstall by hand.
+
+   The plan says this to the owner, and Claude doesn't run these commands.
+3. The owner releases on every track soon afterwards, so each track has a signed release.
 
 ### What turning it on does to users
 
@@ -110,7 +128,9 @@ Stage 0 is signing. Stages 1 and later are the background updates. They are one 
 | `downloads/release.json`, `downloads/release.json.sig` | the app | the release being downloaded, which the launcher checks itself when it prepares it |
 | `pending.json` | the launcher, after a prepare; the app only updates `confirmed_at` | `{version, track, prepared_at, confirmed_at}`; `app-<version>/` beside it is whole |
 | `launching.json` | the launcher, just before it starts the app | `{version, at}`: the version it started |
-| `started.json` | the app, once the desktop shell first shows | `{version, at}`: the version that got that far |
+| `started.json` | the app, once it has started (see below) | `{version, at}`: the version that got that far |
+
+**"Started"** means `app_start` has finished and the first Flutter frame after `runApp` has been drawn (`WidgetsBinding.instance.endOfFrame`). That happens in every case: with the window shown, hidden in the tray (start minimized at login), or on the onboarding screen with no servers yet. It is the one point the crash marker and the update checks both count from. If they counted from the desktop shell showing, a user still in onboarding or an app hidden in the tray would never write the marker. That would mean a splash and a wait for GitHub on every start, and no update checks at all.
 | `restart.json` | the app, just before an update restart | `{from, to, at, voice, window, cover}`: `voice` is `{server_key, channel_id}` or null, `window` the window's physical position and size, `cover` whether the launcher holds the cover |
 | `cover.rgba` | the app, just before an update restart | the last covered frame, for the launcher's window |
 | `cover.shown`, `cover.taken` | the launcher; the new app | the two hand-offs of the cover |
@@ -154,7 +174,7 @@ This way a user who was away for two days doesn't download the same build twice,
 
 **Recovering from a bad release.** Today a release that crashes on start is replaced by the next one automatically, because the launcher goes online on every start. Without a fallback, every user would be stuck on such a release. So the launcher still goes online first, with the splash and today's flow, in two cases:
 - **It runs as the installer.** Running the installer again is what a user tries first, and it should repair the install.
-- **The last start never reached the desktop shell.** `launching.json` names the installed version, but `started.json` doesn't. That catches a release that crashes before the app's first check, on every system, including a macOS user who dragged a new disk image over.
+- **The last start never got to "started".** `launching.json` names the installed version, but `started.json` doesn't. That catches a release that crashes before the app's first check, on every system, including a macOS user who dragged a new disk image over.
 
 Both make that one start wait, which is the price of not stranding anyone. (My call.)
 
@@ -164,7 +184,7 @@ Unchanged:
 - `--uninstall`.
 - `--after-pid` still waits for the old app to end.
 
-**The update restart** is the app writing `restart.json` and running `launcher --after-pid <pid>`. The launcher waits for the app to exit, then takes step 1. When `restart.json` is less than 2 minutes old and its `to` is the waiting version, step 1 doesn't check that version's age. No splash should appear.
+**The update restart** is the app writing `restart.json` and running `launcher --after-pid <pid> --cover` (without `--cover` on Wayland). With `--cover`, the launcher first shows the cover and writes `cover.shown` (see "The launcher holds the cover"), and only then waits for the app to exit. Waiting first would deadlock, since the app waits for `cover.shown` before exiting. The launcher then takes step 1. When `restart.json` is less than 2 minutes old and its `to` is the waiting version, step 1 doesn't check that version's age. No splash should appear.
 
 **`--prepare <downloads/<file>.json>`**:
 1. Checks the signature of `downloads/release.json` when the launcher has a key.
@@ -178,7 +198,7 @@ It shows no window, starts nothing, doesn't prune, and doesn't touch `installed.
 ### The app: checking
 
 - **When it checks:** only when the app has an `Installation` and the launcher lists `prepare`. A build run from an archive or from source never checks.
-- **The first check:** 15 seconds after the desktop shell first shows (my call), so it never competes with opening.
+- **The first check:** 15 seconds after the app has started (as defined above), so it never competes with opening. (My call.) That includes an app hidden in the tray, and one still on the onboarding screen.
 - **Later checks:** every 4 hours while the app stays open (my call). Each check makes one GitHub API call for beta and canary, well inside the 60-calls-an-hour limit for unauthenticated use.
 - **Which build:** the launcher's rules, from the shared crate: each track takes only its own builds, and an older build than the installed one is never taken (D91).
 - **Signature:** checked with the key built into the core (Stage 0, change 5). A build without a key trusts HTTPS, as the launcher does.
@@ -262,7 +282,7 @@ Opencord's window appears only after its engine, keys and tray have started (`ap
 **Wayland** doesn't let a program choose where its window goes, so the launcher can't place its window over the app's. When the app runs on Wayland, it records `"cover": false` and skips steps 1–3 and 6: the covered window closes, and the new one appears, already covered, a moment later. The window may also open somewhere else, since Wayland places it. (My call; there's no way around it on Wayland.)
 
 **A failed update.** The app compares its own version (`Installation.version`) with `restart.json`'s `to`.
-- **Equal:** the update worked, and steps 4–7 play as above.
+- **Equal:** the update worked, and steps 5–7 play as above.
 - **Different:** the launcher didn't switch. The reverse still plays, but with the download arrow and no caption, and the square glides back and stays, because the update is still waiting. The app adds a line to the session log. (My call.)
 
 **Reduce motion** (the OS setting or the app's, through `OcMotion`). Nothing moves. The cover fades in over 0.2 s, the launcher holds it in the same way, and the new version fades it out.
@@ -293,6 +313,7 @@ Opencord's window appears only after its engine, keys and tray have started (`ap
 - **The launcher:**
   - whether a waiting update is switched to: fresh, confirmed recently, older than 24 hours, older but named by a fresh `restart.json`, wrong track, half-unpacked folder, older than installed;
   - going online first when run as the installer, and after a start that never wrote `started.json`, but not otherwise;
+  - the cover's order: `--cover` shows the cover and writes `cover.shown` before it waits on the pid;
   - `--prepare` with a bad signature, a bad hash, the wrong platform, and a lock already held;
   - prune keeps the waiting version and the in-progress download;
   - `OPENCORD_LAUNCHER_FEATURES` is set;
@@ -304,6 +325,7 @@ Opencord's window appears only after its engine, keys and tray have started (`ap
   - the hash over a resumed file;
   - choosing a build, as the launcher does.
 - **Flutter:**
+  - `started.json` is written, and the first check is scheduled, on a normal start, a start hidden in the tray, and a start on the onboarding screen;
   - the square appears only once an update is prepared, shows its popover on hover, and works from the keyboard;
   - goldens of the square in dark and light;
   - the animation's sequence of steps, driven by its controller;
@@ -363,7 +385,7 @@ These can't be done from the Linux machine.
 - The throttle's numbers: a baseline from 5 readings, 256 KiB/s to start, one reading at +30 ms or 2 % loss halves it, 32 KiB/s floor, ×1.25 after 2 calm readings, a pause for a baseline when a call is joined partway.
 - Rejoining only within 2 minutes, waiting up to 30 seconds for the server; mute and deafen kept; camera and screen share off.
 - On a failed update, the square comes back and the update stays waiting.
-- The signing secret goes into a GitHub environment that only the release branches can use.
+- The signing secret goes into a GitHub environment that only the release branches can use, and the key is set only once the workflow changes are on all three branches.
 - The launcher unpacks on every system (`--prepare`), not only on macOS.
 
 ## Left to the builder
@@ -371,5 +393,4 @@ These can't be done from the Linux machine.
 - How `opencord-update` is split into modules, and the names of its types.
 - The chunk size and timeouts, within the limits above.
 - How the app waits for `--prepare`'s result on each system.
-- Which hook counts as "the desktop shell first shows".
 - The wording of log lines.
