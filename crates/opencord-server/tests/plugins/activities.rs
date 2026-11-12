@@ -1385,6 +1385,9 @@ async fn the_call_emptying_closes_the_last_view() {
     a.ok(join(voice)).await;
     let paint = started(&mut a, voice, "paint").await;
     let view = open_view(&mut a, paint.id).await;
+    // The plugin handles the open before A leaves, or its close can be
+    // missing from the log.
+    wait_for_log(&mut world.owner, "paint", &format!("open {view} ")).await;
 
     a.ok(leave()).await;
     let closes = a
