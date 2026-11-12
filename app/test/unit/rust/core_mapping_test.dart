@@ -361,6 +361,27 @@ void main() {
       );
     });
 
+    test('plugin limit and unavailable refusals keep their kinds', () {
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.pluginLimit,
+            message: 'limit reached',
+          ),
+        ).kind,
+        RepoErrorKind.pluginLimit,
+      );
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.pluginUnavailable,
+            message: 'unavailable',
+          ),
+        ).kind,
+        RepoErrorKind.pluginUnavailable,
+      );
+    });
+
     test('private settings map field by field', () {
       expect(
         privateSettingsFrom(

@@ -144,7 +144,10 @@ void main() {
       expect(world.start, _refused(RepoErrorKind.invalidArgument));
 
       world.run(world.repo.joinVoice(_server, world.general));
-      expect(() => world.start('paint', 'nope'), _refused(RepoErrorKind.other));
+      expect(
+        () => world.start('paint', 'nope'),
+        _refused(RepoErrorKind.pluginUnavailable),
+      );
 
       for (final key in ['a', 'b', 'c', 'd', 'e']) {
         world.server.pluginActivities.add(
@@ -163,11 +166,13 @@ void main() {
       expect(
         () => world.start('more', 'e'),
         throwsA(
-          isA<RepoException>().having(
-            (error) => error.message,
-            'message',
-            'this call already has 4 activities',
-          ),
+          isA<RepoException>()
+              .having((error) => error.kind, 'kind', RepoErrorKind.pluginLimit)
+              .having(
+                (error) => error.message,
+                'message',
+                'this call already has 4 activities',
+              ),
         ),
       );
       // A running one still comes back at the cap.

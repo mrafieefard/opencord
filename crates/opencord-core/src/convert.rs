@@ -811,6 +811,8 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::DeviceListChanged) => ErrorCode::DeviceListChanged,
         Ok(proto::ErrorCode::PrivateMessagesUnavailable) => ErrorCode::PrivateMessagesUnavailable,
         Ok(proto::ErrorCode::FriendsOnly) => ErrorCode::FriendsOnly,
+        Ok(proto::ErrorCode::PluginLimit) => ErrorCode::PluginLimit,
+        Ok(proto::ErrorCode::PluginUnavailable) => ErrorCode::PluginUnavailable,
 
         _ => ErrorCode::Unknown,
     }

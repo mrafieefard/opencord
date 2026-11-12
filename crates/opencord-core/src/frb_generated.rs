@@ -11657,8 +11657,10 @@ impl SseDecode for crate::api::types::ErrorCode {
             50 => crate::api::types::ErrorCode::DeviceListChanged,
             51 => crate::api::types::ErrorCode::PrivateMessagesUnavailable,
             52 => crate::api::types::ErrorCode::FriendsOnly,
-            53 => crate::api::types::ErrorCode::KeysNotAccepted,
-            54 => crate::api::types::ErrorCode::Unknown,
+            53 => crate::api::types::ErrorCode::PluginLimit,
+            54 => crate::api::types::ErrorCode::PluginUnavailable,
+            55 => crate::api::types::ErrorCode::KeysNotAccepted,
+            56 => crate::api::types::ErrorCode::Unknown,
             _ => unreachable!("Invalid variant for ErrorCode: {}", inner),
         };
     }
@@ -17796,8 +17798,10 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ErrorCode {
             Self::DeviceListChanged => 50.into_dart(),
             Self::PrivateMessagesUnavailable => 51.into_dart(),
             Self::FriendsOnly => 52.into_dart(),
-            Self::KeysNotAccepted => 53.into_dart(),
-            Self::Unknown => 54.into_dart(),
+            Self::PluginLimit => 53.into_dart(),
+            Self::PluginUnavailable => 54.into_dart(),
+            Self::KeysNotAccepted => 55.into_dart(),
+            Self::Unknown => 56.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -22576,8 +22580,10 @@ impl SseEncode for crate::api::types::ErrorCode {
                 crate::api::types::ErrorCode::DeviceListChanged => 50,
                 crate::api::types::ErrorCode::PrivateMessagesUnavailable => 51,
                 crate::api::types::ErrorCode::FriendsOnly => 52,
-                crate::api::types::ErrorCode::KeysNotAccepted => 53,
-                crate::api::types::ErrorCode::Unknown => 54,
+                crate::api::types::ErrorCode::PluginLimit => 53,
+                crate::api::types::ErrorCode::PluginUnavailable => 54,
+                crate::api::types::ErrorCode::KeysNotAccepted => 55,
+                crate::api::types::ErrorCode::Unknown => 56,
                 _ => {
                     unimplemented!("");
                 }

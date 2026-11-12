@@ -199,6 +199,14 @@ enum RepoErrorKind {
   /// The upload, download, or operation was cancelled.
   cancelled,
 
+  /// A plugin, or what it registered, isn't running or doesn't exist
+  /// (`PLUGIN_UNAVAILABLE`).
+  pluginUnavailable,
+
+  /// A plugin's limit is reached, such as the activities in one call
+  /// (`PLUGIN_LIMIT`).
+  pluginLimit,
+
   /// The target is not accepting friend requests (§6.7).
   friendRequestsClosed,
 

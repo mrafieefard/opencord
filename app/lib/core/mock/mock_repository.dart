@@ -5796,7 +5796,7 @@ class MockRepository implements OpencordRepository {
             )
             .firstOrNull ??
         (throw const RepoException(
-          RepoErrorKind.other,
+          RepoErrorKind.pluginUnavailable,
           'this activity is unavailable',
         ));
     final inThisCall = [
@@ -5812,7 +5812,7 @@ class MockRepository implements OpencordRepository {
     if (running != null) return running;
     if (inThisCall.length >= activitySessionsPerCall) {
       throw const RepoException(
-        RepoErrorKind.other,
+        RepoErrorKind.pluginLimit,
         'this call already has $activitySessionsPerCall activities',
       );
     }

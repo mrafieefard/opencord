@@ -673,6 +673,8 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
     RepoErrorKind.privateMessagesUnavailable,
   core.ErrorCode.friendsOnly => RepoErrorKind.friendsOnly,
   core.ErrorCode.keysNotAccepted => RepoErrorKind.keysNotAccepted,
+  core.ErrorCode.pluginLimit => RepoErrorKind.pluginLimit,
+  core.ErrorCode.pluginUnavailable => RepoErrorKind.pluginUnavailable,
   core.ErrorCode.deviceListChanged => RepoErrorKind.other,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };

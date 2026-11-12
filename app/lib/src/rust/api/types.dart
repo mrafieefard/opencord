@@ -1664,6 +1664,8 @@ enum ErrorCode {
   deviceListChanged,
   privateMessagesUnavailable,
   friendsOnly,
+  pluginLimit,
+  pluginUnavailable,
 
   /// None of their devices has a chat key this device accepted (design
   /// 2026-11-01 §8.2). Never from a server.
