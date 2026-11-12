@@ -89,6 +89,8 @@ final _readyPayload = core.CoreEventPayload.ready(
     uploadSettings: coreUploadSettings,
     pluginUsers: const [],
     pluginChannelTypes: const [],
+    pluginActivities: const [],
+    activitySessions: const [],
   ),
 );
 

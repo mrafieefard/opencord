@@ -96,6 +96,8 @@ core.ReadySnapshot _ready({
   uploadSettings: coreUploadSettings,
   pluginUsers: const [],
   pluginChannelTypes: const [],
+  pluginActivities: const [],
+  activitySessions: const [],
 );
 
 /// A keychain that can be locked, refusing to save, or out of reach.

@@ -203,6 +203,8 @@ void main() {
         uploadSettings: coreUploadSettings,
         pluginUsers: const [],
         pluginChannelTypes: const [],
+        pluginActivities: const [],
+        activitySessions: const [],
       ),
     );
 

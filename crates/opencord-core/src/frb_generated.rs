@@ -10210,6 +10210,49 @@ impl SseDecode for crate::api::types::AcmeAccount {
     }
 }
 
+impl SseDecode for crate::api::types::ActivityEndReason {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::ActivityEndReason::Ended,
+            1 => crate::api::types::ActivityEndReason::Plugin,
+            2 => crate::api::types::ActivityEndReason::CallEmpty,
+            3 => crate::api::types::ActivityEndReason::PluginStopped,
+            4 => crate::api::types::ActivityEndReason::Unavailable,
+            _ => unreachable!("Invalid variant for ActivityEndReason: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::ActivitySession {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_channelId = <i64>::sse_decode(deserializer);
+        let mut var_pluginId = <String>::sse_decode(deserializer);
+        let mut var_activityKey = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_icon = <String>::sse_decode(deserializer);
+        let mut var_pluginName = <String>::sse_decode(deserializer);
+        let mut var_starterId = <i64>::sse_decode(deserializer);
+        let mut var_startedAtMs = <i64>::sse_decode(deserializer);
+        let mut var_viewerIds = <Vec<i64>>::sse_decode(deserializer);
+        return crate::api::types::ActivitySession {
+            id: var_id,
+            channel_id: var_channelId,
+            plugin_id: var_pluginId,
+            activity_key: var_activityKey,
+            name: var_name,
+            icon: var_icon,
+            plugin_name: var_pluginName,
+            starter_id: var_starterId,
+            started_at_ms: var_startedAtMs,
+            viewer_ids: var_viewerIds,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::AddServerOutcome {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11237,6 +11280,30 @@ impl SseDecode for crate::api::types::CoreEventPayload {
                     <Vec<crate::api::types::PluginChannelType>>::sse_decode(deserializer);
                 return crate::api::types::CoreEventPayload::PluginChannelTypesUpdate(var_field0);
             }
+            56 => {
+                let mut var_field0 =
+                    <Vec<crate::api::types::PluginActivity>>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::PluginActivitiesUpdate(var_field0);
+            }
+            57 => {
+                let mut var_field0 = <crate::api::types::ActivitySession>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::ActivitySessionCreate(var_field0);
+            }
+            58 => {
+                let mut var_field0 = <crate::api::types::ActivitySession>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::ActivitySessionUpdate(var_field0);
+            }
+            59 => {
+                let mut var_sessionId = <i64>::sse_decode(deserializer);
+                let mut var_channelId = <i64>::sse_decode(deserializer);
+                let mut var_reason =
+                    <crate::api::types::ActivityEndReason>::sse_decode(deserializer);
+                return crate::api::types::CoreEventPayload::ActivitySessionDelete {
+                    session_id: var_sessionId,
+                    channel_id: var_channelId,
+                    reason: var_reason,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -11906,6 +11973,20 @@ impl SseDecode for Vec<String> {
     }
 }
 
+impl SseDecode for Vec<crate::api::types::ActivitySession> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::ActivitySession>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::types::Attachment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12305,6 +12386,20 @@ impl SseDecode for Vec<crate::api::types::Plugin> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::Plugin>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::types::PluginActivity> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::PluginActivity>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -13822,6 +13917,26 @@ impl SseDecode for crate::api::types::Plugin {
     }
 }
 
+impl SseDecode for crate::api::types::PluginActivity {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_pluginId = <String>::sse_decode(deserializer);
+        let mut var_activityKey = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_description = <String>::sse_decode(deserializer);
+        let mut var_icon = <String>::sse_decode(deserializer);
+        let mut var_pluginName = <String>::sse_decode(deserializer);
+        return crate::api::types::PluginActivity {
+            plugin_id: var_pluginId,
+            activity_key: var_activityKey,
+            name: var_name,
+            description: var_description,
+            icon: var_icon,
+            plugin_name: var_pluginName,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::PluginChannelState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14384,6 +14499,10 @@ impl SseDecode for crate::api::types::ReadySnapshot {
         let mut var_pluginUsers = <Vec<crate::api::types::PluginUser>>::sse_decode(deserializer);
         let mut var_pluginChannelTypes =
             <Vec<crate::api::types::PluginChannelType>>::sse_decode(deserializer);
+        let mut var_pluginActivities =
+            <Vec<crate::api::types::PluginActivity>>::sse_decode(deserializer);
+        let mut var_activitySessions =
+            <Vec<crate::api::types::ActivitySession>>::sse_decode(deserializer);
         return crate::api::types::ReadySnapshot {
             self_user: var_selfUser,
             server: var_server,
@@ -14405,6 +14524,8 @@ impl SseDecode for crate::api::types::ReadySnapshot {
             private_settings: var_privateSettings,
             plugin_users: var_pluginUsers,
             plugin_channel_types: var_pluginChannelTypes,
+            plugin_activities: var_pluginActivities,
+            activity_sessions: var_activitySessions,
         };
     }
 }
@@ -16030,6 +16151,59 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::AcmeAccount>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::ActivityEndReason {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Ended => 0.into_dart(),
+            Self::Plugin => 1.into_dart(),
+            Self::CallEmpty => 2.into_dart(),
+            Self::PluginStopped => 3.into_dart(),
+            Self::Unavailable => 4.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::ActivityEndReason
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ActivityEndReason>
+    for crate::api::types::ActivityEndReason
+{
+    fn into_into_dart(self) -> crate::api::types::ActivityEndReason {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::ActivitySession {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.channel_id.into_into_dart().into_dart(),
+            self.plugin_id.into_into_dart().into_dart(),
+            self.activity_key.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.icon.into_into_dart().into_dart(),
+            self.plugin_name.into_into_dart().into_dart(),
+            self.starter_id.into_into_dart().into_dart(),
+            self.started_at_ms.into_into_dart().into_dart(),
+            self.viewer_ids.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::ActivitySession
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::ActivitySession>
+    for crate::api::types::ActivitySession
+{
+    fn into_into_dart(self) -> crate::api::types::ActivitySession {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::AddServerOutcome {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -17187,6 +17361,26 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::CoreEventPayload {
             crate::api::types::CoreEventPayload::PluginChannelTypesUpdate(field0) => {
                 [55.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::CoreEventPayload::PluginActivitiesUpdate(field0) => {
+                [56.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::ActivitySessionCreate(field0) => {
+                [57.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::ActivitySessionUpdate(field0) => {
+                [58.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::CoreEventPayload::ActivitySessionDelete {
+                session_id,
+                channel_id,
+                reason,
+            } => [
+                59.into_dart(),
+                session_id.into_into_dart().into_dart(),
+                channel_id.into_into_dart().into_dart(),
+                reason.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -19041,6 +19235,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Plugin> for crate::api
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::PluginActivity {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.plugin_id.into_into_dart().into_dart(),
+            self.activity_key.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.description.into_into_dart().into_dart(),
+            self.icon.into_into_dart().into_dart(),
+            self.plugin_name.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::PluginActivity
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::PluginActivity>
+    for crate::api::types::PluginActivity
+{
+    fn into_into_dart(self) -> crate::api::types::PluginActivity {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::PluginChannelState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -19779,6 +19998,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::ReadySnapshot {
             self.private_settings.into_into_dart().into_dart(),
             self.plugin_users.into_into_dart().into_dart(),
             self.plugin_channel_types.into_into_dart().into_dart(),
+            self.plugin_activities.into_into_dart().into_dart(),
+            self.activity_sessions.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -21111,6 +21332,41 @@ impl SseEncode for crate::api::types::AcmeAccount {
     }
 }
 
+impl SseEncode for crate::api::types::ActivityEndReason {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::ActivityEndReason::Ended => 0,
+                crate::api::types::ActivityEndReason::Plugin => 1,
+                crate::api::types::ActivityEndReason::CallEmpty => 2,
+                crate::api::types::ActivityEndReason::PluginStopped => 3,
+                crate::api::types::ActivityEndReason::Unavailable => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::types::ActivitySession {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <i64>::sse_encode(self.channel_id, serializer);
+        <String>::sse_encode(self.plugin_id, serializer);
+        <String>::sse_encode(self.activity_key, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.icon, serializer);
+        <String>::sse_encode(self.plugin_name, serializer);
+        <i64>::sse_encode(self.starter_id, serializer);
+        <i64>::sse_encode(self.started_at_ms, serializer);
+        <Vec<i64>>::sse_encode(self.viewer_ids, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::AddServerOutcome {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -21985,6 +22241,28 @@ impl SseEncode for crate::api::types::CoreEventPayload {
                 <i32>::sse_encode(55, serializer);
                 <Vec<crate::api::types::PluginChannelType>>::sse_encode(field0, serializer);
             }
+            crate::api::types::CoreEventPayload::PluginActivitiesUpdate(field0) => {
+                <i32>::sse_encode(56, serializer);
+                <Vec<crate::api::types::PluginActivity>>::sse_encode(field0, serializer);
+            }
+            crate::api::types::CoreEventPayload::ActivitySessionCreate(field0) => {
+                <i32>::sse_encode(57, serializer);
+                <crate::api::types::ActivitySession>::sse_encode(field0, serializer);
+            }
+            crate::api::types::CoreEventPayload::ActivitySessionUpdate(field0) => {
+                <i32>::sse_encode(58, serializer);
+                <crate::api::types::ActivitySession>::sse_encode(field0, serializer);
+            }
+            crate::api::types::CoreEventPayload::ActivitySessionDelete {
+                session_id,
+                channel_id,
+                reason,
+            } => {
+                <i32>::sse_encode(59, serializer);
+                <i64>::sse_encode(session_id, serializer);
+                <i64>::sse_encode(channel_id, serializer);
+                <crate::api::types::ActivityEndReason>::sse_encode(reason, serializer);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -22547,6 +22825,16 @@ impl SseEncode for Vec<String> {
     }
 }
 
+impl SseEncode for Vec<crate::api::types::ActivitySession> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::ActivitySession>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::types::Attachment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -22863,6 +23151,16 @@ impl SseEncode for Vec<crate::api::types::Plugin> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::Plugin>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::types::PluginActivity> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::PluginActivity>::sse_encode(item, serializer);
         }
     }
 }
@@ -24056,6 +24354,18 @@ impl SseEncode for crate::api::types::Plugin {
     }
 }
 
+impl SseEncode for crate::api::types::PluginActivity {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.plugin_id, serializer);
+        <String>::sse_encode(self.activity_key, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.description, serializer);
+        <String>::sse_encode(self.icon, serializer);
+        <String>::sse_encode(self.plugin_name, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::PluginChannelState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -24536,6 +24846,8 @@ impl SseEncode for crate::api::types::ReadySnapshot {
             self.plugin_channel_types,
             serializer,
         );
+        <Vec<crate::api::types::PluginActivity>>::sse_encode(self.plugin_activities, serializer);
+        <Vec<crate::api::types::ActivitySession>>::sse_encode(self.activity_sessions, serializer);
     }
 }
 

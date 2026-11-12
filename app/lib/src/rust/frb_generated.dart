@@ -10132,6 +10132,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ActivityEndReason dco_decode_activity_end_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ActivityEndReason.values[raw as int];
+  }
+
+  @protected
+  ActivitySession dco_decode_activity_session(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return ActivitySession(
+      id: dco_decode_i_64(arr[0]),
+      channelId: dco_decode_i_64(arr[1]),
+      pluginId: dco_decode_String(arr[2]),
+      activityKey: dco_decode_String(arr[3]),
+      name: dco_decode_String(arr[4]),
+      icon: dco_decode_String(arr[5]),
+      pluginName: dco_decode_String(arr[6]),
+      starterId: dco_decode_i_64(arr[7]),
+      startedAtMs: dco_decode_i_64(arr[8]),
+      viewerIds: dco_decode_list_prim_i_64_strict(arr[9]),
+    );
+  }
+
+  @protected
   AddServerOutcome dco_decode_add_server_outcome(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
@@ -10250,6 +10276,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  ActivitySession dco_decode_box_autoadd_activity_session(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_activity_session(raw);
   }
 
   @protected
@@ -11325,6 +11357,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return CoreEventPayload_PluginChannelTypesUpdate(
           dco_decode_list_plugin_channel_type(raw[1]),
         );
+      case 56:
+        return CoreEventPayload_PluginActivitiesUpdate(
+          dco_decode_list_plugin_activity(raw[1]),
+        );
+      case 57:
+        return CoreEventPayload_ActivitySessionCreate(
+          dco_decode_box_autoadd_activity_session(raw[1]),
+        );
+      case 58:
+        return CoreEventPayload_ActivitySessionUpdate(
+          dco_decode_box_autoadd_activity_session(raw[1]),
+        );
+      case 59:
+        return CoreEventPayload_ActivitySessionDelete(
+          sessionId: dco_decode_i_64(raw[1]),
+          channelId: dco_decode_i_64(raw[2]),
+          reason: dco_decode_activity_end_reason(raw[3]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -11754,6 +11804,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ActivitySession> dco_decode_list_activity_session(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_activity_session).toList();
+  }
+
+  @protected
   List<Attachment> dco_decode_list_attachment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_attachment).toList();
@@ -11943,6 +11999,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<Plugin> dco_decode_list_plugin(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_plugin).toList();
+  }
+
+  @protected
+  List<PluginActivity> dco_decode_list_plugin_activity(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_plugin_activity).toList();
   }
 
   @protected
@@ -12876,6 +12938,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PluginActivity dco_decode_plugin_activity(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return PluginActivity(
+      pluginId: dco_decode_String(arr[0]),
+      activityKey: dco_decode_String(arr[1]),
+      name: dco_decode_String(arr[2]),
+      description: dco_decode_String(arr[3]),
+      icon: dco_decode_String(arr[4]),
+      pluginName: dco_decode_String(arr[5]),
+    );
+  }
+
+  @protected
   PluginChannelState dco_decode_plugin_channel_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return PluginChannelState.values[raw as int];
@@ -13239,8 +13317,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ReadySnapshot dco_decode_ready_snapshot(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 20)
-      throw Exception('unexpected arr length: expect 20 but see ${arr.length}');
+    if (arr.length != 22)
+      throw Exception('unexpected arr length: expect 22 but see ${arr.length}');
     return ReadySnapshot(
       selfUser: dco_decode_user(arr[0]),
       server: dco_decode_server_info(arr[1]),
@@ -13262,6 +13340,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       privateSettings: dco_decode_private_settings(arr[17]),
       pluginUsers: dco_decode_list_plugin_user(arr[18]),
       pluginChannelTypes: dco_decode_list_plugin_channel_type(arr[19]),
+      pluginActivities: dco_decode_list_plugin_activity(arr[20]),
+      activitySessions: dco_decode_list_activity_session(arr[21]),
     );
   }
 
@@ -14106,6 +14186,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ActivityEndReason sse_decode_activity_end_reason(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ActivityEndReason.values[inner];
+  }
+
+  @protected
+  ActivitySession sse_decode_activity_session(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_channelId = sse_decode_i_64(deserializer);
+    var var_pluginId = sse_decode_String(deserializer);
+    var var_activityKey = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_icon = sse_decode_String(deserializer);
+    var var_pluginName = sse_decode_String(deserializer);
+    var var_starterId = sse_decode_i_64(deserializer);
+    var var_startedAtMs = sse_decode_i_64(deserializer);
+    var var_viewerIds = sse_decode_list_prim_i_64_strict(deserializer);
+    return ActivitySession(
+      id: var_id,
+      channelId: var_channelId,
+      pluginId: var_pluginId,
+      activityKey: var_activityKey,
+      name: var_name,
+      icon: var_icon,
+      pluginName: var_pluginName,
+      starterId: var_starterId,
+      startedAtMs: var_startedAtMs,
+      viewerIds: var_viewerIds,
+    );
+  }
+
+  @protected
   AddServerOutcome sse_decode_add_server_outcome(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -14252,6 +14368,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  ActivitySession sse_decode_box_autoadd_activity_session(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_activity_session(deserializer));
   }
 
   @protected
@@ -15482,6 +15606,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 55:
         var var_field0 = sse_decode_list_plugin_channel_type(deserializer);
         return CoreEventPayload_PluginChannelTypesUpdate(var_field0);
+      case 56:
+        var var_field0 = sse_decode_list_plugin_activity(deserializer);
+        return CoreEventPayload_PluginActivitiesUpdate(var_field0);
+      case 57:
+        var var_field0 = sse_decode_box_autoadd_activity_session(deserializer);
+        return CoreEventPayload_ActivitySessionCreate(var_field0);
+      case 58:
+        var var_field0 = sse_decode_box_autoadd_activity_session(deserializer);
+        return CoreEventPayload_ActivitySessionUpdate(var_field0);
+      case 59:
+        var var_sessionId = sse_decode_i_64(deserializer);
+        var var_channelId = sse_decode_i_64(deserializer);
+        var var_reason = sse_decode_activity_end_reason(deserializer);
+        return CoreEventPayload_ActivitySessionDelete(
+          sessionId: var_sessionId,
+          channelId: var_channelId,
+          reason: var_reason,
+        );
       default:
         throw UnimplementedError('');
     }
@@ -15988,6 +16130,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ActivitySession> sse_decode_list_activity_session(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ActivitySession>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_activity_session(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<Attachment> sse_decode_list_attachment(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -16399,6 +16555,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <Plugin>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_plugin(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<PluginActivity> sse_decode_list_plugin_activity(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PluginActivity>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_plugin_activity(deserializer));
     }
     return ans_;
   }
@@ -17812,6 +17982,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PluginActivity sse_decode_plugin_activity(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_pluginId = sse_decode_String(deserializer);
+    var var_activityKey = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_description = sse_decode_String(deserializer);
+    var var_icon = sse_decode_String(deserializer);
+    var var_pluginName = sse_decode_String(deserializer);
+    return PluginActivity(
+      pluginId: var_pluginId,
+      activityKey: var_activityKey,
+      name: var_name,
+      description: var_description,
+      icon: var_icon,
+      pluginName: var_pluginName,
+    );
+  }
+
+  @protected
   PluginChannelState sse_decode_plugin_channel_state(
     SseDeserializer deserializer,
   ) {
@@ -18270,6 +18459,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_pluginChannelTypes = sse_decode_list_plugin_channel_type(
       deserializer,
     );
+    var var_pluginActivities = sse_decode_list_plugin_activity(deserializer);
+    var var_activitySessions = sse_decode_list_activity_session(deserializer);
     return ReadySnapshot(
       selfUser: var_selfUser,
       server: var_server,
@@ -18291,6 +18482,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       privateSettings: var_privateSettings,
       pluginUsers: var_pluginUsers,
       pluginChannelTypes: var_pluginChannelTypes,
+      pluginActivities: var_pluginActivities,
+      activitySessions: var_activitySessions,
     );
   }
 
@@ -19279,6 +19472,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_activity_end_reason(
+    ActivityEndReason self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_activity_session(
+    ActivitySession self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_i_64(self.channelId, serializer);
+    sse_encode_String(self.pluginId, serializer);
+    sse_encode_String(self.activityKey, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.icon, serializer);
+    sse_encode_String(self.pluginName, serializer);
+    sse_encode_i_64(self.starterId, serializer);
+    sse_encode_i_64(self.startedAtMs, serializer);
+    sse_encode_list_prim_i_64_strict(self.viewerIds, serializer);
+  }
+
+  @protected
   void sse_encode_add_server_outcome(
     AddServerOutcome self,
     SseSerializer serializer,
@@ -19382,6 +19602,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_activity_session(
+    ActivitySession self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_activity_session(self, serializer);
   }
 
   @protected
@@ -20610,6 +20839,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case CoreEventPayload_PluginChannelTypesUpdate(field0: final field0):
         sse_encode_i_32(55, serializer);
         sse_encode_list_plugin_channel_type(field0, serializer);
+      case CoreEventPayload_PluginActivitiesUpdate(field0: final field0):
+        sse_encode_i_32(56, serializer);
+        sse_encode_list_plugin_activity(field0, serializer);
+      case CoreEventPayload_ActivitySessionCreate(field0: final field0):
+        sse_encode_i_32(57, serializer);
+        sse_encode_box_autoadd_activity_session(field0, serializer);
+      case CoreEventPayload_ActivitySessionUpdate(field0: final field0):
+        sse_encode_i_32(58, serializer);
+        sse_encode_box_autoadd_activity_session(field0, serializer);
+      case CoreEventPayload_ActivitySessionDelete(
+        sessionId: final sessionId,
+        channelId: final channelId,
+        reason: final reason,
+      ):
+        sse_encode_i_32(59, serializer);
+        sse_encode_i_64(sessionId, serializer);
+        sse_encode_i_64(channelId, serializer);
+        sse_encode_activity_end_reason(reason, serializer);
     }
   }
 
@@ -20984,6 +21231,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_activity_session(
+    List<ActivitySession> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_activity_session(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_attachment(
     List<Attachment> self,
     SseSerializer serializer,
@@ -21340,6 +21599,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_plugin(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_plugin_activity(
+    List<PluginActivity> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_plugin_activity(item, serializer);
     }
   }
 
@@ -22528,6 +22799,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_plugin_activity(
+    PluginActivity self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.pluginId, serializer);
+    sse_encode_String(self.activityKey, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.description, serializer);
+    sse_encode_String(self.icon, serializer);
+    sse_encode_String(self.pluginName, serializer);
+  }
+
+  @protected
   void sse_encode_plugin_channel_state(
     PluginChannelState self,
     SseSerializer serializer,
@@ -22887,6 +23172,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_private_settings(self.privateSettings, serializer);
     sse_encode_list_plugin_user(self.pluginUsers, serializer);
     sse_encode_list_plugin_channel_type(self.pluginChannelTypes, serializer);
+    sse_encode_list_plugin_activity(self.pluginActivities, serializer);
+    sse_encode_list_activity_session(self.activitySessions, serializer);
   }
 
   @protected

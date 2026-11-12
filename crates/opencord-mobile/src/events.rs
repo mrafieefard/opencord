@@ -505,7 +505,11 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::PluginReviewUpdate(_)
         | CoreEventPayload::PluginReviewRemove { .. }
         | CoreEventPayload::PluginLogAppend { .. }
-        | CoreEventPayload::PluginChannelTypesUpdate(_) => return None,
+        | CoreEventPayload::PluginChannelTypesUpdate(_)
+        | CoreEventPayload::PluginActivitiesUpdate(_)
+        | CoreEventPayload::ActivitySessionCreate(_)
+        | CoreEventPayload::ActivitySessionUpdate(_)
+        | CoreEventPayload::ActivitySessionDelete { .. } => return None,
     })
 }
 

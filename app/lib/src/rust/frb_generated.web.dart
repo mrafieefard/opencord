@@ -51,6 +51,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AcmeAccount dco_decode_acme_account(dynamic raw);
 
   @protected
+  ActivityEndReason dco_decode_activity_end_reason(dynamic raw);
+
+  @protected
+  ActivitySession dco_decode_activity_session(dynamic raw);
+
+  @protected
   AddServerOutcome dco_decode_add_server_outcome(dynamic raw);
 
   @protected
@@ -76,6 +82,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool dco_decode_bool(dynamic raw);
+
+  @protected
+  ActivitySession dco_decode_box_autoadd_activity_session(dynamic raw);
 
   @protected
   AudioDevices dco_decode_box_autoadd_audio_devices(dynamic raw);
@@ -510,6 +519,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<ActivitySession> dco_decode_list_activity_session(dynamic raw);
+
+  @protected
   List<Attachment> dco_decode_list_attachment(dynamic raw);
 
   @protected
@@ -604,6 +616,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Plugin> dco_decode_list_plugin(dynamic raw);
+
+  @protected
+  List<PluginActivity> dco_decode_list_plugin_activity(dynamic raw);
 
   @protected
   List<PluginChannelType> dco_decode_list_plugin_channel_type(dynamic raw);
@@ -882,6 +897,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Plugin dco_decode_plugin(dynamic raw);
+
+  @protected
+  PluginActivity dco_decode_plugin_activity(dynamic raw);
 
   @protected
   PluginChannelState dco_decode_plugin_channel_state(dynamic raw);
@@ -1177,6 +1195,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AcmeAccount sse_decode_acme_account(SseDeserializer deserializer);
 
   @protected
+  ActivityEndReason sse_decode_activity_end_reason(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ActivitySession sse_decode_activity_session(SseDeserializer deserializer);
+
+  @protected
   AddServerOutcome sse_decode_add_server_outcome(SseDeserializer deserializer);
 
   @protected
@@ -1202,6 +1228,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  ActivitySession sse_decode_box_autoadd_activity_session(
+    SseDeserializer deserializer,
+  );
 
   @protected
   AudioDevices sse_decode_box_autoadd_audio_devices(
@@ -1740,6 +1771,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<ActivitySession> sse_decode_list_activity_session(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<Attachment> sse_decode_list_attachment(SseDeserializer deserializer);
 
   @protected
@@ -1866,6 +1902,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Plugin> sse_decode_list_plugin(SseDeserializer deserializer);
+
+  @protected
+  List<PluginActivity> sse_decode_list_plugin_activity(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<PluginChannelType> sse_decode_list_plugin_channel_type(
@@ -2216,6 +2257,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Plugin sse_decode_plugin(SseDeserializer deserializer);
 
   @protected
+  PluginActivity sse_decode_plugin_activity(SseDeserializer deserializer);
+
+  @protected
   PluginChannelState sse_decode_plugin_channel_state(
     SseDeserializer deserializer,
   );
@@ -2552,6 +2596,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_acme_account(AcmeAccount self, SseSerializer serializer);
 
   @protected
+  void sse_encode_activity_end_reason(
+    ActivityEndReason self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_activity_session(
+    ActivitySession self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_add_server_outcome(
     AddServerOutcome self,
     SseSerializer serializer,
@@ -2586,6 +2642,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_activity_session(
+    ActivitySession self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_audio_devices(
@@ -3281,6 +3343,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_activity_session(
+    List<ActivitySession> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_attachment(
     List<Attachment> self,
     SseSerializer serializer,
@@ -3447,6 +3515,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_plugin(List<Plugin> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_plugin_activity(
+    List<PluginActivity> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_plugin_channel_type(
@@ -3891,6 +3965,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_plugin(Plugin self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plugin_activity(
+    PluginActivity self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_plugin_channel_state(

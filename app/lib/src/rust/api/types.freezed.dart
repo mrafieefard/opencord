@@ -1691,7 +1691,7 @@ extension CoreEventPayloadPatterns on CoreEventPayload {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceRejoinFailed value)?  voiceRejoinFailed,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult Function( CoreEventPayload_MusicSession value)?  musicSession,TResult Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult Function( CoreEventPayload_PrivateSettingsUpdate value)?  privateSettingsUpdate,TResult Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult Function( CoreEventPayload_StagedUploadProgress value)?  stagedUploadProgress,TResult Function( CoreEventPayload_MusicUploadProgress value)?  musicUploadProgress,TResult Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,TResult Function( CoreEventPayload_PluginUpdate value)?  pluginUpdate,TResult Function( CoreEventPayload_PluginRemove value)?  pluginRemove,TResult Function( CoreEventPayload_PluginReviewUpdate value)?  pluginReviewUpdate,TResult Function( CoreEventPayload_PluginReviewRemove value)?  pluginReviewRemove,TResult Function( CoreEventPayload_PluginLogAppend value)?  pluginLogAppend,TResult Function( CoreEventPayload_PluginUsersUpdate value)?  pluginUsersUpdate,TResult Function( CoreEventPayload_PluginChannelTypesUpdate value)?  pluginChannelTypesUpdate,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult Function( CoreEventPayload_Ready value)?  ready,TResult Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult Function( CoreEventPayload_TypingStart value)?  typingStart,TResult Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult Function( CoreEventPayload_VoiceRejoinFailed value)?  voiceRejoinFailed,TResult Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult Function( CoreEventPayload_MusicSession value)?  musicSession,TResult Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult Function( CoreEventPayload_PrivateSettingsUpdate value)?  privateSettingsUpdate,TResult Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult Function( CoreEventPayload_StagedUploadProgress value)?  stagedUploadProgress,TResult Function( CoreEventPayload_MusicUploadProgress value)?  musicUploadProgress,TResult Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,TResult Function( CoreEventPayload_PluginUpdate value)?  pluginUpdate,TResult Function( CoreEventPayload_PluginRemove value)?  pluginRemove,TResult Function( CoreEventPayload_PluginReviewUpdate value)?  pluginReviewUpdate,TResult Function( CoreEventPayload_PluginReviewRemove value)?  pluginReviewRemove,TResult Function( CoreEventPayload_PluginLogAppend value)?  pluginLogAppend,TResult Function( CoreEventPayload_PluginUsersUpdate value)?  pluginUsersUpdate,TResult Function( CoreEventPayload_PluginChannelTypesUpdate value)?  pluginChannelTypesUpdate,TResult Function( CoreEventPayload_PluginActivitiesUpdate value)?  pluginActivitiesUpdate,TResult Function( CoreEventPayload_ActivitySessionCreate value)?  activitySessionCreate,TResult Function( CoreEventPayload_ActivitySessionUpdate value)?  activitySessionUpdate,TResult Function( CoreEventPayload_ActivitySessionDelete value)?  activitySessionDelete,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1750,7 +1750,11 @@ return pluginReviewUpdate(_that);case CoreEventPayload_PluginReviewRemove() when
 return pluginReviewRemove(_that);case CoreEventPayload_PluginLogAppend() when pluginLogAppend != null:
 return pluginLogAppend(_that);case CoreEventPayload_PluginUsersUpdate() when pluginUsersUpdate != null:
 return pluginUsersUpdate(_that);case CoreEventPayload_PluginChannelTypesUpdate() when pluginChannelTypesUpdate != null:
-return pluginChannelTypesUpdate(_that);case _:
+return pluginChannelTypesUpdate(_that);case CoreEventPayload_PluginActivitiesUpdate() when pluginActivitiesUpdate != null:
+return pluginActivitiesUpdate(_that);case CoreEventPayload_ActivitySessionCreate() when activitySessionCreate != null:
+return activitySessionCreate(_that);case CoreEventPayload_ActivitySessionUpdate() when activitySessionUpdate != null:
+return activitySessionUpdate(_that);case CoreEventPayload_ActivitySessionDelete() when activitySessionDelete != null:
+return activitySessionDelete(_that);case _:
   return orElse();
 
 }
@@ -1768,7 +1772,7 @@ return pluginChannelTypesUpdate(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceRejoinFailed value)  voiceRejoinFailed,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,required TResult Function( CoreEventPayload_ServerAddressesUpdate value)  serverAddressesUpdate,required TResult Function( CoreEventPayload_NetworkStatus value)  networkStatus,required TResult Function( CoreEventPayload_ServerNotice value)  serverNotice,required TResult Function( CoreEventPayload_LavalinkNodeStatus value)  lavalinkNodeStatus,required TResult Function( CoreEventPayload_LavalinkNodeRemoved value)  lavalinkNodeRemoved,required TResult Function( CoreEventPayload_LavalinkNodeEvent value)  lavalinkNodeEvent,required TResult Function( CoreEventPayload_LavalinkTestProgress value)  lavalinkTestProgress,required TResult Function( CoreEventPayload_MusicSettingsUpdate value)  musicSettingsUpdate,required TResult Function( CoreEventPayload_MusicSession value)  musicSession,required TResult Function( CoreEventPayload_MusicNowPlaying value)  musicNowPlaying,required TResult Function( CoreEventPayload_MusicNotice value)  musicNotice,required TResult Function( CoreEventPayload_CommandsUpdate value)  commandsUpdate,required TResult Function( CoreEventPayload_EphemeralMessage value)  ephemeralMessage,required TResult Function( CoreEventPayload_UploadSettingsUpdate value)  uploadSettingsUpdate,required TResult Function( CoreEventPayload_PrivateSettingsUpdate value)  privateSettingsUpdate,required TResult Function( CoreEventPayload_StorageUpdate value)  storageUpdate,required TResult Function( CoreEventPayload_StagedUploadProgress value)  stagedUploadProgress,required TResult Function( CoreEventPayload_MusicUploadProgress value)  musicUploadProgress,required TResult Function( CoreEventPayload_UploadProgress value)  uploadProgress,required TResult Function( CoreEventPayload_DownloadProgress value)  downloadProgress,required TResult Function( CoreEventPayload_PluginUpdate value)  pluginUpdate,required TResult Function( CoreEventPayload_PluginRemove value)  pluginRemove,required TResult Function( CoreEventPayload_PluginReviewUpdate value)  pluginReviewUpdate,required TResult Function( CoreEventPayload_PluginReviewRemove value)  pluginReviewRemove,required TResult Function( CoreEventPayload_PluginLogAppend value)  pluginLogAppend,required TResult Function( CoreEventPayload_PluginUsersUpdate value)  pluginUsersUpdate,required TResult Function( CoreEventPayload_PluginChannelTypesUpdate value)  pluginChannelTypesUpdate,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( CoreEventPayload_ConnectionState value)  connectionState,required TResult Function( CoreEventPayload_Ready value)  ready,required TResult Function( CoreEventPayload_MessageCreate value)  messageCreate,required TResult Function( CoreEventPayload_MessageUpdate value)  messageUpdate,required TResult Function( CoreEventPayload_MessageDelete value)  messageDelete,required TResult Function( CoreEventPayload_ChannelCreate value)  channelCreate,required TResult Function( CoreEventPayload_ChannelUpdate value)  channelUpdate,required TResult Function( CoreEventPayload_ChannelDelete value)  channelDelete,required TResult Function( CoreEventPayload_RoleCreate value)  roleCreate,required TResult Function( CoreEventPayload_RoleUpdate value)  roleUpdate,required TResult Function( CoreEventPayload_RoleDelete value)  roleDelete,required TResult Function( CoreEventPayload_MemberJoin value)  memberJoin,required TResult Function( CoreEventPayload_MemberLeave value)  memberLeave,required TResult Function( CoreEventPayload_MemberUpdate value)  memberUpdate,required TResult Function( CoreEventPayload_PresenceUpdate value)  presenceUpdate,required TResult Function( CoreEventPayload_TypingStart value)  typingStart,required TResult Function( CoreEventPayload_ServerUpdate value)  serverUpdate,required TResult Function( CoreEventPayload_PermissionsUpdate value)  permissionsUpdate,required TResult Function( CoreEventPayload_VoiceStateUpdate value)  voiceStateUpdate,required TResult Function( CoreEventPayload_VoiceRejoinFailed value)  voiceRejoinFailed,required TResult Function( CoreEventPayload_VoiceSettingsUpdate value)  voiceSettingsUpdate,required TResult Function( CoreEventPayload_StreamCreate value)  streamCreate,required TResult Function( CoreEventPayload_StreamUpdate value)  streamUpdate,required TResult Function( CoreEventPayload_StreamDelete value)  streamDelete,required TResult Function( CoreEventPayload_StreamViewersUpdate value)  streamViewersUpdate,required TResult Function( CoreEventPayload_SoundboardSoundCreate value)  soundboardSoundCreate,required TResult Function( CoreEventPayload_SoundboardSoundUpdate value)  soundboardSoundUpdate,required TResult Function( CoreEventPayload_SoundboardSoundDelete value)  soundboardSoundDelete,required TResult Function( CoreEventPayload_VoiceChannelEffect value)  voiceChannelEffect,required TResult Function( CoreEventPayload_ServerAddressesUpdate value)  serverAddressesUpdate,required TResult Function( CoreEventPayload_NetworkStatus value)  networkStatus,required TResult Function( CoreEventPayload_ServerNotice value)  serverNotice,required TResult Function( CoreEventPayload_LavalinkNodeStatus value)  lavalinkNodeStatus,required TResult Function( CoreEventPayload_LavalinkNodeRemoved value)  lavalinkNodeRemoved,required TResult Function( CoreEventPayload_LavalinkNodeEvent value)  lavalinkNodeEvent,required TResult Function( CoreEventPayload_LavalinkTestProgress value)  lavalinkTestProgress,required TResult Function( CoreEventPayload_MusicSettingsUpdate value)  musicSettingsUpdate,required TResult Function( CoreEventPayload_MusicSession value)  musicSession,required TResult Function( CoreEventPayload_MusicNowPlaying value)  musicNowPlaying,required TResult Function( CoreEventPayload_MusicNotice value)  musicNotice,required TResult Function( CoreEventPayload_CommandsUpdate value)  commandsUpdate,required TResult Function( CoreEventPayload_EphemeralMessage value)  ephemeralMessage,required TResult Function( CoreEventPayload_UploadSettingsUpdate value)  uploadSettingsUpdate,required TResult Function( CoreEventPayload_PrivateSettingsUpdate value)  privateSettingsUpdate,required TResult Function( CoreEventPayload_StorageUpdate value)  storageUpdate,required TResult Function( CoreEventPayload_StagedUploadProgress value)  stagedUploadProgress,required TResult Function( CoreEventPayload_MusicUploadProgress value)  musicUploadProgress,required TResult Function( CoreEventPayload_UploadProgress value)  uploadProgress,required TResult Function( CoreEventPayload_DownloadProgress value)  downloadProgress,required TResult Function( CoreEventPayload_PluginUpdate value)  pluginUpdate,required TResult Function( CoreEventPayload_PluginRemove value)  pluginRemove,required TResult Function( CoreEventPayload_PluginReviewUpdate value)  pluginReviewUpdate,required TResult Function( CoreEventPayload_PluginReviewRemove value)  pluginReviewRemove,required TResult Function( CoreEventPayload_PluginLogAppend value)  pluginLogAppend,required TResult Function( CoreEventPayload_PluginUsersUpdate value)  pluginUsersUpdate,required TResult Function( CoreEventPayload_PluginChannelTypesUpdate value)  pluginChannelTypesUpdate,required TResult Function( CoreEventPayload_PluginActivitiesUpdate value)  pluginActivitiesUpdate,required TResult Function( CoreEventPayload_ActivitySessionCreate value)  activitySessionCreate,required TResult Function( CoreEventPayload_ActivitySessionUpdate value)  activitySessionUpdate,required TResult Function( CoreEventPayload_ActivitySessionDelete value)  activitySessionDelete,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
@@ -1827,7 +1831,11 @@ return pluginReviewUpdate(_that);case CoreEventPayload_PluginReviewRemove():
 return pluginReviewRemove(_that);case CoreEventPayload_PluginLogAppend():
 return pluginLogAppend(_that);case CoreEventPayload_PluginUsersUpdate():
 return pluginUsersUpdate(_that);case CoreEventPayload_PluginChannelTypesUpdate():
-return pluginChannelTypesUpdate(_that);}
+return pluginChannelTypesUpdate(_that);case CoreEventPayload_PluginActivitiesUpdate():
+return pluginActivitiesUpdate(_that);case CoreEventPayload_ActivitySessionCreate():
+return activitySessionCreate(_that);case CoreEventPayload_ActivitySessionUpdate():
+return activitySessionUpdate(_that);case CoreEventPayload_ActivitySessionDelete():
+return activitySessionDelete(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -1841,7 +1849,7 @@ return pluginChannelTypesUpdate(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceRejoinFailed value)?  voiceRejoinFailed,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult? Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult? Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult? Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult? Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult? Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult? Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult? Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult? Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult? Function( CoreEventPayload_MusicSession value)?  musicSession,TResult? Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult? Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult? Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult? Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult? Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult? Function( CoreEventPayload_PrivateSettingsUpdate value)?  privateSettingsUpdate,TResult? Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult? Function( CoreEventPayload_StagedUploadProgress value)?  stagedUploadProgress,TResult? Function( CoreEventPayload_MusicUploadProgress value)?  musicUploadProgress,TResult? Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult? Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,TResult? Function( CoreEventPayload_PluginUpdate value)?  pluginUpdate,TResult? Function( CoreEventPayload_PluginRemove value)?  pluginRemove,TResult? Function( CoreEventPayload_PluginReviewUpdate value)?  pluginReviewUpdate,TResult? Function( CoreEventPayload_PluginReviewRemove value)?  pluginReviewRemove,TResult? Function( CoreEventPayload_PluginLogAppend value)?  pluginLogAppend,TResult? Function( CoreEventPayload_PluginUsersUpdate value)?  pluginUsersUpdate,TResult? Function( CoreEventPayload_PluginChannelTypesUpdate value)?  pluginChannelTypesUpdate,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( CoreEventPayload_ConnectionState value)?  connectionState,TResult? Function( CoreEventPayload_Ready value)?  ready,TResult? Function( CoreEventPayload_MessageCreate value)?  messageCreate,TResult? Function( CoreEventPayload_MessageUpdate value)?  messageUpdate,TResult? Function( CoreEventPayload_MessageDelete value)?  messageDelete,TResult? Function( CoreEventPayload_ChannelCreate value)?  channelCreate,TResult? Function( CoreEventPayload_ChannelUpdate value)?  channelUpdate,TResult? Function( CoreEventPayload_ChannelDelete value)?  channelDelete,TResult? Function( CoreEventPayload_RoleCreate value)?  roleCreate,TResult? Function( CoreEventPayload_RoleUpdate value)?  roleUpdate,TResult? Function( CoreEventPayload_RoleDelete value)?  roleDelete,TResult? Function( CoreEventPayload_MemberJoin value)?  memberJoin,TResult? Function( CoreEventPayload_MemberLeave value)?  memberLeave,TResult? Function( CoreEventPayload_MemberUpdate value)?  memberUpdate,TResult? Function( CoreEventPayload_PresenceUpdate value)?  presenceUpdate,TResult? Function( CoreEventPayload_TypingStart value)?  typingStart,TResult? Function( CoreEventPayload_ServerUpdate value)?  serverUpdate,TResult? Function( CoreEventPayload_PermissionsUpdate value)?  permissionsUpdate,TResult? Function( CoreEventPayload_VoiceStateUpdate value)?  voiceStateUpdate,TResult? Function( CoreEventPayload_VoiceRejoinFailed value)?  voiceRejoinFailed,TResult? Function( CoreEventPayload_VoiceSettingsUpdate value)?  voiceSettingsUpdate,TResult? Function( CoreEventPayload_StreamCreate value)?  streamCreate,TResult? Function( CoreEventPayload_StreamUpdate value)?  streamUpdate,TResult? Function( CoreEventPayload_StreamDelete value)?  streamDelete,TResult? Function( CoreEventPayload_StreamViewersUpdate value)?  streamViewersUpdate,TResult? Function( CoreEventPayload_SoundboardSoundCreate value)?  soundboardSoundCreate,TResult? Function( CoreEventPayload_SoundboardSoundUpdate value)?  soundboardSoundUpdate,TResult? Function( CoreEventPayload_SoundboardSoundDelete value)?  soundboardSoundDelete,TResult? Function( CoreEventPayload_VoiceChannelEffect value)?  voiceChannelEffect,TResult? Function( CoreEventPayload_ServerAddressesUpdate value)?  serverAddressesUpdate,TResult? Function( CoreEventPayload_NetworkStatus value)?  networkStatus,TResult? Function( CoreEventPayload_ServerNotice value)?  serverNotice,TResult? Function( CoreEventPayload_LavalinkNodeStatus value)?  lavalinkNodeStatus,TResult? Function( CoreEventPayload_LavalinkNodeRemoved value)?  lavalinkNodeRemoved,TResult? Function( CoreEventPayload_LavalinkNodeEvent value)?  lavalinkNodeEvent,TResult? Function( CoreEventPayload_LavalinkTestProgress value)?  lavalinkTestProgress,TResult? Function( CoreEventPayload_MusicSettingsUpdate value)?  musicSettingsUpdate,TResult? Function( CoreEventPayload_MusicSession value)?  musicSession,TResult? Function( CoreEventPayload_MusicNowPlaying value)?  musicNowPlaying,TResult? Function( CoreEventPayload_MusicNotice value)?  musicNotice,TResult? Function( CoreEventPayload_CommandsUpdate value)?  commandsUpdate,TResult? Function( CoreEventPayload_EphemeralMessage value)?  ephemeralMessage,TResult? Function( CoreEventPayload_UploadSettingsUpdate value)?  uploadSettingsUpdate,TResult? Function( CoreEventPayload_PrivateSettingsUpdate value)?  privateSettingsUpdate,TResult? Function( CoreEventPayload_StorageUpdate value)?  storageUpdate,TResult? Function( CoreEventPayload_StagedUploadProgress value)?  stagedUploadProgress,TResult? Function( CoreEventPayload_MusicUploadProgress value)?  musicUploadProgress,TResult? Function( CoreEventPayload_UploadProgress value)?  uploadProgress,TResult? Function( CoreEventPayload_DownloadProgress value)?  downloadProgress,TResult? Function( CoreEventPayload_PluginUpdate value)?  pluginUpdate,TResult? Function( CoreEventPayload_PluginRemove value)?  pluginRemove,TResult? Function( CoreEventPayload_PluginReviewUpdate value)?  pluginReviewUpdate,TResult? Function( CoreEventPayload_PluginReviewRemove value)?  pluginReviewRemove,TResult? Function( CoreEventPayload_PluginLogAppend value)?  pluginLogAppend,TResult? Function( CoreEventPayload_PluginUsersUpdate value)?  pluginUsersUpdate,TResult? Function( CoreEventPayload_PluginChannelTypesUpdate value)?  pluginChannelTypesUpdate,TResult? Function( CoreEventPayload_PluginActivitiesUpdate value)?  pluginActivitiesUpdate,TResult? Function( CoreEventPayload_ActivitySessionCreate value)?  activitySessionCreate,TResult? Function( CoreEventPayload_ActivitySessionUpdate value)?  activitySessionUpdate,TResult? Function( CoreEventPayload_ActivitySessionDelete value)?  activitySessionDelete,}){
 final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
@@ -1900,7 +1908,11 @@ return pluginReviewUpdate(_that);case CoreEventPayload_PluginReviewRemove() when
 return pluginReviewRemove(_that);case CoreEventPayload_PluginLogAppend() when pluginLogAppend != null:
 return pluginLogAppend(_that);case CoreEventPayload_PluginUsersUpdate() when pluginUsersUpdate != null:
 return pluginUsersUpdate(_that);case CoreEventPayload_PluginChannelTypesUpdate() when pluginChannelTypesUpdate != null:
-return pluginChannelTypesUpdate(_that);case _:
+return pluginChannelTypesUpdate(_that);case CoreEventPayload_PluginActivitiesUpdate() when pluginActivitiesUpdate != null:
+return pluginActivitiesUpdate(_that);case CoreEventPayload_ActivitySessionCreate() when activitySessionCreate != null:
+return activitySessionCreate(_that);case CoreEventPayload_ActivitySessionUpdate() when activitySessionUpdate != null:
+return activitySessionUpdate(_that);case CoreEventPayload_ActivitySessionDelete() when activitySessionDelete != null:
+return activitySessionDelete(_that);case _:
   return null;
 
 }
@@ -1917,7 +1929,7 @@ return pluginChannelTypesUpdate(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( PlatformInt64 channelId,  String message)?  voiceRejoinFailed,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,TResult Function( ServerAddresses field0)?  serverAddressesUpdate,TResult Function( NetworkInfo field0)?  networkStatus,TResult Function( ServerNotice field0)?  serverNotice,TResult Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult Function( MusicSettings field0)?  musicSettingsUpdate,TResult Function( MusicSession field0)?  musicSession,TResult Function( MusicNowPlaying field0)?  musicNowPlaying,TResult Function( MusicNotice field0)?  musicNotice,TResult Function( CommandList field0)?  commandsUpdate,TResult Function( EphemeralMessage field0)?  ephemeralMessage,TResult Function( UploadSettings field0)?  uploadSettingsUpdate,TResult Function( PrivateSettings field0)?  privateSettingsUpdate,TResult Function( StorageInfo field0)?  storageUpdate,TResult Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  stagedUploadProgress,TResult Function( PlatformInt64 channelId,  String uploadId,  String filename,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  musicUploadProgress,TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,TResult Function( Plugin field0)?  pluginUpdate,TResult Function( String pluginId)?  pluginRemove,TResult Function( PluginReview field0)?  pluginReviewUpdate,TResult Function( String reviewId)?  pluginReviewRemove,TResult Function( String pluginId,  List<PluginLogLine> lines)?  pluginLogAppend,TResult Function( List<PluginUser> field0)?  pluginUsersUpdate,TResult Function( List<PluginChannelType> field0)?  pluginChannelTypesUpdate,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( ConnectionState field0)?  connectionState,TResult Function( ReadySnapshot field0)?  ready,TResult Function( Message field0)?  messageCreate,TResult Function( Message field0)?  messageUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult Function( Channel field0)?  channelCreate,TResult Function( Channel field0)?  channelUpdate,TResult Function( PlatformInt64 channelId)?  channelDelete,TResult Function( Role field0)?  roleCreate,TResult Function( Role field0)?  roleUpdate,TResult Function( PlatformInt64 roleId)?  roleDelete,TResult Function( Member field0)?  memberJoin,TResult Function( PlatformInt64 userId)?  memberLeave,TResult Function( Member field0)?  memberUpdate,TResult Function( Presence field0)?  presenceUpdate,TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult Function( ServerInfo field0)?  serverUpdate,TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult Function( VoiceState field0)?  voiceStateUpdate,TResult Function( PlatformInt64 channelId,  String message)?  voiceRejoinFailed,TResult Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult Function( ScreenStream field0)?  streamCreate,TResult Function( ScreenStream field0)?  streamUpdate,TResult Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult Function( SoundboardSound field0)?  soundboardSoundCreate,TResult Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult Function( SoundEffect field0)?  voiceChannelEffect,TResult Function( ServerAddresses field0)?  serverAddressesUpdate,TResult Function( NetworkInfo field0)?  networkStatus,TResult Function( ServerNotice field0)?  serverNotice,TResult Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult Function( MusicSettings field0)?  musicSettingsUpdate,TResult Function( MusicSession field0)?  musicSession,TResult Function( MusicNowPlaying field0)?  musicNowPlaying,TResult Function( MusicNotice field0)?  musicNotice,TResult Function( CommandList field0)?  commandsUpdate,TResult Function( EphemeralMessage field0)?  ephemeralMessage,TResult Function( UploadSettings field0)?  uploadSettingsUpdate,TResult Function( PrivateSettings field0)?  privateSettingsUpdate,TResult Function( StorageInfo field0)?  storageUpdate,TResult Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  stagedUploadProgress,TResult Function( PlatformInt64 channelId,  String uploadId,  String filename,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  musicUploadProgress,TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,TResult Function( Plugin field0)?  pluginUpdate,TResult Function( String pluginId)?  pluginRemove,TResult Function( PluginReview field0)?  pluginReviewUpdate,TResult Function( String reviewId)?  pluginReviewRemove,TResult Function( String pluginId,  List<PluginLogLine> lines)?  pluginLogAppend,TResult Function( List<PluginUser> field0)?  pluginUsersUpdate,TResult Function( List<PluginChannelType> field0)?  pluginChannelTypesUpdate,TResult Function( List<PluginActivity> field0)?  pluginActivitiesUpdate,TResult Function( ActivitySession field0)?  activitySessionCreate,TResult Function( ActivitySession field0)?  activitySessionUpdate,TResult Function( PlatformInt64 sessionId,  PlatformInt64 channelId,  ActivityEndReason reason)?  activitySessionDelete,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -1975,7 +1987,11 @@ return pluginReviewUpdate(_that.field0);case CoreEventPayload_PluginReviewRemove
 return pluginReviewRemove(_that.reviewId);case CoreEventPayload_PluginLogAppend() when pluginLogAppend != null:
 return pluginLogAppend(_that.pluginId,_that.lines);case CoreEventPayload_PluginUsersUpdate() when pluginUsersUpdate != null:
 return pluginUsersUpdate(_that.field0);case CoreEventPayload_PluginChannelTypesUpdate() when pluginChannelTypesUpdate != null:
-return pluginChannelTypesUpdate(_that.field0);case _:
+return pluginChannelTypesUpdate(_that.field0);case CoreEventPayload_PluginActivitiesUpdate() when pluginActivitiesUpdate != null:
+return pluginActivitiesUpdate(_that.field0);case CoreEventPayload_ActivitySessionCreate() when activitySessionCreate != null:
+return activitySessionCreate(_that.field0);case CoreEventPayload_ActivitySessionUpdate() when activitySessionUpdate != null:
+return activitySessionUpdate(_that.field0);case CoreEventPayload_ActivitySessionDelete() when activitySessionDelete != null:
+return activitySessionDelete(_that.sessionId,_that.channelId,_that.reason);case _:
   return orElse();
 
 }
@@ -1993,7 +2009,7 @@ return pluginChannelTypesUpdate(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( PlatformInt64 channelId,  String message)  voiceRejoinFailed,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,required TResult Function( ServerAddresses field0)  serverAddressesUpdate,required TResult Function( NetworkInfo field0)  networkStatus,required TResult Function( ServerNotice field0)  serverNotice,required TResult Function( LavalinkNode node,  int channelsPlaying)  lavalinkNodeStatus,required TResult Function( PlatformInt64 nodeId,  int channelsPlaying)  lavalinkNodeRemoved,required TResult Function( LavalinkNodeEvent field0)  lavalinkNodeEvent,required TResult Function( LavalinkTestProgress field0)  lavalinkTestProgress,required TResult Function( MusicSettings field0)  musicSettingsUpdate,required TResult Function( MusicSession field0)  musicSession,required TResult Function( MusicNowPlaying field0)  musicNowPlaying,required TResult Function( MusicNotice field0)  musicNotice,required TResult Function( CommandList field0)  commandsUpdate,required TResult Function( EphemeralMessage field0)  ephemeralMessage,required TResult Function( UploadSettings field0)  uploadSettingsUpdate,required TResult Function( PrivateSettings field0)  privateSettingsUpdate,required TResult Function( StorageInfo field0)  storageUpdate,required TResult Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  stagedUploadProgress,required TResult Function( PlatformInt64 channelId,  String uploadId,  String filename,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  musicUploadProgress,required TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  uploadProgress,required TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)  downloadProgress,required TResult Function( Plugin field0)  pluginUpdate,required TResult Function( String pluginId)  pluginRemove,required TResult Function( PluginReview field0)  pluginReviewUpdate,required TResult Function( String reviewId)  pluginReviewRemove,required TResult Function( String pluginId,  List<PluginLogLine> lines)  pluginLogAppend,required TResult Function( List<PluginUser> field0)  pluginUsersUpdate,required TResult Function( List<PluginChannelType> field0)  pluginChannelTypesUpdate,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( ConnectionState field0)  connectionState,required TResult Function( ReadySnapshot field0)  ready,required TResult Function( Message field0)  messageCreate,required TResult Function( Message field0)  messageUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 messageId)  messageDelete,required TResult Function( Channel field0)  channelCreate,required TResult Function( Channel field0)  channelUpdate,required TResult Function( PlatformInt64 channelId)  channelDelete,required TResult Function( Role field0)  roleCreate,required TResult Function( Role field0)  roleUpdate,required TResult Function( PlatformInt64 roleId)  roleDelete,required TResult Function( Member field0)  memberJoin,required TResult Function( PlatformInt64 userId)  memberLeave,required TResult Function( Member field0)  memberUpdate,required TResult Function( Presence field0)  presenceUpdate,required TResult Function( PlatformInt64 channelId,  PlatformInt64 userId)  typingStart,required TResult Function( ServerInfo field0)  serverUpdate,required TResult Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)  permissionsUpdate,required TResult Function( VoiceState field0)  voiceStateUpdate,required TResult Function( PlatformInt64 channelId,  String message)  voiceRejoinFailed,required TResult Function( VoiceSettings field0)  voiceSettingsUpdate,required TResult Function( ScreenStream field0)  streamCreate,required TResult Function( ScreenStream field0)  streamUpdate,required TResult Function( String streamKey,  PlatformInt64 channelId)  streamDelete,required TResult Function( String streamKey,  Int64List viewerIds)  streamViewersUpdate,required TResult Function( SoundboardSound field0)  soundboardSoundCreate,required TResult Function( SoundboardSound field0)  soundboardSoundUpdate,required TResult Function( PlatformInt64 soundId)  soundboardSoundDelete,required TResult Function( SoundEffect field0)  voiceChannelEffect,required TResult Function( ServerAddresses field0)  serverAddressesUpdate,required TResult Function( NetworkInfo field0)  networkStatus,required TResult Function( ServerNotice field0)  serverNotice,required TResult Function( LavalinkNode node,  int channelsPlaying)  lavalinkNodeStatus,required TResult Function( PlatformInt64 nodeId,  int channelsPlaying)  lavalinkNodeRemoved,required TResult Function( LavalinkNodeEvent field0)  lavalinkNodeEvent,required TResult Function( LavalinkTestProgress field0)  lavalinkTestProgress,required TResult Function( MusicSettings field0)  musicSettingsUpdate,required TResult Function( MusicSession field0)  musicSession,required TResult Function( MusicNowPlaying field0)  musicNowPlaying,required TResult Function( MusicNotice field0)  musicNotice,required TResult Function( CommandList field0)  commandsUpdate,required TResult Function( EphemeralMessage field0)  ephemeralMessage,required TResult Function( UploadSettings field0)  uploadSettingsUpdate,required TResult Function( PrivateSettings field0)  privateSettingsUpdate,required TResult Function( StorageInfo field0)  storageUpdate,required TResult Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  stagedUploadProgress,required TResult Function( PlatformInt64 channelId,  String uploadId,  String filename,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  musicUploadProgress,required TResult Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)  uploadProgress,required TResult Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)  downloadProgress,required TResult Function( Plugin field0)  pluginUpdate,required TResult Function( String pluginId)  pluginRemove,required TResult Function( PluginReview field0)  pluginReviewUpdate,required TResult Function( String reviewId)  pluginReviewRemove,required TResult Function( String pluginId,  List<PluginLogLine> lines)  pluginLogAppend,required TResult Function( List<PluginUser> field0)  pluginUsersUpdate,required TResult Function( List<PluginChannelType> field0)  pluginChannelTypesUpdate,required TResult Function( List<PluginActivity> field0)  pluginActivitiesUpdate,required TResult Function( ActivitySession field0)  activitySessionCreate,required TResult Function( ActivitySession field0)  activitySessionUpdate,required TResult Function( PlatformInt64 sessionId,  PlatformInt64 channelId,  ActivityEndReason reason)  activitySessionDelete,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState():
 return connectionState(_that.field0);case CoreEventPayload_Ready():
@@ -2051,7 +2067,11 @@ return pluginReviewUpdate(_that.field0);case CoreEventPayload_PluginReviewRemove
 return pluginReviewRemove(_that.reviewId);case CoreEventPayload_PluginLogAppend():
 return pluginLogAppend(_that.pluginId,_that.lines);case CoreEventPayload_PluginUsersUpdate():
 return pluginUsersUpdate(_that.field0);case CoreEventPayload_PluginChannelTypesUpdate():
-return pluginChannelTypesUpdate(_that.field0);}
+return pluginChannelTypesUpdate(_that.field0);case CoreEventPayload_PluginActivitiesUpdate():
+return pluginActivitiesUpdate(_that.field0);case CoreEventPayload_ActivitySessionCreate():
+return activitySessionCreate(_that.field0);case CoreEventPayload_ActivitySessionUpdate():
+return activitySessionUpdate(_that.field0);case CoreEventPayload_ActivitySessionDelete():
+return activitySessionDelete(_that.sessionId,_that.channelId,_that.reason);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -2065,7 +2085,7 @@ return pluginChannelTypesUpdate(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( PlatformInt64 channelId,  String message)?  voiceRejoinFailed,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,TResult? Function( ServerAddresses field0)?  serverAddressesUpdate,TResult? Function( NetworkInfo field0)?  networkStatus,TResult? Function( ServerNotice field0)?  serverNotice,TResult? Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult? Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult? Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult? Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult? Function( MusicSettings field0)?  musicSettingsUpdate,TResult? Function( MusicSession field0)?  musicSession,TResult? Function( MusicNowPlaying field0)?  musicNowPlaying,TResult? Function( MusicNotice field0)?  musicNotice,TResult? Function( CommandList field0)?  commandsUpdate,TResult? Function( EphemeralMessage field0)?  ephemeralMessage,TResult? Function( UploadSettings field0)?  uploadSettingsUpdate,TResult? Function( PrivateSettings field0)?  privateSettingsUpdate,TResult? Function( StorageInfo field0)?  storageUpdate,TResult? Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  stagedUploadProgress,TResult? Function( PlatformInt64 channelId,  String uploadId,  String filename,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  musicUploadProgress,TResult? Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult? Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,TResult? Function( Plugin field0)?  pluginUpdate,TResult? Function( String pluginId)?  pluginRemove,TResult? Function( PluginReview field0)?  pluginReviewUpdate,TResult? Function( String reviewId)?  pluginReviewRemove,TResult? Function( String pluginId,  List<PluginLogLine> lines)?  pluginLogAppend,TResult? Function( List<PluginUser> field0)?  pluginUsersUpdate,TResult? Function( List<PluginChannelType> field0)?  pluginChannelTypesUpdate,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( ConnectionState field0)?  connectionState,TResult? Function( ReadySnapshot field0)?  ready,TResult? Function( Message field0)?  messageCreate,TResult? Function( Message field0)?  messageUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 messageId)?  messageDelete,TResult? Function( Channel field0)?  channelCreate,TResult? Function( Channel field0)?  channelUpdate,TResult? Function( PlatformInt64 channelId)?  channelDelete,TResult? Function( Role field0)?  roleCreate,TResult? Function( Role field0)?  roleUpdate,TResult? Function( PlatformInt64 roleId)?  roleDelete,TResult? Function( Member field0)?  memberJoin,TResult? Function( PlatformInt64 userId)?  memberLeave,TResult? Function( Member field0)?  memberUpdate,TResult? Function( Presence field0)?  presenceUpdate,TResult? Function( PlatformInt64 channelId,  PlatformInt64 userId)?  typingStart,TResult? Function( ServerInfo field0)?  serverUpdate,TResult? Function( PlatformInt64 serverPermissions,  List<ChannelPermissions> channelPermissions)?  permissionsUpdate,TResult? Function( VoiceState field0)?  voiceStateUpdate,TResult? Function( PlatformInt64 channelId,  String message)?  voiceRejoinFailed,TResult? Function( VoiceSettings field0)?  voiceSettingsUpdate,TResult? Function( ScreenStream field0)?  streamCreate,TResult? Function( ScreenStream field0)?  streamUpdate,TResult? Function( String streamKey,  PlatformInt64 channelId)?  streamDelete,TResult? Function( String streamKey,  Int64List viewerIds)?  streamViewersUpdate,TResult? Function( SoundboardSound field0)?  soundboardSoundCreate,TResult? Function( SoundboardSound field0)?  soundboardSoundUpdate,TResult? Function( PlatformInt64 soundId)?  soundboardSoundDelete,TResult? Function( SoundEffect field0)?  voiceChannelEffect,TResult? Function( ServerAddresses field0)?  serverAddressesUpdate,TResult? Function( NetworkInfo field0)?  networkStatus,TResult? Function( ServerNotice field0)?  serverNotice,TResult? Function( LavalinkNode node,  int channelsPlaying)?  lavalinkNodeStatus,TResult? Function( PlatformInt64 nodeId,  int channelsPlaying)?  lavalinkNodeRemoved,TResult? Function( LavalinkNodeEvent field0)?  lavalinkNodeEvent,TResult? Function( LavalinkTestProgress field0)?  lavalinkTestProgress,TResult? Function( MusicSettings field0)?  musicSettingsUpdate,TResult? Function( MusicSession field0)?  musicSession,TResult? Function( MusicNowPlaying field0)?  musicNowPlaying,TResult? Function( MusicNotice field0)?  musicNotice,TResult? Function( CommandList field0)?  commandsUpdate,TResult? Function( EphemeralMessage field0)?  ephemeralMessage,TResult? Function( UploadSettings field0)?  uploadSettingsUpdate,TResult? Function( PrivateSettings field0)?  privateSettingsUpdate,TResult? Function( StorageInfo field0)?  storageUpdate,TResult? Function( PlatformInt64 channelId,  String stagedId,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  stagedUploadProgress,TResult? Function( PlatformInt64 channelId,  String uploadId,  String filename,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  musicUploadProgress,TResult? Function( PlatformInt64 channelId,  String nonce,  int fileIndex,  BigInt sentBytes,  BigInt totalBytes,  UploadPhase phase)?  uploadProgress,TResult? Function( PlatformInt64 attachmentId,  BigInt receivedBytes,  BigInt totalBytes,  bool done,  String? error)?  downloadProgress,TResult? Function( Plugin field0)?  pluginUpdate,TResult? Function( String pluginId)?  pluginRemove,TResult? Function( PluginReview field0)?  pluginReviewUpdate,TResult? Function( String reviewId)?  pluginReviewRemove,TResult? Function( String pluginId,  List<PluginLogLine> lines)?  pluginLogAppend,TResult? Function( List<PluginUser> field0)?  pluginUsersUpdate,TResult? Function( List<PluginChannelType> field0)?  pluginChannelTypesUpdate,TResult? Function( List<PluginActivity> field0)?  pluginActivitiesUpdate,TResult? Function( ActivitySession field0)?  activitySessionCreate,TResult? Function( ActivitySession field0)?  activitySessionUpdate,TResult? Function( PlatformInt64 sessionId,  PlatformInt64 channelId,  ActivityEndReason reason)?  activitySessionDelete,}) {final _that = this;
 switch (_that) {
 case CoreEventPayload_ConnectionState() when connectionState != null:
 return connectionState(_that.field0);case CoreEventPayload_Ready() when ready != null:
@@ -2123,7 +2143,11 @@ return pluginReviewUpdate(_that.field0);case CoreEventPayload_PluginReviewRemove
 return pluginReviewRemove(_that.reviewId);case CoreEventPayload_PluginLogAppend() when pluginLogAppend != null:
 return pluginLogAppend(_that.pluginId,_that.lines);case CoreEventPayload_PluginUsersUpdate() when pluginUsersUpdate != null:
 return pluginUsersUpdate(_that.field0);case CoreEventPayload_PluginChannelTypesUpdate() when pluginChannelTypesUpdate != null:
-return pluginChannelTypesUpdate(_that.field0);case _:
+return pluginChannelTypesUpdate(_that.field0);case CoreEventPayload_PluginActivitiesUpdate() when pluginActivitiesUpdate != null:
+return pluginActivitiesUpdate(_that.field0);case CoreEventPayload_ActivitySessionCreate() when activitySessionCreate != null:
+return activitySessionCreate(_that.field0);case CoreEventPayload_ActivitySessionUpdate() when activitySessionUpdate != null:
+return activitySessionUpdate(_that.field0);case CoreEventPayload_ActivitySessionDelete() when activitySessionDelete != null:
+return activitySessionDelete(_that.sessionId,_that.channelId,_that.reason);case _:
   return null;
 
 }
@@ -5936,6 +5960,280 @@ class _$CoreEventPayload_PluginChannelTypesUpdateCopyWithImpl<$Res>
   return _then(CoreEventPayload_PluginChannelTypesUpdate(
 null == field0 ? _self._field0 : field0 // ignore: cast_nullable_to_non_nullable
 as List<PluginChannelType>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_PluginActivitiesUpdate extends CoreEventPayload {
+  const CoreEventPayload_PluginActivitiesUpdate(final  List<PluginActivity> field0): _field0 = field0,super._();
+  
+
+ final  List<PluginActivity> _field0;
+ List<PluginActivity> get field0 {
+  if (_field0 is EqualUnmodifiableListView) return _field0;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_field0);
+}
+
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_PluginActivitiesUpdateCopyWith<CoreEventPayload_PluginActivitiesUpdate> get copyWith => _$CoreEventPayload_PluginActivitiesUpdateCopyWithImpl<CoreEventPayload_PluginActivitiesUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_PluginActivitiesUpdate&&const DeepCollectionEquality().equals(other._field0, _field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+
+@override
+String toString() {
+  return 'CoreEventPayload.pluginActivitiesUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_PluginActivitiesUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_PluginActivitiesUpdateCopyWith(CoreEventPayload_PluginActivitiesUpdate value, $Res Function(CoreEventPayload_PluginActivitiesUpdate) _then) = _$CoreEventPayload_PluginActivitiesUpdateCopyWithImpl;
+@useResult
+$Res call({
+ List<PluginActivity> field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_PluginActivitiesUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_PluginActivitiesUpdateCopyWith<$Res> {
+  _$CoreEventPayload_PluginActivitiesUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_PluginActivitiesUpdate _self;
+  final $Res Function(CoreEventPayload_PluginActivitiesUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_PluginActivitiesUpdate(
+null == field0 ? _self._field0 : field0 // ignore: cast_nullable_to_non_nullable
+as List<PluginActivity>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ActivitySessionCreate extends CoreEventPayload {
+  const CoreEventPayload_ActivitySessionCreate(this.field0): super._();
+  
+
+ final  ActivitySession field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ActivitySessionCreateCopyWith<CoreEventPayload_ActivitySessionCreate> get copyWith => _$CoreEventPayload_ActivitySessionCreateCopyWithImpl<CoreEventPayload_ActivitySessionCreate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ActivitySessionCreate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.activitySessionCreate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ActivitySessionCreateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ActivitySessionCreateCopyWith(CoreEventPayload_ActivitySessionCreate value, $Res Function(CoreEventPayload_ActivitySessionCreate) _then) = _$CoreEventPayload_ActivitySessionCreateCopyWithImpl;
+@useResult
+$Res call({
+ ActivitySession field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ActivitySessionCreateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ActivitySessionCreateCopyWith<$Res> {
+  _$CoreEventPayload_ActivitySessionCreateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ActivitySessionCreate _self;
+  final $Res Function(CoreEventPayload_ActivitySessionCreate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ActivitySessionCreate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ActivitySession,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ActivitySessionUpdate extends CoreEventPayload {
+  const CoreEventPayload_ActivitySessionUpdate(this.field0): super._();
+  
+
+ final  ActivitySession field0;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ActivitySessionUpdateCopyWith<CoreEventPayload_ActivitySessionUpdate> get copyWith => _$CoreEventPayload_ActivitySessionUpdateCopyWithImpl<CoreEventPayload_ActivitySessionUpdate>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ActivitySessionUpdate&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'CoreEventPayload.activitySessionUpdate(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ActivitySessionUpdateCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ActivitySessionUpdateCopyWith(CoreEventPayload_ActivitySessionUpdate value, $Res Function(CoreEventPayload_ActivitySessionUpdate) _then) = _$CoreEventPayload_ActivitySessionUpdateCopyWithImpl;
+@useResult
+$Res call({
+ ActivitySession field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ActivitySessionUpdateCopyWithImpl<$Res>
+    implements $CoreEventPayload_ActivitySessionUpdateCopyWith<$Res> {
+  _$CoreEventPayload_ActivitySessionUpdateCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ActivitySessionUpdate _self;
+  final $Res Function(CoreEventPayload_ActivitySessionUpdate) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(CoreEventPayload_ActivitySessionUpdate(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ActivitySession,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class CoreEventPayload_ActivitySessionDelete extends CoreEventPayload {
+  const CoreEventPayload_ActivitySessionDelete({required this.sessionId, required this.channelId, required this.reason}): super._();
+  
+
+ final  PlatformInt64 sessionId;
+ final  PlatformInt64 channelId;
+ final  ActivityEndReason reason;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CoreEventPayload_ActivitySessionDeleteCopyWith<CoreEventPayload_ActivitySessionDelete> get copyWith => _$CoreEventPayload_ActivitySessionDeleteCopyWithImpl<CoreEventPayload_ActivitySessionDelete>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CoreEventPayload_ActivitySessionDelete&&(identical(other.sessionId, sessionId) || other.sessionId == sessionId)&&(identical(other.channelId, channelId) || other.channelId == channelId)&&(identical(other.reason, reason) || other.reason == reason));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,sessionId,channelId,reason);
+
+@override
+String toString() {
+  return 'CoreEventPayload.activitySessionDelete(sessionId: $sessionId, channelId: $channelId, reason: $reason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CoreEventPayload_ActivitySessionDeleteCopyWith<$Res> implements $CoreEventPayloadCopyWith<$Res> {
+  factory $CoreEventPayload_ActivitySessionDeleteCopyWith(CoreEventPayload_ActivitySessionDelete value, $Res Function(CoreEventPayload_ActivitySessionDelete) _then) = _$CoreEventPayload_ActivitySessionDeleteCopyWithImpl;
+@useResult
+$Res call({
+ PlatformInt64 sessionId, PlatformInt64 channelId, ActivityEndReason reason
+});
+
+
+
+
+}
+/// @nodoc
+class _$CoreEventPayload_ActivitySessionDeleteCopyWithImpl<$Res>
+    implements $CoreEventPayload_ActivitySessionDeleteCopyWith<$Res> {
+  _$CoreEventPayload_ActivitySessionDeleteCopyWithImpl(this._self, this._then);
+
+  final CoreEventPayload_ActivitySessionDelete _self;
+  final $Res Function(CoreEventPayload_ActivitySessionDelete) _then;
+
+/// Create a copy of CoreEventPayload
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? sessionId = null,Object? channelId = null,Object? reason = null,}) {
+  return _then(CoreEventPayload_ActivitySessionDelete(
+sessionId: null == sessionId ? _self.sessionId : sessionId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,channelId: null == channelId ? _self.channelId : channelId // ignore: cast_nullable_to_non_nullable
+as PlatformInt64,reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as ActivityEndReason,
   ));
 }
 

@@ -113,6 +113,8 @@ void main() {
             pluginName: 'Support Desk',
           ),
         ],
+        pluginActivities: const [],
+        activitySessions: const [],
       ),
     );
 

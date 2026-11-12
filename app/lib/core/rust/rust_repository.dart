@@ -886,6 +886,10 @@ class RustRepository implements OpencordRepository {
         PluginChannelTypesUpdated(server, [
           for (final type in field0) pluginChannelTypeFrom(type),
         ]),
+      core.CoreEventPayload_PluginActivitiesUpdate() => null, // Task 9 maps this.
+      core.CoreEventPayload_ActivitySessionCreate() => null, // Task 9 maps this.
+      core.CoreEventPayload_ActivitySessionUpdate() => null, // Task 9 maps this.
+      core.CoreEventPayload_ActivitySessionDelete() => null, // Task 9 maps this.
     };
     if (event != null) _emit(event);
   }

@@ -142,6 +142,44 @@ pub struct PluginChannelType {
     pub plugin_name: String,
 }
 
+/// An activity a running plugin registered (design 2026-11-07 §15.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginActivity {
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
+}
+
+/// One activity running in one call (§15.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivitySession {
+    pub id: i64,
+    /// The voice channel.
+    pub channel_id: i64,
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub icon: String,
+    pub plugin_name: String,
+    pub starter_id: i64,
+    pub started_at_ms: i64,
+    /// Who has it open, ascending.
+    pub viewer_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivityEndReason {
+    Ended,
+    Plugin,
+    CallEmpty,
+    PluginStopped,
+    Unavailable,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OverwriteTargetKind {
     Role,
@@ -414,6 +452,8 @@ pub struct ReadySnapshot {
     /// The channel types running plugins register; empty unless the app
     /// asked for `plugin_channels`.
     pub plugin_channel_types: Vec<PluginChannelType>,
+    pub plugin_activities: Vec<PluginActivity>,
+    pub activity_sessions: Vec<ActivitySession>,
 }
 
 /// What the owner chose for private messages on a server.
@@ -719,6 +759,14 @@ pub enum CoreEventPayload {
     /// Every channel type running plugins register now, in place of the
     /// earlier list.
     PluginChannelTypesUpdate(Vec<PluginChannelType>),
+    PluginActivitiesUpdate(Vec<PluginActivity>),
+    ActivitySessionCreate(ActivitySession),
+    ActivitySessionUpdate(ActivitySession),
+    ActivitySessionDelete {
+        session_id: i64,
+        channel_id: i64,
+        reason: ActivityEndReason,
+    },
 }
 
 /// Where the server is reached from the internet (Phase 3 plan §5.1).
