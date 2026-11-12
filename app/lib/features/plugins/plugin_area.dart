@@ -119,9 +119,10 @@ class PluginAreaState extends ConsumerState<PluginArea>
     final pause = _windowHidden || widget.paused;
     if (pause == _toldPaused || !_viewRuns) return;
     _toldPaused = pause;
-    ref
-        .read(pluginViewProvider(_place))
-        .send({'kind': 'lifecycle', 'event': pause ? 'pause' : 'resume'});
+    ref.read(pluginViewProvider(_place)).send({
+      'kind': 'lifecycle',
+      'event': pause ? 'pause' : 'resume',
+    });
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {

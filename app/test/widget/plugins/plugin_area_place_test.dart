@@ -23,8 +23,7 @@ const _serverKey = 'opencord.example:7710';
 Future<ActivitySession> _startPaint(WidgetTester tester, MockApp app) async {
   final server = app.repository.mockServer(_serverKey);
   final generalVoice = server.channels.values.firstWhere(
-    (channel) =>
-        channel.kind == ChannelKind.voice && channel.name == 'General',
+    (channel) => channel.kind == ChannelKind.voice && channel.name == 'General',
   );
   final paint = server.pluginActivities.firstWhere(
     (activity) => activity.activityKey == 'paint',
@@ -95,9 +94,7 @@ void main() {
   // viewerIds) → activitySessionsProvider → a new ActivityPlace for the
   // changed session → pluginViewProvider. Fails if the place compares by
   // the whole session: the view would close and open again.
-  testWidgets('a session whose viewers changed keeps its view', (
-    tester,
-  ) async {
+  testWidgets('a session whose viewers changed keeps its view', (tester) async {
     final app = await MockApp.pump(tester, size: const Size(1440, 900));
     final session = await _startPaint(tester, app);
     expect(session.viewerIds, isEmpty);
@@ -154,9 +151,7 @@ void main() {
     final session = await _startPaint(tester, app);
     final inCall = server.voice[session.channelId]!;
     if (!inCall.any((participant) => participant.userId != server.selfId)) {
-      final other = server.members.keys.firstWhere(
-        (id) => id != server.selfId,
-      );
+      final other = server.members.keys.firstWhere((id) => id != server.selfId);
       inCall.add(VoiceParticipant(userId: other));
     }
     await _pumpArea(tester, app, ActivityPlace(_serverKey, session));

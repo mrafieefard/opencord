@@ -146,8 +146,11 @@ final pluginViewProvider = Provider.autoDispose
           });
 
           final viewId = await switch (place) {
-            ChannelPlace(:final server, :final channel) =>
-              repository.openView(server, channel, contextJson),
+            ChannelPlace(:final server, :final channel) => repository.openView(
+              server,
+              channel,
+              contextJson,
+            ),
             ActivityPlace(:final server, :final session) =>
               repository.openActivityView(server, session, contextJson),
           };
