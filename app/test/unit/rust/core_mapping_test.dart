@@ -24,6 +24,7 @@ void main() {
   test('messages keep ids, times and the nonce', () {
     final message = messageFrom(
       const core.Message(
+        commandState: core.CommandRunState.answered,
         id: 10,
         channelId: 2,
         authorId: 7,
@@ -52,6 +53,7 @@ void main() {
     // A server can send anything; one bad value must not stop its events.
     final message = messageFrom(
       const core.Message(
+        commandState: core.CommandRunState.answered,
         id: 10,
         channelId: 2,
         authorId: 7,
@@ -199,6 +201,8 @@ void main() {
         addresses: const core.ServerAddresses(domains: []),
         commands: const core.CommandList(commands: [], resultsPublic: true),
         uploadSettings: coreUploadSettings,
+        pluginUsers: const [],
+        pluginChannelTypes: const [],
       ),
     );
 
@@ -394,5 +398,93 @@ void main() {
     expect(sent.afkChannelId, 20);
     expect(sent.afkTimeoutS, 900);
     expect(voiceSettingsTo(settings).afkChannelId, 0);
+  });
+
+  test('plugin mapping converts core types to app types', () {
+    final corePlugin = core.Plugin(
+      id: 'welcome-bot',
+      name: 'Welcome Bot',
+      version: '1.0.0',
+      author: 'Author',
+      description: 'Greets members',
+      github: 'owner/repo',
+      license: 'MIT',
+      signature: core.PluginSignature.signed,
+      keyFingerprint: 'abcd',
+      githubCheck: core.GithubCheck.verified,
+      state: core.PluginState.running,
+      statusReason: '',
+      permissions: const [
+        core.PluginPermissionGrant(
+          name: 'send_messages',
+          granted: true,
+          grantable: true,
+        ),
+      ],
+      domains: const ['api.example.com'],
+      configFields: const [
+        core.PluginConfigField(
+          key: 'channel',
+          label: 'Welcome Channel',
+          kind: core.PluginConfigKind.channel,
+          choices: [],
+          required_: true,
+        ),
+      ],
+      config: const [
+        core.PluginConfigValue(key: 'channel', value: '100', hasValue: true),
+      ],
+      userId: 9001,
+      roleId: 50,
+      installedAtMs: 1700000000000,
+      updatedAtMs: 1700000001000,
+      cpuPermille: 15,
+      memoryBytes: BigInt.from(1048576),
+      databaseBytes: BigInt.from(2048),
+      filesBytes: BigInt.from(4096),
+    );
+
+    final plugin = pluginFrom(corePlugin);
+    expect(plugin.id, 'welcome-bot');
+    expect(plugin.name, 'Welcome Bot');
+    expect(plugin.signature, PluginSignature.signed);
+    expect(plugin.githubCheck, GithubCheck.verified);
+    expect(plugin.state, PluginState.running);
+    expect(plugin.permissions.length, 1);
+    expect(plugin.permissions.first.name, 'send_messages');
+    expect(plugin.permissions.first.granted, isTrue);
+    expect(plugin.configFields.first.kind, PluginConfigKind.channel);
+    expect(plugin.config.first.value, '100');
+    expect(plugin.cpuPermille, 15);
+    expect(plugin.memoryBytes, 1048576);
+  });
+
+  test('role plugin_id and snapshot plugin_users are mapped', () {
+    const coreRole = core.Role(
+      id: 50,
+      name: 'Welcome Bot Role',
+      color: 0,
+      position: 3,
+      permissions: 0,
+      hoist: false,
+      mentionable: false,
+      pluginId: 'welcome-bot',
+    );
+    final role = roleFrom(coreRole);
+    expect(role.id, 50);
+    expect(role.pluginId, 'welcome-bot');
+
+    const coreUser = core.PluginUser(
+      userId: 9001,
+      pluginId: 'welcome-bot',
+      name: 'Welcome Bot',
+      avatarHash: 'hash123',
+      installed: true,
+    );
+    final user = pluginUserFrom(coreUser);
+    expect(user.userId, 9001);
+    expect(user.pluginId, 'welcome-bot');
+    expect(user.name, 'Welcome Bot');
+    expect(user.installed, isTrue);
   });
 }

@@ -5,14 +5,7 @@ import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_theme.dart';
-
-class _ClampedCurve extends Curve {
-  const _ClampedCurve(this.curve);
-  final Curve curve;
-
-  @override
-  double transformInternal(double t) => curve.transform(t).clamp(0.0, 1.0);
-}
+import 'package:opencord/ui/widgets/pop_in.dart';
 
 /// Where a popup grows from: its corner nearest the trigger, found by its
 /// layout once it knows where the popup lands (§5.17).
@@ -119,32 +112,11 @@ class OcPopupRoute<T> extends PopupRoute<T> {
   ) {
     Widget content = Builder(builder: builder);
     if (!reducedMotion && duration > Duration.zero) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: OcSpring.pop.curve,
-      );
-      final opacityCurve = CurvedAnimation(
-        parent: animation,
-        curve: _ClampedCurve(OcSpring.pop.curve),
-      );
-      final scale = Tween<double>(begin: 0.97, end: 1.0).animate(curved);
-      content = AnimatedBuilder(
-        animation: curved,
-        builder: (context, child) {
-          final t = curved.value;
-          final dy = -2.0 * (1.0 - t);
-          return Transform.translate(
-            offset: Offset(0, dy),
-            // The corner is read every frame: the layout finds it after the
-            // first frame is built, while the popup is still transparent.
-            child: ScaleTransition(
-              alignment: _origin.corner,
-              scale: scale,
-              child: child,
-            ),
-          );
-        },
-        child: FadeTransition(opacity: opacityCurve, child: content),
+      content = PopTransition(
+        animation: animation,
+        alignment: () => _origin.corner,
+        rise: -2,
+        child: content,
       );
     }
     final at = trigger;

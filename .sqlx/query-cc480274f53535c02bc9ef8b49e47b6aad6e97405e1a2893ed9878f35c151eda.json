@@ -1,0 +1,170 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", user_id, role_id, version, folder, manifest, signature,\n                  public_key, github_check, running AS \"running: bool\", crashed_reason,\n                  installed_at, updated_at\n           FROM plugins ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "role_id",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "role_id"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "name": "folder",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "folder"
+          }
+        }
+      },
+      {
+        "name": "manifest",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "manifest"
+          }
+        }
+      },
+      {
+        "name": "signature",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "signature"
+          }
+        }
+      },
+      {
+        "name": "public_key",
+        "ordinal": 7,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "public_key"
+          }
+        }
+      },
+      {
+        "name": "github_check",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "github_check"
+          }
+        }
+      },
+      {
+        "name": "running: bool",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "running"
+          }
+        }
+      },
+      {
+        "name": "crashed_reason",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "crashed_reason"
+          }
+        }
+      },
+      {
+        "name": "installed_at",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "installed_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 12,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "cc480274f53535c02bc9ef8b49e47b6aad6e97405e1a2893ed9878f35c151eda"
+}

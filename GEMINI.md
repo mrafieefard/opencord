@@ -2,14 +2,14 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-11-05-floating-ui-followups.md`: nine changes the owner asked for after the floating UI. The design is `docs/superpowers/specs/2026-11-05-floating-ui-followups-design.md`.
+You are implementing `docs/superpowers/plans/2026-11-07-plugins-m1.md`: milestone 1 of plugins (the runtime, the resource manager and bots). The design is `docs/superpowers/specs/2026-11-07-plugins-design.md`.
 
-- The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each milestone: it grows after every review.
-- **One draft pull request for the whole plan.** It stays a draft until the last checkpoint passes. For this plan, that replaces "at the end of each milestone, open a pull request" below.
+- The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each stage: it grows after every review.
+- **One draft pull request for the whole milestone,** opened after Task 3. It stays a draft until the Stage E review passes. For this plan, that replaces "at the end of each milestone, open a pull request" below.
 - The plan gives behavior, interfaces, names and tests, and the spec gives the numbers and words. You write the code, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-- **Keep going until CP4 passes; don't wait for the owner between milestones.** At each checkpoint hand the review to Claude and wait for its verdict. That score decides: PASS starts the next milestone, FAIL goes back to fixing. The plan's "UI checkpoints and scoring" says how, and when to stop and ask the owner.
-- **The decisions entry is Claude's** for this plan, at the last review. Don't write one per milestone.
+- **Keep going through stages A to E without waiting for the owner.** Claude reviews stages D and E; its verdict decides: PASS goes on, FAIL goes back to fixing. The plan's "Stages and their reviews" says how, and when to stop and ask the owner. Stop after Stage E: the owner releases milestone 2.
+- **The decisions entry is Claude's** for this plan, at the last review. Don't write one.
 
 ## Every change is a pull request
 
@@ -59,11 +59,24 @@ Every rule here was broken at least once and caught in review.
   - A handler never reads a body before it knows who sent it.
   - When the plan lists a handler's steps, they are already in this order. Keep it.
 
+### What comes from outside
+
+- **A new way into existing code does what the old way did around it.** Calling a handler from somewhere new (a plugin, a job) skips its dispatcher. List what the dispatcher does before and after the call (rate limit, sender checks, validation, logging) and repeat each one on the new path.
+- **Every value from outside has a limit before it goes anywhere,** even where the plan names none.
+  - Anything stored, sent to other people or answered over HTTP gets a size limit; anything that piles up (registered commands, listeners, rows returned) gets a count. A limit on one value doesn't cap a total: count the total too.
+  - Numbers are checked for NaN, infinity and range before use: `Duration::from_secs_f64(f64::NAN)` panics.
+  - Headers that frame a reply (`content-length`, `transfer-encoding`, `connection`) never come from the caller's data.
+- **Check the type of every argument yourself.** A value of the wrong type gets the same plain error as any other bad value: take the loose type (`mlua::Value`) and check it, so the library's own conversion never fails first.
+  - A list from Lua is a sequence and nothing else: stop reading at its limit, then compare its length with the `pairs` count, so `{ "a", x = "b" }` is refused rather than half read.
+- **Text someone else wrote can't start a log line.** A report, a name or a message going into a log has its control characters replaced and every newline followed by an indent, so `"…\nACTION x"` stays inside its own line. Test that the forged line isn't there.
+
 ### Errors
 
 - **Never turn an error into "nothing".** Propagate with `?`.
   - Never wrap a query in `if let Ok(..)`, `.ok()` or `unwrap_or_default()` when its result decides what gets deleted or skipped. A failed query then looks like an empty one.
   - Never write `let _ =` on a `Result` (database, files, network). If a failure is truly harmless, log it with `tracing` and say why in a comment.
+  - Rollback and clean-up code follows the same rules. One helper undoes a half-done step and logs each failure it meets with `tracing::warn!`; no `let _ =` or `if let Ok(..)` around the undo.
+  - `let Ok(..) = … else { return Ok(()) }` hides a failure as well as `let _ =` does. A failing handler is logged and counted where it fails.
 - **In Dart, catch what you expect:** `on RepoException catch (error)`, never a bare `catch` or `catch (_) {}`.
   - An error the user can cause reaches them, as a toast or an inline error.
   - An `unawaited` future catches its own errors; nothing else will.
@@ -146,11 +159,17 @@ Every rule here was broken at least once and caught in review.
 - **The screen's bottom edge belongs to the system.** Whatever sits at the very bottom stands on `insets.bottom`; look at the screenshot's navigation buttons.
 - **A screenshot with a red dev banner over it isn't done:** dismiss the banner (its ✕) or fix what it says, then take it again.
 - **What the system needs is part of the feature.** URL schemes, permissions and intent filters go in `app.config.ts` in the task that needs them, checked from outside the app.
-- **Events carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value.
+- **A key handler returns `handled` only for the keys it owns.** One above text fields that swallows every key keeps characters from the platform's text input on desktop, while `enterText` in a test bypasses it. Test with a real key event (`sendKeyEvent`) and a text field focused.
+- **Events and calls carry the real state.** An update sent for play, pause or a setting change carries the last known position and values, never a placeholder `0` or empty value. A call's argument the plan gives no source for (a view's context, an id) is a question for the plan's owner, never `'{}'` with the error caught. Each argument comes from the thing it names: an upload's view id is the open view's id, not `'view_$channelId'`, and a branch keyed on a field no caller sets is dead.
+- **A plugin's UI stays inside its area and lives as long as its block.** No `opencord_blocks` block reaches the app's `Navigator` or `Overlay` (`PopupMenuButton`, `showDialog`, `showModalBottomSheet`), and none uses Material `Icons.*` (the app ships no Material icon font; glyphs come from `host.icon`). A popup goes into the plugin area's own overlay; the block's `State` owns the entry and removes it in `dispose` and on Esc. An in-tree `modal`, `sheet` or `toast` draws in the overlay layer, never in place in a column.
+- **Text goes to the framework as given.** No zero-width spaces or other characters to steer wrapping: Flutter already breaks long words, and inserted characters end up in what the user copies.
 - **A retry starts clean and sends the same thing.**
   - It resets what belongs to one attempt: progress, errors.
   - If part of the original request is gone, it refuses rather than sending less (a message without its files).
 - **A gate checks what it guards.** When an action is allowed only after a check (Save after Test), the check runs on exactly the values the action will send, and any change locks it again.
+- **What a control shows is what gets sent.** A chip drawn as selected by default puts its value in the form's state, not only on screen.
+- **A dialog closed by an event has its own request as a case.** The server sends the event before the reply, so while the dialog's own request is running, the event doesn't close it: the reply does, once, and a failure stays in the dialog to be read.
+- **A text field's controller lives in a `State`,** is disposed there, and changes only when the value changed from outside. One made in `build` moves the caret on every key.
 - **One gesture, one action.** A drag moves a preview and acts once, on release; nothing starts work on every pointer move.
 - **A control does what it shows, or it isn't there.** A button that only flips a flag (a play button that plays nothing) is a stub: leave it out and list it under "Left undone".
 - **A control works from every state it can reach:** after the end, after an error, after something else took over. Walk each one: play to the end and press play; start something else and come back.
@@ -170,7 +189,10 @@ Every rule here was broken at least once and caught in review.
 
 - **Every in-memory map says when its entries leave.**
   - Remove the entry where it is used, and on every error path. A guard whose `Drop` removes it covers both.
-  - No map may grow with the number of uploads, messages or users ever seen.
+  - No map may grow with the number of uploads, messages or users ever seen, and an emptied entry leaves too.
+  - State that belongs to something with a life (a VM, a session) leaves however that life ends: stop, restart, crash, a start that was cancelled. Clear it in the one place every end passes through.
+  - A buffer that holds things while it waits (outputs until an id comes back, inputs until a reply) fills only during that wait. When the wait fails, its subscription is cancelled and the buffer emptied: otherwise it collects everyone else's traffic for as long as the error shows.
+- **A task that follows a stream is started once per stream,** not once per start of its owner, and goes on after a hiccup: a loop on a `broadcast` receiver skips `Lagged` and ends only on `Closed`.
 - **Feeding something that plays in real time (a speaker, the call), wait for room.**
   - Write only while the queue is under a small target (tens of milliseconds), as the audio engine does with its speaker. Never push with `let _ =` and drop what doesn't fit.
   - Work in steps the size of the output: decode a packet, make a tick, write it. Decoding a whole file up front costs memory and freezes what later changes (speed, seek) should affect.
@@ -184,11 +206,14 @@ Every rule here was broken at least once and caught in review.
 
 ### Reuse and conventions
 
+- **A known algorithm comes from a crate or its published formula,** with edge dates or values in a test. A hand-made one (days to a date) is wrong in ways that look right.
+- **No `dynamic` for data a widget reads.** It hides a server's shape from the analyzer.
 - **Reuse what exists.** Before writing a helper, grep for one. The same ten lines in two places is a review finding.
   - One mapping (an icon per file type, a validation pass, a list of extensions) lives in one function or constant, not one copy per widget.
   - The app has its own widgets in `app/lib/ui/widgets` (`ChoiceChips`, `OcSwitch`, `OcButton`, …) and text styles in `OcText` (`OcText.mono` for code). Never use the Material widget one of them replaces.
   - Follow the wrappers the file already uses (in `rust_repository.dart`: `_call` for async core calls, `_now` for sync ones).
   - The server's attachments code already has `attachments::open_key` and `key_label`, `attachments::http::attachment_to_proto`, `to_status_proto` and `readable_attachment`, and `attachments::process::base_fields`.
+- **One shape, one builder.** A value people get two ways (a call's result and an event's payload) is built by one function, so the two can't disagree.
 - **Layers stay apart.**
   - Generated types (`app/lib/src/rust/`) stay in `core/rust`. The repository, its events and the widgets use app models from `core/model`, mapped in `core_mapping.dart`.
   - `core/` never imports `features/`: shared state goes in `core/providers`.
@@ -199,10 +224,12 @@ Every rule here was broken at least once and caught in review.
 - **Selectable text takes the long press.** Where a long press opens a menu, the text in it isn't selectable; the menu offers Copy.
 - **Chat screens use keyboard-controller's chat pieces:** the list's scroll view is `KeyboardChatScrollView` and the composer sits in a `KeyboardStickyView`, both offset by the bottom inset (see `features/chat`).
 - **A style passed to a text variant replaces its fields.** To change a variant's size, pass `fontSize` and `lineHeight`; another variant's style brings its font too.
-- **Numbers come from the plan's table.** A step, limit or duration the plan's Numbers table gives is used as given, never a guess.
+- **Numbers come from the plan's table.** A step, limit or duration the plan's Numbers table gives is used as given, never a guess. Code and messages use its constant (`MAX_ATTACHMENTS`, `format!("at most {MAX_ATTACHMENTS} files")`), never a literal copy that drifts when the constant changes.
 - **Check both themes.** Theme colours (`colors.text`, `colors.scrim`) flip with the theme. Anything drawn on a photo or a video uses the fixed dark set, `OcColors.dark`, as the image grid's overlay does.
 - **Finishing a feature removes what stood in for it.** Grep for its "coming later" markers, placeholder toasts and `later:` flags, and remove them in the same task.
 - **A value kept on both sides changes on both sides.** A permission set, a default, a limit or a list that exists in Rust and in Dart is updated in both, in the same task.
+  - A wire format change (a field made optional and left out when unset) changes both parsers in the same commit, and a test feeds the reading side the exact JSON the writing side now sends, with the field left out.
+- **An event two blocks send has one shape and one limit.** A second sender of an existing event (a list's `scroll`, like the scroll block's) uses the first one's helper, with the fields from the plan's wire table and the same rate cap. Writing it again invents fields.
 - **A rule ported from another language matches its meaning, not its look.**
   - Rust's `chars()` counts Unicode scalar values; Dart's `length` counts UTF-16 units, so use `runes`.
   - Rust's `is_control()` includes U+0080–U+009F.
@@ -220,8 +247,20 @@ Every rule here was broken at least once and caught in review.
 
 - **Test against what ships.** When the app carries its own build of a library (FFmpeg in `target/ffmpeg`), run the tests that use it with that build, as CI does: prefix the command with `PKG_CONFIG_PATH=$PWD/target/ffmpeg/lib/pkgconfig LD_LIBRARY_PATH=$PWD/target/ffmpeg/lib`. The system's copy has everything; a test that passes on it says nothing about the app.
 - **A test must be able to fail.** Before trusting one, name a wrong implementation that would still pass it. An assertion on a value the code echoes back (a seek reporting its own target) proves nothing; check an effect only the real behavior produces, such as how much sound came out and how long it took.
+  - Prove it: break the code the test guards (return early, undo the fix), run the test, see it fail, then put the code back. Say in the ledger what you broke.
+  - A test named after an event (a restart, a lag, a timeout) makes that event happen on every run. When a race decides whether it happens, drive it directly: fill a channel before its reader runs, or call the function that handles it.
+  - Fixing a flaky test keeps what it proved. Wait longer for the same condition; don't swap the condition for an easier one.
+    - A rate limit test on a slow runner may see tokens refill. Allow at most `elapsed / refill period` extra successes, timed from before the first counted request; "a 429 somewhere in the next N tries" lets a limit N looser pass.
+    - A test reading what a background writer writes (a log file) polls for the line it needs, with a deadline, before asserting on the rest.
+  - A task's review focus is a list of tests. Each item it names (count, size, blocked extension) gets its own test, and its own mutation shown failing.
+  - A test of a retry sees the second attempt. A message printed before the wait proves nothing, and output that piles up already holds earlier matches: wait for a count.
+  - A test of what an event does sends the event down the road it takes in the app. A fake's stream that reaches no provider, or a dialog with no route under it to pop, passes with the fix removed.
+  - A test of a rule doesn't set up the input that makes the result true anyway. A test of "compact turns a modal into a sheet" leaves `sheet` unset; a test of a mid-drag guard redraws when nothing else (a pending throttled value) would hold the thumb.
+  - Renderer tests build their batches from what the core sends for that action: copy a fixture from `crates/opencord-plugins/tests/fixtures/patches/` or the core's own output. A removal comes with its `drop`, a move with its `children` op, and prop names come from the schema table in `blocks.rs`. A batch written from memory tests a sender that doesn't exist.
+  - An example script and its test feed each other's guesses unless the test sends what the real sender sends: an event's data comes from the wire format's "Event data" table and the block file that sends it (a text input's `change` is `{ value = … }`, not a bare string). Scripts read that one shape; `type(t) == "table" and t.value or t` hides which one is real.
+  - A test with several people gives each path its own person. For delivery by role, one person holds the role and isn't the author, one is the author without it, one has neither; a person who is both proves neither path. Fixing such a test keeps every case the plan names: swapping who does what can drop the one the fix was for.
 - **A UI test pins the design's number, not your code's.** Read it from the prototype's CSS or `measure.json`, then measure the widget where it's really used. M0's `@` badge test pinned the width 18 the code had; the prototype's is 21. A badge in a `Column` stretches to the window's width, so measure it in a `Row`.
-- **A failing test outside your plan's scope is reported, not changed.** Read the log, find out why it failed, re-run the job once and say what you found. M0 lowered a noise test in `crates/` from 40 to 35 dB to turn CI green. It had most likely failed because a loaded runner made High fall back to Standard, which the lower number hides from everyone after you.
+- **A failing test outside your plan's scope is reported, not changed.** Read the log, find out why it failed, re-run the job once and say what you found. M0 lowered a noise test in `crates/` from 40 to 35 dB to turn CI green. It had most likely failed because a loaded runner made High fall back to Standard, which the lower number hides from everyone after you. The same goes for a local check that can't run on your machine: say so in the report; never make the script pass when it can't run.
 - **Flutter's tests draw no shadow blur** unless `debugDisableShadows` is false, so a float gets a hard band under it. Anything that judges a shadow runs in `withRealShadows` (`test/support/floating_scenes.dart`).
 - **Moving a widget can break what depended on where it was.** Before moving one, grep what reaches it: keys, ancestors, listeners, measured sizes. Then test the behaviour in the shell, not only the widget alone. M1 moved the composer to its own float, and every test passed while editing a private message did nothing (its `GlobalKey` pointed at nothing) and files dropped on it were lost (it had left `AttachmentDropZone`).
 - **`compare.py` only checks rectangles.** Colours and text can be wrong while it prints nothing. Open the side-by-side sheets at full size and sample colours against the reference (the screens are at 2×, so a point at x, y is the pixel at 2x, 2y). If text differs in width, measure it and find out why. M1 scored the main header and the rail 5 in the wrong colours, and all text ran 3–4 % wide from Material's inherited letter spacing.
@@ -248,7 +287,9 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 - **Describe the code, not the plan.** For each sentence, open the code it describes, and copy labels, counts and messages from there. The plan says what was asked for; only the code says what was built.
 - **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name. Checksums, versions and hashes are copied from the file, never typed from memory.
 - **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger, your report and the pull request's description, which also lists every commit outside the plan's scope.
-- **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in.
+- **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in. A route also matches the router's line character for character. Each time you edit a document (the pull request's description too), check all of it, not only the part you changed.
+- **Type definitions and API docs copy each shape from the function that builds it,** field by field: the names, which fields can be missing, and what a call returns, including nothing. Matching the function names is only the start.
+  - A method called with `:` takes `self` in its type; a table type lists every field its builder sets.
 
 ## Reports and the ledger
 
@@ -259,9 +300,14 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   Private helpers you needed to build what the plan describes are not deviations.
 
   Name each one in the ledger and in the report, with the failure that made you add it. If `git diff` shows one, "Deviations: none" is wrong.
+- **Where the plan says "ask before …", stop and ask.** Doing it without asking is a deviation even when it turns out right.
+- **A stage end is a ledger entry** with the last lines of `.github/check.sh` and the `gh pr checks` table pasted verbatim, once no check is pending. A table with pending checks hasn't been read yet: wait for it, and fix any red job on the branch before the review.
 - **A fix commit is a deviation too.** M1's report said "Deviations: none" and left out three commits that changed voice and toast behaviour. Name each one, with the failure that made you add it.
 - **A number in a report comes from output you saw.** Paste it, don't recall it. M1's report gave a spring's stiffness 380, damping 34, settle 370 ms and a 200 ms scrim; the real values are 503.6, 44.9, 342 ms and 120 ms. Its pull request described a 32 px title bar, a 44 px header and breakpoints that don't exist.
 - **Never `git add -f`.** What's ignored stays out of the repository. That includes `.superpowers/sdd/`, where the ledger and the scorecard live: M1 force-added both, so don't commit them at all.
+- **A rule covers every site.** When the plan or a review states a rule ("errors are strings", "every change logs an action with names"), find every place it applies before calling it done, and paste the grep that must now print nothing (`grep -rn 'to_str()?' crates/opencord-server/src/plugins`). "All" in the ledger means that grep came back empty; a review that names sites gives examples, not the whole list. Show the grep finding a known bad line first: one that can't match comes back empty too.
+- **A claim names something you ran.** A test in the ledger is one you grepped for. A mutation in the ledger names the exact edit (file, line, old → new) and pastes the line of the test that failed; a different edit that happens to fail the test doesn't count, and if you didn't run it, don't claim it. A test count is copied from the run's `test result:` line, not from an earlier entry. A fix a review places in one function goes there, or the ledger says where it went instead and why. A comment or a pull request body never names a guard the code doesn't have.
+- **Every command in the ledger has its result beside it** (`→ 103 passed; 0 failed`).
 - **A required step you skipped leads the report** (screenshots, a check, a by-hand step), with why. The ledger alone doesn't count.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.
 - **Re-run a flaky test alone,** one test per command, and paste the result:

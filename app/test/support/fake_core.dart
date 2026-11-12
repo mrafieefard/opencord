@@ -10,6 +10,13 @@ class FakeCoreApi extends Fake implements CoreApi {
   final events = StreamController<core.CoreEvent>.broadcast();
   final media = StreamController<core.MediaEvent>.broadcast();
   final privateEvents = StreamController<core.PrivateEvent>.broadcast();
+  final viewOutputs = StreamController<core.ViewOutput>.broadcast();
+
+  void emitViewOutput(core.ViewOutput output) => viewOutputs.add(output);
+  Future<String> Function(String serverKey, int channelId, String contextJson)?
+  viewOpenHandler;
+  final closedViews = <String>{};
+  final viewInputs = <({String viewId, String json})>[];
 
   /// What audioDevices answers.
   var devices = const core.AudioDevices(inputs: [], outputs: []);
@@ -27,6 +34,11 @@ class FakeCoreApi extends Fake implements CoreApi {
     mouse: true,
   );
   final calls = <String>[];
+
+  /// What setPluginFeatures was last sent, and what it held when the
+  /// identity loaded (which connects).
+  List<String>? pluginFeatures;
+  List<String>? featuresAtLoad;
   var servers = <core.Server>[];
   var identityInfo = const core.IdentityInfo(
     publicKeyHex: 'abcd',
@@ -317,8 +329,12 @@ class FakeCoreApi extends Fake implements CoreApi {
   }
 
   @override
+  void setPluginFeatures(List<String> features) => pluginFeatures = features;
+
+  @override
   core.IdentityInfo identityLoad(List<int> secret, String displayName) {
     calls.add('identityLoad:$displayName');
+    featuresAtLoad = pluginFeatures;
     return identityCheck(secret, displayName);
   }
 
@@ -382,6 +398,7 @@ class FakeCoreApi extends Fake implements CoreApi {
   ) async {
     if (sendError case final error?) throw error;
     return core.Message(
+      commandState: core.CommandRunState.answered,
       id: 900,
       channelId: channelId,
       authorId: 1,
@@ -524,6 +541,91 @@ class FakeCoreApi extends Fake implements CoreApi {
     String serverKey,
     core.PresenceStatus status,
   ) async => calls.add('presence:$serverKey:${status.name}');
+
+  @override
+  Stream<core.ViewOutput> viewOutputStream() => viewOutputs.stream;
+
+  @override
+  Future<String> viewOpen({
+    required String serverKey,
+    required int channelId,
+    required String contextJson,
+  }) async {
+    calls.add('viewOpen:$serverKey:$channelId');
+    if (viewOpenHandler != null) {
+      return viewOpenHandler!(serverKey, channelId, contextJson);
+    }
+    return 'view_$channelId';
+  }
+
+  @override
+  void viewInput({required String viewId, required String json}) {
+    viewInputs.add((viewId: viewId, json: json));
+    calls.add('viewInput:$viewId:$json');
+  }
+
+  @override
+  Future<void> viewClose({required String viewId}) async {
+    closedViews.add(viewId);
+    calls.add('viewClose:$viewId');
+  }
+
+  @override
+  Future<String> pluginAssetFile({
+    required String serverKey,
+    required String pluginId,
+    required String path,
+    required String sha256,
+  }) async {
+    calls.add('pluginAssetFile:$serverKey:$pluginId:$path:$sha256');
+    return 'assets/$path';
+  }
+
+  @override
+  Future<String> pluginImageFile({
+    required String serverKey,
+    required String pluginId,
+    required String sourceJson,
+  }) async {
+    calls.add('pluginImageFile:$serverKey:$pluginId');
+    return 'images/image.png';
+  }
+
+  @override
+  Future<void> viewUpload({
+    required String viewId,
+    required BigInt nodeId,
+    required String path,
+  }) async {
+    calls.add('viewUpload:$viewId:$nodeId:$path');
+  }
+
+  @override
+  Future<core.Channel> createPluginChannel({
+    required String serverKey,
+    required String pluginId,
+    required String typeKey,
+    required String name,
+    String? topic,
+    int? parentId,
+  }) async {
+    calls.add('createPluginChannel:$serverKey:$pluginId:$typeKey:$name');
+    return core.Channel(
+      id: 9999,
+      kind: core.ChannelKind.plugin,
+      name: name,
+      topic: topic,
+      parentId: parentId,
+      position: 0,
+      overwrites: const [],
+      bitrate: 64000,
+      userLimit: 0,
+      textInVoice: true,
+      pluginId: pluginId,
+      typeKey: typeKey,
+      pluginState: core.PluginChannelState.available,
+    );
+  }
 }
 
 /// The server's default voice settings, as the core reports them.

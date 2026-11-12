@@ -98,6 +98,8 @@ async fn create_voice_channel(client: &mut TestClient, name: &str) -> i64 {
             name: name.to_owned(),
             topic: None,
             parent_id: None,
+            plugin_id: None,
+            type_key: None,
         }))
         .await
     {

@@ -128,8 +128,16 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     }
     music::start(&state).await?;
     state.commands.load(&mut *state.db.acquire().await?).await?;
+    // Whatever was thinking when the server stopped will never answer.
+    let swept = crate::db::messages::sweep_thinking(&mut *state.db.acquire().await?).await?;
+    if swept > 0 {
+        tracing::info!(swept, "commands left thinking became no answer");
+    }
     crate::lavalink::start(&state).await?;
     crate::attachments::start(&state).await?;
+    // Reviews live in memory, so their files can't outlive a restart.
+    crate::plugins::review::remove_folder(&crate::plugins::review::folder(&state)).await;
+    crate::plugins::start_all(&state).await;
     if let Some(mut events) = node_events {
         let state = Arc::clone(&state);
         tokio::spawn(async move {
@@ -167,6 +175,10 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     };
     let reaper = tokio::spawn(reap_sessions(Arc::clone(&state)));
     tokio::spawn(sweep_private_messages(Arc::clone(&state)));
+    tokio::spawn(crate::plugins::review::sweep_reviews(Arc::clone(&state)));
+    tokio::spawn(crate::plugins::assets::sweep_file_tokens(Arc::clone(
+        &state,
+    )));
     state.network.set_listening(
         local_addr.port(),
         Listening {
@@ -206,9 +218,26 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
 }
 
 impl ServerHandle {
+    /// The application state, for tests.
+    pub fn state(&self) -> &Arc<AppState> {
+        &self.state
+    }
+
+    /// The plugin reviews waiting, for tests that move their clock.
+    pub fn plugin_reviews(&self) -> &crate::plugins::review::Reviews {
+        &self.state.plugins.reviews
+    }
+
+    /// The dev tokens' clock, for tests that move it.
+    pub fn plugin_dev_tokens(&self) -> &crate::plugins::dev::DevTokens {
+        &self.state.plugins.dev_tokens
+    }
+
     /// Closes every connection (1001), stops listening and closes the
     /// database.
     pub async fn shutdown(self) {
+        // While the server still works, so `stop` handlers can use it.
+        self.state.plugins.stop_all().await;
         if let Some(node) = self.state.voice_nodes.embedded() {
             node.shutdown();
         }
@@ -262,6 +291,12 @@ impl ServerHandle {
     /// of renewal.
     pub async fn renew_certificates_now(&self) {
         crate::certs::renew_all_now(&self.state).await;
+    }
+
+    /// Ends the sessions that would have expired `later` from now, as the
+    /// reaper does. Intended for tests of what a session's end closes.
+    pub fn reap_sessions_after(&self, later: Duration) {
+        end_expired_sessions(&self.state, Instant::now() + later);
     }
 
     /// Like [`Self::drop_connections`], for one user only.
@@ -562,12 +597,7 @@ async fn reap_sessions(state: Arc<AppState>) {
     let mut interval = tokio::time::interval(REAP_INTERVAL);
     loop {
         interval.tick().await;
-        for session in state.sessions.remove_expired(Instant::now()) {
-            if !state.sessions.has_user(session.user_id) {
-                state.presence.clear(session.user_id);
-                state.broadcast_presence(session.user_id);
-            }
-        }
+        end_expired_sessions(&state, Instant::now());
         {
             let _writes = state.write_lock().await;
             voice::expire_detached(&state, Instant::now());
@@ -577,6 +607,18 @@ async fn reap_sessions(state: Arc<AppState>) {
         let longest_cooldown = Duration::from_secs(u64::from(SOUND_COOLDOWN_MAX_S));
         state.voice().sounds.prune(Instant::now(), longest_cooldown);
     }
+}
+
+/// Forgets the sessions that can no longer resume at `now`, announcing
+/// users going offline, and closes the views of every ended session.
+fn end_expired_sessions(state: &AppState, now: Instant) {
+    for session in state.sessions.remove_expired(now) {
+        if !state.sessions.has_user(session.user_id) {
+            state.presence.clear(session.user_id);
+            state.broadcast_presence(session.user_id);
+        }
+    }
+    crate::plugins::views::sessions_ended(state);
 }
 
 /// Drops undelivered private events, unseen devices and old send ids,

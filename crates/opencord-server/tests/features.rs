@@ -85,6 +85,8 @@ fn create_text_channel(name: &str) -> Request {
         name: name.to_owned(),
         topic: None,
         parent_id: None,
+        plugin_id: None,
+        type_key: None,
     })
 }
 
@@ -265,6 +267,8 @@ async fn members_receive_nothing_from_channels_they_cannot_view() {
                 name: "Secret Plans".to_owned(),
                 topic: None,
                 parent_id: None,
+                plugin_id: None,
+                type_key: None,
             }))
             .await,
     );
@@ -819,6 +823,8 @@ async fn channels_can_be_organized() {
                 name: "Projects".to_owned(),
                 topic: None,
                 parent_id: None,
+                plugin_id: None,
+                type_key: None,
             }))
             .await,
     );
@@ -829,6 +835,8 @@ async fn channels_can_be_organized() {
                 name: "Rust".to_owned(),
                 topic: Some("crabs".to_owned()),
                 parent_id: Some(category.id),
+                plugin_id: None,
+                type_key: None,
             }))
             .await,
     );
@@ -838,6 +846,8 @@ async fn channels_can_be_organized() {
             name: "Nested".to_owned(),
             topic: None,
             parent_id: Some(category.id),
+            plugin_id: None,
+            type_key: None,
         }))
         .await;
     let renamed = channel(

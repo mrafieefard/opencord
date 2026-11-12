@@ -30,5 +30,6 @@ mod soundboard;
 pub mod store;
 pub mod tofu;
 pub mod video;
+pub mod views;
 pub mod voice;
 pub mod voice_message;

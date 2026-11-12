@@ -8,6 +8,7 @@ import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/music_session.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/server.dart';
@@ -692,4 +693,47 @@ final class OwnDevicesChanged extends RepoEvent {
 
 final class PrivateStateChanged extends RepoEvent {
   const PrivateStateChanged() : super('');
+}
+
+final class PluginUpdated extends RepoEvent {
+  const PluginUpdated(super.serverKey, this.plugin);
+
+  final Plugin plugin;
+}
+
+final class PluginRemoved extends RepoEvent {
+  const PluginRemoved(super.serverKey, this.pluginId);
+
+  final String pluginId;
+}
+
+final class PluginReviewUpdated extends RepoEvent {
+  const PluginReviewUpdated(super.serverKey, this.review);
+
+  final PluginReview review;
+}
+
+final class PluginReviewRemoved extends RepoEvent {
+  const PluginReviewRemoved(super.serverKey, this.reviewId);
+
+  final String reviewId;
+}
+
+final class PluginLogAppended extends RepoEvent {
+  const PluginLogAppended(super.serverKey, this.pluginId, this.lines);
+
+  final String pluginId;
+  final List<PluginLogLine> lines;
+}
+
+final class PluginUsersUpdated extends RepoEvent {
+  const PluginUsersUpdated(super.serverKey, this.users);
+
+  final List<PluginUser> users;
+}
+
+final class PluginChannelTypesUpdated extends RepoEvent {
+  const PluginChannelTypesUpdated(super.serverKey, this.channelTypes);
+
+  final List<PluginChannelType> channelTypes;
 }

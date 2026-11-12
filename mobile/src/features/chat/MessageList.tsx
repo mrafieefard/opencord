@@ -26,6 +26,7 @@ import { DaySeparator } from './DaySeparator';
 import { useChatDock, useMessagesLift } from './dock';
 import { buildChatItems, type ChatItem } from './items';
 import { JumpToLatest } from './JumpToLatest';
+import { EphemeralNote } from './EphemeralNote';
 import { MessageBubble } from './MessageBubble';
 import { NewMessagesDivider } from './NewMessagesDivider';
 import { TypingLine } from './TypingLine';
@@ -131,12 +132,15 @@ export const MessageList = memo(function MessageList({
 
   const typingNames = useTypingNames(serverKey, channelId, Date.now());
 
+  const ephemeral = useAppStore((state) => state.servers[serverKey]?.ephemeral?.[channelId]);
+
   const items = useMemo(() => {
     return buildChatItems(channelMsgs?.items ?? [], channelMsgs?.pending ?? [], {
       selfId,
       firstUnreadId,
+      ephemeral,
     });
-  }, [channelMsgs?.items, channelMsgs?.pending, selfId, firstUnreadId]);
+  }, [channelMsgs?.items, channelMsgs?.pending, selfId, firstUnreadId, ephemeral]);
 
   const atBottom = openChannelState?.atBottom ?? true;
   // While recording, the mic's lock hint takes that corner.
@@ -173,6 +177,8 @@ export const MessageList = memo(function MessageList({
           return <DaySeparator date={item.date} />;
         case 'divider':
           return <NewMessagesDivider />;
+        case 'ephemeral':
+          return <EphemeralNote serverKey={serverKey} channelId={channelId} note={item.note} />;
         case 'message':
           return (
             <MessageBubble
@@ -184,7 +190,7 @@ export const MessageList = memo(function MessageList({
           );
       }
     },
-    [serverKey, onSelectChannel, maxBubbleWidth],
+    [serverKey, channelId, onSelectChannel, maxBubbleWidth],
   );
 
   return (

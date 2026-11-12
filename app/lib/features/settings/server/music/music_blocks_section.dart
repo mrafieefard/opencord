@@ -50,10 +50,10 @@ class MusicBlocksSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     final blocks = ref.watch(musicBlocksProvider(serverKey));
-    final members =
-        ref.watch(serverProvider(serverKey).select((s) => s.data?.members)) ??
-        const {};
-    String nameOf(int userId) => members[userId]?.displayName ?? 'Someone';
+    final authorOf = ref.watch(
+      serverProvider(serverKey).select((s) => s.data?.authorOf),
+    );
+    String nameOf(int userId) => authorOf?.call(userId).name ?? 'Someone';
     return SettingsSection(
       title: 'Blocked members',
       footer:

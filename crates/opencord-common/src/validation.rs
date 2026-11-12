@@ -58,7 +58,7 @@ pub fn channel_name(kind: ChannelKind, input: &str) -> Result<String, Validation
         ChannelKind::Text => {
             single_line_name("channel name", &kebab_case(input), CHANNEL_NAME_MAX_CHARS)
         }
-        ChannelKind::Voice | ChannelKind::Category => {
+        ChannelKind::Voice | ChannelKind::Category | ChannelKind::Plugin => {
             single_line_name("channel name", input, CHANNEL_NAME_MAX_CHARS)
         }
     }

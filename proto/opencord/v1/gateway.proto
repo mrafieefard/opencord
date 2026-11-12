@@ -7,6 +7,7 @@ import "opencord/v1/commands.proto";
 import "opencord/v1/events.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/network.proto";
+import "opencord/v1/plugins.proto";
 import "opencord/v1/private.proto";
 import "opencord/v1/requests.proto";
 
@@ -61,6 +62,8 @@ message Identify {
   // tunnel or proxy, the client sees the proxy's.
   string host = 8;
   bytes host_signature = 9;
+  // Plugin features the app supports (design 2026-11-07 §11.7): "plugin_users", "plugin_channels".
+  repeated string features = 10;
 }
 
 // Re-attaches to an existing session after a dropped connection.
@@ -110,6 +113,9 @@ message Ready {
   // Whether this server relays private messages with chat keys (design
   // 2026-11-01).
   bool private_messages_v2 = 23;
+  // Every plugin user, installed or not (design 2026-11-07).
+  repeated PluginUser plugin_users = 24;
+  repeated PluginChannelType plugin_channel_types = 25;
 }
 
 // Sent after the missed events have been replayed.

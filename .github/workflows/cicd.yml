@@ -37,7 +37,7 @@ env:
   # The server's crates, and the app's. opencord-common and opencord-proto
   # are tested with the server's; opencord-voice with the app's, as its tests
   # call in through the app's media crate and need its native libraries.
-  SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto
+  SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto -p opencord-plugins -p opencord-plugin-cli
   CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher -p opencord-mobile
   FLUTTER_VERSION: 3.44.0
   # Native libraries the app's crates build against on Linux: cpal's PipeWire
@@ -397,6 +397,17 @@ jobs:
 
       - name: Test the app
         working-directory: app
+        run: flutter test
+
+      # The plugin view renderer, a package of its own (app/packages).
+      - name: Analyze the renderer
+        working-directory: app/packages/opencord_blocks
+        run: |
+          flutter pub get
+          flutter analyze
+
+      - name: Test the renderer
+        working-directory: app/packages/opencord_blocks
         run: flutter test
 
       - name: Build

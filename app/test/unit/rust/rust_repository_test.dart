@@ -30,6 +30,7 @@ core.Message _message(
   String content = 'hi',
   int channel = _general,
 }) => core.Message(
+  commandState: core.CommandRunState.answered,
   id: id,
   channelId: channel,
   authorId: author,
@@ -93,6 +94,8 @@ core.ReadySnapshot _ready({
   addresses: const core.ServerAddresses(domains: []),
   commands: const core.CommandList(commands: [], resultsPublic: true),
   uploadSettings: coreUploadSettings,
+  pluginUsers: const [],
+  pluginChannelTypes: const [],
 );
 
 /// A keychain that can be locked, refusing to save, or out of reach.
@@ -159,6 +162,20 @@ void main() {
 
       expect(harness.repository.identity, isNull);
       expect(harness.core.calls, isNot(contains(startsWith('identityLoad'))));
+    });
+
+    // Fails if the desktop doesn't ask for plugin channels, or asks only
+    // after loading the identity, which connects: the first session would
+    // come without them.
+    test('the desktop asks for plugin channels before it connects', () async {
+      final harness = await _Harness.start(
+        saved: SavedIdentity(
+          secret: Uint8List.fromList([9]),
+          displayName: 'Alex',
+        ),
+      );
+
+      expect(harness.core.featuresAtLoad, ['plugin_users', 'plugin_channels']);
     });
 
     test('a saved identity is loaded at once', () async {

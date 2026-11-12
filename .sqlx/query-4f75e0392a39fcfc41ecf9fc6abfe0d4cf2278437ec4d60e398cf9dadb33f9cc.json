@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE plugins SET crashed_reason = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "4f75e0392a39fcfc41ecf9fc6abfe0d4cf2278437ec4d60e398cf9dadb33f9cc"
+}

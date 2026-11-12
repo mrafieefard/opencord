@@ -55,6 +55,16 @@ final class CommandSuggestion extends Suggestion {
   String get insert => '/${spec.name} ';
 }
 
+/// A value suggested for a command's option.
+final class ChoiceSuggestion extends Suggestion {
+  const ChoiceSuggestion(this.choice);
+
+  final CommandChoice choice;
+
+  @override
+  String get insert => choice.name;
+}
+
 const maxSuggestions = 8;
 
 /// 0 when [name] starts with [query], 1 when one of its words does.
