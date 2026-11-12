@@ -221,7 +221,7 @@ void main() {
     );
 
     // Pressing it again lands on the running session: still one.
-    await tester.tap(find.text('Paint together'));
+    await tester.tap(_row('Paint together'));
     await tester.pumpAndSettle();
     expect(find.byType(ActivityPicker), findsNothing);
     expect(app.read(activitySessionsProvider(call.server)), hasLength(1));
@@ -265,7 +265,7 @@ void main() {
     expect(tester.widget<Hoverable>(_row('Game 1')).onTap, isNotNull);
 
     // The disabled row starts nothing and keeps the picker open.
-    await tester.tap(find.text('Paint together'));
+    await tester.tap(_row('Paint together'));
     await tester.pumpAndSettle();
     expect(find.byType(ActivityPicker), findsOneWidget);
     expect(app.read(activitySessionsProvider(call.server)), hasLength(4));
