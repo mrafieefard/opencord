@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update restart animation</title>
+<style>
+  :root { --bg-primary:#f5f5f7; --bg-secondary:#ffffff; --border:#d1d1d6; --text-primary:#1d1d1f; --text-secondary:#86868b; --accent:#0071e3; }
+  @media (prefers-color-scheme: dark) { :root { --bg-primary:#1d1d1f; --bg-secondary:#2d2d2f; --border:#424245; --text-primary:#f5f5f7; --text-secondary:#86868b; --accent:#0a84ff; } }
+  body { margin:0; padding:28px 20px 48px; background:var(--bg-primary); color:var(--text-primary); font-family:Inter, system-ui, -apple-system, sans-serif; }
+  h2 { margin:0 0 6px; } .subtitle { color:var(--text-secondary); margin:0 0 1.25rem; }
+  .card { background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; }
+  code { font-size:.85em; }
+</style>
+</head>
+<body>
+<!-- Approved mockup for docs/superpowers/specs/2026-11-12-background-updates-design.md: the restart animation on SwiftUI's springs. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0&icon_names=check,download">
+<style>
+  .ux-controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: center; margin-bottom: 14px; font-size: .9rem; color: var(--text-secondary); }
+  .ux-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .ux-seg button { border: 0; background: var(--bg-secondary); color: var(--text-primary); padding: 7px 14px; font-size: .85rem; cursor: pointer; }
+  .ux-seg button.on { background: var(--accent); color: #fff; }
+  .ux-play { border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 10px; padding: 7px 16px; cursor: pointer; font-size: .85rem; }
+
+  .ux-desk { position: relative; max-width: 960px; margin: 0 auto; padding: 18px; border-radius: 14px; background: repeating-linear-gradient(135deg, rgba(127,127,127,.06) 0 12px, rgba(127,127,127,.03) 12px 24px); }
+  .ux-gone { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; color: var(--text-secondary); font-size: .9rem; padding: 20px; }
+
+  .ux-win { position: relative; width: 100%; aspect-ratio: 16 / 10; border-radius: 12px; overflow: hidden; background: var(--bg); box-shadow: 0 18px 50px rgba(0,0,0,.35); font-family: Inter, system-ui, sans-serif; transform-origin: 50% 50%; }
+  .ux-win.dark  { --bg:#0A0A0B; --float:#121214; --icon:#2B2B30; --iconA:#3E3E45; --sep:#222226; --text:#EDEDEF; --text2:#A1A1A8; --chat:#0E0E10; --tile:#1F1F23; --line:#1F1F23; --pop:#1F1F23; --shadow:0 4px 18px rgba(0,0,0,.25); }
+  .ux-win.light { --bg:#E9E9EC; --float:#FFFFFF; --icon:#D9D9DE; --iconA:#C1C1C8; --sep:#E3E3E7; --text:#111114; --text2:#55555C; --chat:#F3F3F5; --tile:#F2F2F4; --line:#E7E7EA; --pop:#FFFFFF; --shadow:0 4px 13px rgba(17,17,20,.12); }
+
+  .ux-title { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; color: var(--text2); font-size: 12px; font-weight: 600; }
+  .ux-dots { display: flex; gap: 14px; } .ux-dots i { width: 10px; height: 2px; background: var(--text2); opacity: .6; display: block; }
+  .ux-body { position: absolute; top: 34px; left: 0; right: 0; bottom: 0; padding: 0 8px 8px; display: flex; gap: 8px; }
+  .ux-float { background: var(--float); border-radius: 16px; box-shadow: var(--shadow); }
+  .ux-col { width: 62px; flex: none; display: flex; flex-direction: column; }
+  .ux-rail { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 8px; overflow: hidden; }
+  .ux-icon { width: 46px; height: 46px; border-radius: 23px; flex: none; background: var(--icon); color: var(--text); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+  .ux-icon.active { border-radius: 14px; background: var(--iconA); }
+  .ux-sep { width: 32px; height: 1px; background: var(--sep); flex: none; }
+  .ux-side { width: 30%; max-width: 230px; padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .ux-main { flex: 1; padding: 18px; display: flex; flex-direction: column; gap: 16px; justify-content: flex-end; background: var(--chat); }
+  .ux-bar { height: 9px; border-radius: 5px; background: var(--line); }
+  .ux-msg { display: flex; gap: 10px; align-items: flex-start; }
+  .ux-av { width: 30px; height: 30px; border-radius: 15px; background: var(--icon); flex: none; }
+  .ux-lines { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+
+  /* The update square (C3). */
+  .ux-slot { height: 62px; margin-top: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; flex: none; transition: transform var(--snappy-t) var(--snappy); }
+  .ux-slot:active { transform: scale(.96); }
+  .ux-tile { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    background-color: var(--tile); background-image: linear-gradient(150deg, rgba(61,133,247,.16), rgba(139,92,246,.16)); transition: background-color .12s ease-out; }
+  .ux-slot:hover .ux-tile { background-image: linear-gradient(150deg, rgba(61,133,247,.24), rgba(139,92,246,.24)); }
+  .ms { font-family: 'Material Symbols Rounded'; font-size: 26px; line-height: 1; font-variation-settings: 'wght' 500, 'opsz' 24;
+    background: linear-gradient(150deg, #3D85F7 15%, #8B5CF6 85%); -webkit-background-clip: text; background-clip: text; color: transparent; transition: transform var(--snappy-t) var(--snappy); display: inline-block; }
+  .ux-slot:hover .ms { transform: translateY(2px); }
+  .ux-pop { position: absolute; left: 70px; top: 50%; transform: translate(-4px,-50%); opacity: 0; pointer-events: none; white-space: nowrap; border-radius: 10px; padding: 8px 12px; background: var(--pop); color: var(--text); box-shadow: 0 8px 20px rgba(0,0,0,.3); transition: opacity .08s, transform .08s; z-index: 3; }
+  .ux-slot:hover .ux-pop { opacity: 1; transform: translate(0,-50%); }
+  .ux-pop b { display: block; font-size: 13px; } .ux-pop span { display: block; font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .ux-arrive .ux-slot { animation: ux-in var(--snappy-t) var(--snappy) backwards; }
+  @keyframes ux-in { 0% { height: 0; margin-top: 0; opacity: 0; transform: translateY(14px); } 100% { height: 62px; margin-top: 8px; opacity: 1; transform: none; } }
+
+  /* The animation's layers. */
+  .ux-fill { position: absolute; inset: 0; display: none; z-index: 5; pointer-events: none; }
+  .ux-win.fill-gradient .ux-fill { background: linear-gradient(150deg, #2D63D8, #6E47D3); }
+  .ux-win.fill-neutral .ux-fill { background: radial-gradient(circle at var(--cx) var(--cy), rgba(61,133,247,.10), rgba(139,92,246,.05) 35%, transparent 65%), var(--chat); }
+  .ux-ring { position: absolute; display: none; z-index: 6; pointer-events: none; border-radius: 50%; padding: 2px; box-sizing: border-box;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+  .ux-win.fill-gradient .ux-ring { background: rgba(255,255,255,.45); }
+  .ux-win.fill-neutral .ux-ring { background: linear-gradient(150deg, #3D85F7, #8B5CF6); }
+  .ux-flyer { position: absolute; left: 0; top: 0; width: 62px; height: 62px; display: none; align-items: center; justify-content: center; z-index: 7; border-radius: 16px; background: var(--float); box-shadow: var(--shadow); transform-origin: 50% 50%; transition: background-color var(--smooth-t) var(--smooth), box-shadow var(--smooth-t) var(--smooth); }
+  .ux-flyer .ux-tile { transition: background-color var(--smooth-t) var(--smooth); }
+  .ux-flyer .ms { transition: transform var(--bouncy-t) var(--bouncy), opacity var(--smooth-t) var(--smooth); }
+  .ux-win.fill-gradient .ux-flyer.on-fill { background: rgba(255,255,255,.12); box-shadow: none; }
+  .ux-win.fill-gradient .ux-flyer.on-fill .ux-tile { background-color: rgba(255,255,255,.14); background-image: none; }
+  .ux-win.fill-gradient .ux-flyer.on-fill .ms { background: none; color: #fff; }
+  .ux-cap { position: absolute; left: 0; right: 0; z-index: 7; text-align: center; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; }
+  .ux-cap span { display: block; font-size: 12px; font-weight: 400; margin-top: 4px; opacity: .75; }
+  .ux-win.fill-gradient .ux-cap { color: #fff; }
+  .ux-win.fill-neutral .ux-cap { color: var(--text); }
+  .ux-steps { max-width: 960px; margin: 16px auto 0; color: var(--text-secondary); font-size: .9rem; }
+  .ux-steps li { margin-bottom: .3rem; }
+</style>
+
+<h2>Updating, on Apple's springs</h2>
+<p class="subtitle">Every movement now runs on SwiftUI's own spring presets, with Apple's spring formula. Click the update square, or press Play. Use Slow motion to watch each spring closely.</p>
+
+<div class="ux-controls">
+  <span>Theme <span class="ux-seg" id="seg-theme"><button data-v="dark" class="on">Dark</button><button data-v="light">Light</button></span></span>
+  <span>Fill <span class="ux-seg" id="seg-fill"><button data-v="gradient" class="on">Gradient</button><button data-v="neutral">Neutral</button></span></span>
+  <span>Speed <span class="ux-seg" id="seg-speed"><button data-v="1" class="on">Normal</button><button data-v="3">Slow motion</button></span></span>
+  <button class="ux-play" id="play">▶ Play</button>
+</div>
+
+<div class="ux-desk">
+  <div class="ux-gone" id="gone">Opencord has closed. The launcher switches to the new version and opens it again…</div>
+  <div class="ux-win dark fill-gradient ux-arrive" id="win">
+    <div class="ux-title"><span>Opencord</span><span class="ux-dots"><i></i><i></i><i></i></span></div>
+    <div class="ux-body">
+      <div class="ux-col">
+        <div class="ux-float ux-rail">
+          <div class="ux-icon">⌂</div><div class="ux-sep"></div>
+          <div class="ux-icon active">OC</div><div class="ux-icon">GM</div><div class="ux-icon">RS</div><div class="ux-icon">+</div>
+        </div>
+        <div class="ux-float ux-slot" id="slot">
+          <div class="ux-tile"><span class="ms" id="slotIcon">download</span></div>
+          <div class="ux-pop"><b>Update ready</b><span>Click to restart on 0.0.2-beta.6</span></div>
+        </div>
+      </div>
+      <div class="ux-float ux-side">
+        <div class="ux-bar" style="width:60%;height:12px"></div>
+        <div class="ux-bar" style="width:80%"></div><div class="ux-bar" style="width:65%"></div><div class="ux-bar" style="width:72%"></div>
+        <div class="ux-bar" style="width:50%;margin-top:10px"></div><div class="ux-bar" style="width:70%"></div>
+      </div>
+      <div class="ux-float ux-main">
+        <div class="ux-msg"><div class="ux-av"></div><div class="ux-lines"><div class="ux-bar" style="width:22%"></div><div class="ux-bar" style="width:70%"></div></div></div>
+        <div class="ux-msg"><div class="ux-av"></div><div class="ux-lines"><div class="ux-bar" style="width:18%"></div><div class="ux-bar" style="width:55%"></div><div class="ux-bar" style="width:40%"></div></div></div>
+        <div class="ux-msg"><div class="ux-av"></div><div class="ux-lines"><div class="ux-bar" style="width:25%"></div><div class="ux-bar" style="width:62%"></div></div></div>
+        <div class="ux-bar" style="height:38px;border-radius:12px;margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="ux-fill" id="fill"></div>
+    <div class="ux-ring" id="ring"></div>
+    <div class="ux-flyer" id="flyer"><div class="ux-tile"><span class="ms" id="flyIcon">download</span></div></div>
+    <div class="ux-cap" id="cap"></div>
+  </div>
+</div>
+
+<ol class="ux-steps">
+  <li><b>Lift and glide to the middle</b>: <code>.snappy</code>, 0.5 s, bounce 0.15. It grows to 120 % on the way.</li>
+  <li><b>The wave covers the window</b>: <code>.smooth(duration: 0.7)</code>, no bounce. It leaves fast and settles softly at the edges. "Updating Opencord" fades in on <code>.smooth</code>.</li>
+  <li><b>Opencord closes</b>: <code>.smooth(duration: 0.3)</code>, a quick fade and a 2 % shrink, as macOS closes a window.</li>
+  <li><b>The new version opens still covered</b>: <code>.smooth(duration: 0.35)</code>. The arrow turns into a check mark on <code>.bouncy</code>, 0.5 s, bounce 0.3, like an SF Symbol replacing another.</li>
+  <li><b>The wave pulls back</b>: <code>.smooth(duration: 0.6)</code>. <b>The square glides home</b>: <code>.snappy</code>. <b>It folds away</b>: <code>.smooth</code>, as the server list takes the room back.</li>
+  <li><b>Hover, press and arrival</b> in the server list: <code>.snappy</code> too.</li>
+</ol>
+
+<script>
+  (function () {
+    // SwiftUI's spring(duration:bounce:), mass 1 (WWDC23 "Animate with springs"):
+    //   stiffness = (2π / duration)², damping = 4π (1 − bounce) / duration.
+    // So ω0 = 2π / duration and ζ = 1 − bounce. Starts at rest, goes 0 → 1.
+    function springFn(duration, bounce) {
+      var w0 = 2 * Math.PI / duration, z = 1 - bounce;
+      if (z >= 1) return function (t) { return 1 - Math.exp(-w0 * t) * (1 + w0 * t); };
+      var wd = w0 * Math.sqrt(1 - z * z);
+      return function (t) { return 1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + (z * w0 / wd) * Math.sin(wd * t)); };
+    }
+    // When it has settled: within 0.1 % and no longer moving.
+    function settleTime(f) {
+      var dt = 1 / 240, t = 0, still = 0;
+      while (t < 5) { t += dt; if (Math.abs(1 - f(t)) < 0.001 && Math.abs(f(t) - f(t - dt)) / dt < 0.01) { if ((still += dt) > 0.05) return t; } else still = 0; }
+      return t;
+    }
+    var SPRINGS = { smooth: [0.5, 0], snappy: [0.5, 0.15], bouncy: [0.5, 0.3] };
+    var speed = 1;
+    // CSS transitions use the same springs, sampled into linear().
+    function cssSprings() {
+      var root = document.documentElement;
+      Object.keys(SPRINGS).forEach(function (name) {
+        var f = springFn(SPRINGS[name][0], SPRINGS[name][1]), T = settleTime(f), pts = [];
+        for (var i = 0; i <= 60; i++) pts.push(f(T * i / 60).toFixed(4));
+        root.style.setProperty('--' + name, 'linear(' + pts.join(', ') + ')');
+        root.style.setProperty('--' + name + '-t', (T * speed).toFixed(3) + 's');
+      });
+    }
+    cssSprings();
+
+    var win = document.getElementById('win'), slot = document.getElementById('slot'), fill = document.getElementById('fill'),
+        ring = document.getElementById('ring'), flyer = document.getElementById('flyer'), cap = document.getElementById('cap'),
+        gone = document.getElementById('gone'), flyIcon = document.getElementById('flyIcon'), slotIcon = document.getElementById('slotIcon');
+    var running = false;
+    var lerp = function (a, b, t) { return a + (b - a) * t; };
+    var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms * speed); }); };
+    // Runs one spring to rest, calling fn with its value (which overshoots 1 when it bounces).
+    // onPast(p, cb) fires cb once the value first passes p, for things that start mid-spring.
+    function spring(duration, bounce, fn, marks) {
+      var f = springFn(duration, bounce), T = settleTime(f);
+      return new Promise(function (resolve) {
+        var start = performance.now();
+        var step = function (now) {
+          var t = Math.min(T, (now - start) / 1000 / speed), x = t >= T ? 1 : f(t);
+          fn(x);
+          (marks || []).forEach(function (m) { if (!m.done && x >= m.at) { m.done = true; m.run(); } });
+          if (t < T) requestAnimationFrame(step); else resolve();
+        };
+        requestAnimationFrame(step);
+      });
+    }
+    var smooth = function (d, fn, marks) { return spring(d || 0.5, 0, fn, marks); };
+    var snappy = function (fn, marks) { return spring(0.5, 0.15, fn, marks); };
+
+    var setFlyer = function (x, y, s) { flyer.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')'; };
+    var center, R;
+    var setWave = function (r) { fill.style.clipPath = 'circle(' + Math.max(0, r) + 'px at ' + center.x + 'px ' + center.y + 'px)'; };
+    var setRing = function (r, o) {
+      ring.style.width = ring.style.height = (2 * r) + 'px';
+      ring.style.left = (center.x - r) + 'px'; ring.style.top = (center.y - r) + 'px'; ring.style.opacity = Math.max(0, o);
+    };
+    var caption = function (html) { cap.innerHTML = html; cap.style.top = (center.y + 58) + 'px'; };
+    var fadeCap = function (from, to) { return smooth(0.5, function (x) { cap.style.opacity = lerp(from, to, x); cap.style.transform = 'translateY(' + lerp(to > from ? 6 : 0, to > from ? 0 : 4, x) + 'px)'; }); };
+    var swapIcon = function (name) {
+      flyIcon.style.transform = 'scale(.6)'; flyIcon.style.opacity = '0';
+      setTimeout(function () { flyIcon.textContent = name; flyIcon.style.transform = 'scale(1)'; flyIcon.style.opacity = '1'; }, 90 * speed);
+    };
+
+    async function play() {
+      if (running) return; running = true;
+      win.classList.remove('ux-arrive');
+      var W = win.getBoundingClientRect(), S = slot.getBoundingClientRect();
+      var x0 = S.left - W.left, y0 = S.top - W.top;
+      var cx = W.width / 2 - 31, cy = W.height / 2 - 31 - 18;
+      center = { x: cx + 31, y: cy + 31 };
+      R = Math.hypot(Math.max(center.x, W.width - center.x), Math.max(center.y, W.height - center.y)) + 4;
+      win.style.setProperty('--cx', center.x + 'px'); win.style.setProperty('--cy', center.y + 'px');
+
+      // 1. Lift out and glide to the middle: .snappy.
+      flyIcon.textContent = 'download'; flyIcon.style.transform = ''; flyIcon.style.opacity = '';
+      setFlyer(x0, y0, 1); flyer.style.display = 'flex'; slot.style.visibility = 'hidden';
+      await snappy(function (x) { setFlyer(lerp(x0, cx, x), lerp(y0, cy, x), 1 + .2 * x); });
+
+      // 2. The wave covers the window: .smooth(duration: 0.7). The caption follows on .smooth.
+      fill.style.display = 'block'; ring.style.display = 'block';
+      var r0 = 31 * 1.2; setWave(r0);
+      var capShown;
+      await smooth(0.7, function (x) {
+        var r = lerp(r0, R, x); setWave(r); setRing(r + 8 + 20 * x, 1 - x * 1.15);
+      }, [
+        { at: 0.25, run: function () { flyer.classList.add('on-fill'); } },
+        { at: 0.85, run: function () { caption('Updating Opencord<span>This takes a few seconds</span>'); capShown = fadeCap(0, 1); } }
+      ]);
+      ring.style.display = 'none';
+      await capShown; await wait(650);
+
+      // 3. Opencord closes: .smooth(duration: 0.3).
+      await smooth(0.3, function (x) { win.style.opacity = 1 - x; win.style.transform = 'scale(' + (1 - .02 * x) + ')'; });
+      gone.style.display = 'flex'; await wait(1100); gone.style.display = 'none';
+
+      // 4. The new version opens still covered: .smooth(duration: 0.35); the check arrives on .bouncy.
+      cap.style.opacity = 0; caption('Updated to 0.0.2-beta.6');
+      await smooth(0.35, function (x) { win.style.opacity = x; win.style.transform = 'scale(' + (.98 + .02 * x) + ')'; },
+        [{ at: 0.5, run: function () { swapIcon('check'); fadeCap(0, 1); } }]);
+      win.style.transform = '';
+      await wait(950);
+      await fadeCap(1, 0);
+
+      // 5. The wave pulls back (.smooth 0.6), the square glides home (.snappy) and folds away (.smooth).
+      flyer.classList.remove('on-fill');
+      await smooth(0.6, function (x) { setWave(lerp(R, r0, x)); });
+      fill.style.display = 'none';
+      await snappy(function (x) { setFlyer(lerp(cx, x0, x), lerp(cy, y0, x), 1.2 - .2 * x); });
+      slotIcon.textContent = 'check'; slot.style.visibility = 'visible'; flyer.style.display = 'none';
+      await wait(250);
+      await smooth(0.5, function (x) { slot.style.height = lerp(62, 0, x) + 'px'; slot.style.marginTop = lerp(8, 0, x) + 'px'; slot.style.opacity = 1 - x; });
+
+      // Put the square back for another go.
+      await wait(1400);
+      slot.style.height = slot.style.marginTop = slot.style.opacity = ''; slotIcon.textContent = 'download';
+      void win.offsetWidth; win.classList.add('ux-arrive');
+      running = false;
+    }
+    slot.addEventListener('click', play);
+    document.getElementById('play').addEventListener('click', play);
+
+    var seg = function (id, apply) {
+      var root = document.getElementById(id);
+      root.querySelectorAll('button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (running) return;
+          root.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+          apply(b.getAttribute('data-v'));
+        });
+      });
+    };
+    seg('seg-theme', function (v) { win.classList.toggle('dark', v === 'dark'); win.classList.toggle('light', v === 'light'); });
+    seg('seg-fill', function (v) { win.classList.toggle('fill-gradient', v === 'gradient'); win.classList.toggle('fill-neutral', v === 'neutral'); });
+    seg('seg-speed', function (v) { speed = Number(v); cssSprings(); });
+  })();
+</script>
+
+</body>
+</html>
