@@ -87,7 +87,7 @@ Stage 0 is signing. Stages 1 and later are the background updates. They are one 
 
 ### Who does what
 
-- **The launcher** starts the app at once, and switches to a waiting update first when there is one. A new `--prepare` mode unpacks a download the app hands it. The launcher still handles the first install, track switches and uninstalling, with the splash as today.
+- **The launcher** starts the app at once, and switches to a waiting update first when there is one. A new `--prepare` mode unpacks a download the app hands it, and a new `--cover` mode holds the covered picture during an update restart. The launcher still handles the first install, track switches and uninstalling, with the splash as today.
 - **The app** checks for updates, downloads them with the voice throttle, asks the launcher to prepare them, shows the square, plays the animation, restarts, and rejoins voice. The Rust side is in `opencord-core`, through flutter_rust_bridge, and the UI is Dart.
 - **The shared code** moves out of the launcher's binary into a new library crate, `crates/opencord-update`. It holds:
   - the manifest (`release.rs`);
@@ -111,7 +111,9 @@ Stage 0 is signing. Stages 1 and later are the background updates. They are one 
 | `pending.json` | the launcher, after a prepare; the app only updates `confirmed_at` | `{version, track, prepared_at, confirmed_at}`; `app-<version>/` beside it is whole |
 | `launching.json` | the launcher, just before it starts the app | `{version, at}`: the version it started |
 | `started.json` | the app, once the desktop shell first shows | `{version, at}`: the version that got that far |
-| `restart.json` | the app, just before an update restart | `{from, to, at, voice}`, where `voice` is `{server_key, channel_id}` or null |
+| `restart.json` | the app, just before an update restart | `{from, to, at, voice, window, cover}`: `voice` is `{server_key, channel_id}` or null, `window` the window's physical position and size, `cover` whether the launcher holds the cover |
+| `cover.rgba` | the app, just before an update restart | the last covered frame, for the launcher's window |
+| `cover.shown`, `cover.taken` | the launcher; the new app | the two hand-offs of the cover |
 
 How they fit with what exists:
 - **`current()` is unchanged.** `installed.json` still decides what starts. A prepared folder only starts after the launcher has switched `installed.json` to it.
@@ -228,24 +230,42 @@ Every movement uses SwiftUI's own spring presets. Flutter 3.44's `SpringDescript
 | --- | --- |
 | 1. The square lifts out of the rail and glides to the middle of the window, growing to 120 % | `.snappy` |
 | 2. A wave spreads out from the square until it covers the window. A ring fades ahead of its edge. "Updating Opencord", with "This takes a few seconds" under it, fades in below the square once the wave is 85 % across | `.smooth(duration: 0.7)`; the caption `.smooth` |
-| 3. The window fades and shrinks by 2 %, then the app exits through the launcher | `.smooth(duration: 0.3)` |
-| 4. The new version opens still covered | `.smooth(duration: 0.35)` |
-| 5. The arrow turns into a check mark, and "Updated to <version>" fades in | the icon `.bouncy`; the caption `.smooth` |
+| 3. The launcher takes over the cover and the app exits (see "The launcher holds the cover"). Nothing visibly changes | none |
+| 4. The new version appears under the same cover | none |
+| 5. The arrow turns into a check mark, and the caption changes to "Updated to <version>" | the icon `.bouncy`; the caption `.smooth` |
 | 6. After about a second, the caption fades, the wave pulls back into the square, and the square glides home | the wave `.smooth(duration: 0.6)`; the glide `.snappy` |
 | 7. The square folds away as the rail takes its room back | `.smooth` |
 
-**The fill.** Gradient: a 150° gradient from `#2D63D8` to `#6E47D3`. While the window is covered, the square, the icon and the captions are white. The mockup also has a Neutral fill: the app's background with a gradient edge on the wave. **The owner hasn't chosen between them, so Gradient is my call until the owner confirms.**
+**The mockup differs in steps 3 and 4.** There the window fades and shrinks, and a grey screen stands for the restart. The real thing shows no change at all between the two versions: the owner chose to have the launcher hold the cover.
 
-**Opening already covered.**
-- **Reading `restart.json`:** the new app reads it before it configures its window. If it is less than 2 minutes old, the app draws the cover from its very first frame and plays steps 4–7.
-- **The window background:** `startWindow` passes a native background colour before Flutter paints. On this path it gets the fill's colour, `#4D55D6` (the gradient's middle), so nothing flashes. With the Neutral fill it would be the theme's chat colour, as it is today.
-- **Afterwards** the app deletes `restart.json`.
+**The fill** is Gradient, the owner's choice: a 150° gradient from `#2D63D8` to `#6E47D3`. While the window is covered, the square, the icon and the captions are white. The mockup's Neutral fill is not used.
+
+### The launcher holds the cover
+
+Opencord's window appears only after its engine, keys and tray have started (`app_start.dart`), so between the old window closing and the new one appearing there would be a moment with no window at all, longer on slow machines. Fading or shrinking an OS window would also need native code on each system. Instead, the launcher shows a window with the covered picture on it, in the same place and size as the old window, and keeps it up until the new window is up underneath.
+
+1. **The old app hands over the cover.** About 0.65 s after the caption has appeared:
+   - It captures its own last covered frame. That is the whole window, title bar included, since the app draws its own.
+   - It writes the frame to `cover.rgba` in the install folder: raw RGBA with a small header giving the width and height in physical pixels. The builder may use PNG instead.
+   - It records the window's position and size, in physical pixels, in `restart.json`.
+   - It starts `launcher --after-pid <pid> --cover`.
+2. **The launcher shows the cover.** It opens a borderless window at exactly that place and size, draws the picture into it (winit and softbuffer, as the splash already does), and writes `cover.shown`.
+3. **The old app exits.** It waits for `cover.shown`, for up to 3 seconds, then exits whether it appeared or not. Because the launcher's window shows the same picture, nothing visibly changes.
+4. **The launcher switches and starts the new version**, as in "The update restart", keeping its window up.
+5. **The new app opens already covered.**
+   - It reads `restart.json` before it configures its window. If the file is less than 2 minutes old, its first frame is the covered picture: the gradient, the square in the middle with the download arrow, and "Updating Opencord".
+   - Its window is shown only once that frame has been drawn. The Linux runner already shows the window on its first frame; the builder makes Windows and macOS do the same on this path.
+   - As a safety net in case anything shows before the first frame, `startWindow`'s native background colour is the fill's middle, `#4D55D6`.
+6. **The launcher steps aside.** The new app writes `cover.taken` once its window is showing. The launcher then closes its window and exits. If `cover.taken` doesn't appear within 30 seconds, the launcher closes its window anyway; a start that crashed is handled by "Recovering from a bad release".
+7. **The new app finishes.** It plays steps 5–7 of the table, then deletes `restart.json`, `cover.rgba`, `cover.shown` and `cover.taken`.
+
+**Wayland** doesn't let a program choose where its window goes, so the launcher can't place its window over the app's. When the app runs on Wayland, it records `"cover": false` and skips steps 1–3 and 6: the covered window closes, and the new one appears, already covered, a moment later. The window may also open somewhere else, since Wayland places it. (My call; there's no way around it on Wayland.)
 
 **A failed update.** The app compares its own version (`Installation.version`) with `restart.json`'s `to`.
 - **Equal:** the update worked, and steps 4–7 play as above.
 - **Different:** the launcher didn't switch. The reverse still plays, but with the download arrow and no caption, and the square glides back and stays, because the update is still waiting. The app adds a line to the session log. (My call.)
 
-**Reduce motion** (the OS setting or the app's, through `OcMotion`). Nothing moves. The cover fades in over 0.2 s and the app restarts. The new version fades the cover out.
+**Reduce motion** (the OS setting or the app's, through `OcMotion`). Nothing moves. The cover fades in over 0.2 s, the launcher holds it in the same way, and the new version fades it out.
 
 **Two smaller rules:**
 - **Where the window reopens:** the existing "restore window position" setting decides. With it off, the reopened window may land somewhere else, and that is accepted.
@@ -276,6 +296,7 @@ Every movement uses SwiftUI's own spring presets. Flutter 3.44's `SpringDescript
   - `--prepare` with a bad signature, a bad hash, the wrong platform, and a lock already held;
   - prune keeps the waiting version and the in-progress download;
   - `OPENCORD_LAUNCHER_FEATURES` is set;
+  - `--cover` reads `cover.rgba`, writes `cover.shown`, and closes on `cover.taken` or after 30 seconds (the window itself can be faked behind a trait);
   - starting with no network makes no request.
 - **The core:**
   - the throttle against scripted voice stats: hurting halves, hurting at the floor pauses, calm grows, leaving the call restores full speed, joining one takes a new baseline;
@@ -303,7 +324,10 @@ These can't be done from the Linux machine.
   - Does an old launcher with a new app behave as "Old launchers" says?
 - **Windows:**
   - Does `--prepare` cope with antivirus scanning the new folder while it is renamed?
-  - Does the restart avoid a window flash between the old app and the new one?
+- **The cover, on Windows, macOS and Linux on X11:**
+  - Does the launcher's window land exactly over the app's, on a high-DPI screen and on a second monitor?
+  - Is there no flash at either hand-off?
+  - On macOS, does starting the launcher through `open` bring its window above the app's without the dock icon bouncing?
 
 ## Docs
 
@@ -324,13 +348,15 @@ These can't be done from the Linux machine.
   - the same in dark and light,
   - not glossy.
 - The restart animation: the square moves to the middle, a wave covers the window, the app closes, and the new version reverses it.
+- The Gradient fill for the wave.
+- The launcher holds the cover between the two versions, so the covered screen never disappears.
 - Apple's spring curves, matched exactly, for every movement.
 - Built in Flutter code, not with Rive.
 - Signing and background updates in one plan, in the order Claude chose: signing first.
 
 ## Calls Claude made that the owner hasn't confirmed
 
-- The Gradient fill for the animation.
+- The cover is the old app's last frame saved as a picture, so the launcher shows exactly what the app showed. On Wayland the gap stays.
 - Keeping a waiting update for 24 hours from its last confirmation before the launcher stops switching to it on its own; an update restart switches whatever its age.
 - Going online first when the installer runs again and after a start that crashed, so a bad release can't strand users.
 - The first check 15 seconds after the shell shows, then every 4 hours.
