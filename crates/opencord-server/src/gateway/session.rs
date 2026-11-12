@@ -25,6 +25,9 @@ pub const OUTBOUND_CAPACITY: usize = 2_048;
 /// The `Identify.features` name of apps that show plugin channels (design
 /// 2026-11-07 §14).
 pub const PLUGIN_CHANNELS: &str = "plugin_channels";
+/// The `Identify.features` name of apps that show activities in calls
+/// (design 2026-11-07 §15).
+pub const ACTIVITIES: &str = "activities";
 
 /// WebSocket close codes; see docs/protocol.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,8 +179,8 @@ impl Session {
         Self { features, ..self }
     }
 
-    /// Whether the app supports this plugin feature: `"plugin_users"` or
-    /// [`PLUGIN_CHANNELS`].
+    /// Whether the app supports this plugin feature: `"plugin_users"`,
+    /// [`PLUGIN_CHANNELS`] or [`ACTIVITIES`].
     pub fn has_feature(&self, name: &str) -> bool {
         self.features.iter().any(|feature| feature == name)
     }

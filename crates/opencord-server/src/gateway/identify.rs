@@ -10,7 +10,7 @@ use opencord_proto::v1 as proto;
 use proto::envelope::Payload;
 
 use super::frames;
-use super::session::{CloseCode, Connection, PLUGIN_CHANNELS, Session};
+use super::session::{ACTIVITIES, CloseCode, Connection, PLUGIN_CHANNELS, Session};
 use crate::bootstrap::hash_claim_token;
 use crate::db::invites;
 use crate::db::meta::ServerMeta;
@@ -423,7 +423,11 @@ fn ready(
         } else {
             Vec::new()
         },
-        plugin_activities: Vec::new(),
+        plugin_activities: if session.has_feature(ACTIVITIES) {
+            state.plugins.activities.list()
+        } else {
+            Vec::new()
+        },
         activity_sessions: Vec::new(),
     }
 }

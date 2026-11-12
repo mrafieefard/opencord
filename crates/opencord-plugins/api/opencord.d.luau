@@ -293,6 +293,12 @@ export type ChannelTypeSpec = {
     icon: string?,
 }
 
+export type ActivitySpec = {
+    name: string,
+    description: string?,
+    icon: string?,
+}
+
 export type ViewOpenEvent = {
     view: View,
 }
@@ -987,6 +993,8 @@ export type ViewContext = {
 declare ui: {
     --- Permission: create_channel_types. Server only.
     register_channel_type: (key: string, spec: ChannelTypeSpec) -> (),
+    --- Permission: register_activities. Server only.
+    register_activity: (key: string, spec: ActivitySpec) -> (),
     --- Server only.
     on: (name: string, handler: (view: View, data: any) -> ()) -> (),
     --- Server only.

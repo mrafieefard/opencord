@@ -190,6 +190,8 @@ pub const VIEW_LINK_MAX_CHARS: usize = 2_000;
 
 /// Channel types one plugin registers.
 pub const CHANNEL_TYPES_PER_PLUGIN: usize = 20;
+/// Activities one plugin registers.
+pub const ACTIVITIES_PER_PLUGIN: usize = 20;
 /// The text of `app.confirm`, `app.alert` and `app.prompt`.
 pub const DIALOG_MAX_CHARS: usize = 2_000;
 /// One view sends its plugin's log at most one error report this often.

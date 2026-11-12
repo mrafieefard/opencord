@@ -1,17 +1,20 @@
-//! `ui`: the plugin's channel types (spec §14.1) and its views (§10.3,
-//! plan M2 Task 10).
+//! `ui`: the plugin's channel types (spec §14.1), its activities (§15.1,
+//! plan M3 Task 3) and its views (§10.3, plan M2 Task 10).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, PoisonError};
 use std::time::{Duration, Instant};
 
 use mlua::{Function, Lua, LuaSerdeExt as _, Table, Value};
-use opencord_plugins::limits::{CHANNEL_TYPES_PER_PLUGIN, VIEW_EVENT_MAX_BYTES};
+use opencord_plugins::limits::{
+    ACTIVITIES_PER_PLUGIN, CHANNEL_TYPES_PER_PLUGIN, VIEW_EVENT_MAX_BYTES,
+};
 use opencord_proto::v1 as proto;
 
 use super::{async_function, function, id_arg, raise, string_arg, string_arg_opt};
 use crate::guild::Guild;
 use crate::handlers::channels::valid_type_key;
+use crate::plugins::activities;
 use crate::plugins::channel_types::{self, ChannelType, TooMany};
 use crate::plugins::permissions::PluginPermission;
 use crate::plugins::runtime::{PluginEnv, payload_value};
@@ -33,13 +36,22 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
             let env = register_env.clone();
             async move {
                 env.require(PluginPermission::CreateChannelTypes)?;
-                let key = string_arg(key, "key")?;
-                if !valid_type_key(&key) {
-                    return Err(raise(
-                        "INVALID_ARGUMENT: key must be 1 to 40 of a-z, 0-9 and _",
-                    ));
-                }
-                let channel_type = channel_type(&env, spec)?;
+                let key = key_arg(key)?;
+                let Listing {
+                    name,
+                    description,
+                    icon,
+                } = listing(
+                    &env,
+                    spec,
+                    "a channel type is a table such as { name = \"Tickets\" }",
+                )?;
+                let channel_type = ChannelType {
+                    name,
+                    description,
+                    icon,
+                    plugin_name: env.plugin_name.clone(),
+                };
                 let state = env.state()?;
                 let (plugin_id, registered) = (env.plugin_id.clone(), key.clone());
                 env.on_server(async move {
@@ -54,6 +66,48 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 env.log.push(
                     proto::PluginLogLevel::Action,
                     &format!("registered channel type {key}"),
+                );
+                Ok(())
+            }
+        })?,
+    )?;
+    let activity_env = env.clone();
+    ui.raw_set(
+        "register_activity",
+        async_function(lua, move |_, (key, spec): (Value, Value)| {
+            let env = activity_env.clone();
+            async move {
+                env.require(PluginPermission::RegisterActivities)?;
+                let key = key_arg(key)?;
+                let Listing {
+                    name,
+                    description,
+                    icon,
+                } = listing(
+                    &env,
+                    spec,
+                    "an activity is a table such as { name = \"Paint together\" }",
+                )?;
+                let activity = activities::Registered {
+                    name,
+                    description,
+                    icon,
+                    plugin_name: env.plugin_name.clone(),
+                };
+                let state = env.state()?;
+                let (plugin_id, registered) = (env.plugin_id.clone(), key.clone());
+                env.on_server(async move {
+                    activities::register(&state, &plugin_id, &registered, activity).await
+                })
+                .await?
+                .map_err(|activities::TooMany| {
+                    raise(format!(
+                        "PLUGIN_LIMIT: at most {ACTIVITIES_PER_PLUGIN} activities"
+                    ))
+                })?;
+                env.log.push(
+                    proto::PluginLogLevel::Action,
+                    &format!("registered activity {key}"),
                 );
                 Ok(())
             }
@@ -275,12 +329,30 @@ fn broadcast(
     Ok(reached)
 }
 
-/// `{ name, description?, icon? }`, checked.
-fn channel_type(env: &PluginEnv, spec: Value) -> mlua::Result<ChannelType> {
-    let Value::Table(spec) = spec else {
+/// A channel type's or an activity's key, checked.
+fn key_arg(key: Value) -> mlua::Result<String> {
+    let key = string_arg(key, "key")?;
+    if !valid_type_key(&key) {
         return Err(raise(
-            "INVALID_ARGUMENT: a channel type is a table such as { name = \"Tickets\" }",
+            "INVALID_ARGUMENT: key must be 1 to 40 of a-z, 0-9 and _",
         ));
+    }
+    Ok(key)
+}
+
+/// What a channel type and an activity are listed with.
+struct Listing {
+    name: String,
+    description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    icon: String,
+}
+
+/// `{ name, description?, icon? }`, checked; `not_a_table` is the error
+/// when `spec` isn't a table.
+fn listing(env: &PluginEnv, spec: Value, not_a_table: &str) -> mlua::Result<Listing> {
+    let Value::Table(spec) = spec else {
+        return Err(raise(format!("INVALID_ARGUMENT: {not_a_table}")));
     };
     let name = string_arg(field(&spec, "name")?, "name")?;
     if !text_fits(&name, NAME_MAX_CHARS) || name.trim().is_empty() {
@@ -313,11 +385,10 @@ fn channel_type(env: &PluginEnv, spec: Value) -> mlua::Result<ChannelType> {
             )));
         }
     }
-    Ok(ChannelType {
+    Ok(Listing {
         name,
         description,
         icon,
-        plugin_name: env.plugin_name.clone(),
     })
 }
 

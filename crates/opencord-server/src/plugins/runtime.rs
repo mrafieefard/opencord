@@ -33,13 +33,13 @@ use tokio::task::JoinSet;
 
 use super::api::plugin::handlers_for;
 use super::api::{self, raise};
-use super::channel_types;
 use super::command_calls;
 use super::cpu_share::{CpuShare, lower_this_threads_priority};
 use super::database::{self, PluginDb};
 use super::net::{NetGuard, PluginNet};
 use super::permissions::PluginPermission;
 use super::{InstalledPlugin, PluginHandle, StartError};
+use super::{activities, channel_types};
 use crate::config::PluginsSection;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -1010,6 +1010,7 @@ async fn run_once(
     let (commands, commands_receiver) = watch::channel(Command::Run);
     if let Some(state) = state.upgrade() {
         state.plugins.channel_types.begin(&handle.id);
+        state.plugins.activities.begin(&handle.id);
     }
     if let Err(error) = spawn_vm(
         spec.clone(),
@@ -1041,6 +1042,7 @@ async fn run_once(
                 // hears the channels change first.
                 if let Some(state) = state.upgrade() {
                     channel_types::started(&state, &handle.id).await;
+                    activities::started(&state, &handle.id).await;
                 }
                 if let Some(waiter) = started.take() {
                     // A caller that gave up waiting reads the handle.
@@ -1085,6 +1087,7 @@ async fn turn_off(state: &Weak<AppState>, handle: &PluginHandle, error: &str) {
     handle.log.push(proto::PluginLogLevel::Error, &reason);
     if let Some(state) = &state {
         channel_types::stopped(state, &handle.id).await;
+        activities::stopped(state, &handle.id).await;
         super::announce(state, &handle.id).await;
     }
 }

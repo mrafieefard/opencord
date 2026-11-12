@@ -1,6 +1,7 @@
 //! Plugins (design 2026-11-07): server Lua scripts admins install, each
 //! acting through a plugin user and a managed role.
 
+pub mod activities;
 pub mod api;
 pub mod assets;
 pub mod channel_types;
@@ -346,6 +347,8 @@ pub struct Plugins {
     pub bus: Arc<PluginBus>,
     /// The channel types running plugins registered.
     pub channel_types: channel_types::ChannelTypes,
+    /// The activities running plugins registered.
+    pub activities: activities::Activities,
     /// Tokens for members to load private plugin files.
     pub file_tokens: assets::FileTokens,
     /// The open views of plugin channels.
@@ -379,6 +382,7 @@ impl Plugins {
             dev_tokens: dev::DevTokens::default(),
             bus: Arc::new(PluginBus::default()),
             channel_types: channel_types::ChannelTypes::default(),
+            activities: activities::Activities::default(),
             file_tokens: assets::FileTokens::default(),
             views: views::Views::default(),
             images: images::Images::default(),
@@ -437,6 +441,7 @@ impl Plugins {
         if started.is_err() {
             // The old copy stopped and the new one didn't start.
             channel_types::stopped(state, &id).await;
+            activities::stopped(state, &id).await;
         }
         started
     }
@@ -601,6 +606,7 @@ impl Plugins {
             handle.stop().await;
         }
         channel_types::stopped(state, id).await;
+        activities::stopped(state, id).await;
     }
 
     /// Stops the plugin and forgets it, writing out its log first.
@@ -616,6 +622,7 @@ impl Plugins {
         // Its views' unkept uploads go with the sweep.
         state.attachments.view_uploads().forget_plugin(id);
         channel_types::stopped(state, id).await;
+        activities::stopped(state, id).await;
         self.clear_log_watchers(id);
         self.bus.unlisten_all(id);
         self.handles
