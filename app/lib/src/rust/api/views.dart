@@ -32,6 +32,47 @@ Future<String> viewOpen({
   contextJson: contextJson,
 );
 
+/// Opens the activity session `session_id`, running in the call
+/// `channel_id`; as `view_open`. The server refuses it unless this device
+/// is in that call.
+Future<String> viewOpenActivity({
+  required String serverKey,
+  required PlatformInt64 sessionId,
+  required PlatformInt64 channelId,
+  required String activityKey,
+  required String contextJson,
+}) => RustLib.instance.api.crateApiViewsViewOpenActivity(
+  serverKey: serverKey,
+  sessionId: sessionId,
+  channelId: channelId,
+  activityKey: activityKey,
+  contextJson: contextJson,
+);
+
+/// Starts a plugin's activity in the call `channel_id`, which this device
+/// is in; the running session if it already runs there.
+Future<ActivitySession> startActivity({
+  required String serverKey,
+  required PlatformInt64 channelId,
+  required String pluginId,
+  required String activityKey,
+}) => RustLib.instance.api.crateApiViewsStartActivity(
+  serverKey: serverKey,
+  channelId: channelId,
+  pluginId: pluginId,
+  activityKey: activityKey,
+);
+
+/// Ends an activity session for everyone in its call: its starter, or a
+/// member who may manage the channel.
+Future<void> endActivity({
+  required String serverKey,
+  required PlatformInt64 sessionId,
+}) => RustLib.instance.api.crateApiViewsEndActivity(
+  serverKey: serverKey,
+  sessionId: sessionId,
+);
+
 /// An input from the view's renderer, as JSON in the wire format.
 void viewInput({required String viewId, required String json}) =>
     RustLib.instance.api.crateApiViewsViewInput(viewId: viewId, json: json);
