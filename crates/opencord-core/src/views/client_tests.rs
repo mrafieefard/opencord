@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use futures_util::future::BoxFuture;
 use opencord_plugins::limits::IMAGE_MAX_RAW_BYTES;
-use opencord_plugins::view::{Batch, Patch};
+use opencord_plugins::view::{Batch, CloseReason, Patch};
 use opencord_proto::v1 as proto;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
@@ -14,7 +14,7 @@ use sha2::Digest as _;
 
 use serde_json::json;
 
-use super::{ViewTransport, Views};
+use super::{At, ViewOutput, ViewTransport, Views};
 use crate::api::types::{CoreError, ErrorCode};
 use crate::http::HttpResponse;
 use crate::views::Viewer;
@@ -25,13 +25,17 @@ const CONTEXT: &str = r#"{"width":800,"height":600,"theme":"dark","input":"mouse
 /// Answers every `OpenView` with `opened`, and records what it was asked.
 /// Every `GET` gets `answer`, or [`CHANGED`] when it's `None`. The first
 /// `OpenView` runs `before_answer` first: what the server sends while its
-/// answer is on the way.
+/// answer is on the way. An `OpenView` while `refusals` holds an error is
+/// refused with the first. `in_call` is what the core says of this
+/// device's call.
 struct FakeServer {
     opened: proto::ViewOpened,
     asked: Mutex<Vec<Request>>,
     fetched: Mutex<Vec<String>>,
     answer: Mutex<Option<HttpResponse>>,
     before_answer: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    refusals: Mutex<Vec<CoreError>>,
+    in_call: std::sync::atomic::AtomicBool,
 }
 
 impl FakeServer {
@@ -42,7 +46,20 @@ impl FakeServer {
             fetched: Mutex::default(),
             answer: Mutex::default(),
             before_answer: Mutex::default(),
+            refusals: Mutex::default(),
+            in_call: std::sync::atomic::AtomicBool::new(false),
         })
+    }
+
+    fn open_views(&self) -> Vec<proto::OpenView> {
+        let asked = self.asked.lock().unwrap();
+        asked
+            .iter()
+            .filter_map(|kind| match kind {
+                Request::OpenView(open) => Some(open.clone()),
+                _ => None,
+            })
+            .collect()
     }
 }
 
@@ -59,12 +76,26 @@ impl ViewTransport for FakeServer {
             before();
         }
         let opened = self.opened.clone();
+        let refusal = match kind {
+            Request::OpenView(_) => {
+                let mut refusals = self.refusals.lock().unwrap();
+                (!refusals.is_empty()).then(|| refusals.remove(0))
+            }
+            _ => None,
+        };
         Box::pin(async move {
+            if let Some(error) = refusal {
+                return Err(error);
+            }
             Ok(match kind {
                 Request::OpenView(_) => Response::ViewOpened(opened),
                 _ => Response::Ack(proto::Ack {}),
             })
         })
+    }
+
+    fn in_call(&self, _key: &str, _channel_id: i64) -> bool {
+        self.in_call.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     fn get(
@@ -142,7 +173,7 @@ async fn a_changed_file_with_an_old_hash_is_refused() {
     let views = views_with(server.clone(), &dir);
     let mut outputs = views.outputs();
 
-    let id = views.open("s", 42, CONTEXT).await.unwrap();
+    let id = views.open("s", At::Channel(42), CONTEXT).await.unwrap();
 
     let output = tokio::time::timeout(Duration::from_secs(5), outputs.recv())
         .await
@@ -169,7 +200,7 @@ async fn a_too_new_api_sends_too_old() {
     let views = views_with(server.clone(), &dir);
     let mut outputs = views.outputs();
 
-    let id = views.open("s", 42, CONTEXT).await.unwrap();
+    let id = views.open("s", At::Channel(42), CONTEXT).await.unwrap();
 
     let output = tokio::time::timeout(Duration::from_secs(5), outputs.recv())
         .await
@@ -359,7 +390,7 @@ function render(s) return ui.text({ text = s.heard }) end"#;
     }));
     let mut outputs = views.outputs();
 
-    let id = views.open("s", 42, CONTEXT).await.unwrap();
+    let id = views.open("s", At::Channel(42), CONTEXT).await.unwrap();
 
     let mut shown = Vec::new();
     let heard = tokio::time::timeout(Duration::from_secs(5), async {
@@ -384,4 +415,114 @@ function render(s) return ui.text({ text = s.heard }) end"#;
     heard
         .await
         .unwrap_or_else(|_| panic!("the early message never arrived; shown: {shown:?}"));
+}
+
+/// An activity view of session 9 in the call 42, opened with the fake's
+/// script, its first batch read.
+async fn activity_view(
+    server: &Arc<FakeServer>,
+    dir: &tempfile::TempDir,
+) -> (
+    Views,
+    String,
+    tokio::sync::mpsc::UnboundedReceiver<ViewOutput>,
+) {
+    let views = views_with(server.clone(), dir);
+    let mut outputs = views.outputs();
+    let at = At::Activity {
+        session_id: 9,
+        channel_id: 42,
+        activity_key: "paint".into(),
+    };
+    let id = views.open("s", at, CONTEXT).await.unwrap();
+    tokio::time::timeout(Duration::from_secs(5), outputs.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    (views, id, outputs)
+}
+
+fn refused(code: ErrorCode) -> CoreError {
+    CoreError::Server {
+        code,
+        message: "refused".into(),
+        retry_after_ms: None,
+    }
+}
+
+// A new session reaches the server before this device is back in the call
+// (the core rejoins it in the background, and the server forgot the old
+// voice state). Fails if the refusal ends the view instead of asking again
+// while the device is getting back in, or if the view isn't opened again
+// as the activity.
+#[tokio::test]
+async fn a_reopen_refused_before_the_rejoin_asks_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = FakeServer::new(opened(
+        opencord_plugins::API_VERSION,
+        hex::encode(sha2::Sha256::digest(CHANGED)),
+    ));
+    let (views, id, mut outputs) = activity_view(&server, &dir).await;
+    server
+        .in_call
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+    server
+        .refusals
+        .lock()
+        .unwrap()
+        .push(refused(ErrorCode::Forbidden));
+
+    views.on_session("s", true);
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while views.place_of(&id) != Some(("s".into(), Some(5))) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the view was never opened again");
+    let places: Vec<_> = server
+        .open_views()
+        .into_iter()
+        .map(|open| open.place.and_then(|place| place.kind))
+        .collect();
+    let activity = Some(proto::view_place::Kind::ActivitySessionId(9));
+    assert_eq!(places, vec![activity; 3]);
+    while let Ok(output) = outputs.try_recv() {
+        assert!(!output.json.contains("\"closed\""), "{}", output.json);
+    }
+}
+
+// The device isn't in the call any more (its rejoin failed, or it left)
+// when the new session opens the view again. Fails if the refusal ends
+// the view with an error, or with another reason than `left_call`.
+#[tokio::test]
+async fn a_reopen_refused_out_of_the_call_closes_with_left_call() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = FakeServer::new(opened(
+        opencord_plugins::API_VERSION,
+        hex::encode(sha2::Sha256::digest(CHANGED)),
+    ));
+    let (views, id, mut outputs) = activity_view(&server, &dir).await;
+    server
+        .refusals
+        .lock()
+        .unwrap()
+        .push(refused(ErrorCode::Forbidden));
+
+    views.on_session("s", true);
+
+    let output = tokio::time::timeout(Duration::from_secs(5), outputs.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(output.view_id, id);
+    let batch: Batch = serde_json::from_str(&output.json).unwrap();
+    assert_eq!(
+        batch.ops.last(),
+        Some(&Patch::Closed {
+            reason: CloseReason::LeftCall
+        })
+    );
+    assert_eq!(views.place_of(&id), None);
 }

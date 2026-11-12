@@ -19,8 +19,8 @@ use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
-    AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
-    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
+    ActivitySession, AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted,
+    Channel, ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
     CreatedPluginDevToken, ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, KeyWords,
     MediaEvent, MediaHandle, Member, Message, OutgoingFile, OverwriteTargetKind, OwnDevice,
     PermissionOverwrite, PlaybackItem, Plugin, PluginConfigValue, PluginDevToken, PluginLogLine,
@@ -151,6 +151,18 @@ impl ViewTransport for ClientTransport {
             );
             media.request(&client, &key, "GET", &path, &[], limit).await
         })
+    }
+
+    fn in_call(&self, key: &str, channel_id: i64) -> bool {
+        let Some(inner) = self.0.upgrade() else {
+            return false;
+        };
+        let client = Client { inner };
+        let voice = client.lock_voice();
+        voice
+            .target
+            .as_ref()
+            .is_some_and(|(target, channel)| target == key && *channel == channel_id)
     }
 }
 
@@ -385,7 +397,54 @@ impl Client {
         channel_id: i64,
         context_json: &str,
     ) -> Result<String, CoreError> {
-        self.inner.views.open(key, channel_id, context_json).await
+        let at = crate::views::client::At::Channel(channel_id);
+        self.inner.views.open(key, at, context_json).await
+    }
+
+    /// Opens the activity session `session_id`, running in the call
+    /// `channel_id`, on server `key`; as [`Self::view_open`]. The server
+    /// refuses it unless this device is in that call.
+    pub async fn view_open_activity(
+        &self,
+        key: &str,
+        session_id: i64,
+        channel_id: i64,
+        activity_key: &str,
+        context_json: &str,
+    ) -> Result<String, CoreError> {
+        let at = crate::views::client::At::Activity {
+            session_id,
+            channel_id,
+            activity_key: activity_key.to_owned(),
+        };
+        self.inner.views.open(key, at, context_json).await
+    }
+
+    /// Starts a plugin's activity in the call `channel_id`, which this
+    /// device is in; the running session if it already runs there.
+    pub async fn start_activity(
+        &self,
+        key: &str,
+        channel_id: i64,
+        plugin_id: String,
+        activity_key: String,
+    ) -> Result<ActivitySession, CoreError> {
+        let request = Request::StartActivity(proto::StartActivity {
+            channel_id,
+            plugin_id,
+            activity_key,
+        });
+        match self.request(key, request).await? {
+            Response::ActivitySession(session) => Ok(convert::activity_session(session)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// Ends an activity session for everyone in its call: its starter, or
+    /// a member who may manage the channel.
+    pub async fn end_activity(&self, key: &str, session_id: i64) -> Result<(), CoreError> {
+        let request = Request::EndActivity(proto::EndActivity { session_id });
+        expect_ack(self.request(key, request).await?)
     }
 
     /// An input from the view's renderer, as JSON (the wire format).
@@ -2451,7 +2510,8 @@ impl Client {
                 self.inner.views.set_viewer(key, viewer_of(member));
             }
             // A plugin started, stopped or changed: its assets may have too.
-            CoreEventPayload::PluginChannelTypesUpdate(_) => self.inner.views.forget_assets(key),
+            CoreEventPayload::PluginChannelTypesUpdate(_)
+            | CoreEventPayload::PluginActivitiesUpdate(_) => self.inner.views.forget_assets(key),
             CoreEventPayload::StreamDelete { stream_key, .. } => {
                 if let Some(media) = self.inner.media.get() {
                     media.video().screen_ended_by_server(stream_key);

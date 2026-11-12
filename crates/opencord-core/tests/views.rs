@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use opencord_common::address::format_fingerprint;
 use opencord_core::api::types::{
-    ChannelKind, CoreError, CoreEvent, CoreEventPayload, PluginChannelState, PluginChannelType,
-    ReadySnapshot,
+    ActivitySession, ChannelKind, CoreError, CoreEvent, CoreEventPayload, ErrorCode,
+    PluginChannelState, PluginChannelType, ReadySnapshot,
 };
 use opencord_core::client::Client;
 use opencord_core::identity::Identity;
@@ -21,20 +21,27 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 const WAIT: Duration = Duration::from_secs(15);
 const FEATURES: [&str; 2] = ["plugin_users", "plugin_channels"];
+const ACTIVITY_FEATURES: [&str; 3] = ["plugin_users", "plugin_channels", "activities"];
 const CONTEXT: &str = r#"{"width":800,"height":600,"theme":"dark","input":"mouse",
     "safe_area":{"top":0,"right":0,"bottom":0,"left":0},"text_scale":1}"#;
 
 /// Each view open makes the server send `opened`; each `press` is echoed
 /// as `count`, which the client adds up, so a press delivered twice shows.
-/// At start it saves a public file for the image tests.
+/// At start it saves a public file for the image tests. `opened` carries
+/// the activity session the server's view is in; an activity's
+/// `paint_press` is answered to every view of its session.
 const SERVER: &str = r#"
 ui.register_channel_type("desk", { name = "Desk" })
+ui.register_activity("paint", { name = "Paint" })
 opencord.on("start", function()
     files.put("pub/a.png", "public bytes", { public = true })
 end)
 opencord.on("view_open", function(event)
     log.info("view_open " .. event.view.id)
-    event.view:send("opened", {})
+    event.view:send("opened", { session = event.view.place.session_id })
+end)
+ui.on("paint_press", function(view)
+    ui.send_place({ session_id = view.place.session_id }, "count", {})
 end)
 opencord.on("file_uploaded", function(event)
     log.info("uploaded " .. event.file.name .. " " .. event.file.size)
@@ -51,7 +58,13 @@ fn client_script(label: &str) -> String {
     format!(
         r#"
 function init() return {{ count = 0, opened = 0 }} end
-app.on("opened", function() app.set(function(s) s.opened += 1 end) end)
+local function activity() return app.place.kind == "activity" end
+app.on("opened", function(data)
+    app.set(function(s)
+        s.opened += 1
+        s.heard = data.session
+    end)
+end)
 app.on("count", function() app.set(function(s) s.count += 1 end) end)
 local function uploaded(file)
     app.set(function(s) s.upload = file.name .. " " .. file.size end)
@@ -61,9 +74,11 @@ local function refused(problem)
 end
 function render(s)
     local upload = s.upload and (" upload " .. s.upload) or ""
+    local place = activity() and ("activity " .. tostring(s.heard) .. " ") or ""
+    local press = activity() and "paint_press" or "press"
     return ui.column({{}}, {{
-        ui.text({{ text = "{label} count " .. s.count .. " opened " .. s.opened .. upload }}),
-        ui.button({{ text = "add", on_press = function() app.send("press", {{}}) end }}),
+        ui.text({{ text = place .. "{label} count " .. s.count .. " opened " .. s.opened .. upload }}),
+        ui.button({{ text = "add", on_press = function() app.send(press, {{}}) end }}),
         ui.file_picker({{ text = "pick", on_upload = uploaded, on_upload_error = refused }}),
     }})
 end
@@ -74,7 +89,8 @@ end
 fn package(version: &str, label: &str) -> Vec<u8> {
     let manifest = format!(
         r#"return {{ id = "tickets", name = "Tickets", version = "{version}", author = "A",
-            license = "MIT", api = 1, permissions = {{ "create_channel_types", "accept_uploads" }},
+            license = "MIT", api = 1,
+            permissions = {{ "create_channel_types", "accept_uploads", "register_activities" }},
             server = {{ "server/main.luau" }}, client = "client/main.luau" }}"#
     );
     let dir = tempfile::tempdir().unwrap();
@@ -294,8 +310,15 @@ fn node(batches: &[Batch], kind: &str) -> u64 {
 /// A server with the tickets plugin installed by its owner, and a `desk`
 /// channel of it.
 async fn world() -> (TestServer, App, i64) {
+    let (server, owner, channel_id, _) = world_with(&FEATURES).await;
+    (server, owner, channel_id)
+}
+
+/// [`world`] for an owner whose app lists `features`, with the owner's
+/// `Ready`.
+async fn world_with(features: &[&str]) -> (TestServer, App, i64, ReadySnapshot) {
     let server = TestServer::start().await;
-    let mut owner = App::new("Owner", Some(&FEATURES));
+    let mut owner = App::new("Owner", Some(features));
     let key = server.key();
     owner
         .client
@@ -306,7 +329,7 @@ async fn world() -> (TestServer, App, i64) {
         .add_server(&key, server.handle.claim_token.clone())
         .await
         .unwrap();
-    owner.ready().await;
+    let ready = owner.ready().await;
     install(&owner, &key, "1.0.0", "v1").await;
     let deadline = Instant::now() + WAIT;
     let channel = loop {
@@ -330,7 +353,7 @@ async fn world() -> (TestServer, App, i64) {
             Err(error) => panic!("no plugin channel: {error:?}"),
         }
     };
-    (server, owner, channel.id)
+    (server, owner, channel.id, ready)
 }
 
 async fn install(app: &App, key: &str, version: &str, label: &str) {
@@ -342,6 +365,7 @@ async fn install(app: &App, key: &str, version: &str, label: &str) {
     let granted = vec![
         "create_channel_types".to_owned(),
         "accept_uploads".to_owned(),
+        "register_activities".to_owned(),
     ];
     app.client
         .confirm_plugin_review(key, review.review_id, granted, vec![], false)
@@ -696,4 +720,292 @@ async fn a_refused_upload_answers_the_picker_with_upload_error() {
                 .is_some_and(|text| text.starts_with("v1 count 0 opened 1 upload error "))
         })
         .await;
+}
+
+// Activities (plan M3 Task 8). The tickets plugin registers `paint`; an
+// activity's view shows "activity <the session id its server view is in>"
+// before the label, and its button sends `paint_press`, which the plugin
+// answers with `ui.send_place({ session_id })`.
+
+/// A server with the tickets plugin, its owner's app listing "activities";
+/// the owner's user id and the server's voice channel. Nobody is in it.
+async fn call_world() -> (TestServer, App, i64, i64) {
+    let (server, owner, _, ready) = world_with(&ACTIVITY_FEATURES).await;
+    let voice = ready
+        .channels
+        .iter()
+        .find(|channel| channel.kind == ChannelKind::Voice)
+        .expect("a voice channel")
+        .id;
+    (server, owner, ready.self_user.id, voice)
+}
+
+/// A second member, whose app lists "activities", in the call `voice`.
+async fn member_in_call(server: &TestServer, owner: &App, name: &str, voice: i64) -> App {
+    let invite = owner
+        .client
+        .create_invite(&server.key(), None, None, None)
+        .await
+        .unwrap();
+    let mut member = App::new(name, Some(&ACTIVITY_FEATURES));
+    member.client.add_server(&invite.link, None).await.unwrap();
+    member.ready().await;
+    member
+        .client
+        .voice_join(&server.key(), voice)
+        .await
+        .unwrap();
+    member
+}
+
+async fn start_paint(app: &App, key: &str, voice: i64) -> ActivitySession {
+    app.client
+        .start_activity(key, voice, "tickets".into(), "paint".into())
+        .await
+        .unwrap()
+}
+
+async fn open_activity(app: &App, key: &str, session: &ActivitySession) -> String {
+    app.client
+        .view_open_activity(
+            key,
+            session.id,
+            session.channel_id,
+            &session.activity_key,
+            CONTEXT,
+        )
+        .await
+        .unwrap()
+}
+
+/// Reads batches of `view` until one closes it, and returns the reason.
+async fn closed(app: &mut App, view: &str) -> CloseReason {
+    app.until(view, "a closed op", |batches| {
+        ops(batches).any(|op| matches!(op, Patch::Closed { .. }))
+    })
+    .await;
+    let last = app.batches.last().and_then(|batch| batch.ops.last());
+    match last {
+        Some(Patch::Closed { reason }) => *reason,
+        other => panic!("the last op isn't closed: {other:?}"),
+    }
+}
+
+/// The owner's connection drops and the server forgets its session, as
+/// after a minute away: the core's next connection is a new session.
+fn lose_the_session(server: &TestServer, user_id: i64) {
+    server.handle.drop_user_connections(user_id);
+    server.handle.reap_sessions_after(Duration::from_secs(120));
+}
+
+// The owner starts and opens it alone. Fails if `start_activity` or
+// `view_open_activity` don't reach the server, if the VM's place isn't the
+// activity (the first tree has no "activity"), if the server's view isn't
+// in the started session, or if the session's create and its viewer update
+// don't reach the app.
+#[tokio::test(flavor = "multi_thread")]
+async fn starting_and_opening_an_activity_draws_it() {
+    let (server, mut owner, owner_id, voice) = call_world().await;
+    let key = server.key();
+    owner.client.voice_join(&key, voice).await.unwrap();
+
+    let session = start_paint(&owner, &key, voice).await;
+    let view = open_activity(&owner, &key, &session).await;
+
+    owner
+        .shows(
+            &view,
+            &format!("activity {} v1 count 0 opened 1", session.id),
+        )
+        .await;
+    let first = shown_text(&owner.batches[..1]).unwrap_or_default();
+    assert!(first.starts_with("activity "), "{first:?}");
+    assert_eq!(
+        (
+            session.channel_id,
+            session.plugin_id.as_str(),
+            session.activity_key.as_str(),
+            session.starter_id
+        ),
+        (voice, "tickets", "paint", owner_id)
+    );
+    owner
+        .hears("the session's create", |payload| {
+            matches!(payload, CoreEventPayload::ActivitySessionCreate(s) if s.id == session.id)
+        })
+        .await;
+    owner
+        .hears("the owner as its viewer", |payload| {
+            matches!(payload, CoreEventPayload::ActivitySessionUpdate(s)
+                if s.id == session.id && s.viewer_ids == [owner_id])
+        })
+        .await;
+}
+
+// The owner alone. Fails if the activity's `app.send` doesn't reach the
+// plugin as the view's event, or `ui.send_place({ session_id })` doesn't
+// reach the view.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_press_in_an_activity_reaches_its_plugin_and_back() {
+    let (server, mut owner, _, voice) = call_world().await;
+    let key = server.key();
+    owner.client.voice_join(&key, voice).await.unwrap();
+    let session = start_paint(&owner, &key, voice).await;
+    let view = open_activity(&owner, &key, &session).await;
+    let id = session.id;
+    owner
+        .shows(&view, &format!("activity {id} v1 count 0 opened 1"))
+        .await;
+
+    owner.press(&view, button(&owner.batches));
+
+    owner
+        .shows(&view, &format!("activity {id} v1 count 1 opened 1"))
+        .await;
+}
+
+// The owner, the starter, ends it. Fails if `end_activity` doesn't reach
+// the server, or `ACTIVITY_ENDED` reaches the renderer as another reason.
+#[tokio::test(flavor = "multi_thread")]
+async fn ending_the_activity_closes_the_view_with_its_reason() {
+    let (server, mut owner, _, voice) = call_world().await;
+    let key = server.key();
+    owner.client.voice_join(&key, voice).await.unwrap();
+    let session = start_paint(&owner, &key, voice).await;
+    let view = open_activity(&owner, &key, &session).await;
+    owner
+        .shows(
+            &view,
+            &format!("activity {} v1 count 0 opened 1", session.id),
+        )
+        .await;
+
+    owner.client.end_activity(&key, session.id).await.unwrap();
+
+    assert_eq!(closed(&mut owner, &view).await, CloseReason::ActivityEnded);
+}
+
+// The owner has it open and leaves; B stays, so the call goes on (an
+// emptied call ends the session, which closes the view as ended instead).
+// Fails if `LEFT_CALL` reaches the renderer as another reason.
+#[tokio::test(flavor = "multi_thread")]
+async fn leaving_the_call_closes_the_view() {
+    let (server, mut owner, _, voice) = call_world().await;
+    let key = server.key();
+    owner.client.voice_join(&key, voice).await.unwrap();
+    let _b = member_in_call(&server, &owner, "B", voice).await;
+    let session = start_paint(&owner, &key, voice).await;
+    let view = open_activity(&owner, &key, &session).await;
+    owner
+        .shows(
+            &view,
+            &format!("activity {} v1 count 0 opened 1", session.id),
+        )
+        .await;
+
+    owner.client.voice_leave().await.unwrap();
+
+    assert_eq!(closed(&mut owner, &view).await, CloseReason::LeftCall);
+}
+
+// Review Focus 5's core half. The owner has it open and loses the gateway
+// session; B stays in the call, so the activity outlives the owner's voice
+// state. Fails if a new session opens the view again as a channel's (the
+// server refuses it) or not at all (no second `opened`), in another
+// session (the id shown changes), with a new VM (the count goes back to
+// 0), or if an event is delivered twice after it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_new_session_reopens_the_activity_keeping_state() {
+    let (server, mut owner, owner_id, voice) = call_world().await;
+    let key = server.key();
+    owner.client.voice_join(&key, voice).await.unwrap();
+    let _b = member_in_call(&server, &owner, "B", voice).await;
+    let session = start_paint(&owner, &key, voice).await;
+    let view = open_activity(&owner, &key, &session).await;
+    let id = session.id;
+    owner
+        .shows(&view, &format!("activity {id} v1 count 0 opened 1"))
+        .await;
+    owner.press(&view, button(&owner.batches));
+    owner
+        .shows(&view, &format!("activity {id} v1 count 1 opened 1"))
+        .await;
+
+    lose_the_session(&server, owner_id);
+
+    owner.ready().await;
+    owner
+        .shows(&view, &format!("activity {id} v1 count 1 opened 2"))
+        .await;
+    owner.press(&view, button(&owner.batches));
+    owner
+        .shows(&view, &format!("activity {id} v1 count 2 opened 2"))
+        .await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    while let Ok(output) = owner.outputs.try_recv() {
+        if output.view_id == view {
+            owner
+                .batches
+                .push(serde_json::from_str(&output.json).unwrap());
+        }
+    }
+    assert_eq!(
+        shown_text(&owner.batches),
+        Some(format!("activity {id} v1 count 2 opened 2"))
+    );
+}
+
+// The owner has it open and loses the gateway session; B, its starter,
+// ends it meanwhile. Fails if the refused reopen (`NOT_FOUND`) ends the
+// view with an error instead of `closed` `activity_ended`.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_activity_gone_while_away_closes_the_view() {
+    let (server, mut owner, owner_id, voice) = call_world().await;
+    let key = server.key();
+    owner.client.voice_join(&key, voice).await.unwrap();
+    let b = member_in_call(&server, &owner, "B", voice).await;
+    let session = start_paint(&b, &key, voice).await;
+    let view = open_activity(&owner, &key, &session).await;
+    owner
+        .shows(
+            &view,
+            &format!("activity {} v1 count 0 opened 1", session.id),
+        )
+        .await;
+
+    lose_the_session(&server, owner_id);
+    b.client.end_activity(&key, session.id).await.unwrap();
+
+    assert_eq!(closed(&mut owner, &view).await, CloseReason::ActivityEnded);
+}
+
+// B starts it in the call; the owner can see the channel but isn't in the
+// call. Fails if the core doesn't send the activity's place (a channel
+// place would be refused as another error) or hides the server's code.
+#[tokio::test(flavor = "multi_thread")]
+async fn opening_without_the_call_is_refused() {
+    let (server, owner, _, voice) = call_world().await;
+    let key = server.key();
+    let b = member_in_call(&server, &owner, "B", voice).await;
+    let session = start_paint(&b, &key, voice).await;
+
+    let opened = owner
+        .client
+        .view_open_activity(
+            &key,
+            session.id,
+            session.channel_id,
+            &session.activity_key,
+            CONTEXT,
+        )
+        .await;
+
+    assert!(
+        matches!(
+            &opened,
+            Err(CoreError::Server { code: ErrorCode::Forbidden, message, .. })
+                if message.contains("join the call")
+        ),
+        "{opened:?}"
+    );
 }

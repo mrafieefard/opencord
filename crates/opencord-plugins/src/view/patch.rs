@@ -145,6 +145,10 @@ pub enum CloseReason {
     LostAccess,
     ChannelDeleted,
     Unavailable,
+    /// The view's activity session ended.
+    ActivityEnded,
+    /// The viewer left the activity's call.
+    LeftCall,
 }
 
 #[cfg(test)]
@@ -225,5 +229,15 @@ mod tests {
         );
         let read: Batch = serde_json::from_value(sent).unwrap();
         assert_eq!(read, batch);
+    }
+
+    // Fails if an activity's close reason is named differently from the
+    // wire format's `closed` op (plan M3, "Additions").
+    #[test]
+    fn activity_close_reasons_have_the_wire_formats_names() {
+        let names = [CloseReason::ActivityEnded, CloseReason::LeftCall].map(|reason| {
+            serde_json::to_value(Patch::Closed { reason }).unwrap()["reason"].clone()
+        });
+        assert_eq!(names, [json!("activity_ended"), json!("left_call")]);
     }
 }

@@ -5,7 +5,7 @@
 use flutter_rust_bridge::frb;
 
 use super::client::{client, on_runtime, runtime};
-use super::types::{Channel, CoreError, ViewOutput};
+use super::types::{ActivitySession, Channel, CoreError, ViewOutput};
 use crate::frb_generated::StreamSink;
 
 /// Every plugin view's batches, as JSON in the wire format. Opening it
@@ -47,6 +47,53 @@ pub async fn view_open(
             .await
     })
     .await
+}
+
+/// Opens the activity session `session_id`, running in the call
+/// `channel_id`; as `view_open`. The server refuses it unless this device
+/// is in that call.
+pub async fn view_open_activity(
+    server_key: String,
+    session_id: i64,
+    channel_id: i64,
+    activity_key: String,
+    context_json: String,
+) -> Result<String, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .view_open_activity(
+                &server_key,
+                session_id,
+                channel_id,
+                &activity_key,
+                &context_json,
+            )
+            .await
+    })
+    .await
+}
+
+/// Starts a plugin's activity in the call `channel_id`, which this device
+/// is in; the running session if it already runs there.
+pub async fn start_activity(
+    server_key: String,
+    channel_id: i64,
+    plugin_id: String,
+    activity_key: String,
+) -> Result<ActivitySession, CoreError> {
+    on_runtime(move |client| async move {
+        client
+            .start_activity(&server_key, channel_id, plugin_id, activity_key)
+            .await
+    })
+    .await
+}
+
+/// Ends an activity session for everyone in its call: its starter, or a
+/// member who may manage the channel.
+pub async fn end_activity(server_key: String, session_id: i64) -> Result<(), CoreError> {
+    on_runtime(move |client| async move { client.end_activity(&server_key, session_id).await })
+        .await
 }
 
 /// An input from the view's renderer, as JSON in the wire format.

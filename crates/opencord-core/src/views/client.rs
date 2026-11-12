@@ -11,9 +11,14 @@
 //!   `closed` op, then the VM ends; `ViewScriptsUpdate` → the new files,
 //!   then a reload keeping the state; `app.send` → `SendViewEvent`; errors
 //!   → `ReportViewError`, one per view every `VIEW_ERROR_REPORT_EVERY`.
+//! - **Places:** a plugin channel or an activity session in a call
+//!   ([`At`]), sent as the `OpenView`'s place and shown to the VM.
 //! - **Connection:** losing it tells each view (`connection_lost`); a
 //!   resumed session tells them it's back; a new session opens every view
 //!   again on the server under the same core id, keeping its VM and state.
+//!   An activity's view whose session is gone then ends `activity_ended`;
+//!   one refused for not being in the call waits while the core rejoins it
+//!   ([`REJOIN_GRACE`]), else ends `left_call`.
 //!
 //! Maps and when their entries leave:
 //! - `views` (core id → view) and `by_server` ((server, server view id) →
@@ -37,7 +42,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use futures_util::future::BoxFuture;
 use opencord_plugins::API_VERSION;
@@ -53,7 +58,7 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use super::{Place, ViewContext, ViewHandle, ViewSink, ViewSpec, Viewer, start};
-use crate::api::types::CoreError;
+use crate::api::types::{CoreError, ErrorCode};
 use crate::http::HttpResponse;
 
 #[path = "client_files.rs"]
@@ -73,6 +78,11 @@ const MAX_EARLY: usize = 64;
 const PLATFORM: &str = "desktop";
 /// The words of an `error` op the core sends itself, as the VM's.
 const ERROR_MESSAGE: &str = "This plugin hit an error";
+/// How long an activity's view opening again on a new session waits for
+/// this device to get back into its call (the core rejoins it then, at most
+/// five tries a second or more apart), and how often it asks meanwhile.
+const REJOIN_GRACE: Duration = Duration::from_secs(15);
+const REOPEN_RETRY: Duration = Duration::from_millis(250);
 
 pub use crate::api::types::ViewOutput;
 
@@ -87,6 +97,11 @@ pub(crate) trait ViewTransport: Send + Sync {
         path: String,
         limit: usize,
     ) -> BoxFuture<'static, Result<HttpResponse, CoreError>>;
+    /// This device is in, or getting back into, the call `channel_id` on
+    /// `key`.
+    fn in_call(&self, _key: &str, _channel_id: i64) -> bool {
+        false
+    }
 }
 
 #[derive(Clone)]
@@ -124,12 +139,55 @@ struct State {
     opening: HashMap<String, usize>,
 }
 
+/// Where a view is open on its server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum At {
+    /// A plugin channel.
+    Channel(i64),
+    /// An activity session in the call `channel_id`.
+    Activity {
+        session_id: i64,
+        channel_id: i64,
+        activity_key: String,
+    },
+}
+
+impl At {
+    fn wire(&self) -> proto::view_place::Kind {
+        match self {
+            Self::Channel(channel_id) => proto::view_place::Kind::ChannelId(*channel_id),
+            Self::Activity { session_id, .. } => {
+                proto::view_place::Kind::ActivitySessionId(*session_id)
+            }
+        }
+    }
+
+    fn place(&self) -> Place {
+        match self {
+            Self::Channel(channel_id) => Place::Channel {
+                channel_id: channel_id.to_string(),
+            },
+            Self::Activity {
+                session_id,
+                channel_id,
+                activity_key,
+            } => Place::Activity {
+                session_id: session_id.to_string(),
+                channel_id: channel_id.to_string(),
+                activity: activity_key.clone(),
+            },
+        }
+    }
+}
+
 struct Open {
     key: String,
-    channel_id: i64,
+    at: At,
     plugin_id: String,
     /// `None` while it's being opened again on a new session.
     server_id: Option<i64>,
+    /// The new sessions it was opened again on, counted.
+    attempt: u64,
     /// The client files it runs, by path, with their hashes.
     files: BTreeMap<String, String>,
     /// The view was told the connection dropped and not yet that it's back.
@@ -181,12 +239,13 @@ impl Views {
         self.shared.lock().viewers.insert(key.to_owned(), viewer);
     }
 
-    /// Opens a view of the plugin channel `channel_id`; the core's own id
-    /// for it, kept across sessions. Its batches arrive on [`Self::outputs`].
+    /// Opens a view of a plugin channel or an activity session; the core's
+    /// own id for it, kept across sessions. Its batches arrive on
+    /// [`Self::outputs`].
     pub(crate) async fn open(
         &self,
         key: &str,
-        channel_id: i64,
+        at: At,
         context_json: &str,
     ) -> Result<String, CoreError> {
         let context: ViewContext =
@@ -201,7 +260,7 @@ impl Views {
             .cloned()
             .ok_or(CoreError::NotConnected)?;
         let began = Instant::now();
-        let opened = self.shared.open_on_server(key, channel_id).await?;
+        let opened = self.shared.open_on_server(key, &at).await?;
         let id = self
             .shared
             .next_id
@@ -251,9 +310,7 @@ impl Views {
             sources,
             context,
             viewer,
-            place: Place::Channel {
-                channel_id: channel_id.to_string(),
-            },
+            place: at.place(),
             show_errors: opened.show_errors,
             storage_dir: self.shared.storage_dir(key, &opened.plugin_id),
         };
@@ -265,9 +322,10 @@ impl Views {
         ));
         let view = Open {
             key: key.to_owned(),
-            channel_id,
+            at,
             plugin_id: opened.plugin_id,
             server_id: None,
+            attempt: 0,
             files: scripts,
             lost: false,
             handle,
@@ -472,14 +530,15 @@ impl Views {
         let mut ids = Vec::new();
         for (id, view) in state.views.iter_mut().filter(|(_, view)| view.key == key) {
             view.server_id = None;
-            ids.push(id.clone());
+            view.attempt += 1;
+            ids.push((id.clone(), view.attempt));
         }
         drop(state);
-        for id in ids {
+        for (id, attempt) in ids {
             let shared = self.shared.clone();
             self.shared
                 .runtime
-                .spawn(async move { shared.reopen(id).await });
+                .spawn(async move { shared.reopen(id, attempt).await });
         }
     }
 }
@@ -535,14 +594,10 @@ impl Shared {
         lock(&self.state)
     }
 
-    async fn open_on_server(
-        &self,
-        key: &str,
-        channel_id: i64,
-    ) -> Result<proto::ViewOpened, CoreError> {
+    async fn open_on_server(&self, key: &str, at: &At) -> Result<proto::ViewOpened, CoreError> {
         let request = Request::OpenView(proto::OpenView {
             place: Some(proto::ViewPlace {
-                kind: Some(proto::view_place::Kind::ChannelId(channel_id)),
+                kind: Some(at.wire()),
             }),
             platform: PLATFORM.to_owned(),
         });
@@ -621,30 +676,63 @@ impl Shared {
         Some(view)
     }
 
-    /// Opens `id` again on a new session. Refused, the view ends with the
-    /// server's error; cut off again, it waits for the next session.
-    async fn reopen(self: Arc<Self>, id: String) {
-        let Some((key, channel_id, files)) = self
+    /// Opens `id` again on a new session (its `attempt`). Refused, the view
+    /// ends with the server's error, or for an activity with `closed`: its
+    /// session gone, or this device out of its call. While this device is
+    /// getting back into the call, a refusal for not being in it is tried
+    /// again. Cut off again, it waits for the next session.
+    async fn reopen(self: Arc<Self>, id: String, attempt: u64) {
+        let Some((key, at, files)) = self
             .lock()
             .views
             .get(&id)
-            .map(|view| (view.key.clone(), view.channel_id, view.files.clone()))
+            .map(|view| (view.key.clone(), view.at.clone(), view.files.clone()))
         else {
             return;
         };
-        let opened = match self.open_on_server(&key, channel_id).await {
-            Ok(opened) => opened,
-            Err(CoreError::NotConnected | CoreError::Timeout) => return,
-            Err(error) => {
-                tracing::info!(view = %id, ?error, "a view couldn't be opened again");
-                if let Some(view) = self.remove(&id) {
-                    view.handle.finish(Patch::Error {
-                        message: error.to_string(),
-                        details: None,
-                    });
+        let began = Instant::now();
+        let opened = loop {
+            let error = match self.open_on_server(&key, &at).await {
+                Ok(opened) => break opened,
+                Err(CoreError::NotConnected | CoreError::Timeout) => return,
+                Err(error) => error,
+            };
+            let ending = match (&at, &error) {
+                (At::Activity { .. }, CoreError::Server { code, .. })
+                    if *code == ErrorCode::NotFound =>
+                {
+                    Patch::Closed {
+                        reason: CloseReason::ActivityEnded,
+                    }
                 }
-                return;
+                (At::Activity { channel_id, .. }, CoreError::Server { code, .. })
+                    if *code == ErrorCode::Forbidden =>
+                {
+                    let rejoining =
+                        self.transport.in_call(&key, *channel_id) && began.elapsed() < REJOIN_GRACE;
+                    if rejoining {
+                        tokio::time::sleep(REOPEN_RETRY).await;
+                        let current = self.lock().views.get(&id).map(|view| view.attempt);
+                        if current != Some(attempt) {
+                            // Closed, or a newer session opens it.
+                            return;
+                        }
+                        continue;
+                    }
+                    Patch::Closed {
+                        reason: CloseReason::LeftCall,
+                    }
+                }
+                _ => Patch::Error {
+                    message: error.to_string(),
+                    details: None,
+                },
+            };
+            tracing::info!(view = %id, ?error, "a view couldn't be opened again");
+            if let Some(view) = self.remove(&id) {
+                view.handle.finish(ending);
             }
+            return;
         };
         if opened.api > API_VERSION {
             self.abandon(&key, opened.view_id);
@@ -907,6 +995,8 @@ fn close_reason(reason: i32) -> CloseReason {
         Ok(proto::ViewCloseReason::PluginStopped) => CloseReason::PluginStopped,
         Ok(proto::ViewCloseReason::LostAccess) => CloseReason::LostAccess,
         Ok(proto::ViewCloseReason::ChannelDeleted) => CloseReason::ChannelDeleted,
+        Ok(proto::ViewCloseReason::ActivityEnded) => CloseReason::ActivityEnded,
+        Ok(proto::ViewCloseReason::LeftCall) => CloseReason::LeftCall,
         _ => CloseReason::Unavailable,
     }
 }
