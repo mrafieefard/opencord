@@ -32,8 +32,17 @@ Finder _dock() => find.byKey(ShellKeys.dock);
 Finder _activitiesButton() =>
     find.descendant(of: _dock(), matching: find.bySemanticsLabel('Activities'));
 
-Finder _row(String name) =>
-    find.ancestor(of: find.text(name), matching: find.byType(Hoverable)).first;
+/// The picker's row for [name]. Scoped to the picker: a running activity
+/// also has a tile on the stage with the same name.
+Finder _row(String name) => find
+    .ancestor(
+      of: find.descendant(
+        of: find.byType(ActivityPicker),
+        matching: find.text(name),
+      ),
+      matching: find.byType(Hoverable),
+    )
+    .first;
 
 /// Changes the mock world before the app shows it, then sends the Ready
 /// the server would send: the road is mock world → `serverProvider` /
