@@ -293,7 +293,8 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(permissions, 3 | 1024 | 16384);
+        // Later migrations add bits too: 0017 gives @everyone START_ACTIVITIES.
+        assert_eq!(permissions, 3 | 1024 | 16384 | (1 << 33));
         assert_eq!(max_upload_bytes, Some(52428800));
 
         sqlx::query(
