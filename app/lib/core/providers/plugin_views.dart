@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/logs/app_log.dart';
-import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/src/rust/api/logs.dart' show LogLevel;
 import 'package:opencord_blocks/opencord_blocks.dart';
