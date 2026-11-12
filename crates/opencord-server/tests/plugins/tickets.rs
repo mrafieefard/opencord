@@ -95,7 +95,8 @@ async fn the_ticket_system_works_end_to_end() {
         }))
         .await;
 
-    let (mut member3, _member3_ready) = session(&server, 3, Some(&code), &[FEATURE]).await;
+    let (mut member3, member3_ready) = session(&server, 3, Some(&code), &[FEATURE]).await;
+    let member3_id = self_id(&member3_ready);
 
     // 3. Install tickets plugin with config
     let plugin = install_with_config(
@@ -220,6 +221,42 @@ async fn the_ticket_system_works_end_to_end() {
     assert!(
         is_empty,
         "other member must not see someone else's ticket: {list3:?}"
+    );
+
+    // 7b. Member 3 (regular) creates a ticket: member 2 (support, not the
+    // author, on another view) gets it; the admin (neither) doesn't.
+    // Change that must fail it: `if is_support or (author_id …` →
+    // `if (is_support and false) or (author_id …` in server/main.luau's
+    // broadcast_ticket_event.
+    member3
+        .ok(send(
+            view3.view_id,
+            "ticket.create",
+            &serde_json::json!({
+                "title": "Printer on fire",
+                "body": "Smoke from tray 2",
+                "priority": "low",
+            })
+            .to_string(),
+        ))
+        .await;
+    let own3 = message(&mut member3, "ticket.created").await;
+    let own3: serde_json::Value =
+        serde_json::from_str(&own3.data_json).expect("valid ticket.created json");
+    assert_eq!(own3["ticket"]["author_id"], member3_id.to_string());
+    let for_support = message(&mut member2, "ticket.created").await;
+    let for_support: serde_json::Value =
+        serde_json::from_str(&for_support.data_json).expect("valid ticket.created json");
+    assert_eq!(for_support["ticket"]["id"], own3["ticket"]["id"]);
+    assert_eq!(for_support["ticket"]["author_id"], member3_id.to_string());
+    let third_party = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        message(&mut admin, "ticket.created"),
+    )
+    .await;
+    assert!(
+        third_party.is_err(),
+        "admin without support role receives no ticket.created for member 3's ticket"
     );
 
     // 8. Closing by a non-support member (member 3) is refused
