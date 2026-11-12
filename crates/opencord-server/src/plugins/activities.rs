@@ -12,7 +12,7 @@
 //!
 //! The activity sessions running in calls live here too (plan M3 Task 4,
 //! §15.2, §15.4). Every road that ends one goes through [`end`]: a member's
-//! `EndActivity`, the plugin's `activity.end`, its call emptying, its
+//! `EndActivity`, the plugin's `activity.finish`, its call emptying, its
 //! plugin stopping, and its plugin running without the activity.
 
 use std::collections::{BTreeMap, HashMap};
@@ -429,7 +429,7 @@ pub fn viewers_changed(state: &AppState, session_id: i64) {
     );
 }
 
-/// `activity.end`: ends the plugin's own session; false if it has no such
+/// `activity.finish`: ends the plugin's own session; false if it has no such
 /// session running.
 pub async fn end_own(state: &AppState, plugin_id: &str, session_id: i64) -> bool {
     let _writes = state.write_lock().await;

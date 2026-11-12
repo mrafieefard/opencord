@@ -329,7 +329,7 @@ Task 4 adds what happens to sessions when the list changes. This task adds nothi
 - **`EndActivity`:** the session exists and the caller can see its channel (else `NOT_FOUND` "activity session"); the caller is its starter or holds `MANAGE_CHANNELS` in its channel (else `FORBIDDEN`). Ends it with reason `ENDED`.
 - **A session ends** — one function, `end(state, session_id, reason)`, used by every road, which removes it, announces `ActivitySessionDelete`, and tells the plugin; ending a session that's already gone does nothing:
   - `EndActivity` → `ENDED`;
-  - `activity.end(session)` from Lua → `PLUGIN`;
+  - `activity.finish(session)` from Lua → `PLUGIN`;
   - its call empties → `CALL_EMPTY`: in `voice::announce`, for each channel in `channels` that now has no voice state. This one hook covers leaving, being moved or disconnected, losing access (`reconcile`), a deleted channel, and a dropped connection after its grace (`expire_detached`);
   - its plugin stops, is turned off, fails to start or is uninstalled → `PLUGIN_STOPPED` (Task 3's `stopped` hook);
   - its plugin runs without the activity: a restart's start finished without registering it → `UNAVAILABLE` (Task 3's `started` hook).
@@ -339,8 +339,8 @@ Task 4 adds what happens to sessions when the list changes. This task adds nothi
   - `activity_start`, with `{ session, starter, call }`: `session = { id, activity, channel_id, starter_id, started_at_ms }`, `starter` a user table (`events::user_table`), `call = { channel_id, member_ids }` (the call's members now, ascending).
   - `activity_end`, with `{ session, reason }`, `reason` one of `"ended"`, `"plugin"`, `"call_empty"`, `"plugin_stopping"`, `"unavailable"`.
   - A VM hears each session's start once, and its end only if it heard the start: a VM that starts while sessions run hears `activity_start` for each when its start finishes (the pattern of `views_heard` in `view_calls.rs`; its set leaves entries on the end, and with the VM). As the plugin stops, its sessions' `activity_end` handlers run within `stop`'s grace, after its views' `view_close`.
-- **Lua:** a new global `activity` (`plugins/api/activity.rs`, installed from `api/mod.rs`): `activity.end(session)` takes a session table or its id string, needs `register_activities`, ends only the plugin's own session, and returns `true` if it was running, `false` if not. Logs the action line `ended activity session <id>`. The global is read-only like `opencord`.
-- The definitions file gains `activity.end`, the session type and both events' argument types, each field copied from the function that builds it.
+- **Lua:** a new global `activity` (`plugins/api/activity.rs`, installed from `api/mod.rs`): `activity.finish(session)` (not `activity.end`: `end` is a Luau keyword; the user's call at the stage B and C review) takes a session table or its id string, needs `register_activities`, ends only the plugin's own session, and returns `true` if it was running, `false` if not. Logs the action line `ended activity session <id>`. The global is read-only like `opencord`.
+- The definitions file gains `activity.finish`, the session type and both events' argument types, each field copied from the function that builds it.
 
 - [ ] **Step 1: Write failing tests** in `tests/plugins/activities.rs`. Each lists its people (rule 22).
   - `starting_needs_the_call_and_the_permission`: A in the call with the permission starts it; B in the call with an overwrite denying `START_ACTIVITIES` in this channel is refused `FORBIDDEN`; C not in the call is refused `INVALID_ARGUMENT`; D whose app doesn't list `"activities"` is refused `NOT_FOUND`.
@@ -349,7 +349,7 @@ Task 4 adds what happens to sessions when the list changes. This task adds nothi
   - `a_fifth_activity_is_refused` (`PLUGIN_LIMIT`; a fifth in **another** call is fine).
   - `an_unknown_or_stopped_activity_is_unavailable`.
   - `only_the_starter_or_a_channel_manager_ends_it`: B (in the call, neither) is refused `FORBIDDEN`; the starter ends one; a member with `MANAGE_CHANNELS` ends another; each end is one `ActivitySessionDelete` with `ENDED` and one `activity_end` with `"ended"`.
-  - `the_plugin_ends_its_own_session` (`activity.end` → `PLUGIN`, returns true, then false) and `a_plugin_cant_end_anothers_session` (a second plugin's `activity.end` with that id returns false, and the session still runs).
+  - `the_plugin_ends_its_own_session` (`activity.finish` → `PLUGIN`, returns true, then false) and `a_plugin_cant_end_anothers_session` (a second plugin's `activity.finish` with that id returns false, and the session still runs).
   - `the_call_emptying_ends_its_sessions`: two members, one leaves (the session stays), the other leaves (`CALL_EMPTY`, once).
   - `a_dropped_last_member_ends_the_session_after_the_grace`: the only member's connection drops; before the voice grace the session is still there, after it it's gone. Use the test server's clock or its expiry hook as the voice tests do; no `sleep` longer than a second.
   - `deleting_the_channel_ends_its_sessions`.
@@ -647,7 +647,7 @@ For every task here: use the app's own widgets (`showPopover`, `OcMenu`, `OcButt
 
 **Files:** `docs/plugins.md`, `docs/protocol.md` (check only), `.superpowers/sdd/plugins-m3/pr_body.md`.
 
-- [ ] **Step 1: `docs/plugins.md` gains a section "Activities"** after "Client Scripts and Custom Channels", with, in this order: what an activity is and who can start one; `ui.register_activity` and the `register_activities` permission; the events `activity_start` and `activity_end` with every field and every reason; `activity.end`; the place of a view in an activity and `ui.views` / `ui.send_place` with `{ session_id }`; `app.call` and the two `app.listen` names with their arguments; when a session ends; when a view is paused; the limits of this plan's table; the paint example, with its path.
+- [ ] **Step 1: `docs/plugins.md` gains a section "Activities"** after "Client Scripts and Custom Channels", with, in this order: what an activity is and who can start one; `ui.register_activity` and the `register_activities` permission; the events `activity_start` and `activity_end` with every field and every reason; `activity.finish`; the place of a view in an activity and `ui.views` / `ui.send_place` with `{ session_id }`; `app.call` and the two `app.listen` names with their arguments; when a session ends; when a view is paused; the limits of this plan's table; the paint example, with its path.
   - **Copy every function, field, reason and number from `crates/opencord-plugins/api/opencord.d.luau` and the code,** not from this plan: open the definition, copy the shape. For each name you write, run `rg -n "<name>" crates examples` and keep it only if it's found.
   - The permissions table gains `START_ACTIVITIES` for members; "Example Plugins" gains paint; "Runtime Limits and Quotas" gains the three limits.
 - [ ] **Step 2: Read `docs/protocol.md` against the proto files** once more, now that every task is in: each of Task 1's names is there and matches.

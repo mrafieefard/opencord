@@ -351,8 +351,8 @@ opencord.on("activity_start", function(event)
         event.call.channel_id, session.channel_id, type(session.started_at_ms),
         table.concat(event.call.member_ids, ",")))
     if session.activity == "quiz" then
-        local first = activity["end"](session)
-        local again = activity["end"](session.id)
+        local first = activity.finish(session)
+        local again = activity.finish(session.id)
         log.info("plugin ended " .. tostring(first) .. " then " .. tostring(again))
     end
 end)
@@ -827,7 +827,7 @@ async fn a_plugin_cant_end_anothers_session() {
         "1.0.0",
         &["register_activities", "read_messages"],
         r#"opencord.on("message_create", function(event)
-            log.info("other ended " .. tostring(activity["end"](event.message.content)))
+            log.info("other ended " .. tostring(activity.finish(event.message.content)))
         end)"#,
     )
     .await;

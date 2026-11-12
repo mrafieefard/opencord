@@ -395,7 +395,7 @@ Names are the contract the plan builds and the type definitions describe.
 | Voice | `voice.states(channel?)`, `voice.move/disconnect/mute/deafen(user, …)`, `soundboard.play(channel, sound)` |
 | Music | `music.state(channel)`, `music.add/skip/pause/resume(…)` |
 | Invites and server | `invites.list/create`, `server.get()` |
-| Your UI | `ui.register_channel_type(key, spec)`, `ui.register_activity(key, spec)`, `ui.views(place?)`, `view:send(name, data)`, `ui.send_place(place, name, data)`, `ui.send_role(role, name, data)`, `ui.send_all(name, data)`, `activity.end(session)` |
+| Your UI | `ui.register_channel_type(key, spec)`, `ui.register_activity(key, spec)`, `ui.views(place?)`, `view:send(name, data)`, `ui.send_place(place, name, data)`, `ui.send_role(role, name, data)`, `ui.send_all(name, data)`, `activity.finish(session)` |
 | Storage | `db.exec(sql, ...)`, `db.query(sql, ...)`, `db.transaction(fn)` |
 | Files | `files.put(path, bytes)`, `files.get(path)`, `files.delete(path)`, `files.list(prefix)` |
 | Internet | `http.request({ method, url, headers?, body?, timeout? })` |
@@ -830,7 +830,7 @@ ui.register_activity("paint", {
 ### 15.4 Ending
 
 The session ends when the starter or an admin ends it from the tile, when
-the plugin calls `activity.end(session)`, when the plugin stops, or when
+the plugin calls `activity.finish(session)`, when the plugin stops, or when
 the call empties. *(Claude's call.)* The plugin gets `activity_end`, open
 views close with "This activity ended", and the tile goes.
 

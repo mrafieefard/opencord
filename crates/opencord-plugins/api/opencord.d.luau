@@ -598,9 +598,8 @@ declare config: {
 
 declare activity: {
     --- Permission: register_activities. Ends the plugin's own session:
-    --- true if it was running. `end` is a keyword: call it as
-    --- `activity["end"](session)`.
-    ["end"]: (session: ActivitySession | string) -> boolean,
+    --- true if it was running.
+    finish: (session: ActivitySession | string) -> boolean,
 }
 
 --------------------------------------------------------------------------------

@@ -3,7 +3,8 @@
 //! `activity`: ending the plugin's own activity sessions (spec §15.4, plan
 //! M3 Task 4).
 //!
-//! `end` is a Lua keyword, so scripts call it as `activity["end"](session)`.
+//! Ending is `activity.finish(session)`: `end` is a Luau keyword, so
+//! `activity.end` couldn't be written.
 
 use std::sync::Arc;
 
@@ -17,11 +18,11 @@ use crate::plugins::runtime::PluginEnv;
 
 pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let activity = lua.create_table()?;
-    let end_env = env.clone();
+    let finish_env = env.clone();
     activity.raw_set(
-        "end",
+        "finish",
         async_function(lua, move |_, session: Value| {
-            let env = end_env.clone();
+            let env = finish_env.clone();
             async move {
                 env.require(PluginPermission::RegisterActivities)?;
                 let session_id = session_arg(session)?;
