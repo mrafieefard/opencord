@@ -44,6 +44,8 @@ class ReadySnapshot {
     this.privateSettings = const ServerPrivateSettings(),
     this.pluginUsers = const [],
     this.pluginChannelTypes = const [],
+    this.pluginActivities = const [],
+    this.activitySessions = const {},
   });
 
   final User self;
@@ -87,4 +89,10 @@ class ReadySnapshot {
   final ServerPrivateSettings privateSettings;
   final List<PluginUser> pluginUsers;
   final List<PluginChannelType> pluginChannelTypes;
+
+  /// The activities running plugins register (plugins M3).
+  final List<PluginActivity> pluginActivities;
+
+  /// The activity sessions in the voice channels this user can view, by id.
+  final Map<int, ActivitySession> activitySessions;
 }

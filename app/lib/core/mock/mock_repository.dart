@@ -135,6 +135,12 @@ class MockRepository implements OpencordRepository {
   final _mockViewFactories = <String, MockViewFactory>{};
   final _activeMockViews = <String, MockViewScript>{};
 
+  /// The last seq each open view sent.
+  final _viewSeqs = <String, int>{};
+
+  /// The session each open activity view shows, by view id.
+  final _activityViews = <String, ({String server, int session})>{};
+
   void _initMockViews() {
     _mockViewFactories['counter'] = _defaultCounterMockView;
     _mockViewFactories['support-tickets'] = _defaultCounterMockView;
@@ -277,6 +283,8 @@ class MockRepository implements OpencordRepository {
     _activeViews.clear();
     _unclaimedOutputs.clear();
     _activeMockViews.clear();
+    _viewSeqs.clear();
+    _activityViews.clear();
     _events.close();
   }
 
@@ -3617,6 +3625,7 @@ class MockRepository implements OpencordRepository {
     );
     _emit(VoiceChanged(session.server, session.channel, List.of(participants)));
     _emit(SpeakingChanged(session.server, const {}));
+    _leftCall(server, session.channel, server.selfId);
   }
 
   @override
@@ -3693,6 +3702,7 @@ class MockRepository implements OpencordRepository {
     }
     _emit(VoiceChanged(serverKey, from, List.of(participants)));
     _emit(VoiceChanged(serverKey, channelId, List.of(destination)));
+    _leftCall(server, from, userId);
   }
 
   @override
@@ -3703,6 +3713,7 @@ class MockRepository implements OpencordRepository {
     if (userId == server.selfId) return _leaveVoiceNow();
     participants.removeAt(index);
     _emit(VoiceChanged(serverKey, channel, List.of(participants)));
+    _leftCall(server, channel, userId);
   }
 
   /// What the system's picker chooses, for tests.
@@ -3914,6 +3925,7 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceChanged(session.server, channelId, List.of(to)));
     _emit(OwnVoiceChanged(session.server, channelId));
     _emit(VoiceConnectionChanged(session.server, channelId, _connected));
+    _leftCall(server, session.channel, server.selfId);
   }
 
   /// As another of the user's devices would: takes the call over.
@@ -5661,7 +5673,12 @@ class MockRepository implements OpencordRepository {
   ) async {
     final server = _server(serverKey);
     final channel = server.channels[channelId];
-    final pluginId = channel?.pluginId ?? 'counter';
+    return _openMockView(channel?.pluginId ?? 'counter');
+  }
+
+  /// Starts [pluginId]'s mock script for a new view. Its first batch goes
+  /// out in a microtask, once the caller holds the id and could listen.
+  String _openMockView(String pluginId) {
     final viewId = 'mock_view_${++_nextViewId}';
     final factory = _mockViewFactories[pluginId] ?? _defaultCounterMockView;
     final script = factory(viewId);
@@ -5669,6 +5686,7 @@ class MockRepository implements OpencordRepository {
 
     final initialBatch = script('{"kind":"init"}');
     if (initialBatch != null) {
+      _noteSeq(viewId, initialBatch);
       _unclaimedOutputs
           .putIfAbsent(viewId, () => [])
           .add(ViewOutput(viewId: viewId, json: initialBatch));
@@ -5694,6 +5712,7 @@ class MockRepository implements OpencordRepository {
     if (script != null) {
       final batch = script(json);
       if (batch != null && !_viewOutputsController.isClosed) {
+        _noteSeq(viewId, batch);
         _viewOutputsController.add(ViewOutput(viewId: viewId, json: batch));
       }
     }
@@ -5705,6 +5724,223 @@ class MockRepository implements OpencordRepository {
     _activeViews.remove(viewId);
     _unclaimedOutputs.remove(viewId);
     _activeMockViews.remove(viewId);
+    _viewSeqs.remove(viewId);
+    if (_activityViews.remove(viewId) case final place?) {
+      final server = _world.servers
+          .where((server) => server.key == place.server)
+          .firstOrNull;
+      if (server != null) {
+        _setViewer(server, place.session, viewing: false);
+      }
+    }
+  }
+
+  /// Remembers the seq of a batch [viewId] sent, so a `closed` batch can
+  /// come after it.
+  void _noteSeq(String viewId, String batch) {
+    try {
+      if (jsonDecode(batch) case {'seq': final int seq}) {
+        _viewSeqs[viewId] = seq;
+      }
+    } on FormatException {
+      // A script that sends a broken batch on purpose, for the renderer's
+      // error state: the renderer refuses it, so no seq to come after.
+    }
+  }
+
+  /// As the core does when the server closes a view: one last batch with
+  /// the `closed` op, then nothing more from its script. The app still
+  /// calls [closeView] when it lets the view go.
+  void _closeViewWith(String viewId, String reason) {
+    _activityViews.remove(viewId);
+    if (_activeMockViews.remove(viewId) == null) return;
+    final seq = (_viewSeqs.remove(viewId) ?? 0) + 1;
+    if (_viewOutputsController.isClosed) return;
+    _viewOutputsController.add(
+      ViewOutput(
+        viewId: viewId,
+        json: jsonEncode({
+          'view': viewId,
+          'seq': seq,
+          'ops': [
+            {'op': 'closed', 'reason': reason},
+          ],
+        }),
+      ),
+    );
+  }
+
+  // Activities (plugins M3) --------------------------------------------------
+
+  @override
+  Future<ActivitySession> startActivity(
+    String serverKey,
+    int channelId,
+    String pluginId,
+    String activityKey,
+  ) async {
+    final server = _server(serverKey);
+    if (_voice != (server: serverKey, channel: channelId)) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'join the call to start an activity',
+      );
+    }
+    _require(server, Permissions.startActivities, channelId);
+    final registered =
+        server.pluginActivities
+            .where(
+              (known) =>
+                  known.pluginId == pluginId &&
+                  known.activityKey == activityKey,
+            )
+            .firstOrNull ??
+        (throw const RepoException(
+          RepoErrorKind.other,
+          'this activity is unavailable',
+        ));
+    final inThisCall = [
+      for (final other in server.activitySessions.values)
+        if (other.channelId == channelId) other,
+    ];
+    final running = inThisCall
+        .where(
+          (other) =>
+              other.pluginId == pluginId && other.activityKey == activityKey,
+        )
+        .firstOrNull;
+    if (running != null) return running;
+    if (inThisCall.length >= activitySessionsPerCall) {
+      throw const RepoException(
+        RepoErrorKind.other,
+        'this call already has $activitySessionsPerCall activities',
+      );
+    }
+    final started = ActivitySession(
+      id: _world.ids.at(_clock()),
+      channelId: channelId,
+      pluginId: pluginId,
+      activityKey: activityKey,
+      name: registered.name,
+      icon: registered.icon,
+      pluginName: registered.pluginName,
+      starterId: server.selfId,
+      startedAt: _clock(),
+    );
+    server.activitySessions[started.id] = started;
+    _emit(ActivitySessionStarted(serverKey, started));
+    return started;
+  }
+
+  @override
+  Future<void> endActivity(String serverKey, int sessionId) async {
+    final server = _server(serverKey);
+    final session = server.activitySessions[sessionId];
+    if (session == null ||
+        !server.selfChannelPermissions.containsKey(session.channelId)) {
+      throw const RepoException(
+        RepoErrorKind.notFound,
+        'activity session not found',
+      );
+    }
+    final manages = server.selfChannelPermissions[session.channelId]!.has(
+      Permissions.manageChannels,
+    );
+    if (session.starterId != server.selfId && !manages) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'only its starter or someone who manages the channel ends an activity',
+      );
+    }
+    _endActivitySession(server, sessionId, ActivityEndReason.ended);
+  }
+
+  @override
+  Future<String> openActivityView(
+    String serverKey,
+    ActivitySession session,
+    String contextJson,
+  ) async {
+    final server = _server(serverKey);
+    final running =
+        server.activitySessions[session.id] ??
+        (throw const RepoException(
+          RepoErrorKind.notFound,
+          'activity session not found',
+        ));
+    if (_voice != (server: serverKey, channel: running.channelId)) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'join the call to open this activity',
+      );
+    }
+    final viewId = _openMockView(running.pluginId);
+    _activityViews[viewId] = (server: serverKey, session: running.id);
+    _setViewer(server, running.id, viewing: true);
+    return viewId;
+  }
+
+  /// Adds the current user to a session's viewers, or takes them off, and
+  /// tells everyone when that changed it.
+  void _setViewer(MockServer server, int sessionId, {required bool viewing}) {
+    final session = server.activitySessions[sessionId];
+    if (session == null) return;
+    final viewers = {...session.viewerIds};
+    final changed = viewing
+        ? viewers.add(server.selfId)
+        : viewers.remove(server.selfId);
+    if (!changed) return;
+    final updated = session.copyWith(
+      viewerIds: List.unmodifiable(viewers.toList()..sort()),
+    );
+    server.activitySessions[sessionId] = updated;
+    _emit(ActivitySessionChanged(server.key, updated));
+  }
+
+  /// Ends a session: its views here close with `activity_ended`, and
+  /// everyone hears why it ended.
+  void _endActivitySession(
+    MockServer server,
+    int sessionId,
+    ActivityEndReason reason,
+  ) {
+    final session = server.activitySessions.remove(sessionId);
+    if (session == null) return;
+    for (final MapEntry(key: viewId, value: place) in [
+      ..._activityViews.entries,
+    ]) {
+      if (place.server == server.key && place.session == sessionId) {
+        _closeViewWith(viewId, 'activity_ended');
+      }
+    }
+    _emit(
+      ActivitySessionEnded(server.key, sessionId, session.channelId, reason),
+    );
+  }
+
+  /// Someone left [channelId]'s call: the current user's activity views
+  /// there close with `left_call`, and a call left empty ends its
+  /// sessions, as the server does.
+  void _leftCall(MockServer server, int channelId, int userId) {
+    if (userId == server.selfId) {
+      for (final MapEntry(key: viewId, value: place) in [
+        ..._activityViews.entries,
+      ]) {
+        if (place.server == server.key &&
+            server.activitySessions[place.session]?.channelId == channelId) {
+          _closeViewWith(viewId, 'left_call');
+          _setViewer(server, place.session, viewing: false);
+        }
+      }
+    }
+    if (server.voice[channelId]?.isEmpty ?? true) {
+      for (final sessionId in [
+        for (final session in server.activitySessions.values)
+          if (session.channelId == channelId) session.id,
+      ]) {
+        _endActivitySession(server, sessionId, ActivityEndReason.callEmpty);
+      }
+    }
   }
 
   String Function(String serverKey, String pluginId, String path)?

@@ -284,6 +284,124 @@ class PluginChannelType {
       Object.hash(pluginId, typeKey, name, description, icon, pluginName);
 }
 
+/// An activity a running plugin registers (plugins design §15.1).
+@immutable
+class PluginActivity {
+  const PluginActivity({
+    required this.pluginId,
+    required this.activityKey,
+    required this.name,
+    required this.description,
+    this.icon = '',
+    required this.pluginName,
+  });
+
+  final String pluginId;
+  final String activityKey;
+  final String name;
+  final String description;
+
+  /// A path under the plugin's `assets/`, or empty.
+  final String icon;
+  final String pluginName;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PluginActivity &&
+          other.pluginId == pluginId &&
+          other.activityKey == activityKey &&
+          other.name == name &&
+          other.description == description &&
+          other.icon == icon &&
+          other.pluginName == pluginName;
+
+  @override
+  int get hashCode =>
+      Object.hash(pluginId, activityKey, name, description, icon, pluginName);
+}
+
+/// At most this many activity sessions run in one call, as the server's
+/// `opencord_plugins::limits::ACTIVITY_SESSIONS_PER_CALL`.
+const activitySessionsPerCall = 4;
+
+/// Why an activity session ended (§15.4).
+enum ActivityEndReason { ended, plugin, callEmpty, pluginStopped, unavailable }
+
+/// One activity running in one call (§15.2).
+@immutable
+class ActivitySession {
+  const ActivitySession({
+    required this.id,
+    required this.channelId,
+    required this.pluginId,
+    required this.activityKey,
+    required this.name,
+    this.icon = '',
+    required this.pluginName,
+    required this.starterId,
+    required this.startedAt,
+    this.viewerIds = const [],
+  });
+
+  final int id;
+
+  /// The voice channel.
+  final int channelId;
+  final String pluginId;
+  final String activityKey;
+  final String name;
+  final String icon;
+  final String pluginName;
+  final int starterId;
+  final DateTime startedAt;
+
+  /// Who has it open, ascending.
+  final List<int> viewerIds;
+
+  ActivitySession copyWith({List<int>? viewerIds}) => ActivitySession(
+    id: id,
+    channelId: channelId,
+    pluginId: pluginId,
+    activityKey: activityKey,
+    name: name,
+    icon: icon,
+    pluginName: pluginName,
+    starterId: starterId,
+    startedAt: startedAt,
+    viewerIds: viewerIds ?? this.viewerIds,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActivitySession &&
+          other.id == id &&
+          other.channelId == channelId &&
+          other.pluginId == pluginId &&
+          other.activityKey == activityKey &&
+          other.name == name &&
+          other.icon == icon &&
+          other.pluginName == pluginName &&
+          other.starterId == starterId &&
+          other.startedAt == startedAt &&
+          listEquals(other.viewerIds, viewerIds);
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    channelId,
+    pluginId,
+    activityKey,
+    name,
+    icon,
+    pluginName,
+    starterId,
+    startedAt,
+    Object.hashAll(viewerIds),
+  );
+}
+
 /// A batch for the renderer of one plugin view: the core's id for the view
 /// and the batch as JSON (plugins milestone 2 plan, "The view wire format").
 @immutable

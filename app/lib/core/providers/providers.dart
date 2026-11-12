@@ -16,6 +16,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/model/voice.dart';
+import 'package:opencord/core/providers/activity_sessions.dart';
 import 'package:opencord/core/providers/activity_state.dart';
 import 'package:opencord/core/providers/channel_audience.dart';
 import 'package:opencord/core/providers/lavalink_state.dart';
@@ -39,6 +40,7 @@ import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/local_prefs.dart';
 import 'package:opencord/core/settings/key_value_store.dart';
 
+export 'package:opencord/core/providers/activity_sessions.dart';
 export 'package:opencord/core/providers/activity_state.dart';
 export 'package:opencord/core/providers/channel_audience.dart';
 export 'package:opencord/core/providers/lavalink_state.dart';
@@ -502,6 +504,7 @@ void _route(Ref ref, RepoEvent event) {
   ref.read(typingProvider(key).notifier).apply(event);
   ref.read(voiceProvider(key).notifier).apply(event);
   ref.read(streamsProvider(key).notifier).apply(event);
+  ref.read(activitySessionsProvider(key).notifier).apply(event);
   ref.read(soundsProvider(key).notifier).apply(event);
   ref.read(pluginsProvider(key).notifier).apply(event);
   ref.read(pluginReviewsProvider(key).notifier).apply(event);

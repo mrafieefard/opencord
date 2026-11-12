@@ -167,6 +167,11 @@ class MockServer {
   final Map<String, PluginReview> pluginReviews = {};
   final Map<int, PluginUser> pluginUsers = {};
   final List<PluginChannelType> pluginChannelTypes = [];
+
+  /// The activities running plugins register, and the sessions running in
+  /// voice channels by id (plugins M3).
+  final List<PluginActivity> pluginActivities = [];
+  final Map<int, ActivitySession> activitySessions = {};
   final Map<String, List<PluginLogLine>> pluginLogs = {};
   final List<PluginDevToken> pluginDevTokens = [];
 
@@ -261,6 +266,11 @@ class MockServer {
       privateSettings: privateSettings,
       pluginUsers: pluginUsers.values.toList(),
       pluginChannelTypes: List.unmodifiable(pluginChannelTypes),
+      pluginActivities: List.unmodifiable(pluginActivities),
+      activitySessions: {
+        for (final MapEntry(:key, :value) in activitySessions.entries)
+          if (visible.containsKey(value.channelId)) key: value,
+      },
     );
   }
 }
@@ -763,6 +773,15 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
       description: 'Support and feedback desk',
       icon: '',
       pluginName: 'Support Tickets',
+    ),
+  );
+  server.pluginActivities.add(
+    const PluginActivity(
+      pluginId: 'paint',
+      activityKey: 'paint',
+      name: 'Paint together',
+      description: 'A shared whiteboard',
+      pluginName: 'Paint',
     ),
   );
   b.pluginChannel(

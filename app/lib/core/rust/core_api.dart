@@ -825,6 +825,23 @@ abstract interface class CoreApi {
 
   Future<void> viewClose({required String viewId});
 
+  Future<core.ActivitySession> startActivity({
+    required String serverKey,
+    required int channelId,
+    required String pluginId,
+    required String activityKey,
+  });
+
+  Future<void> endActivity({required String serverKey, required int sessionId});
+
+  Future<String> viewOpenActivity({
+    required String serverKey,
+    required int sessionId,
+    required int channelId,
+    required String activityKey,
+    required String contextJson,
+  });
+
   Future<String> pluginAssetFile({
     required String serverKey,
     required String pluginId,
@@ -2335,6 +2352,40 @@ class FrbCoreApi implements CoreApi {
   @override
   Future<void> viewClose({required String viewId}) async =>
       frb_views.viewClose(viewId: viewId);
+
+  @override
+  Future<core.ActivitySession> startActivity({
+    required String serverKey,
+    required int channelId,
+    required String pluginId,
+    required String activityKey,
+  }) => frb_views.startActivity(
+    serverKey: serverKey,
+    channelId: channelId,
+    pluginId: pluginId,
+    activityKey: activityKey,
+  );
+
+  @override
+  Future<void> endActivity({
+    required String serverKey,
+    required int sessionId,
+  }) => frb_views.endActivity(serverKey: serverKey, sessionId: sessionId);
+
+  @override
+  Future<String> viewOpenActivity({
+    required String serverKey,
+    required int sessionId,
+    required int channelId,
+    required String activityKey,
+    required String contextJson,
+  }) => frb_views.viewOpenActivity(
+    serverKey: serverKey,
+    sessionId: sessionId,
+    channelId: channelId,
+    activityKey: activityKey,
+    contextJson: contextJson,
+  );
 
   @override
   Future<String> pluginAssetFile({

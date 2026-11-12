@@ -389,7 +389,47 @@ ReadySnapshot snapshotFrom(
   pluginChannelTypes: [
     for (final type in ready.pluginChannelTypes) pluginChannelTypeFrom(type),
   ],
+  pluginActivities: [
+    for (final activity in ready.pluginActivities) pluginActivityFrom(activity),
+  ],
+  activitySessions: {
+    for (final session in ready.activitySessions)
+      session.id: activitySessionFrom(session),
+  },
 );
+
+PluginActivity pluginActivityFrom(core.PluginActivity activity) =>
+    PluginActivity(
+      pluginId: activity.pluginId,
+      activityKey: activity.activityKey,
+      name: activity.name,
+      description: activity.description,
+      icon: activity.icon,
+      pluginName: activity.pluginName,
+    );
+
+ActivitySession activitySessionFrom(core.ActivitySession session) =>
+    ActivitySession(
+      id: session.id,
+      channelId: session.channelId,
+      pluginId: session.pluginId,
+      activityKey: session.activityKey,
+      name: session.name,
+      icon: session.icon,
+      pluginName: session.pluginName,
+      starterId: session.starterId,
+      startedAt: _time(session.startedAtMs),
+      viewerIds: List.unmodifiable(session.viewerIds),
+    );
+
+ActivityEndReason activityEndReasonFrom(core.ActivityEndReason reason) =>
+    switch (reason) {
+      core.ActivityEndReason.ended => ActivityEndReason.ended,
+      core.ActivityEndReason.plugin => ActivityEndReason.plugin,
+      core.ActivityEndReason.callEmpty => ActivityEndReason.callEmpty,
+      core.ActivityEndReason.pluginStopped => ActivityEndReason.pluginStopped,
+      core.ActivityEndReason.unavailable => ActivityEndReason.unavailable,
+    };
 
 PluginChannelType pluginChannelTypeFrom(core.PluginChannelType type) =>
     PluginChannelType(

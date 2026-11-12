@@ -215,6 +215,125 @@ void main() {
     expect(snapshot.serverPermissions.bits, 3);
   });
 
+  // Every field holds a different value, so a dropped or swapped field
+  // fails (plan M3 Task 9).
+  group('activities (plugins M3)', () {
+    const coreActivity = core.PluginActivity(
+      pluginId: 'paint',
+      activityKey: 'board',
+      name: 'Paint together',
+      description: 'A shared whiteboard',
+      icon: 'icons/paint.png',
+      pluginName: 'Paint',
+    );
+    final coreSession = core.ActivitySession(
+      id: 901,
+      channelId: 20,
+      pluginId: 'paint',
+      activityKey: 'board',
+      name: 'Paint together',
+      icon: 'icons/paint.png',
+      pluginName: 'Paint',
+      starterId: 7,
+      startedAtMs: 1760000000123,
+      viewerIds: Int64List.fromList([3, 8]),
+    );
+
+    test('a registered activity maps field for field', () {
+      expect(
+        pluginActivityFrom(coreActivity),
+        const PluginActivity(
+          pluginId: 'paint',
+          activityKey: 'board',
+          name: 'Paint together',
+          description: 'A shared whiteboard',
+          icon: 'icons/paint.png',
+          pluginName: 'Paint',
+        ),
+      );
+    });
+
+    test('a session maps field for field', () {
+      expect(
+        activitySessionFrom(coreSession),
+        ActivitySession(
+          id: 901,
+          channelId: 20,
+          pluginId: 'paint',
+          activityKey: 'board',
+          name: 'Paint together',
+          icon: 'icons/paint.png',
+          pluginName: 'Paint',
+          starterId: 7,
+          startedAt: DateTime.fromMillisecondsSinceEpoch(1760000000123),
+          viewerIds: const [3, 8],
+        ),
+      );
+    });
+
+    test('end reasons map name for name', () {
+      expect(
+        [
+          for (final reason in core.ActivityEndReason.values)
+            activityEndReasonFrom(reason),
+        ],
+        [
+          ActivityEndReason.ended,
+          ActivityEndReason.plugin,
+          ActivityEndReason.callEmpty,
+          ActivityEndReason.pluginStopped,
+          ActivityEndReason.unavailable,
+        ],
+      );
+    });
+
+    test('a Ready snapshot holds the activities and the sessions by id', () {
+      final snapshot = snapshotFrom(
+        core.ReadySnapshot(
+          privateMessages: false,
+          privateSettings: const core.PrivateSettings(
+            enabled: false,
+            friendsOnly: false,
+            allowedByConfig: true,
+          ),
+          voiceEnabled: true,
+          voiceStates: const [],
+          streams: const [],
+          voiceSettings: coreVoiceSettings,
+          soundboardSounds: const [],
+          selfUser: _user,
+          server: const core.ServerInfo(
+            serverIdHex: 'ff',
+            name: 'Home',
+            description: '',
+            ownerId: 7,
+            openJoin: false,
+            everyoneRoleId: 1,
+            iconHash: null,
+          ),
+          channels: const [],
+          roles: const [],
+          members: const [],
+          presences: const [],
+          serverPermissions: 3,
+          channelPermissions: const [],
+          addresses: const core.ServerAddresses(domains: []),
+          commands: const core.CommandList(commands: [], resultsPublic: true),
+          uploadSettings: coreUploadSettings,
+          pluginUsers: const [],
+          pluginChannelTypes: const [],
+          pluginActivities: const [coreActivity],
+          activitySessions: [coreSession],
+        ),
+      );
+
+      expect(snapshot.pluginActivities, [pluginActivityFrom(coreActivity)]);
+      expect(snapshot.activitySessions, {
+        901: activitySessionFrom(coreSession),
+      });
+    });
+  });
+
   group('errors', () {
     test('server errors keep their kind and wait', () {
       final error = errorFrom(

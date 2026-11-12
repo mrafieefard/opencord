@@ -153,6 +153,11 @@ const permissionGroups = <(String, List<PermissionInfo>)>[
         later: true,
       ),
       PermissionInfo(
+        Permissions.startActivities,
+        'Start activities',
+        "Start a plugin's activity in a voice call they're in",
+      ),
+      PermissionInfo(
         Permissions.useVoiceActivity,
         'Use voice activity',
         'Talk without holding push-to-talk',

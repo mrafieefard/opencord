@@ -558,6 +558,48 @@ class FakeCoreApi extends Fake implements CoreApi {
     return 'view_$channelId';
   }
 
+  /// What startActivity answers, and what the three activity calls throw
+  /// when set.
+  core.ActivitySession? startedSession;
+  core.CoreError? activityError;
+
+  @override
+  Future<core.ActivitySession> startActivity({
+    required String serverKey,
+    required int channelId,
+    required String pluginId,
+    required String activityKey,
+  }) async {
+    calls.add('startActivity:$serverKey:$channelId:$pluginId:$activityKey');
+    if (activityError case final error?) throw error;
+    return startedSession!;
+  }
+
+  @override
+  Future<void> endActivity({
+    required String serverKey,
+    required int sessionId,
+  }) async {
+    calls.add('endActivity:$serverKey:$sessionId');
+    if (activityError case final error?) throw error;
+  }
+
+  @override
+  Future<String> viewOpenActivity({
+    required String serverKey,
+    required int sessionId,
+    required int channelId,
+    required String activityKey,
+    required String contextJson,
+  }) async {
+    calls.add(
+      'viewOpenActivity:$serverKey:$sessionId:$channelId:$activityKey:'
+      '$contextJson',
+    );
+    if (activityError case final error?) throw error;
+    return 'activity_view_$sessionId';
+  }
+
   @override
   void viewInput({required String viewId, required String json}) {
     viewInputs.add((viewId: viewId, json: json));

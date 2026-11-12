@@ -737,3 +737,40 @@ final class PluginChannelTypesUpdated extends RepoEvent {
 
   final List<PluginChannelType> channelTypes;
 }
+
+/// Every activity running plugins register now, in place of the earlier
+/// list (plugins M3).
+final class PluginActivitiesUpdated extends RepoEvent {
+  const PluginActivitiesUpdated(super.serverKey, this.activities);
+
+  final List<PluginActivity> activities;
+}
+
+/// An activity started in a voice channel this user can view.
+final class ActivitySessionStarted extends RepoEvent {
+  const ActivitySessionStarted(super.serverKey, this.session);
+
+  final ActivitySession session;
+}
+
+/// A session changed: who has it open.
+final class ActivitySessionChanged extends RepoEvent {
+  const ActivitySessionChanged(super.serverKey, this.session);
+
+  final ActivitySession session;
+}
+
+final class ActivitySessionEnded extends RepoEvent {
+  const ActivitySessionEnded(
+    super.serverKey,
+    this.sessionId,
+    this.channelId,
+    this.reason,
+  );
+
+  final int sessionId;
+
+  /// The voice channel it ran in.
+  final int channelId;
+  final ActivityEndReason reason;
+}

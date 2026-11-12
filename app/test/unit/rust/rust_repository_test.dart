@@ -166,10 +166,10 @@ void main() {
       expect(harness.core.calls, isNot(contains(startsWith('identityLoad'))));
     });
 
-    // Fails if the desktop doesn't ask for plugin channels, or asks only
-    // after loading the identity, which connects: the first session would
-    // come without them.
-    test('the desktop asks for plugin channels before it connects', () async {
+    // Fails if the desktop doesn't ask for plugin channels or activities,
+    // or asks only after loading the identity, which connects: the first
+    // session would come without them.
+    test('the desktop asks for activities before it connects', () async {
       final harness = await _Harness.start(
         saved: SavedIdentity(
           secret: Uint8List.fromList([9]),
@@ -177,7 +177,12 @@ void main() {
         ),
       );
 
-      expect(harness.core.featuresAtLoad, ['plugin_users', 'plugin_channels']);
+      expect(harness.core.featuresAtLoad, [
+        'plugin_users',
+        'plugin_channels',
+        'activities',
+      ]);
+      expect(harness.repository.capabilities.activities, isTrue);
     });
 
     test('a saved identity is loaded at once', () async {
@@ -614,6 +619,143 @@ void main() {
         throwsA(isA<RepoException>()),
       );
       expect(harness.core.calls, isNot(contains(startsWith('createChannel'))));
+    });
+  });
+
+  group('activities (plugins M3)', () {
+    core.ActivitySession session({List<int> viewers = const []}) =>
+        core.ActivitySession(
+          id: 901,
+          channelId: 20,
+          pluginId: 'paint',
+          activityKey: 'board',
+          name: 'Paint together',
+          icon: 'icons/paint.png',
+          pluginName: 'Paint',
+          starterId: _kai,
+          startedAtMs: 1760000000123,
+          viewerIds: frb.Int64List.fromList(viewers),
+        );
+
+    test('each of the four core events becomes its repo event', () async {
+      final harness = await _Harness.start();
+      const activity = core.PluginActivity(
+        pluginId: 'paint',
+        activityKey: 'board',
+        name: 'Paint together',
+        description: 'A shared whiteboard',
+        icon: '',
+        pluginName: 'Paint',
+      );
+
+      for (final payload in [
+        const core.CoreEventPayload.pluginActivitiesUpdate([activity]),
+        core.CoreEventPayload.activitySessionCreate(session()),
+        core.CoreEventPayload.activitySessionUpdate(session(viewers: [_self])),
+        const core.CoreEventPayload.activitySessionDelete(
+          sessionId: 901,
+          channelId: 20,
+          reason: core.ActivityEndReason.callEmpty,
+        ),
+      ]) {
+        harness.core.events.add(
+          core.CoreEvent(serverKey: _server, payload: payload),
+        );
+      }
+      await harness.settle();
+
+      final updated = harness.events
+          .whereType<PluginActivitiesUpdated>()
+          .single;
+      expect(updated.serverKey, _server);
+      expect(updated.activities, [pluginActivityFrom(activity)]);
+      final started = harness.events.whereType<ActivitySessionStarted>().single;
+      expect(started.serverKey, _server);
+      expect(started.session, activitySessionFrom(session()));
+      final changed = harness.events.whereType<ActivitySessionChanged>().single;
+      expect(changed.session.viewerIds, [_self]);
+      final ended = harness.events.whereType<ActivitySessionEnded>().single;
+      expect(
+        (ended.serverKey, ended.sessionId, ended.channelId, ended.reason),
+        (_server, 901, 20, ActivityEndReason.callEmpty),
+      );
+    });
+
+    test('start, end and open go to the core with their own values', () async {
+      final harness = await _Harness.start();
+      harness.core.startedSession = session();
+
+      final started = await harness.repository.startActivity(
+        _server,
+        20,
+        'paint',
+        'board',
+      );
+      await harness.repository.endActivity(_server, 902);
+      final viewId = await harness.repository.openActivityView(
+        _server,
+        started,
+        '{"theme":"dark"}',
+      );
+
+      expect(started, activitySessionFrom(session()));
+      expect(viewId, 'activity_view_901');
+      expect(
+        harness.core.calls.where(
+          (call) =>
+              call.startsWith('startActivity:') ||
+              call.startsWith('endActivity:') ||
+              call.startsWith('viewOpenActivity:'),
+        ),
+        [
+          'startActivity:$_server:20:paint:board',
+          'endActivity:$_server:902',
+          'viewOpenActivity:$_server:901:20:board:{"theme":"dark"}',
+        ],
+      );
+    });
+
+    test('a refused start is a repository error', () async {
+      final harness = await _Harness.start();
+      harness.core.activityError = const core.CoreError.server(
+        code: core.ErrorCode.forbidden,
+        message: 'missing permission: START_ACTIVITIES',
+      );
+
+      await expectLater(
+        harness.repository.startActivity(_server, 20, 'paint', 'board'),
+        throwsA(
+          isA<RepoException>().having(
+            (error) => error.kind,
+            'kind',
+            RepoErrorKind.forbidden,
+          ),
+        ),
+      );
+    });
+
+    // The first batch can come before the open's reply; it waits for the
+    // view, as a channel's does.
+    test('an activity view gets the batch that came before its id', () async {
+      final harness = await _Harness.start();
+      final outputs = <ViewOutput>[];
+      harness.repository.viewOutputs.listen(outputs.add);
+      harness.core.emitViewOutput(
+        const core.ViewOutput(viewId: 'activity_view_901', json: '{"seq":1}'),
+      );
+      await harness.settle();
+      expect(outputs, isEmpty);
+
+      await harness.repository.openActivityView(
+        _server,
+        activitySessionFrom(session()),
+        '{}',
+      );
+      await harness.settle();
+
+      expect(outputs, [
+        const ViewOutput(viewId: 'activity_view_901', json: '{"seq":1}'),
+      ]);
     });
   });
 

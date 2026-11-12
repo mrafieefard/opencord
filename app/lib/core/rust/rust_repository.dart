@@ -46,9 +46,9 @@ import 'package:opencord/src/rust/api/types.dart' as core;
 /// unread counts are rebuilt from recent history. Voice has its states but
 /// no media yet, so no camera or screen share.
 /// What the desktop asks servers for in `Identify.features`: plugin users
-/// and plugin channels (plugins milestone 2). The phone asks for plugin
-/// users only.
-const desktopFeatures = ['plugin_users', 'plugin_channels'];
+/// and plugin channels (plugins milestone 2), and activities (milestone 3).
+/// The phone asks for plugin users only.
+const desktopFeatures = ['plugin_users', 'plugin_channels', 'activities'];
 
 class RustRepository implements OpencordRepository {
   RustRepository._(
@@ -79,6 +79,7 @@ class RustRepository implements OpencordRepository {
       soundboard: true,
       ownScreenPicker: video.ownScreenPicker,
       lowerOtherApps: _core.audioAttenuationSupported(),
+      activities: true,
     );
   }
 
@@ -886,10 +887,25 @@ class RustRepository implements OpencordRepository {
         PluginChannelTypesUpdated(server, [
           for (final type in field0) pluginChannelTypeFrom(type),
         ]),
-      core.CoreEventPayload_PluginActivitiesUpdate() => null, // Task 9 maps this.
-      core.CoreEventPayload_ActivitySessionCreate() => null, // Task 9 maps this.
-      core.CoreEventPayload_ActivitySessionUpdate() => null, // Task 9 maps this.
-      core.CoreEventPayload_ActivitySessionDelete() => null, // Task 9 maps this.
+      core.CoreEventPayload_PluginActivitiesUpdate(:final field0) =>
+        PluginActivitiesUpdated(server, [
+          for (final activity in field0) pluginActivityFrom(activity),
+        ]),
+      core.CoreEventPayload_ActivitySessionCreate(:final field0) =>
+        ActivitySessionStarted(server, activitySessionFrom(field0)),
+      core.CoreEventPayload_ActivitySessionUpdate(:final field0) =>
+        ActivitySessionChanged(server, activitySessionFrom(field0)),
+      core.CoreEventPayload_ActivitySessionDelete(
+        :final sessionId,
+        :final channelId,
+        :final reason,
+      ) =>
+        ActivitySessionEnded(
+          server,
+          sessionId,
+          channelId,
+          activityEndReasonFrom(reason),
+        ),
     };
     if (event != null) _emit(event);
   }
@@ -3169,6 +3185,30 @@ class RustRepository implements OpencordRepository {
         contextJson: contextJson,
       ),
     );
+    return _claimView(viewId);
+  }
+
+  @override
+  Future<String> openActivityView(
+    String serverKey,
+    ActivitySession session,
+    String contextJson,
+  ) async {
+    final viewId = await _call(
+      () => _core.viewOpenActivity(
+        serverKey: serverKey,
+        sessionId: session.id,
+        channelId: session.channelId,
+        activityKey: session.activityKey,
+        contextJson: contextJson,
+      ),
+    );
+    return _claimView(viewId);
+  }
+
+  /// From now on [viewId]'s outputs go out; the ones that came before its
+  /// id go out in a microtask, once the caller could listen.
+  String _claimView(String viewId) {
     _activeViews.add(viewId);
     final unconsumed = _unclaimedOutputs.remove(viewId);
     if (unconsumed != null && unconsumed.isNotEmpty) {
@@ -3182,6 +3222,28 @@ class RustRepository implements OpencordRepository {
     }
     return viewId;
   }
+
+  @override
+  Future<ActivitySession> startActivity(
+    String serverKey,
+    int channelId,
+    String pluginId,
+    String activityKey,
+  ) async => activitySessionFrom(
+    await _call(
+      () => _core.startActivity(
+        serverKey: serverKey,
+        channelId: channelId,
+        pluginId: pluginId,
+        activityKey: activityKey,
+      ),
+    ),
+  );
+
+  @override
+  Future<void> endActivity(String serverKey, int sessionId) => _call(
+    () => _core.endActivity(serverKey: serverKey, sessionId: sessionId),
+  );
 
   @override
   void viewInput(String viewId, String json) =>

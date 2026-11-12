@@ -48,6 +48,7 @@ class RepoCapabilities {
     this.soundboard = false,
     this.ownScreenPicker = false,
     this.lowerOtherApps = false,
+    this.activities = false,
   });
 
   static const everything = RepoCapabilities(
@@ -61,6 +62,7 @@ class RepoCapabilities {
     replies: true,
     soundboard: true,
     lowerOtherApps: true,
+    activities: true,
   );
 
   final bool reactions;
@@ -87,6 +89,9 @@ class RepoCapabilities {
   /// Other apps can be lowered while people talk (Phase 2 §12); not on
   /// macOS.
   final bool lowerOtherApps;
+
+  /// Plugin activities can be started and opened in a call (plugins M3).
+  final bool activities;
 }
 
 /// The current user as far as the UI is concerned.
@@ -1272,6 +1277,27 @@ abstract interface class OpencordRepository {
   void viewInput(String viewId, String json);
 
   Future<void> closeView(String viewId);
+
+  /// Starts an activity in the voice channel this device is in; an activity
+  /// already running there gives back its session (plugins M3, §15.2).
+  Future<ActivitySession> startActivity(
+    String serverKey,
+    int channelId,
+    String pluginId,
+    String activityKey,
+  );
+
+  /// Ends a session for everyone in its call: its starter, or someone who
+  /// manages the channel (§15.4).
+  Future<void> endActivity(String serverKey, int sessionId);
+
+  /// Opens this device's view of [session], which it must be in the call
+  /// of; the view's outputs come on [viewOutputs] like a channel's.
+  Future<String> openActivityView(
+    String serverKey,
+    ActivitySession session,
+    String contextJson,
+  );
 
   Stream<ViewOutput> get viewOutputs;
 

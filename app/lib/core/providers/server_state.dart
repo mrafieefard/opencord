@@ -35,6 +35,7 @@ class ServerData {
     this.privateSettings = const ServerPrivateSettings(),
     this.pluginUsers = const {},
     this.pluginChannelTypes = const [],
+    this.pluginActivities = const [],
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -54,6 +55,7 @@ class ServerData {
     privateSettings: snapshot.privateSettings,
     pluginUsers: {for (final u in snapshot.pluginUsers) u.userId: u},
     pluginChannelTypes: snapshot.pluginChannelTypes,
+    pluginActivities: snapshot.pluginActivities,
   );
 
   final User self;
@@ -65,6 +67,9 @@ class ServerData {
   final Map<int, Permissions> channelPermissions;
   final Map<int, PluginUser> pluginUsers;
   final List<PluginChannelType> pluginChannelTypes;
+
+  /// The activities running plugins register (plugins M3).
+  final List<PluginActivity> pluginActivities;
 
   /// Whether the server has voice at all.
   final bool voiceEnabled;
@@ -194,6 +199,7 @@ class ServerData {
     ServerPrivateSettings? privateSettings,
     Map<int, PluginUser>? pluginUsers,
     List<PluginChannelType>? pluginChannelTypes,
+    List<PluginActivity>? pluginActivities,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -211,6 +217,7 @@ class ServerData {
     privateSettings: privateSettings ?? this.privateSettings,
     pluginUsers: pluginUsers ?? this.pluginUsers,
     pluginChannelTypes: pluginChannelTypes ?? this.pluginChannelTypes,
+    pluginActivities: pluginActivities ?? this.pluginActivities,
   );
 }
 
@@ -316,6 +323,9 @@ ServerState reduceServer(ServerState state, RepoEvent event) {
     ),
     PluginChannelTypesUpdated(:final channelTypes) => data.copyWith(
       pluginChannelTypes: channelTypes,
+    ),
+    PluginActivitiesUpdated(:final activities) => data.copyWith(
+      pluginActivities: activities,
     ),
     PluginRemoved(:final pluginId) => data.copyWith(
       pluginUsers: {
