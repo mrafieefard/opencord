@@ -406,13 +406,26 @@ impl World {
 
     /// Denies `user_id` `denied` in `channel_id`, by a member overwrite.
     async fn deny(&mut self, channel_id: i64, user_id: i64, denied: Permissions) {
+        self.overwrite(channel_id, user_id, Permissions::empty(), denied)
+            .await;
+    }
+
+    /// Sets `user_id`'s member overwrite in `channel_id` to `allowed` and
+    /// `denied`, replacing the one before.
+    async fn overwrite(
+        &mut self,
+        channel_id: i64,
+        user_id: i64,
+        allowed: Permissions,
+        denied: Permissions,
+    ) {
         self.owner
             .ok(Kind::SetChannelOverwrite(proto::SetChannelOverwrite {
                 channel_id,
                 overwrite: Some(proto::PermissionOverwrite {
                     target_kind: proto::OverwriteTarget::Member as i32,
                     target_id: user_id,
-                    allow: 0,
+                    allow: allowed.bits(),
                     deny: denied.bits(),
                 }),
             }))
@@ -1478,4 +1491,44 @@ async fn an_activity_view_counts_toward_the_four() {
         refused(&mut a, open_in(paint.id)).await,
         proto::ErrorCode::PluginLimit
     );
+}
+
+#[tokio::test]
+async fn gaining_and_losing_sight_of_the_channel_sends_the_session() {
+    // A is in the call with it open (the one viewer). C can't see the
+    // channel until an overwrite allows it (hears the create, with A
+    // watching), then is denied again (hears the delete). D goes through
+    // the same overwrites, its app without "activities" (hears neither).
+    let mut world = World::running(VIEWS_SOURCE).await;
+    let (mut a, a_id, _) = world.member(2, &FEATURES).await;
+    let (mut c, c_id, _) = world.member(4, &FEATURES).await;
+    let (mut d, d_id, _) = world.member(5, &WITHOUT_ACTIVITIES).await;
+    let voice = world.voice;
+    for user_id in [c_id, d_id] {
+        world.deny(voice, user_id, Permissions::VIEW_CHANNEL).await;
+    }
+    a.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    open_view(&mut a, paint.id).await;
+    hears_no_session(&mut c).await;
+
+    for user_id in [c_id, d_id] {
+        world
+            .overwrite(
+                voice,
+                user_id,
+                Permissions::VIEW_CHANNEL,
+                Permissions::empty(),
+            )
+            .await;
+    }
+    let seen = created(&mut c).await;
+    assert_eq!(seen.id, paint.id);
+    assert_eq!(seen.viewer_ids, vec![a_id]);
+
+    for user_id in [c_id, d_id] {
+        world.deny(voice, user_id, Permissions::VIEW_CHANNEL).await;
+    }
+    assert_eq!(deleted(&mut c, paint.id).await.channel_id, voice);
+    hears_no_session(&mut d).await;
 }

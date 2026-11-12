@@ -108,7 +108,7 @@ impl Visibility {
                                 *user_id,
                                 channel_id,
                                 Kind::ActivitySessionCreate(proto::ActivitySessionCreate {
-                                    session: Some(session.to_proto(Vec::new())),
+                                    session: Some(session.shown(&state.plugins.views)),
                                 }),
                             ));
                         }
