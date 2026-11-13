@@ -130,6 +130,8 @@ Every rule here was broken at least once and caught in review.
 
   If you can't run the emulator, the task isn't done. Say so in the first line of your report.
 
+  On desktop the same holds: every screen a task adds or changes is rendered in dark and light, at the normal and the narrowest window width, and each image is looked at full size and named in the ledger. A golden at one width is one of these, not all of them. When a Claude task reports that Flutter couldn't run, you render its screens before the stage ends.
+
   Running the phone app, each line starting with `source mobile/scripts/env.sh &&`:
   - `adb devices` shows `emulator-5554` when the `Pixel_7` emulator is up; else `cd mobile && yarn emulator`. The app is installed; after a change to `app.config.ts` or a native package, reinstall with `cd mobile && yarn android:fake`.
   - Metro on the fake world: `cd mobile && EXPO_PUBLIC_FAKE_CORE=1 npx expo start --dev-client -c`, run in the background, then `adb reverse tcp:8081 tcp:8081`. Add `EXPO_PUBLIC_FAKE_SCENARIO=empty` for no identity and no servers.
@@ -249,6 +251,7 @@ Every rule here was broken at least once and caught in review.
 - **A test must be able to fail.** Before trusting one, name a wrong implementation that would still pass it. An assertion on a value the code echoes back (a seek reporting its own target) proves nothing; check an effect only the real behavior produces, such as how much sound came out and how long it took.
   - Prove it: break the code the test guards (return early, undo the fix), run the test, see it fail, then put the code back. Say in the ledger what you broke.
   - A test named after an event (a restart, a lag, a timeout) makes that event happen on every run. When a race decides whether it happens, drive it directly: fill a channel before its reader runs, or call the function that handles it.
+  - A fix for a race seen once (a flaky CI job) comes with such a test, and the test fails with the fix taken out. If no test can make the race happen, the commit message and the ledger say so.
   - Fixing a flaky test keeps what it proved. Wait longer for the same condition; don't swap the condition for an easier one.
     - A rate limit test on a slow runner may see tokens refill. Allow at most `elapsed / refill period` extra successes, timed from before the first counted request; "a 429 somewhere in the next N tries" lets a limit N looser pass.
     - A test reading what a background writer writes (a log file) polls for the line it needs, with a deadline, before asserting on the rest.
@@ -288,6 +291,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 - **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name. Checksums, versions and hashes are copied from the file, never typed from memory.
 - **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger, your report and the pull request's description, which also lists every commit outside the plan's scope.
 - **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in. A route also matches the router's line character for character. Each time you edit a document (the pull request's description too), check all of it, not only the part you changed.
+- **A list of when something happens** (when a session ends, what closes a view) **is copied from the code's paths,** one item per place that does it. Near-synonyms are separate paths that can behave oppositely: a restart, a reload, an update and a stop are four cases to look up, not one.
 - **Type definitions and API docs copy each shape from the function that builds it,** field by field: the names, which fields can be missing, and what a call returns, including nothing. Matching the function names is only the start.
   - A method called with `:` takes `self` in its type; a table type lists every field its builder sets.
 
@@ -303,6 +307,8 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 - **Where the plan says "ask before …", stop and ask.** Doing it without asking is a deviation even when it turns out right.
 - **A stage end is a ledger entry** with the last lines of `.github/check.sh` and the `gh pr checks` table pasted verbatim, once no check is pending. A table with pending checks hasn't been read yet: wait for it, and fix any red job on the branch before the review.
 - **A fix commit is a deviation too.** M1's report said "Deviations: none" and left out three commits that changed voice and toast behaviour. Name each one, with the failure that made you add it.
+  - The pull request's "commits outside the plan" list comes from `git log --format='%h %s' <base>..HEAD`: every commit that isn't a task's own commit (a fix, a style pass, a test added later, a change in another stage's code) is named with why. "None" only when that list is empty.
+  - What wasn't tested by hand stays "not tested": CI on Windows and macOS runs the tests, it doesn't use the app.
 - **A number in a report comes from output you saw.** Paste it, don't recall it. M1's report gave a spring's stiffness 380, damping 34, settle 370 ms and a 200 ms scrim; the real values are 503.6, 44.9, 342 ms and 120 ms. Its pull request described a 32 px title bar, a 44 px header and breakpoints that don't exist.
 - **Never `git add -f`.** What's ignored stays out of the repository. That includes `.superpowers/sdd/`, where the ledger and the scorecard live: M1 force-added both, so don't commit them at all.
 - **A rule covers every site.** When the plan or a review states a rule ("errors are strings", "every change logs an action with names"), find every place it applies before calling it done, and paste the grep that must now print nothing (`grep -rn 'to_str()?' crates/opencord-server/src/plugins`). "All" in the ledger means that grep came back empty; a review that names sites gives examples, not the whole list. Show the grep finding a known bad line first: one that can't match comes back empty too.
