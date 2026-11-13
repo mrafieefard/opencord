@@ -88,10 +88,10 @@ async fn world_with(source: &str, entry: Option<&str>) -> World {
     world_with_budget(source, entry, None).await
 }
 
-/// The default world, with the plugin's handler budget raised to 5 s: for
-/// the two tests whose one `burst` handler sends dozens of events (or
-/// 20 × 60 KB) to a view, which can run past the default 100 ms on a loaded
-/// machine and stop the handler before the limit under test is reached.
+/// The default world, with the plugin's handler budget raised to 5 s, for
+/// the two tests whose one `burst` handler sends a view dozens of events
+/// (or 20 × 60 KB). 07d3c60 gave them 5 s after they failed under a local
+/// parallel run; no failing output was kept, and CI never showed it.
 async fn world_with_long_handlers() -> World {
     world_with_budget(SERVER, Some("client/main.luau"), Some(5_000)).await
 }
