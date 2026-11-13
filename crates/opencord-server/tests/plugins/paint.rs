@@ -354,6 +354,9 @@ async fn the_board_goes_with_the_session() {
     let first = start(&mut a, world.voice).await;
     let a_view = open(&mut a, first).await;
     draw(&mut a, a_view, named("old", 0..3)).await;
+    // The plugin has taken every stroke before the end, or the last can
+    // reach it after the view closed and be dropped: each comes back to A.
+    while message(&mut a, "stroke").await["id"] != "old2" {}
 
     a.ok_paced(Kind::EndActivity(proto::EndActivity { session_id: first }))
         .await;

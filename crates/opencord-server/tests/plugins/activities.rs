@@ -790,7 +790,9 @@ async fn only_the_starter_or_a_channel_manager_ends_it() {
 /// [`SESSIONS_SOURCE`], and a `message_create` handler that holds the VM
 /// (its thread, so no event is taken) until it has seen a view of the
 /// plugin open and then none, or 4 s pass (Luau's `os.clock` is a
-/// monotonic clock).
+/// monotonic clock). It looks every 10 ms, spinning on the clock between:
+/// `ui.views()` takes the views' lock, and asked back to back it kept the
+/// gateway from opening the view on Windows, whose locks aren't fair.
 const HELD_SOURCE: &str = r#"
 opencord.on("message_create", function()
     log.info("holding")
@@ -801,6 +803,9 @@ opencord.on("message_create", function()
             seen = true
         elseif seen then
             break
+        end
+        local next_look = os.clock() + 0.01
+        while os.clock() < next_look do
         end
     end
     log.info("let go after a view " .. (seen and "closed" or "never closed"))
@@ -1411,6 +1416,11 @@ async fn ending_a_session_closes_its_views_once() {
     let mut viewers = Vec::new();
     while viewers.len() < 2 {
         viewers = viewers_update(&mut c).await;
+    }
+    // The plugin handles both opens before the end, or a close can be
+    // missing from the log.
+    for view in [a_view, b_view] {
+        wait_for_log(&mut world.owner, "paint", &format!("open {view} ")).await;
     }
 
     paced(&mut a, end(paint.id)).await;
