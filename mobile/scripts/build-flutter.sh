@@ -16,14 +16,18 @@ platform=${1:-}
 release=false
 [[ ${2:-} == --release ]] && release=true
 
+# PLUGIN_GATES=1 compiles in Stage A's measurements (flutter_module/lib/src/gates.dart).
+defines=()
+[[ ${PLUGIN_GATES:-} == 1 ]] && defines=(--dart-define=PLUGIN_GATES=true)
+
 cd flutter_module
 flutter pub get > /dev/null
 case $platform in
 android)
     if $release; then
-        flutter build aar --no-debug --no-profile --target-platform android-arm64,android-x64
+        flutter build aar --no-debug --no-profile --target-platform android-arm64,android-x64 "${defines[@]}"
     else
-        flutter build aar --no-profile --no-release --target-platform android-x64
+        flutter build aar --no-profile --no-release --target-platform android-x64 "${defines[@]}"
     fi
     ;;
 ios)

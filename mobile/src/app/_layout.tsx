@@ -95,6 +95,7 @@ function Routes() {
           />
         </Stack.Protected>
         <Stack.Screen name="dev/gallery" />
+        <Stack.Screen name="dev/plugin-area" />
       </Stack>
       {ready && <CallSheet />}
       <ToastHost />

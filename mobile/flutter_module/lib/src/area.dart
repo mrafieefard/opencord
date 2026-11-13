@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:opencord_blocks/opencord_blocks.dart';
 
 import 'channel.dart';
+import 'gates.dart';
 import 'phone_host.dart';
 import 'status.dart';
 
@@ -36,7 +37,11 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     if (widget.channel.setup.value == null) return;
     // Batches are applied from the first setup on: one before it would
     // build widgets with no theme.
-    _batches ??= widget.channel.batches.listen(_controller.applyBatch);
+    _batches ??= widget.channel.batches.listen((json) {
+      _controller.applyBatch(json);
+      Gates.batchApplied();
+    });
+    Gates.startFrameCount();
     if (!_statusSent) _sendStatus();
     setState(() {});
   }

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'gates.dart';
 import 'status.dart';
 
 /// How long a host call waits for React Native before it fails. A file
@@ -103,7 +104,10 @@ class AreaChannel {
   Stream<String> get batches => _batches.stream;
   ValueListenable<AreaSetup?> get setup => _setup;
 
-  void sendInput(String json) => unawaited(_invoke('input', {'json': json}));
+  void sendInput(String json) {
+    Gates.inputSent(json);
+    unawaited(_invoke('input', {'json': json}));
+  }
 
   /// Sends [status] unless it is the one sent last.
   void sendStatus(AreaStatus status) {
