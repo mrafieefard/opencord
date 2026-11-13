@@ -467,7 +467,7 @@ async fn log_watcher_gets_each_line_once_after_restart() {
 // test of lagging.
 #[tokio::test]
 async fn a_burst_of_lines_reaches_a_watcher() {
-    let server = TestServer::start().await;
+    let server = TestServer::start_with(|config| config.plugins.handler_ms = 5_000).await;
     let (mut owner, ready) = owner(&server).await;
 
     let zip = package(&[

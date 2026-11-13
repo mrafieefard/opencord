@@ -85,7 +85,7 @@ async fn world() -> World {
 }
 
 async fn world_with(source: &str, entry: Option<&str>) -> World {
-    let server = TestServer::start().await;
+    let server = TestServer::start_with(|config| config.plugins.handler_ms = 5_000).await;
     let (_owner, _) = owner(&server).await;
     let (mut admin, admin_ready) = session(&server, 1, None, &[FEATURE]).await;
     let extra = entry.map_or(String::new(), |entry| format!("client = {entry:?},"));
