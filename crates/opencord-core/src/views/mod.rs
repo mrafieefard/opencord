@@ -27,6 +27,9 @@ mod frames;
 mod handlers;
 mod lists;
 mod modals;
+#[cfg(test)]
+#[path = "tests/paint.rs"]
+mod paint_tests;
 mod runtime;
 mod storage;
 #[cfg(test)]

@@ -36,6 +36,8 @@ mod images;
 mod install;
 #[path = "plugins/messages.rs"]
 mod messages;
+#[path = "plugins/paint.rs"]
+mod paint;
 #[path = "plugins/roles.rs"]
 mod roles;
 #[path = "plugins/runtime.rs"]
