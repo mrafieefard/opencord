@@ -371,3 +371,128 @@ fn client_definitions_match_blocks_and_docs() {
         "docs/plugins.md limits table must specify 100 ms handler time"
     );
 }
+
+// Fails if docs/plugins.md misses the Activities section, activity API, events, reasons, START_ACTIVITIES, limits, or paint example.
+// To make it fail: remove or rename the "## Activities" section or any required symbol from docs/plugins.md.
+#[test]
+fn activities_docs_and_definitions() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs_path = manifest_dir
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("docs")
+        .join("plugins.md");
+    let docs_content = std::fs::read_to_string(&docs_path).unwrap_or_else(|err| {
+        panic!(
+            "could not read docs/plugins.md at {}: {err}",
+            docs_path.display()
+        )
+    });
+    let docs_content = docs_content.replace("\r\n", "\n");
+
+    // 1. Must contain "## Activities" section after "## Client Scripts and Custom Channels"
+    let channels_pos = docs_content
+        .find("## Client Scripts and Custom Channels")
+        .expect("docs/plugins.md missing '## Client Scripts and Custom Channels'");
+    let activities_pos = docs_content
+        .find("## Activities")
+        .expect("docs/plugins.md missing '## Activities' section");
+    assert!(
+        activities_pos > channels_pos,
+        "'## Activities' section must appear after '## Client Scripts and Custom Channels'"
+    );
+
+    // 2. ui.register_activity and register_activities permission
+    assert!(
+        docs_content.contains("ui.register_activity"),
+        "docs/plugins.md missing ui.register_activity"
+    );
+    assert!(
+        docs_content.contains("register_activities"),
+        "docs/plugins.md missing register_activities"
+    );
+
+    // 3. START_ACTIVITIES member permission
+    assert!(
+        docs_content.contains("START_ACTIVITIES"),
+        "docs/plugins.md missing START_ACTIVITIES"
+    );
+
+    // 4. activity.finish
+    assert!(
+        docs_content.contains("activity.finish"),
+        "docs/plugins.md missing activity.finish"
+    );
+
+    // 5. activity_start and activity_end events
+    assert!(
+        docs_content.contains("activity_start"),
+        "docs/plugins.md missing activity_start event"
+    );
+    assert!(
+        docs_content.contains("activity_end"),
+        "docs/plugins.md missing activity_end event"
+    );
+
+    // 6. Every activity_end reason
+    for reason in &[
+        "ended",
+        "plugin",
+        "call_empty",
+        "plugin_stopping",
+        "unavailable",
+    ] {
+        assert!(
+            docs_content.contains(&format!("\"{reason}\""))
+                || docs_content.contains(&format!("`{reason}`")),
+            "docs/plugins.md missing activity_end reason '{reason}'"
+        );
+    }
+
+    // 7. Place and selectors
+    assert!(
+        docs_content.contains("session_id"),
+        "docs/plugins.md missing session_id"
+    );
+    assert!(
+        docs_content.contains("ui.send_place"),
+        "docs/plugins.md missing ui.send_place"
+    );
+
+    // 8. app.call and listeners
+    assert!(
+        docs_content.contains("app.call"),
+        "docs/plugins.md missing app.call"
+    );
+    assert!(
+        docs_content.contains("call_members_change"),
+        "docs/plugins.md missing call_members_change"
+    );
+    assert!(
+        docs_content.contains("speaking_change"),
+        "docs/plugins.md missing speaking_change"
+    );
+
+    // 9. Limits
+    assert!(
+        docs_content.contains("20") && docs_content.contains("Activities per plugin"),
+        "docs/plugins.md missing 20 activities per plugin limit"
+    );
+    assert!(
+        docs_content.contains("4") && docs_content.contains("Activity sessions"),
+        "docs/plugins.md missing 4 activity sessions limit"
+    );
+    assert!(
+        docs_content.contains("1,000") && docs_content.contains("call"),
+        "docs/plugins.md missing 1,000 call ids limit"
+    );
+
+    // 10. Paint example
+    assert!(
+        docs_content.contains("examples/plugins/paint")
+            || docs_content.contains("examples/plugins/paint/"),
+        "docs/plugins.md missing paint example reference"
+    );
+}

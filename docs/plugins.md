@@ -120,7 +120,8 @@ All sensitive operations require explicit permissions declared in the manifest a
 | `read_channels` | Read channel lists and details. |
 | `manage_channels` | Create, update, reorder, and delete channels. |
 | `create_channel_types` | Create custom plugin channels. |
-| `register_activities` | Register voice and channel activities (milestone 3). |
+| `register_activities` | Register activities that run in voice calls. |
+| `START_ACTIVITIES` | Member permission (bit 33): start an activity in a voice call. On for @everyone by default; customizable per channel. |
 | `register_commands` | Register slash commands and handle autocomplete. |
 | `read_members` | Read the server member list and receive member join/leave/update events. |
 | `read_roles` | Read role names, colors, and permissions. |
@@ -490,6 +491,161 @@ The `icon` block and button controls support 43 standard icon names:
 
 ---
 
+## Activities
+
+An activity is an interactive, collaborative application that members run together inside an active voice call (such as a shared whiteboard, a game, or collaborative notes).
+
+### 1. Starting an Activity
+
+Any member connected to a voice channel who holds the `START_ACTIVITIES` permission (member permission bit 33, enabled for `@everyone` by default, or configured via channel permission overwrites) can start an activity from the call bar's Activities button. Starting an activity launches a session in that call; all participants in the voice call see its tile on the call's stage and can open its interactive view. Up to 4 activity sessions can run simultaneously in one call.
+
+### 2. Registering Activities
+
+Server scripts register activities during initialization:
+
+```luau
+ui.register_activity(key: string, spec: ActivitySpec)
+```
+
+- `key`: 1 to 40 characters (`[a-z0-9_]`), unique per plugin.
+- `spec: ActivitySpec = { name: string, description: string?, icon: string? }`:
+  - `name`: 1 to 60 characters display name shown in the picker and on the stage tile.
+  - `description`: optional short description (up to 200 characters) shown in the picker.
+  - `icon`: optional path to an image under `assets/` (e.g. `assets/paint.png`).
+
+Registering activities requires the `register_activities` permission in `manifest.lua`. Each plugin may register up to 20 activities.
+
+### 3. Activity Lifecycle Events
+
+Server scripts handle activity sessions by listening for lifecycle events:
+
+```luau
+opencord.on("activity_start", function(event: ActivityStartEvent)
+    -- event.session: ActivitySession
+    -- event.starter: User
+    -- event.call: { channel_id: string, member_ids: { string } }
+end)
+
+opencord.on("activity_end", function(event: ActivityEndEvent)
+    -- event.session: ActivitySession
+    -- event.reason: "ended" | "plugin" | "call_empty" | "plugin_stopping" | "unavailable"
+end)
+```
+
+- `ActivitySession`:
+  - `id: string`: unique decimal session ID.
+  - `activity: string`: the activity key.
+  - `channel_id: string`: ID of the voice channel where the session runs.
+  - `starter_id: string`: user ID of the member who started it.
+  - `started_at_ms: number`: creation timestamp in milliseconds.
+- `ActivityStartEvent`:
+  - `session: ActivitySession`: the newly started session.
+  - `starter: User`: user who initiated the activity (`id`, `name`, `bot`).
+  - `call: { channel_id: string, member_ids: { string } }`: voice channel ID and sorted user IDs currently in the call.
+- `ActivityEndEvent`:
+  - `session: ActivitySession`: the session that ended.
+  - `reason: string`: one of:
+    - `"ended"`: ended by the session starter or a channel manager (`manage_channels`).
+    - `"plugin"`: ended by the plugin via `activity.finish`.
+    - `"call_empty"`: all members left the voice call.
+    - `"plugin_stopping"`: the plugin was stopped, unloaded, or upgraded.
+    - `"unavailable"`: the activity or plugin became unavailable.
+
+### 4. Ending an Activity from Script
+
+A plugin can end its own running activity session at any time:
+
+```luau
+activity.finish(session: ActivitySession | string) -> boolean
+```
+
+Requires the `register_activities` manifest permission. Takes an `ActivitySession` table or its string `id`. Returns `true` if the session was active and was ended, or `false` otherwise. The end is broadcast to callers and dispatches `activity_end` with reason `"plugin"`.
+
+### 5. Activity View Places and Messaging
+
+When a member clicks **Open** on an activity tile, a view opens with an activity place:
+
+```luau
+-- ViewPlace:
+{
+    kind = "activity",
+    session_id = "<session_id>",
+    channel_id = "<voice_channel_id>",
+    activity = "<activity_key>",
+}
+```
+
+Server scripts query and broadcast to activity views using `ViewPlaceSelector` (`{ session_id: string } | { channel_id: string } | ViewPlace`):
+- `ui.views(place?: ViewPlaceSelector): { View }`: passing `{ session_id = session.id }` returns all open views for that session.
+- `ui.send_place(place: ViewPlaceSelector, name: string, data: any): number`: passing `{ session_id = session.id }` broadcasts the event `name` with `data` payload to all members viewing that activity session.
+
+### 6. Client API: Call State and Presence
+
+Client scripts running in an activity view access call participant and speaker information through `app.call`:
+
+```luau
+app.call: ViewCall?
+-- {
+--     channel_id: string,
+--     members: { string },
+--     speaking: { string },
+-- }
+```
+
+In an activity view, `app.call` provides:
+- `channel_id`: the voice channel ID.
+- `members`: sorted decimal string user IDs of everyone in the call.
+- `speaking`: sorted decimal string user IDs of members currently speaking.
+(In a custom channel view, `app.call` is `nil`.)
+
+Client scripts listen for call changes with `app.listen`:
+- `app.listen("call_members_change", function(change: CallMembersChange) ... end)`:
+  - `change.members`: full sorted list of current participant IDs.
+  - `change.joined`: list of IDs who joined the call since the last update.
+  - `change.left`: list of IDs who left the call since the last update.
+- `app.listen("speaking_change", function(change: SpeakingChange) ... end)`:
+  - `change.speaking`: full sorted list of participant IDs currently speaking. Throttled to at most once per 100 ms.
+
+### 7. When a Session Ends
+
+An activity session ends when:
+1. The starter or a member with `manage_channels` in the voice channel chooses **End activity** from the tile's menu (`"ended"`).
+2. The plugin server script calls `activity.finish(session)` (`"plugin"`).
+3. The last participant disconnects from the voice channel (`"call_empty"`).
+4. The plugin is stopped, reloaded, or disabled (`"plugin_stopping"`).
+5. The activity or plugin becomes unavailable (`"unavailable"`).
+
+When ended, the activity's tile is removed from the stage, any open views receive a `closed` event with reason `"activity_ended"`, and `activity_end` fires on the server.
+
+### 8. View Pausing and Resuming
+
+An open activity view is paused (`app.listen("pause", ...)` and lifecycle event `pause`) whenever its area is not visible to the user:
+- The activity tile is collapsed into the stage's side strip because another tile is focused.
+- The user navigates to another channel, server, or settings screen.
+- The desktop window is minimized or hidden.
+
+When the view returns to the screen, it is resumed (`app.listen("resume", ...)` and lifecycle event `resume`). The view's memory, state, and timers are preserved across pauses.
+
+### 9. Activity Limits
+
+| Limit | Value | Description |
+|---|---|---|
+| Activities per plugin | 20 | Maximum activities registered per plugin (`ACTIVITIES_PER_PLUGIN`) |
+| Activity sessions per call | 4 | Maximum active sessions in a single voice call (`ACTIVITY_SESSIONS_PER_CALL`) |
+| Call input IDs | 1,000 | Maximum IDs in members/speaking lists (`CALL_INPUT_MAX_IDS`) |
+| Activity key | 1–40 chars | ASCII letters, numbers, and underscores (`[a-z0-9_]`) |
+| Activity name | 1–60 chars | Display name in picker and stage tile |
+| Activity description | Up to 200 chars | Optional description in picker |
+
+### 10. Example: Shared Paint Activity
+
+A complete shared whiteboard activity is located in `examples/plugins/paint/`:
+- `examples/plugins/paint/manifest.lua`: requests `register_activities` and defines the `paint` activity.
+- `examples/plugins/paint/server/main.luau`: receives drawing strokes via `ui.on("stroke", ...)`, validates point coordinates and color choices, stores up to 300 strokes per session in memory, sends canvas history to new viewers in batches of 30 strokes, and broadcasts strokes with `ui.send_place({ session_id = session.id }, ...)`.
+- `examples/plugins/paint/client/main.luau`: renders an interactive 1600 × 1000 canvas with color palette buttons, stroke width selectors, a Clear button, touch/mouse path drawing, stroke thinning, and participant counters using `app.call.members` and `app.listen("call_members_change", ...)`.
+
+---
+
 ## Runtime Limits and Quotas
 
 | Resource | Limit |
@@ -520,6 +676,9 @@ The `icon` block and button controls support 43 standard icon names:
 | External image fetch | Max 10 MiB, max 40 megapixels |
 | File tokens | Good for 1 hour |
 | Custom channel types | Max 20 channel types per plugin |
+| Activities per plugin | Max 20 activities per plugin |
+| Activity sessions per call | Max 4 activity sessions running in one call |
+| Call input IDs | Max 1,000 member / speaker IDs in call input |
 | Dialog text | Max 2,000 characters for confirm/alert/prompt |
 | Error reports | At most 1 per view per 10 seconds, max 2,000 characters |
 | Raw image bytes | Max 256 KB |
@@ -529,10 +688,11 @@ The `icon` block and button controls support 43 standard icon names:
 
 ## Example Plugins
 
-Two complete, real-world examples are included in the repository under `examples/plugins/`:
+Three complete, real-world examples are included in the repository under `examples/plugins/`:
 
 - **Welcome Bot** (`examples/plugins/welcome-bot/`): A server bot demonstrating slash commands, event handlers (member joins, message moderation), background statistics tracking with SQLite, and configuration options.
 - **Support Tickets** (`examples/plugins/tickets/`): A custom channel type and interactive view demonstrating custom channels (`ui.register_channel_type`), interactive UI with declarative client blocks, named modals (`app.modals.new_ticket`), responsive layouts (`app.breakpoint`), SQLite persistence for tickets and replies, and role-based permissions (`ui.send_role`).
+- **Shared Paint** (`examples/plugins/paint/`): A collaborative whiteboard activity for voice calls demonstrating `ui.register_activity`, activity sessions, `ui.send_place` by session, canvas block rendering, touch/mouse drawing synchronization across callers, and live call participant tracking with `app.call` and `call_members_change`.
 
 ---
 
