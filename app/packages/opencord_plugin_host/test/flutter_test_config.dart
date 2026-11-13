@@ -38,7 +38,7 @@ Future<void> _loadAppFonts() async {
     for (final file in files) {
       loader.addFont(
         File(
-          'assets/fonts/$file',
+          'lib/fonts/$file',
         ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
       );
     }

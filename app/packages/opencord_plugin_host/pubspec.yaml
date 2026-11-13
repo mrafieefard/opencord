@@ -1,8 +1,8 @@
 name: opencord_plugin_host
 description: "What the desktop and the phone's plugin areas both need: the plugin icon code points, the markdown parser, a plain markdown view, and the fonts."
 # Used by the desktop app and the phone's Flutter module (plugins M4).
-# The fonts under assets/fonts/ are copies of app/assets/fonts/; this
-# package declares none, the module that draws with them does.
+# The fonts under lib/fonts/ are copies of app/assets/fonts/, under lib/ so
+# nothing bundles them until an app names them (the phone module does).
 publish_to: 'none'
 version: 0.0.1
 
