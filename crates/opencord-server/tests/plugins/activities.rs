@@ -788,43 +788,49 @@ async fn only_the_starter_or_a_channel_manager_ends_it() {
 }
 
 /// [`SESSIONS_SOURCE`], and a `message_create` handler that holds the VM
-/// (its thread, so no event is taken) until it has seen a view of the
-/// plugin open and then none, or 4 s pass (Luau's `os.clock` is a
-/// monotonic clock). It looks every 10 ms, spinning on the clock between:
-/// `ui.views()` takes the views' lock, and asked back to back it kept the
-/// gateway from opening the view on Windows, whose locks aren't fair.
+/// (its thread, so no event is taken) inside `config.get`, a synchronous
+/// call that blocks on the plugin's config lock while the test holds its
+/// write side ([`opencord_server::plugins::PluginHandle::config_lock_for_tests`]).
+/// Nothing between "holding" and `config.get` yields, so once the test
+/// reads "holding" the VM takes no event until the test lets go. The
+/// thread sleeps on the lock rather than spinning, and the test, not a
+/// look at the plugin's views, decides when it goes.
 const HELD_SOURCE: &str = r#"
 opencord.on("message_create", function()
     log.info("holding")
-    local seen = false
-    local deadline = os.clock() + 4
-    while os.clock() < deadline do
-        if #ui.views() > 0 then
-            seen = true
-        elseif seen then
-            break
-        end
-        local next_look = os.clock() + 0.01
-        while os.clock() < next_look do
-        end
-    end
-    log.info("let go after a view " .. (seen and "closed" or "never closed"))
+    config.get("held")
+    log.info("let go")
 end)
 "#;
 
 #[tokio::test]
+#[expect(
+    clippy::await_holding_lock,
+    reason = "the write side is held on purpose: it keeps the plugin's VM thread blocked"
+)]
 async fn a_session_ended_before_the_vm_takes_its_start_starts_then_ends() {
     // Catches (3623716): the VM looking the session up when it takes
     // `activity_start`. The session has ended by then, so the start is
     // skipped and the `activity_end` behind it dropped: the log shows
     // neither. The VM is held inside a handler while A starts the session,
-    // opens its view and ends it; the view closing lets it go.
+    // opens its view and ends it; the test lets it go once the end is
+    // acknowledged, so the session has ended before the VM takes its start.
     let source = format!("{SESSIONS_SOURCE}{HELD_SOURCE}");
     let mut world = World::running_for(&source, 5_000).await;
     let (mut a, a_id, _) = world.member(2, &FEATURES).await;
     let voice = world.voice;
     a.ok(join(voice)).await;
 
+    let config = world
+        .server
+        .state()
+        .plugins
+        .get("paint")
+        .expect("paint is installed")
+        .config_lock_for_tests();
+    let hold = config
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     world.server.state().plugins.deliver(
         "paint",
         opencord_server::plugins::PluginEvent {
@@ -840,11 +846,17 @@ async fn a_session_ended_before_the_vm_takes_its_start_starts_then_ends() {
     let Response::Ack(_) = paced(&mut a, end(paint.id)).await else {
         panic!("A couldn't end it");
     };
+    drop(hold);
 
     let lines = lines_after(&mut world, &format!("end {}", paint.id)).await;
+    let let_go = lines.iter().position(|line| line == "let go");
+    let start_at = lines
+        .iter()
+        .position(|line| line.starts_with(&format!("start {} ", paint.id)));
+    assert!(let_go.is_some(), "the handler never let go: {lines:?}");
     assert!(
-        lines.contains(&"let go after a view closed".to_owned()),
-        "the VM wasn't held until the end, so the race wasn't made: {lines:?}"
+        start_at.is_none_or(|start_at| let_go < Some(start_at)),
+        "the VM took the start before the end, so the race wasn't made: {lines:?}"
     );
     let start = format!(
         "start {} paint by {a_id}/{a_id} in {voice}/{voice} at number with {a_id}",

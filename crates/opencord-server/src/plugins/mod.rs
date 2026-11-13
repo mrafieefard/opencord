@@ -307,6 +307,14 @@ impl PluginHandle {
         *conf = values;
     }
 
+    /// The lock `config.get` reads. A test holding its write side keeps
+    /// the plugin's VM thread blocked inside `config.get`, so the VM
+    /// takes no event until the test lets go.
+    #[cfg(feature = "testing")]
+    pub fn config_lock_for_tests(&self) -> Arc<RwLock<HashMap<String, ConfigValue>>> {
+        self.config_values.clone()
+    }
+
     /// Delivers `stop`, waits the grace, ends the VM. A crashed plugin
     /// stays crashed.
     async fn stop(&self) {
