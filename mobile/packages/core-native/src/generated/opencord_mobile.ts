@@ -1133,6 +1133,140 @@ export async function nextEvents(generation: bigint, max: number, asyncOpts_?: {
     }
 
 /**
+ * Waits for at least one batch, then returns what is ready, up to `max`
+ * (1–256), in order. Empty only when a newer generation has attached. A
+ * view's first batches can come before `view_open` returns its id.
+ */
+export async function nextViewOutputs(generation: bigint, max: number, asyncOpts_?: { signal: AbortSignal }): Promise<Array<ViewOutputRecord>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_next_view_outputs(FfiConverterUInt64.lower(generation, nativeModule().rustbuffer_alloc),FfiConverterUInt32.lower(max, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterSequenceTypeViewOutputRecord.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * The cached file of a plugin's asset under `assets/`, by the hash its
+ * views were given, or learned by fetching.
+ */
+export async function pluginAssetFile(serverKey: string, pluginId: string, path: string, asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_plugin_asset_file(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(pluginId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(path, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterString.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * A file holding the image an `image` block names: its source (`asset`,
+ * `file`, `file_token`, `url` or `bytes`) and `version`, as JSON.
+ * `attachment` is refused: read it with `attachment_file`.
+ */
+export async function pluginImageFile(serverKey: string, pluginId: string, sourceJson: string, asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_plugin_image_file(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(pluginId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(sourceJson, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterString.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
  * Sends this person's display name to a server.
  */
 export async function profileUpdate(serverKey: string, displayName: string, asyncOpts_?: { signal: AbortSignal }): Promise<UserRecord> /*throws*/ {
@@ -1319,6 +1453,21 @@ export function serversList(): Array<ServerEntry> /*throws*/ {
     }
 
 /**
+ * What `Identify` lists in `features` from the next connection on;
+ * `["plugin_users"]` until called. The phone adds `"plugin_channels"` and
+ * `"activities"` when its renderer is in the build.
+ */
+export function setPluginFeatures(features: Array<string>): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_set_plugin_features(
+        FfiConverterSequenceString.lower(features, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
  * A setting kept in the core's local store.
  */
 export function settingsGet(key: string): string | undefined /*throws*/ {
@@ -1452,6 +1601,169 @@ export async function typingStart(serverKey: string, channelId: string, asyncOpt
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
                 return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_typing_start(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(channelId, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * Closes the view; nothing more arrives for it.
+ */
+export function viewClose(viewId: string): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_view_close(
+        FfiConverterString.lower(viewId, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
+ * An input from the view's renderer, as JSON (the wire format).
+ */
+export function viewInput(viewId: string, json: string): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_view_input(
+        FfiConverterString.lower(viewId, nativeModule().rustbuffer_alloc),
+        FfiConverterString.lower(json, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
+ * Opens the plugin channel `channel_id`; the core's id for the view.
+ * `context_json` is the renderer's first `context` input, without `kind`.
+ */
+export async function viewOpen(serverKey: string, channelId: string, contextJson: string, asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_view_open(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(channelId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(contextJson, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterString.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * Opens the activity session `session_id`, running in the call
+ * `channel_id`; as `view_open`. The server refuses it unless this device
+ * is in that call.
+ */
+export async function viewOpenActivity(serverKey: string, sessionId: string, channelId: string, activityKey: string, contextJson: string, asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_view_open_activity(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(sessionId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(channelId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(activityKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(contextJson, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterString.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * Starts a new generation of the view stream; a `next_view_outputs` still
+ * waiting under an older one returns an empty list at once. Views an
+ * earlier JavaScript start left open are closed. Call once per start.
+ */
+export function viewOutputsAttach(): bigint /*throws*/ {
+    return FfiConverterUInt64.lift(uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_view_outputs_attach(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    ));
+    }
+
+/**
+ * Uploads the file a view's picker (block `node_id`) chose; the picker
+ * hears `upload` or `upload_error` through the view. Fails only for a
+ * view that isn't open.
+ */
+export async function viewUpload(viewId: string, nodeId: bigint, path: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_view_upload(FfiConverterString.lower(viewId, nativeModule().rustbuffer_alloc),FfiConverterUInt64.lower(nodeId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(path, nativeModule().rustbuffer_alloc)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
@@ -4204,6 +4516,53 @@ const FfiConverterTypeSpeakingChangeRecord = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.userId) +
              FfiConverterBool.allocationSize(value.speaking);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * A batch for the renderer of one plugin view: the core's id for the view
+ * and the batch as JSON (the plugins plans' "view wire format").
+ */
+export type ViewOutputRecord = {
+    viewId: string,
+    json: string
+}
+
+/**
+ * Generated factory for {@link ViewOutputRecord} record objects.
+ */
+export const ViewOutputRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ViewOutputRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<ViewOutputRecord>,
+    });
+})();
+
+const FfiConverterTypeViewOutputRecord = (() => {
+    type TypeName = ViewOutputRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                viewId: FfiConverterString.readFromCursor(c), 
+                json: FfiConverterString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.viewId, c);
+            FfiConverterString.writeIntoCursor(value.json, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.viewId) +
+             FfiConverterString.allocationSize(value.json);
             
         }
     };
@@ -8134,6 +8493,9 @@ const FfiConverterOptionalBoolean = new FfiConverterOptional(FfiConverterBool);
 // FfiConverter for Array<MobileEvent>
 const FfiConverterSequenceTypeMobileEvent = new FfiConverterArray(FfiConverterTypeMobileEvent);
 
+// FfiConverter for Array<ViewOutputRecord>
+const FfiConverterSequenceTypeViewOutputRecord = new FfiConverterArray(FfiConverterTypeViewOutputRecord);
+
 // FfiConverter for Array<ServerEntry>
 const FfiConverterSequenceTypeServerEntry = new FfiConverterArray(FfiConverterTypeServerEntry);
 
@@ -8261,6 +8623,15 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_next_events() !== 62625) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_next_events");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_next_view_outputs() !== 25217) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_next_view_outputs");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_plugin_asset_file() !== 36368) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_plugin_asset_file");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_plugin_image_file() !== 64787) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_plugin_image_file");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_profile_update() !== 3083) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_profile_update");
     }
@@ -8282,6 +8653,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_servers_list() !== 23974) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_servers_list");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_set_plugin_features() !== 62981) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_set_plugin_features");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_settings_get() !== 26422) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_settings_get");
     }
@@ -8302,6 +8676,24 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_typing_start() !== 34177) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_typing_start");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_view_close() !== 46504) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_view_close");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_view_input() !== 50099) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_view_input");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_view_open() !== 8281) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_view_open");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_view_open_activity() !== 20976) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_view_open_activity");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_view_outputs_attach() !== 59547) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_view_outputs_attach");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_view_upload() !== 32939) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_view_upload");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_voice_draft_discard() !== 6789) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_voice_draft_discard");
@@ -8410,6 +8802,7 @@ export default Object.freeze({
     FfiConverterTypeSpeakingChangeRecord,
     FfiConverterTypeUploadPhaseRecord,
     FfiConverterTypeUserRecord,
+    FfiConverterTypeViewOutputRecord,
     FfiConverterTypeVoiceDraftRecord,
     FfiConverterTypeVoiceLinkState,
     FfiConverterTypeVoiceStateRecord,

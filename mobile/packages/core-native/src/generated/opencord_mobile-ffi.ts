@@ -100,6 +100,9 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_music_upload_song(serverKey: Uint8Array, channelId: Uint8Array, uploadId: Uint8Array, path: Uint8Array, playNow: number): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_music_vote_skip(serverKey: Uint8Array, channelId: Uint8Array, expectedItemId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_next_events(generation: bigint, max: number): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_next_view_outputs(generation: bigint, max: number): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_plugin_asset_file(serverKey: Uint8Array, pluginId: Uint8Array, path: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_plugin_image_file(serverKey: Uint8Array, pluginId: Uint8Array, sourceJson: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_profile_update(serverKey: Uint8Array, displayName: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_send_cancel(serverKey: Uint8Array, nonce: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_server_add(linkOrAddress: Uint8Array, claimToken: Uint8Array): bigint;
@@ -107,6 +110,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_server_retry_now(serverKey: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_server_trust(address: Uint8Array, fingerprint: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_servers_list(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_opencord_mobile_fn_func_set_plugin_features(features: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_settings_get(key: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_settings_set(key: Uint8Array, value: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_soundboard_default_sounds(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
@@ -114,6 +118,12 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_soundboard_preview(serverKey: Uint8Array, soundRef: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_soundboard_set_listening(volume: number, muted: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_typing_start(serverKey: Uint8Array, channelId: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_view_close(viewId: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_view_input(viewId: Uint8Array, json: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_view_open(serverKey: Uint8Array, channelId: Uint8Array, contextJson: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_view_open_activity(serverKey: Uint8Array, sessionId: Uint8Array, channelId: Uint8Array, activityKey: Uint8Array, contextJson: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_view_outputs_attach(uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_view_upload(viewId: Uint8Array, nodeId: bigint, path: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_voice_draft_discard(draftId: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_voice_join(serverKey: Uint8Array, channelId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_voice_leave(): bigint;
@@ -165,6 +175,9 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_music_upload_song(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_music_vote_skip(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_next_events(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_next_view_outputs(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_plugin_asset_file(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_plugin_image_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_profile_update(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_send_cancel(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_server_add(): number;
@@ -172,6 +185,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_server_retry_now(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_server_trust(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_servers_list(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_set_plugin_features(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_settings_get(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_settings_set(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_soundboard_default_sounds(): number;
@@ -179,6 +193,12 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_soundboard_preview(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_soundboard_set_listening(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_typing_start(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_view_close(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_view_input(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_view_open(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_view_open_activity(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_view_outputs_attach(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_view_upload(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_draft_discard(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_join(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_voice_leave(): number;

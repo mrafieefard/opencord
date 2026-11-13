@@ -175,6 +175,30 @@ uniffi_opencord_mobile_fn_func_music_unsubscribe(RustBuffer server_key,
 /*handle*/ uint64_t uniffi_opencord_mobile_fn_func_music_vote_skip(
     RustBuffer server_key, RustBuffer channel_id, RustBuffer expected_item_id);
 /*handle*/ uint64_t
+uniffi_opencord_mobile_fn_func_next_view_outputs(uint64_t generation,
+                                                 uint32_t max);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_plugin_asset_file(
+    RustBuffer server_key, RustBuffer plugin_id, RustBuffer path);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_plugin_image_file(
+    RustBuffer server_key, RustBuffer plugin_id, RustBuffer source_json);
+void uniffi_opencord_mobile_fn_func_set_plugin_features(
+    RustBuffer features, RustCallStatus *uniffi_out_err);
+void uniffi_opencord_mobile_fn_func_view_close(RustBuffer view_id,
+                                               RustCallStatus *uniffi_out_err);
+void uniffi_opencord_mobile_fn_func_view_input(RustBuffer view_id,
+                                               RustBuffer json,
+                                               RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_view_open(
+    RustBuffer server_key, RustBuffer channel_id, RustBuffer context_json);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_view_open_activity(
+    RustBuffer server_key, RustBuffer session_id, RustBuffer channel_id,
+    RustBuffer activity_key, RustBuffer context_json);
+uint64_t uniffi_opencord_mobile_fn_func_view_outputs_attach(
+    RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t
+uniffi_opencord_mobile_fn_func_view_upload(RustBuffer view_id, uint64_t node_id,
+                                           RustBuffer path);
+/*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_avatar_file(RustBuffer server_key,
                                            RustBuffer hash);
 /*handle*/ uint64_t
@@ -399,6 +423,16 @@ uint16_t uniffi_opencord_mobile_checksum_func_music_subscribe();
 uint16_t uniffi_opencord_mobile_checksum_func_music_unsubscribe();
 uint16_t uniffi_opencord_mobile_checksum_func_music_upload_song();
 uint16_t uniffi_opencord_mobile_checksum_func_music_vote_skip();
+uint16_t uniffi_opencord_mobile_checksum_func_next_view_outputs();
+uint16_t uniffi_opencord_mobile_checksum_func_plugin_asset_file();
+uint16_t uniffi_opencord_mobile_checksum_func_plugin_image_file();
+uint16_t uniffi_opencord_mobile_checksum_func_set_plugin_features();
+uint16_t uniffi_opencord_mobile_checksum_func_view_close();
+uint16_t uniffi_opencord_mobile_checksum_func_view_input();
+uint16_t uniffi_opencord_mobile_checksum_func_view_open();
+uint16_t uniffi_opencord_mobile_checksum_func_view_open_activity();
+uint16_t uniffi_opencord_mobile_checksum_func_view_outputs_attach();
+uint16_t uniffi_opencord_mobile_checksum_func_view_upload();
 uint16_t uniffi_opencord_mobile_checksum_func_avatar_file();
 uint16_t uniffi_opencord_mobile_checksum_func_profile_update();
 uint16_t uniffi_opencord_mobile_checksum_func_server_add();
@@ -2175,6 +2209,116 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_fn_func_music_vote_skip(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_next_view_outputs"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_next_view_outputs"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_next_view_outputs(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_plugin_asset_file"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_plugin_asset_file"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_plugin_asset_file(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_plugin_image_file"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_plugin_image_file"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_plugin_image_file(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_set_plugin_features"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_set_plugin_features"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_set_plugin_features(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_view_close"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_view_close"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_view_close(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_view_input"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_view_input"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_view_input(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_view_open"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_view_open"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_view_open(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_view_open_activity"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_view_open_activity"),
+          5,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_view_open_activity(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_view_outputs_attach"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_view_outputs_attach"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_view_outputs_attach(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_view_upload"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_view_upload"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_view_upload(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_avatar_file"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3446,6 +3590,128 @@ NativeOpencordMobile::NativeOpencordMobile(
                 ->cpp_uniffi_opencord_mobile_checksum_func_music_vote_skip(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_next_view_outputs"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_next_view_outputs"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_next_view_outputs(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_plugin_asset_file"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_plugin_asset_file"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_plugin_asset_file(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_plugin_image_file"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_plugin_image_file"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_plugin_image_file(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_set_plugin_features"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_set_plugin_features"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_set_plugin_features(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_view_close"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_view_close"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_view_close(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_view_input"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_view_input"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_view_input(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_view_open"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_view_open"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_view_open(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_view_open_activity"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_view_open_activity"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_view_open_activity(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_view_outputs_attach"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_view_outputs_attach"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_view_outputs_attach(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_view_upload"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_view_upload"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_view_upload(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_avatar_file"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4503,6 +4769,150 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_music_vote_skip(
                                                             args[0]),
       uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
                                                             args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_next_view_outputs(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_next_view_outputs(
+      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[0]),
+      uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_plugin_asset_file(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_plugin_asset_file(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_plugin_image_file(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_plugin_image_file(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_set_plugin_features(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_opencord_mobile_fn_func_set_plugin_features(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_view_close(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_opencord_mobile_fn_func_view_close(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_view_input(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_opencord_mobile_fn_func_view_input(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_view_open(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_view_open(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_view_open_activity(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_view_open_activity(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[3]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[4]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_view_outputs_attach(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_opencord_mobile_fn_func_view_outputs_attach(&status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_view_upload(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_view_upload(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi_jsi::Bridging<uint64_t>::fromJs(rt, callInvoker, args[1]),
       uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
                                                             args[2]));
 
@@ -5766,6 +6176,86 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_music_vote_skip(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_music_vote_skip();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_next_view_outputs(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_next_view_outputs();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_plugin_asset_file(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_plugin_asset_file();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_plugin_image_file(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_plugin_image_file();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_set_plugin_features(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_set_plugin_features();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_view_close(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_view_close();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_view_input(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_view_input();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_view_open(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_view_open();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_view_open_activity(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_view_open_activity();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_view_outputs_attach(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_view_outputs_attach();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_view_upload(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_view_upload();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
