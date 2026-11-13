@@ -85,7 +85,22 @@ async fn world() -> World {
 }
 
 async fn world_with(source: &str, entry: Option<&str>) -> World {
-    let server = TestServer::start_with(|config| config.plugins.handler_ms = 5_000).await;
+    world_with_budget(source, entry, None).await
+}
+
+/// The default world, with the plugin's handler budget raised to 5 s: for
+/// the two tests whose one `burst` handler sends dozens of events (or
+/// 20 × 60 KB) to a view, which can run past the default 100 ms on a loaded
+/// machine and stop the handler before the limit under test is reached.
+async fn world_with_long_handlers() -> World {
+    world_with_budget(SERVER, Some("client/main.luau"), Some(5_000)).await
+}
+
+async fn world_with_budget(source: &str, entry: Option<&str>, handler_ms: Option<u32>) -> World {
+    let server = match handler_ms {
+        Some(ms) => TestServer::start_with(move |config| config.plugins.handler_ms = ms).await,
+        None => TestServer::start().await,
+    };
     let (_owner, _) = owner(&server).await;
     let (mut admin, admin_ready) = session(&server, 1, None, &[FEATURE]).await;
     let extra = entry.map_or(String::new(), |entry| format!("client = {entry:?},"));
@@ -487,7 +502,7 @@ async fn stopping_closes_views() {
 // a plugin can send it more than 60.
 #[tokio::test]
 async fn the_31st_event_in_a_second_is_refused() {
-    let mut w = world().await;
+    let mut w = world_with_long_handlers().await;
     let view = open_view(&mut w.member, w.channel_id).await.view_id;
     let replies = all_at_once(
         &mut w.member,
@@ -519,7 +534,7 @@ async fn the_31st_event_in_a_second_is_refused() {
 // one event over 64 KiB.
 #[tokio::test]
 async fn bytes_over_the_limit_are_refused() {
-    let mut w = world().await;
+    let mut w = world_with_long_handlers().await;
     let view = open_view(&mut w.member, w.channel_id).await.view_id;
     let text = format!("\"{}\"", "x".repeat(60_000));
     let big = format!("\"{}\"", "x".repeat(70_000));
