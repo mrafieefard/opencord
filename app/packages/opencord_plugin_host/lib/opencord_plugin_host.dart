@@ -6,4 +6,4 @@ export 'src/fences.dart';
 export 'src/markdown.dart';
 export 'src/markdown_text.dart';
 export 'src/mention_tokens.dart';
-export 'src/plugin_icon_code_points.dart';
+export 'src/plugin_icons.dart';

@@ -6,9 +6,10 @@ void main() {
   // Fails if an icon is added to, renamed in or changed in one list and
   // not the other: the phone would draw another glyph, or none.
   test("the phone's icon names are the desktop's", () {
-    expect(pluginIconCodePoints.keys.toSet(), pluginIcons.keys.toSet());
+    expect(pluginIconGlyphs.keys.toSet(), pluginIcons.keys.toSet());
     for (final MapEntry(key: name, value: icon) in pluginIcons.entries) {
-      expect(pluginIconCodePoints[name], icon.codePoint, reason: name);
+      expect(pluginIconGlyphs[name]?.codePoint, icon.codePoint, reason: name);
+      expect(pluginIconGlyphs[name]?.fontFamily, icon.fontFamily, reason: name);
     }
   });
 }
