@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -181,7 +179,8 @@ class _Frame extends StatelessWidget {
 }
 
 /// Not opened: the icon, the name, who started it, who has it open, and
-/// Open. A tile too short for all of it scales it down.
+/// Open. A tile too short for all of it drops the icon first, then who has
+/// it open, then who started it; the name and Open never shrink.
 class _NotOpened extends StatelessWidget {
   const _NotOpened({
     required this.tile,
@@ -199,56 +198,77 @@ class _NotOpened extends StatelessWidget {
     final count => '$count people have it open',
   };
 
+  static const double _iconSize = 40;
+  static const double _openHeight = 28;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final session = tile.session;
+    final nameStyle = OcText.bodyStrong.copyWith(color: colors.text);
+    final scaler = MediaQuery.textScalerOf(context);
+    double line(TextStyle style) =>
+        scaler.scale(style.fontSize!) * (style.height ?? 1);
+    final name = line(nameStyle);
+    final small = line(OcText.small);
+    // How tall the column is with each line it can drop, fewest first.
+    final core = name + OcSpace.s10 + _openHeight;
+    final withStarter = core + OcSpace.s2 + small;
+    final withViewers = withStarter + small;
+    final withIcon = withViewers + _iconSize + OcSpace.s8;
     return LayoutBuilder(
-      builder: (context, constraints) => Padding(
-        padding: const EdgeInsets.all(OcSpace.s12),
-        child: Center(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: math.max(0.0, constraints.maxWidth - 2 * OcSpace.s12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+      builder: (context, constraints) {
+        final room = constraints.hasBoundedHeight
+            ? constraints.maxHeight - 2 * OcSpace.s4
+            : double.infinity;
+        final icon = withIcon <= room;
+        final viewers = withViewers <= room;
+        final starterLine = withStarter <= room;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: OcSpace.s12),
+          // Shorter than even the name and Open, the column runs past the
+          // tile's edges and the frame clips it; nothing scales.
+          child: OverflowBox(
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon) ...[
                   PluginActivityIcon(
                     serverKey: tile.serverKey,
                     pluginId: session.pluginId,
                     icon: session.icon,
-                    size: 40,
+                    size: _iconSize,
                     radius: 10,
                   ),
                   const SizedBox(height: OcSpace.s8),
-                  EllipsisText(
-                    session.name,
-                    style: OcText.bodyStrong.copyWith(color: colors.text),
-                  ),
+                ],
+                EllipsisText(session.name, style: nameStyle),
+                if (starterLine) ...[
                   const SizedBox(height: OcSpace.s2),
                   EllipsisText(
                     'Started by $starter',
                     style: OcText.small.copyWith(color: colors.textSecondary),
                   ),
+                ],
+                if (viewers)
                   EllipsisText(
                     _viewers,
                     style: OcText.small.copyWith(color: colors.textMuted),
                   ),
-                  const SizedBox(height: OcSpace.s10),
-                  OcButton.primary(
-                    label: 'Open',
-                    dense: true,
-                    onPressed: onOpen,
-                  ),
-                ],
-              ),
+                const SizedBox(height: OcSpace.s10),
+                OcButton.primary(
+                  label: 'Open',
+                  dense: true,
+                  height: _openHeight,
+                  onPressed: onOpen,
+                ),
+              ],
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

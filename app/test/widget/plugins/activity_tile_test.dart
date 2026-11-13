@@ -8,6 +8,7 @@ import 'package:opencord/core/model/user.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/events.dart';
 import 'package:opencord/features/plugins/activity_tile.dart';
+import 'package:opencord/ui/widgets/oc_button.dart';
 
 import '../../support/activities.dart';
 import '../../support/app.dart';
@@ -137,6 +138,75 @@ void main() {
     await _settle(tester);
     expect(tester.takeException(), isNull);
     expect(tester.widget<ActivityTile>(_activity(session.id)).focused, isTrue);
+    await app.dispose(tester);
+  });
+
+  // Three sessions at the narrowest window (940×560) leave each unopened
+  // tile about 128×80: it drops the icon, then who has it open, then who
+  // started it, and never scales the name or Open down.
+  testWidgets('a short unopened tile keeps its name and Open full size', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(940, 560));
+    recordPaint(app);
+    await openVoicePage(SceneDriver(tester));
+    final sessions = [
+      for (var i = 0; i < 3; i++) await startPaint(tester, app),
+    ];
+    await _settle(tester);
+    expect(tester.takeException(), isNull);
+
+    const nameLine = 14 * 1.35;
+    for (final session in sessions) {
+      final tile = tester.renderObject(_activity(session.id));
+      for (final (label, minHeight) in [
+        ('Paint together', nameLine),
+        ('Open', 28.0),
+      ]) {
+        final shown = _inActivity(session.id, find.text(label));
+        expect(shown, findsOneWidget);
+        // The name's text, or Open's whole button.
+        final box = tester.renderObject<RenderBox>(
+          label == 'Open'
+              ? find.ancestor(of: shown, matching: find.byType(OcButton)).first
+              : shown,
+        );
+        // Measured through every transform up to the tile, so a scale
+        // anywhere in between shrinks it.
+        final rect = MatrixUtils.transformRect(
+          box.getTransformTo(tile),
+          Offset.zero & box.size,
+        );
+        expect(rect.height, greaterThanOrEqualTo(minHeight - 0.01));
+        // No ancestor up to the tile scales it below 1.
+        RenderObject child = box;
+        while (child != tile) {
+          final parent = child.parent!;
+          final step = Matrix4.identity();
+          parent.applyPaintTransform(child, step);
+          final unit = MatrixUtils.transformRect(
+            step,
+            const Rect.fromLTWH(0, 0, 1, 1),
+          );
+          expect(
+            unit.width,
+            greaterThanOrEqualTo(0.999),
+            reason: '${parent.runtimeType} scales "$label" down',
+          );
+          expect(
+            unit.height,
+            greaterThanOrEqualTo(0.999),
+            reason: '${parent.runtimeType} scales "$label" down',
+          );
+          child = parent;
+        }
+      }
+      // Too short for the icon and the viewers line.
+      expect(
+        _inActivity(session.id, find.text('No one has it open')),
+        findsNothing,
+      );
+    }
     await app.dispose(tester);
   });
 
