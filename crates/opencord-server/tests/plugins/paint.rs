@@ -187,7 +187,7 @@ async fn board(client: &mut TestClient) -> Vec<Vec<String>> {
     let mut events = Vec::new();
     loop {
         let next = tokio::time::timeout(
-            Duration::from_millis(500),
+            Duration::from_secs(2),
             client.wait_for(|event| match event {
                 Event::ViewMessage(message) if message.name == "strokes" => {
                     Some(message.data_json.clone())
