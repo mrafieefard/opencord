@@ -32,6 +32,16 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+/// Waits past the dock's 2.5 s auto-hide so a focus screenshot shows the
+/// strip under it (round 2 finding 2: the dock covered it in every focus
+/// golden, so the 3-activity strip was never seen).
+Future<void> _hideDock(WidgetTester tester) async {
+  for (var waited = 0; waited < 3000; waited += 50) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  await _settle(tester);
+}
+
 Future<void> _reload(MockApp app, WidgetTester tester) async {
   final server = app.repository.mockServer(activityServer);
   app.repository.emit(Ready(activityServer, server.snapshot()));
@@ -165,7 +175,9 @@ void main() {
         expect(find.byType(ActivityPicker), findsOneWidget);
         await expectLater(
           find.byType(ActivityPicker),
-          matchesGoldenFile('goldens/picker_running_${themeName}_$widthLabel.png'),
+          matchesGoldenFile(
+            'goldens/picker_running_${themeName}_$widthLabel.png',
+          ),
         );
         await app.dispose(tester);
       });
@@ -206,7 +218,9 @@ void main() {
         await _settle(tester);
         await expectLater(
           find.byType(VoiceView),
-          matchesGoldenFile('goldens/stage_1_grid_${themeName}_$widthLabel.png'),
+          matchesGoldenFile(
+            'goldens/stage_1_grid_${themeName}_$widthLabel.png',
+          ),
         );
         await app.dispose(tester);
       });
@@ -219,9 +233,12 @@ void main() {
         await tester.tap(_inActivity(session.id, find.text('Open')));
         await _settle(tester);
         await _makeLarge(tester, session.id);
+        await _hideDock(tester);
         await expectLater(
           find.byType(VoiceView),
-          matchesGoldenFile('goldens/stage_1_focus_${themeName}_$widthLabel.png'),
+          matchesGoldenFile(
+            'goldens/stage_1_focus_${themeName}_$widthLabel.png',
+          ),
         );
         await app.dispose(tester);
       });
@@ -244,7 +261,9 @@ void main() {
         await _settle(tester);
         await expectLater(
           find.byType(VoiceView),
-          matchesGoldenFile('goldens/stage_3_grid_${themeName}_$widthLabel.png'),
+          matchesGoldenFile(
+            'goldens/stage_3_grid_${themeName}_$widthLabel.png',
+          ),
         );
         await app.dispose(tester);
       });
@@ -268,15 +287,26 @@ void main() {
         }
         await _settle(tester);
         // Focus the first activity to make it large, then open it
-        app.read(voiceFocusProvider((server: call.server, channel: call.channel)).notifier).focus(
-          (userId: 0, screen: false, session: sessions.first.id),
-        );
+        app
+            .read(
+              voiceFocusProvider((
+                server: call.server,
+                channel: call.channel,
+              )).notifier,
+            )
+            .focus((userId: 0, screen: false, session: sessions.first.id));
         await _settle(tester);
         await tester.tap(_inActivity(sessions.first.id, find.text('Open')));
         await _settle(tester);
+        // At 940 the small activity tiles sit past the people in the strip;
+        // scroll them into view so the screenshot shows them.
+        await tester.ensureVisible(_activity(sessions.last.id));
+        await _hideDock(tester);
         await expectLater(
           find.byType(VoiceView),
-          matchesGoldenFile('goldens/stage_3_focus_${themeName}_$widthLabel.png'),
+          matchesGoldenFile(
+            'goldens/stage_3_focus_${themeName}_$widthLabel.png',
+          ),
         );
         await app.dispose(tester);
       });
