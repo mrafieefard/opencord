@@ -650,6 +650,13 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
+  opencord_plugin_host:
+    dependency: "direct main"
+    description:
+      path: "packages/opencord_plugin_host"
+      relative: true
+    source: path
+    version: "0.0.1"
   package_config:
     dependency: transitive
     description:

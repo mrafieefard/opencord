@@ -1,0 +1,7 @@
+.dart_tool/
+/build/
+# A library package: the app's own lock file pins what it builds with.
+pubspec.lock
+# Written by golden tests that fail, as on a system other than the one
+# the goldens were rendered on.
+/test/failures/
