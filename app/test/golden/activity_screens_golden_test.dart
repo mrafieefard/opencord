@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/mock/mock_world.dart';
 import 'package:opencord/core/model/plugins.dart';
-import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/events.dart';
 import 'package:opencord/core/settings/app_settings.dart';
 import 'package:opencord/features/plugins/activity_picker.dart';
