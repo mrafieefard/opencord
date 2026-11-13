@@ -116,6 +116,30 @@ void main() {
     await app.dispose(tester);
   });
 
+  // The narrowest window (940×560) leaves the opened tile's bar about
+  // 117 px: Make large and Close become icons named by their tooltips, and
+  // nothing overflows.
+  testWidgets('a narrow opened tile shows its buttons as icons', (
+    tester,
+  ) async {
+    final app = await MockApp.pump(tester, size: const Size(940, 560));
+    recordPaint(app);
+    await openVoicePage(SceneDriver(tester));
+    final session = await startPaint(tester, app);
+    await _settle(tester);
+    await tester.tap(_inActivity(session.id, find.text('Open')));
+    await _settle(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(_inActivity(session.id, find.text('Make large')), findsNothing);
+    expect(_inActivity(session.id, find.byTooltip('Close')), findsOneWidget);
+    await tester.tap(_inActivity(session.id, find.byTooltip('Make large')));
+    await _settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(tester.widget<ActivityTile>(_activity(session.id)).focused, isTrue);
+    await app.dispose(tester);
+  });
+
   group('End activity asks, then ends it for everyone', () {
     // Road: secondary press → OcMenu → confirmAction → endActivity →
     // ActivitySessionEnded → the tile goes. Cancel ends nothing.

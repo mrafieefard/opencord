@@ -17,6 +17,7 @@ import 'package:opencord/ui/widgets/confirm_dialog.dart';
 import 'package:opencord/ui/widgets/ellipsis_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
+import 'package:opencord/ui/widgets/oc_icon_button.dart';
 import 'package:opencord/ui/widgets/oc_menu.dart';
 import 'package:opencord/ui/widgets/toast.dart';
 
@@ -253,7 +254,8 @@ class _NotOpened extends StatelessWidget {
 }
 
 /// Opened: across the top, the icon, the name, Make large or Back to grid,
-/// and Close.
+/// and Close. Narrower than [_wordsFrom], the two buttons are icons with
+/// the same names as tooltips, so the bar never overflows.
 class _Bar extends StatelessWidget {
   const _Bar({required this.tile, required this.height, required this.onClose});
 
@@ -261,41 +263,65 @@ class _Bar extends StatelessWidget {
   final double height;
   final VoidCallback onClose;
 
+  /// The widest the bar gets with the words: padding, the icon, a little
+  /// of the name, Back to grid and Close.
+  static const double _wordsFrom = 200;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final session = tile.session;
+    final focusLabel = tile.focused ? 'Back to grid' : 'Make large';
     return Container(
       height: height,
       padding: const EdgeInsets.only(left: OcSpace.s8, right: OcSpace.s2),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        children: [
-          PluginActivityIcon(
-            serverKey: tile.serverKey,
-            pluginId: session.pluginId,
-            icon: session.icon,
-            size: 16,
-            radius: 4,
-          ),
-          const SizedBox(width: OcSpace.s6),
-          Expanded(
-            child: EllipsisText(
-              session.name,
-              style: OcText.small.copyWith(
-                color: colors.text,
-                fontWeight: FontWeight.w600,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final words = constraints.maxWidth >= _wordsFrom;
+          return Row(
+            children: [
+              PluginActivityIcon(
+                serverKey: tile.serverKey,
+                pluginId: session.pluginId,
+                icon: session.icon,
+                size: 16,
+                radius: 4,
               ),
-            ),
-          ),
-          _BarButton(
-            label: tile.focused ? 'Back to grid' : 'Make large',
-            onPressed: tile.onFocus,
-          ),
-          _BarButton(label: 'Close', onPressed: onClose),
-        ],
+              const SizedBox(width: OcSpace.s6),
+              Expanded(
+                child: EllipsisText(
+                  session.name,
+                  style: OcText.small.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (words) ...[
+                _BarButton(label: focusLabel, onPressed: tile.onFocus),
+                _BarButton(label: 'Close', onPressed: onClose),
+              ] else ...[
+                OcIconButton(
+                  icon: tile.focused
+                      ? OcIcons.closeFullscreen
+                      : OcIcons.openInFull,
+                  tooltip: focusLabel,
+                  size: OcIconButtonSize.bar,
+                  onPressed: tile.onFocus,
+                ),
+                OcIconButton(
+                  icon: OcIcons.close,
+                  tooltip: 'Close',
+                  size: OcIconButtonSize.bar,
+                  onPressed: onClose,
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
