@@ -14,6 +14,8 @@ class Gates {
   static final _sent = Stopwatch();
   static var _waiting = false;
   static var _frames = 0;
+  static var _buildUs = 0;
+  static var _rasterUs = 0;
   static var _started = false;
 
   /// An input went to native code: a press starts the round trip.
@@ -40,13 +42,25 @@ class Gates {
     _started = true;
     SchedulerBinding.instance.addTimingsCallback((List<FrameTiming> timings) {
       _frames += timings.length;
+      for (final timing in timings) {
+        _buildUs += timing.buildDuration.inMicroseconds;
+        _rasterUs += timing.rasterDuration.inMicroseconds;
+      }
     });
     final clock = Stopwatch()..start();
     void report() {
       Future<void>.delayed(const Duration(seconds: 10), () {
         final seconds = clock.elapsedMilliseconds / 1000;
-        debugPrint('plugin-gate fps=${(_frames / seconds).toStringAsFixed(1)} frames=$_frames');
+        // Average build and raster time per frame: what the device itself
+        // spends drawing, apart from waiting for batches.
+        final frames = _frames == 0 ? 1 : _frames;
+        debugPrint(
+          'plugin-gate fps=${(_frames / seconds).toStringAsFixed(1)} frames=$_frames '
+          'build_us=${_buildUs ~/ frames} raster_us=${_rasterUs ~/ frames}',
+        );
         _frames = 0;
+        _buildUs = 0;
+        _rasterUs = 0;
         clock.reset();
         report();
       });
