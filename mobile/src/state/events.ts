@@ -10,6 +10,7 @@ import {
   type ChannelAccess,
   type MessageRecord,
   type ServerEntry,
+  type ServerSnapshot,
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
@@ -227,6 +228,11 @@ function accessChanged(state: AppState, serverKey: string, access: ChannelAccess
   );
 }
 
+/** [patch] applied to the server's snapshot, when it has one. */
+function withSnapshot(state: AppState, serverKey: string, patch: (snapshot: ServerSnapshot) => ServerSnapshot): AppState {
+  return withServer(state, serverKey, (current) => (current.snapshot ? { ...current, snapshot: patch(current.snapshot) } : current));
+}
+
 /** Applies events that aren't Ready, in order. */
 export function applyEvents(state: AppState, events: MobileEvent[], nowMs: number): AppState {
   let next = state;
@@ -421,6 +427,25 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.Notice:
       // Shown, not kept: store.ts turns these into toasts.
       return state;
+    case MobileEvent_Tags.PluginChannelTypesUpdated:
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginChannelTypes: event.inner.types }));
+    case MobileEvent_Tags.PluginActivitiesUpdated:
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginActivities: event.inner.activities }));
+    case MobileEvent_Tags.ActivitySessionCreated:
+    case MobileEvent_Tags.ActivitySessionUpdated: {
+      const session = event.inner.session;
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({
+        ...snapshot,
+        activitySessions: [...snapshot.activitySessions.filter((s) => s.id !== session.id), session],
+      }));
+    }
+    case MobileEvent_Tags.ActivitySessionDeleted: {
+      const { sessionId } = event.inner;
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({
+        ...snapshot,
+        activitySessions: snapshot.activitySessions.filter((s) => s.id !== sessionId),
+      }));
+    }
     case MobileEvent_Tags.PluginUsersUpdated:
       return withServer(state, event.inner.serverKey, (current) => ({
         ...current,

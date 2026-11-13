@@ -91,6 +91,8 @@ pub enum ChannelKind {
     Text,
     Voice,
     Category,
+    /// A channel of a type a plugin registered (plugins design §14).
+    Plugin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -106,6 +108,77 @@ pub struct ChannelRecord {
     pub user_limit: u32,
     /// Voice: has a chat of its own.
     pub text_in_voice: bool,
+    /// Plugin channels only.
+    pub plugin: Option<PluginChannelRecord>,
+}
+
+/// What a plugin channel is: the plugin, the type it registered, and
+/// whether it can be opened now.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginChannelRecord {
+    pub plugin_id: String,
+    pub type_key: String,
+    pub state: PluginChannelState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum PluginChannelState {
+    Available,
+    /// Its plugin isn't running, or isn't installed.
+    PluginStopped,
+    /// Its plugin runs but no longer registers this type.
+    TypeGone,
+}
+
+/// A channel type a running plugin registered (§14.2).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginChannelTypeRecord {
+    pub plugin_id: String,
+    pub type_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
+}
+
+/// An activity a running plugin registered (§15.1).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginActivityRecord {
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
+}
+
+/// One activity running in one call (§15.2).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ActivitySessionRecord {
+    pub id: String,
+    /// The voice channel.
+    pub channel_id: String,
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub icon: String,
+    pub plugin_name: String,
+    pub starter_id: String,
+    pub started_at_ms: i64,
+    /// Who has it open, ascending.
+    pub viewer_ids: Vec<String>,
+}
+
+/// Why an activity session ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ActivityEndReason {
+    Ended,
+    Plugin,
+    CallEmpty,
+    PluginStopped,
+    Unavailable,
 }
 
 /// What this user may do in a channel, from its permission bits.
@@ -126,6 +199,8 @@ pub struct ChannelAccess {
     pub use_soundboard: bool,
     pub use_external_sounds: bool,
     pub send_voice_messages: bool,
+    pub start_activities: bool,
+    pub manage_channel: bool,
 }
 
 /// Everything a `Ready` says about a server; it replaces what came before.
@@ -148,6 +223,9 @@ pub struct ServerSnapshot {
     pub voice_message_max_seconds: u32,
     pub plugin_users: Vec<PluginUserRecord>,
     pub commands: CommandListRecord,
+    pub plugin_channel_types: Vec<PluginChannelTypeRecord>,
+    pub plugin_activities: Vec<PluginActivityRecord>,
+    pub activity_sessions: Vec<ActivitySessionRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]

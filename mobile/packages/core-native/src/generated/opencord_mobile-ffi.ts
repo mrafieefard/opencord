@@ -67,6 +67,8 @@ interface NativeModuleInterface {
     ubrn_ffi_opencord_mobile_rust_future_cancel_void(handle: bigint): void;
     ubrn_ffi_opencord_mobile_rust_future_complete_void(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_ffi_opencord_mobile_rust_future_free_void(handle: bigint): void;
+    ubrn_uniffi_opencord_mobile_fn_func_activity_end(serverKey: Uint8Array, sessionId: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_activity_start(serverKey: Uint8Array, channelId: Uint8Array, pluginId: Uint8Array, activityKey: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_attachment_file(serverKey: Uint8Array, attachmentId: Uint8Array, variant: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_avatar_file(serverKey: Uint8Array, hash: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_command_autocomplete(serverKey: Uint8Array, channelId: Uint8Array, name: Uint8Array, source: Uint8Array, option: Uint8Array, value: Uint8Array): bigint;
@@ -142,6 +144,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_voice_set_user_volume(serverKey: Uint8Array, userId: Uint8Array, volume: number, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_voice_stop(uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_ffi_opencord_mobile_uniffi_contract_version(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_activity_end(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_activity_start(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_attachment_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_avatar_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_command_autocomplete(): number;

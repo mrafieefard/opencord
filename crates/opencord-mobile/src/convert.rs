@@ -99,17 +99,28 @@ pub(crate) fn member(member: core::Member) -> MemberRecord {
     }
 }
 
-/// `None` for a plugin channel: the phone doesn't ask for them before
-/// plugins milestone 4, so one only arrives from a server that sends them
-/// anyway, and the phone can't show it.
+/// Every channel the phone can show; `Option` for kinds it may not know
+/// yet.
 pub(crate) fn channel(channel: core::Channel) -> Option<ChannelRecord> {
+    let plugin = match (channel.plugin_id, channel.type_key) {
+        (Some(plugin_id), Some(type_key)) => Some(PluginChannelRecord {
+            plugin_id,
+            type_key,
+            state: plugin_channel_state(
+                channel
+                    .plugin_state
+                    .unwrap_or(core::PluginChannelState::PluginStopped),
+            ),
+        }),
+        _ => None,
+    };
     Some(ChannelRecord {
         id: id(channel.id),
         kind: match channel.kind {
             core::ChannelKind::Text => ChannelKind::Text,
             core::ChannelKind::Voice => ChannelKind::Voice,
             core::ChannelKind::Category => ChannelKind::Category,
-            core::ChannelKind::Plugin => return None,
+            core::ChannelKind::Plugin => ChannelKind::Plugin,
         },
         name: channel.name,
         topic: channel.topic,
@@ -117,7 +128,63 @@ pub(crate) fn channel(channel: core::Channel) -> Option<ChannelRecord> {
         position: channel.position,
         user_limit: channel.user_limit,
         text_in_voice: channel.text_in_voice,
+        plugin,
     })
+}
+
+fn plugin_channel_state(state: core::PluginChannelState) -> PluginChannelState {
+    match state {
+        core::PluginChannelState::Available => PluginChannelState::Available,
+        core::PluginChannelState::PluginStopped => PluginChannelState::PluginStopped,
+        core::PluginChannelState::TypeGone => PluginChannelState::TypeGone,
+    }
+}
+
+pub(crate) fn plugin_channel_type(kind: core::PluginChannelType) -> PluginChannelTypeRecord {
+    PluginChannelTypeRecord {
+        plugin_id: kind.plugin_id,
+        type_key: kind.type_key,
+        name: kind.name,
+        description: kind.description,
+        icon: kind.icon,
+        plugin_name: kind.plugin_name,
+    }
+}
+
+pub(crate) fn plugin_activity(activity: core::PluginActivity) -> PluginActivityRecord {
+    PluginActivityRecord {
+        plugin_id: activity.plugin_id,
+        activity_key: activity.activity_key,
+        name: activity.name,
+        description: activity.description,
+        icon: activity.icon,
+        plugin_name: activity.plugin_name,
+    }
+}
+
+pub(crate) fn activity_session(session: core::ActivitySession) -> ActivitySessionRecord {
+    ActivitySessionRecord {
+        id: id(session.id),
+        channel_id: id(session.channel_id),
+        plugin_id: session.plugin_id,
+        activity_key: session.activity_key,
+        name: session.name,
+        icon: session.icon,
+        plugin_name: session.plugin_name,
+        starter_id: id(session.starter_id),
+        started_at_ms: session.started_at_ms,
+        viewer_ids: session.viewer_ids.into_iter().map(id).collect(),
+    }
+}
+
+pub(crate) fn activity_end_reason(reason: core::ActivityEndReason) -> ActivityEndReason {
+    match reason {
+        core::ActivityEndReason::Ended => ActivityEndReason::Ended,
+        core::ActivityEndReason::Plugin => ActivityEndReason::Plugin,
+        core::ActivityEndReason::CallEmpty => ActivityEndReason::CallEmpty,
+        core::ActivityEndReason::PluginStopped => ActivityEndReason::PluginStopped,
+        core::ActivityEndReason::Unavailable => ActivityEndReason::Unavailable,
+    }
 }
 
 /// Permission bits as the core's API carries them (an `i64` holding the
@@ -146,6 +213,8 @@ pub(crate) fn access(channel_id: i64, bits: i64) -> ChannelAccess {
         use_soundboard: has(Permissions::USE_SOUNDBOARD),
         use_external_sounds: has(Permissions::USE_EXTERNAL_SOUNDS),
         send_voice_messages: has(Permissions::SEND_VOICE_MESSAGES),
+        start_activities: has(Permissions::START_ACTIVITIES),
+        manage_channel: has(Permissions::MANAGE_CHANNELS),
     }
 }
 
@@ -178,6 +247,21 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
         voice_message_max_seconds: ready.upload_settings.voice_message_max_seconds,
         plugin_users: ready.plugin_users.into_iter().map(plugin_user).collect(),
         commands: command_list(ready.commands),
+        plugin_channel_types: ready
+            .plugin_channel_types
+            .into_iter()
+            .map(plugin_channel_type)
+            .collect(),
+        plugin_activities: ready
+            .plugin_activities
+            .into_iter()
+            .map(plugin_activity)
+            .collect(),
+        activity_sessions: ready
+            .activity_sessions
+            .into_iter()
+            .map(activity_session)
+            .collect(),
     }
 }
 
@@ -622,6 +706,82 @@ pub(crate) fn search_results(results: core::MusicSearchResults) -> MusicSearchRe
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn plugin_channel(state: core::PluginChannelState) -> core::Channel {
+        core::Channel {
+            id: 40,
+            kind: core::ChannelKind::Plugin,
+            name: "help-desk".to_owned(),
+            topic: None,
+            parent_id: Some(3),
+            position: 2,
+            overwrites: Vec::new(),
+            bitrate: 0,
+            user_limit: 0,
+            text_in_voice: false,
+            plugin_id: Some("tickets".to_owned()),
+            type_key: Some("tickets".to_owned()),
+            plugin_state: Some(state),
+        }
+    }
+
+    // Fails if a plugin channel is dropped again, or loses its plugin, type
+    // or state on the way to JavaScript.
+    #[test]
+    fn a_plugin_channel_is_kept_with_its_state() {
+        for (core_state, state) in [
+            (
+                core::PluginChannelState::Available,
+                PluginChannelState::Available,
+            ),
+            (
+                core::PluginChannelState::PluginStopped,
+                PluginChannelState::PluginStopped,
+            ),
+            (
+                core::PluginChannelState::TypeGone,
+                PluginChannelState::TypeGone,
+            ),
+        ] {
+            let record = channel(plugin_channel(core_state)).expect("a plugin channel is kept");
+            assert_eq!(record.kind, ChannelKind::Plugin);
+            assert_eq!(record.id, "40");
+            assert_eq!(record.parent_id.as_deref(), Some("3"));
+            assert_eq!(
+                record.plugin,
+                Some(PluginChannelRecord {
+                    plugin_id: "tickets".to_owned(),
+                    type_key: "tickets".to_owned(),
+                    state,
+                })
+            );
+        }
+    }
+
+    // Fails if an ordinary channel gains plugin fields.
+    #[test]
+    fn a_text_channel_has_no_plugin() {
+        let mut text = plugin_channel(core::PluginChannelState::Available);
+        text.kind = core::ChannelKind::Text;
+        text.plugin_id = None;
+        text.type_key = None;
+        text.plugin_state = None;
+        assert_eq!(channel(text).unwrap().plugin, None);
+    }
+
+    // Fails if starting activities or managing the channel doesn't follow
+    // its bit (the Activities button and End activity on the phone).
+    #[test]
+    fn access_names_start_activities_and_manage_channel() {
+        let none = access(1, bits(Permissions::VIEW_CHANNEL));
+        assert!(!none.start_activities && !none.manage_channel);
+        let start = access(1, bits(Permissions::START_ACTIVITIES));
+        assert!(start.start_activities && !start.manage_channel);
+        let manage = access(1, bits(Permissions::MANAGE_CHANNELS));
+        assert!(manage.manage_channel && !manage.start_activities);
+        let admin = access(1, bits(Permissions::ADMINISTRATOR));
+        assert!(admin.start_activities && admin.manage_channel);
+    }
 
     fn bits(flags: Permissions) -> i64 {
         i64::from_ne_bytes(flags.bits().to_ne_bytes())

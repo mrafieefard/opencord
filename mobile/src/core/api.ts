@@ -2,6 +2,7 @@
 // function, with the same names and types. NativeCore is the real one;
 // FakeCore answers the same way for tests and screenshots.
 import type {
+  ActivitySessionRecord,
   AddServerResult,
   AttachmentVariant,
   CommandChoiceRecord,
@@ -153,4 +154,6 @@ export interface CoreApi {
   pluginAssetFile(serverKey: string, pluginId: string, path: string): Promise<string>;
   pluginImageFile(serverKey: string, pluginId: string, sourceJson: string): Promise<string>;
   viewUpload(viewId: string, nodeId: bigint, path: string): Promise<void>;
+  activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string): Promise<ActivitySessionRecord>;
+  activityEnd(serverKey: string, sessionId: string): Promise<void>;
 }

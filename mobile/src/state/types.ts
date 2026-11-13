@@ -245,6 +245,16 @@ export type ChannelItem =
       nowPlaying: MusicNowPlayingRecord | null;
       count: number;
       limit: number;
+    }
+  | {
+      kind: 'plugin';
+      channel: ChannelRecord;
+      access: ChannelAccess;
+      /** The type's name, or the channel's own when the type isn't registered. */
+      typeName: string;
+      /** A path under the plugin's assets/, or empty. */
+      icon: string;
+      state: 'available' | 'plugin_stopped' | 'type_gone';
     };
 
 export interface ChannelSection {

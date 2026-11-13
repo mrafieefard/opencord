@@ -4,11 +4,14 @@ import {
   AttachmentKind,
   ChannelKind,
   ConnectionRecord_Tags,
+  PluginChannelState,
+  type ActivitySessionRecord,
   type ChannelAccess,
   type ChannelRecord,
   type MusicNowPlayingRecord,
   type MusicSessionRecord,
   type MusicSettingsRecord,
+  type PluginActivityRecord,
   type ServerSnapshot,
 } from '@opencord/core-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -153,6 +156,18 @@ export function buildChannelSections(
         limit: channel.userLimit,
       };
     }
+    if (channel.kind === ChannelKind.Plugin && channel.plugin) {
+      const plugin = channel.plugin;
+      const type = snapshot.pluginChannelTypes.find((entry) => entry.pluginId === plugin.pluginId && entry.typeKey === plugin.typeKey);
+      return {
+        kind: 'plugin',
+        channel,
+        access: allowed,
+        typeName: type?.name ?? channel.name,
+        icon: type?.icon ?? '',
+        state: pluginState(plugin.state),
+      };
+    }
     const activity = server.activity[channel.id];
     return { kind: 'text', channel, access: allowed, unread: activity?.unread ?? 0, mentions: activity?.mentions ?? 0 };
   };
@@ -166,6 +181,37 @@ export function buildChannelSections(
     sections.push({ category, items: items(category.id) });
   }
   return sections.filter((section) => section.items.length > 0);
+}
+
+function pluginState(state: PluginChannelState): 'available' | 'plugin_stopped' | 'type_gone' {
+  switch (state) {
+    case PluginChannelState.Available:
+      return 'available';
+    case PluginChannelState.PluginStopped:
+      return 'plugin_stopped';
+    case PluginChannelState.TypeGone:
+      return 'type_gone';
+  }
+}
+
+const NO_ACTIVITIES: readonly PluginActivityRecord[] = [];
+const NO_SESSIONS: readonly ActivitySessionRecord[] = [];
+
+/** The activities the server's running plugins register. */
+export function pluginActivities(server: ServerState | undefined): readonly PluginActivityRecord[] {
+  return server?.snapshot?.pluginActivities ?? NO_ACTIVITIES;
+}
+
+/** The activities running in the call [channelId], oldest first. */
+export function activitySessions(server: ServerState | undefined, channelId: string): ActivitySessionRecord[] {
+  return (server?.snapshot?.activitySessions ?? NO_SESSIONS)
+    .filter((session) => session.channelId === channelId)
+    .sort((a, b) => (a.startedAtMs < b.startedAtMs ? -1 : a.startedAtMs > b.startedAtMs ? 1 : compareIds(a.id, b.id)));
+}
+
+/** Whether this user may start activities in the call [channelId]. */
+export function canStartActivities(server: ServerState | undefined, channelId: string): boolean {
+  return server?.snapshot?.access.find((entry) => entry.channelId === channelId)?.startActivities ?? false;
 }
 
 export function typingNames(server: ServerState | undefined, channelId: string, nowMs: number): string[] {

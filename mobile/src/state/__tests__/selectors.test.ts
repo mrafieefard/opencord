@@ -55,7 +55,7 @@ describe('selectors', () => {
     expect(sections.map((section) => section.category?.name ?? null)).toEqual([null, 'Text', 'Voice']);
     expect(sections.map((section) => section.items.map((item) => item.channel.name))).toEqual([
       ['general', 'music-requests'],
-      ['off-topic'],
+      ['off-topic', 'help-desk', 'old-board'],
       ['Lounge'],
     ]);
   });

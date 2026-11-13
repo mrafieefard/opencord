@@ -6,7 +6,7 @@
 import nativeModule from "./opencord_mobile-ffi";
 import { type UniffiRustFutureContinuationCallback, type UniffiForeignFutureDroppedCallback, type UniffiForeignFutureDroppedCallbackStruct,
 } from "./opencord_mobile-ffi";
-import { type UniffiByteArray, AbstractFfiConverterByteArray, Cursor, FfiConverterArray, FfiConverterArrayBuffer, FfiConverterBool, FfiConverterFloat32, FfiConverterFloat64, FfiConverterInt32, FfiConverterOptional, FfiConverterUInt16, FfiConverterUInt32, FfiConverterUInt64, FfiConverterUInt8, RustBuffer, UniffiEnum, UniffiError, UniffiInternalError, UniffiRustCaller, uniffiCreateFfiConverterString, uniffiCreateRecord, uniffiRustCallAsync, uniffiTypeNameSymbol, variantOrdinalSymbol,
+import { type UniffiByteArray, AbstractFfiConverterByteArray, Cursor, FfiConverterArray, FfiConverterArrayBuffer, FfiConverterBool, FfiConverterFloat32, FfiConverterFloat64, FfiConverterInt32, FfiConverterInt64, FfiConverterOptional, FfiConverterUInt16, FfiConverterUInt32, FfiConverterUInt64, FfiConverterUInt8, RustBuffer, UniffiEnum, UniffiError, UniffiInternalError, UniffiRustCaller, uniffiCreateFfiConverterString, uniffiCreateRecord, uniffiRustCallAsync, uniffiTypeNameSymbol, variantOrdinalSymbol,
 } from "@ubjs/core";
 const uniffiCaller = new UniffiRustCaller(() => ({ code: 0 }));
 
@@ -18,6 +18,80 @@ const uniffiIsDebug =
   false;
 
 // Public interface members begin here.
+
+/**
+ * Ends an activity session for everyone in its call.
+ */
+export async function activityEnd(serverKey: string, sessionId: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_activity_end(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(sessionId, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * Starts a plugin's activity in the call `channel_id`, which this device
+ * is in; the running session if it already runs there. A fifth activity
+ * fails with the server's `plugin_limit`.
+ */
+export async function activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string, asyncOpts_?: { signal: AbortSignal }): Promise<ActivitySessionRecord> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_activity_start(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(channelId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(pluginId, nativeModule().rustbuffer_alloc),FfiConverterString.lower(activityKey, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterTypeActivitySessionRecord.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
 
 /**
  * The path of an attachment's file in the cache, fetched from the server
@@ -2136,6 +2210,90 @@ const stringConverter = (() => {
 })();
 const FfiConverterString = uniffiCreateFfiConverterString(stringConverter);
 
+/**
+ * One activity running in one call (§15.2).
+ */
+export type ActivitySessionRecord = {
+    id: string,
+    /**
+     * The voice channel.
+     */
+    channelId: string,
+    pluginId: string,
+    activityKey: string,
+    name: string,
+    icon: string,
+    pluginName: string,
+    starterId: string,
+    startedAtMs: bigint,
+    /**
+     * Who has it open, ascending.
+     */
+    viewerIds: Array<string>
+}
+
+/**
+ * Generated factory for {@link ActivitySessionRecord} record objects.
+ */
+export const ActivitySessionRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ActivitySessionRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<ActivitySessionRecord>,
+    });
+})();
+
+const FfiConverterTypeActivitySessionRecord = (() => {
+    type TypeName = ActivitySessionRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                id: FfiConverterString.readFromCursor(c), 
+                channelId: FfiConverterString.readFromCursor(c), 
+                pluginId: FfiConverterString.readFromCursor(c), 
+                activityKey: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                icon: FfiConverterString.readFromCursor(c), 
+                pluginName: FfiConverterString.readFromCursor(c), 
+                starterId: FfiConverterString.readFromCursor(c), 
+                startedAtMs: FfiConverterInt64.readFromCursor(c), 
+                viewerIds: FfiConverterSequenceString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.id, c);
+            FfiConverterString.writeIntoCursor(value.channelId, c);
+            FfiConverterString.writeIntoCursor(value.pluginId, c);
+            FfiConverterString.writeIntoCursor(value.activityKey, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterString.writeIntoCursor(value.icon, c);
+            FfiConverterString.writeIntoCursor(value.pluginName, c);
+            FfiConverterString.writeIntoCursor(value.starterId, c);
+            FfiConverterInt64.writeIntoCursor(value.startedAtMs, c);
+            FfiConverterSequenceString.writeIntoCursor(value.viewerIds, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.id) +
+             FfiConverterString.allocationSize(value.channelId) +
+             FfiConverterString.allocationSize(value.pluginId) +
+             FfiConverterString.allocationSize(value.activityKey) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterString.allocationSize(value.icon) +
+             FfiConverterString.allocationSize(value.pluginName) +
+             FfiConverterString.allocationSize(value.starterId) +
+             FfiConverterInt64.allocationSize(value.startedAtMs) +
+             FfiConverterSequenceString.allocationSize(value.viewerIds);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
 export enum AttachmentKind {
     File,
     Image,
@@ -2285,7 +2443,9 @@ export type ChannelAccess = {
     musicManage: boolean,
     useSoundboard: boolean,
     useExternalSounds: boolean,
-    sendVoiceMessages: boolean
+    sendVoiceMessages: boolean,
+    startActivities: boolean,
+    manageChannel: boolean
 }
 
 /**
@@ -2323,7 +2483,9 @@ const FfiConverterTypeChannelAccess = (() => {
                 musicManage: FfiConverterBool.readFromCursor(c), 
                 useSoundboard: FfiConverterBool.readFromCursor(c), 
                 useExternalSounds: FfiConverterBool.readFromCursor(c), 
-                sendVoiceMessages: FfiConverterBool.readFromCursor(c)
+                sendVoiceMessages: FfiConverterBool.readFromCursor(c), 
+                startActivities: FfiConverterBool.readFromCursor(c), 
+                manageChannel: FfiConverterBool.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -2342,6 +2504,8 @@ const FfiConverterTypeChannelAccess = (() => {
             FfiConverterBool.writeIntoCursor(value.useSoundboard, c);
             FfiConverterBool.writeIntoCursor(value.useExternalSounds, c);
             FfiConverterBool.writeIntoCursor(value.sendVoiceMessages, c);
+            FfiConverterBool.writeIntoCursor(value.startActivities, c);
+            FfiConverterBool.writeIntoCursor(value.manageChannel, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.channelId) +
@@ -2358,7 +2522,9 @@ const FfiConverterTypeChannelAccess = (() => {
              FfiConverterBool.allocationSize(value.musicManage) +
              FfiConverterBool.allocationSize(value.useSoundboard) +
              FfiConverterBool.allocationSize(value.useExternalSounds) +
-             FfiConverterBool.allocationSize(value.sendVoiceMessages);
+             FfiConverterBool.allocationSize(value.sendVoiceMessages) +
+             FfiConverterBool.allocationSize(value.startActivities) +
+             FfiConverterBool.allocationSize(value.manageChannel);
             
         }
     };
@@ -2368,7 +2534,11 @@ const FfiConverterTypeChannelAccess = (() => {
 export enum ChannelKind {
     Text,
     Voice,
-    Category
+    Category,
+    /**
+     * A channel of a type a plugin registered (plugins design §14).
+     */
+    Plugin
 }
 
 const FfiConverterTypeChannelKind = (() => {
@@ -2379,6 +2549,7 @@ const FfiConverterTypeChannelKind = (() => {
                 case 1: return ChannelKind.Text;
                 case 2: return ChannelKind.Voice;
                 case 3: return ChannelKind.Category;
+                case 4: return ChannelKind.Plugin;
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -2387,12 +2558,101 @@ const FfiConverterTypeChannelKind = (() => {
                 case ChannelKind.Text: return c.writeI32(1);
                 case ChannelKind.Voice: return c.writeI32(2);
                 case ChannelKind.Category: return c.writeI32(3);
+                case ChannelKind.Plugin: return c.writeI32(4);
             }
         }
         allocationSize(value: TypeName): number {
             return 4;
         }
     }
+    return new FFIConverter();
+})();
+
+export enum PluginChannelState {
+    Available,
+    /**
+     * Its plugin isn't running, or isn't installed.
+     */
+    PluginStopped,
+    /**
+     * Its plugin runs but no longer registers this type.
+     */
+    TypeGone
+}
+
+const FfiConverterTypePluginChannelState = (() => {
+    type TypeName = PluginChannelState;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return PluginChannelState.Available;
+                case 2: return PluginChannelState.PluginStopped;
+                case 3: return PluginChannelState.TypeGone;
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value) {
+                case PluginChannelState.Available: return c.writeI32(1);
+                case PluginChannelState.PluginStopped: return c.writeI32(2);
+                case PluginChannelState.TypeGone: return c.writeI32(3);
+            }
+        }
+        allocationSize(value: TypeName): number {
+            return 4;
+        }
+    }
+    return new FFIConverter();
+})();
+
+/**
+ * What a plugin channel is: the plugin, the type it registered, and
+ * whether it can be opened now.
+ */
+export type PluginChannelRecord = {
+    pluginId: string,
+    typeKey: string,
+    state: PluginChannelState
+}
+
+/**
+ * Generated factory for {@link PluginChannelRecord} record objects.
+ */
+export const PluginChannelRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<PluginChannelRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<PluginChannelRecord>,
+    });
+})();
+
+const FfiConverterTypePluginChannelRecord = (() => {
+    type TypeName = PluginChannelRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                pluginId: FfiConverterString.readFromCursor(c), 
+                typeKey: FfiConverterString.readFromCursor(c), 
+                state: FfiConverterTypePluginChannelState.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.pluginId, c);
+            FfiConverterString.writeIntoCursor(value.typeKey, c);
+            FfiConverterTypePluginChannelState.writeIntoCursor(value.state, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.pluginId) +
+             FfiConverterString.allocationSize(value.typeKey) +
+             FfiConverterTypePluginChannelState.allocationSize(value.state);
+            
+        }
+    };
     return new FFIConverter();
 })();
 
@@ -2413,7 +2673,11 @@ export type ChannelRecord = {
     /**
      * Voice: has a chat of its own.
      */
-    textInVoice: boolean
+    textInVoice: boolean,
+    /**
+     * Plugin channels only.
+     */
+    plugin?: PluginChannelRecord
 }
 
 /**
@@ -2444,7 +2708,8 @@ const FfiConverterTypeChannelRecord = (() => {
                 parentId: FfiConverterOptionalString.readFromCursor(c), 
                 position: FfiConverterInt32.readFromCursor(c), 
                 userLimit: FfiConverterUInt32.readFromCursor(c), 
-                textInVoice: FfiConverterBool.readFromCursor(c)
+                textInVoice: FfiConverterBool.readFromCursor(c), 
+                plugin: FfiConverterOptionalTypePluginChannelRecord.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -2456,6 +2721,7 @@ const FfiConverterTypeChannelRecord = (() => {
             FfiConverterInt32.writeIntoCursor(value.position, c);
             FfiConverterUInt32.writeIntoCursor(value.userLimit, c);
             FfiConverterBool.writeIntoCursor(value.textInVoice, c);
+            FfiConverterOptionalTypePluginChannelRecord.writeIntoCursor(value.plugin, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.id) +
@@ -2465,7 +2731,8 @@ const FfiConverterTypeChannelRecord = (() => {
              FfiConverterOptionalString.allocationSize(value.parentId) +
              FfiConverterInt32.allocationSize(value.position) +
              FfiConverterUInt32.allocationSize(value.userLimit) +
-             FfiConverterBool.allocationSize(value.textInVoice);
+             FfiConverterBool.allocationSize(value.textInVoice) +
+             FfiConverterOptionalTypePluginChannelRecord.allocationSize(value.plugin);
             
         }
     };
@@ -4067,6 +4334,136 @@ const FfiConverterTypeOutgoingFileRecord = (() => {
     return new FFIConverter();
 })();
 
+/**
+ * An activity a running plugin registered (§15.1).
+ */
+export type PluginActivityRecord = {
+    pluginId: string,
+    activityKey: string,
+    name: string,
+    description: string,
+    /**
+     * A path under the plugin's `assets/`, or empty.
+     */
+    icon: string,
+    pluginName: string
+}
+
+/**
+ * Generated factory for {@link PluginActivityRecord} record objects.
+ */
+export const PluginActivityRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<PluginActivityRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<PluginActivityRecord>,
+    });
+})();
+
+const FfiConverterTypePluginActivityRecord = (() => {
+    type TypeName = PluginActivityRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                pluginId: FfiConverterString.readFromCursor(c), 
+                activityKey: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                description: FfiConverterString.readFromCursor(c), 
+                icon: FfiConverterString.readFromCursor(c), 
+                pluginName: FfiConverterString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.pluginId, c);
+            FfiConverterString.writeIntoCursor(value.activityKey, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterString.writeIntoCursor(value.description, c);
+            FfiConverterString.writeIntoCursor(value.icon, c);
+            FfiConverterString.writeIntoCursor(value.pluginName, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.pluginId) +
+             FfiConverterString.allocationSize(value.activityKey) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterString.allocationSize(value.description) +
+             FfiConverterString.allocationSize(value.icon) +
+             FfiConverterString.allocationSize(value.pluginName);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * A channel type a running plugin registered (§14.2).
+ */
+export type PluginChannelTypeRecord = {
+    pluginId: string,
+    typeKey: string,
+    name: string,
+    description: string,
+    /**
+     * A path under the plugin's `assets/`, or empty.
+     */
+    icon: string,
+    pluginName: string
+}
+
+/**
+ * Generated factory for {@link PluginChannelTypeRecord} record objects.
+ */
+export const PluginChannelTypeRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<PluginChannelTypeRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<PluginChannelTypeRecord>,
+    });
+})();
+
+const FfiConverterTypePluginChannelTypeRecord = (() => {
+    type TypeName = PluginChannelTypeRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                pluginId: FfiConverterString.readFromCursor(c), 
+                typeKey: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                description: FfiConverterString.readFromCursor(c), 
+                icon: FfiConverterString.readFromCursor(c), 
+                pluginName: FfiConverterString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.pluginId, c);
+            FfiConverterString.writeIntoCursor(value.typeKey, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterString.writeIntoCursor(value.description, c);
+            FfiConverterString.writeIntoCursor(value.icon, c);
+            FfiConverterString.writeIntoCursor(value.pluginName, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.pluginId) +
+             FfiConverterString.allocationSize(value.typeKey) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterString.allocationSize(value.description) +
+             FfiConverterString.allocationSize(value.icon) +
+             FfiConverterString.allocationSize(value.pluginName);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
 export type PluginUserRecord = {
     userId: string,
     pluginId: string,
@@ -4326,7 +4723,10 @@ export type ServerSnapshot = {
      */
     voiceMessageMaxSeconds: number,
     pluginUsers: Array<PluginUserRecord>,
-    commands: CommandListRecord
+    commands: CommandListRecord,
+    pluginChannelTypes: Array<PluginChannelTypeRecord>,
+    pluginActivities: Array<PluginActivityRecord>,
+    activitySessions: Array<ActivitySessionRecord>
 }
 
 /**
@@ -4365,7 +4765,10 @@ const FfiConverterTypeServerSnapshot = (() => {
                 soundboardSounds: FfiConverterSequenceTypeSoundboardSoundRecord.readFromCursor(c), 
                 voiceMessageMaxSeconds: FfiConverterUInt32.readFromCursor(c), 
                 pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c), 
-                commands: FfiConverterTypeCommandListRecord.readFromCursor(c)
+                commands: FfiConverterTypeCommandListRecord.readFromCursor(c), 
+                pluginChannelTypes: FfiConverterSequenceTypePluginChannelTypeRecord.readFromCursor(c), 
+                pluginActivities: FfiConverterSequenceTypePluginActivityRecord.readFromCursor(c), 
+                activitySessions: FfiConverterSequenceTypeActivitySessionRecord.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -4385,6 +4788,9 @@ const FfiConverterTypeServerSnapshot = (() => {
             FfiConverterUInt32.writeIntoCursor(value.voiceMessageMaxSeconds, c);
             FfiConverterSequenceTypePluginUserRecord.writeIntoCursor(value.pluginUsers, c);
             FfiConverterTypeCommandListRecord.writeIntoCursor(value.commands, c);
+            FfiConverterSequenceTypePluginChannelTypeRecord.writeIntoCursor(value.pluginChannelTypes, c);
+            FfiConverterSequenceTypePluginActivityRecord.writeIntoCursor(value.pluginActivities, c);
+            FfiConverterSequenceTypeActivitySessionRecord.writeIntoCursor(value.activitySessions, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.serverKey) +
@@ -4402,7 +4808,10 @@ const FfiConverterTypeServerSnapshot = (() => {
              FfiConverterSequenceTypeSoundboardSoundRecord.allocationSize(value.soundboardSounds) +
              FfiConverterUInt32.allocationSize(value.voiceMessageMaxSeconds) +
              FfiConverterSequenceTypePluginUserRecord.allocationSize(value.pluginUsers) +
-             FfiConverterTypeCommandListRecord.allocationSize(value.commands);
+             FfiConverterTypeCommandListRecord.allocationSize(value.commands) +
+             FfiConverterSequenceTypePluginChannelTypeRecord.allocationSize(value.pluginChannelTypes) +
+             FfiConverterSequenceTypePluginActivityRecord.allocationSize(value.pluginActivities) +
+             FfiConverterSequenceTypeActivitySessionRecord.allocationSize(value.activitySessions);
             
         }
     };
@@ -4619,6 +5028,46 @@ const FfiConverterTypeVoiceDraftRecord = (() => {
             
         }
     };
+    return new FFIConverter();
+})();
+
+/**
+ * Why an activity session ended.
+ */
+export enum ActivityEndReason {
+    Ended,
+    Plugin,
+    CallEmpty,
+    PluginStopped,
+    Unavailable
+}
+
+const FfiConverterTypeActivityEndReason = (() => {
+    type TypeName = ActivityEndReason;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return ActivityEndReason.Ended;
+                case 2: return ActivityEndReason.Plugin;
+                case 3: return ActivityEndReason.CallEmpty;
+                case 4: return ActivityEndReason.PluginStopped;
+                case 5: return ActivityEndReason.Unavailable;
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value) {
+                case ActivityEndReason.Ended: return c.writeI32(1);
+                case ActivityEndReason.Plugin: return c.writeI32(2);
+                case ActivityEndReason.CallEmpty: return c.writeI32(3);
+                case ActivityEndReason.PluginStopped: return c.writeI32(4);
+                case ActivityEndReason.Unavailable: return c.writeI32(5);
+            }
+        }
+        allocationSize(value: TypeName): number {
+            return 4;
+        }
+    }
     return new FFIConverter();
 })();
 
@@ -6497,7 +6946,12 @@ export enum MobileEvent_Tags {
     MusicUpload = "MusicUpload",
     SendProgress = "SendProgress",
     Notice = "Notice",
-    PluginUsersUpdated = "PluginUsersUpdated"
+    PluginUsersUpdated = "PluginUsersUpdated",
+    PluginChannelTypesUpdated = "PluginChannelTypesUpdated",
+    PluginActivitiesUpdated = "PluginActivitiesUpdated",
+    ActivitySessionCreated = "ActivitySessionCreated",
+    ActivitySessionUpdated = "ActivitySessionUpdated",
+    ActivitySessionDeleted = "ActivitySessionDeleted"
 }
 export const MobileEvent = (() => {
 
@@ -7678,6 +8132,170 @@ inner: {serverKey: string; pluginUsers: Array<PluginUserRecord> }): PluginUsersU
 
     }
 
+    type PluginChannelTypesUpdated__interface = {
+        tag: MobileEvent_Tags.PluginChannelTypesUpdated;
+        inner: 
+Readonly<{serverKey: string; types: Array<PluginChannelTypeRecord>}>
+    };
+    /**
+     * The channel types the server's running plugins register now.
+     */
+    class PluginChannelTypesUpdated_ extends UniffiEnum implements PluginChannelTypesUpdated__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.PluginChannelTypesUpdated;
+        readonly inner: 
+Readonly<{serverKey: string; types: Array<PluginChannelTypeRecord>}>;
+        constructor(
+inner: {serverKey: string; types: Array<PluginChannelTypeRecord> }) {
+            super("MobileEvent", "PluginChannelTypesUpdated");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; types: Array<PluginChannelTypeRecord> }): PluginChannelTypesUpdated_ {
+            return new PluginChannelTypesUpdated_(inner);
+        }
+
+        static instanceOf(obj: any): obj is PluginChannelTypesUpdated_ {
+            return obj.tag === MobileEvent_Tags.PluginChannelTypesUpdated;
+        }
+
+    }
+
+    type PluginActivitiesUpdated__interface = {
+        tag: MobileEvent_Tags.PluginActivitiesUpdated;
+        inner: 
+Readonly<{serverKey: string; activities: Array<PluginActivityRecord>}>
+    };
+    /**
+     * The activities the server's running plugins register now.
+     */
+    class PluginActivitiesUpdated_ extends UniffiEnum implements PluginActivitiesUpdated__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.PluginActivitiesUpdated;
+        readonly inner: 
+Readonly<{serverKey: string; activities: Array<PluginActivityRecord>}>;
+        constructor(
+inner: {serverKey: string; activities: Array<PluginActivityRecord> }) {
+            super("MobileEvent", "PluginActivitiesUpdated");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; activities: Array<PluginActivityRecord> }): PluginActivitiesUpdated_ {
+            return new PluginActivitiesUpdated_(inner);
+        }
+
+        static instanceOf(obj: any): obj is PluginActivitiesUpdated_ {
+            return obj.tag === MobileEvent_Tags.PluginActivitiesUpdated;
+        }
+
+    }
+
+    type ActivitySessionCreated__interface = {
+        tag: MobileEvent_Tags.ActivitySessionCreated;
+        inner: 
+Readonly<{serverKey: string; session: ActivitySessionRecord}>
+    };
+    class ActivitySessionCreated_ extends UniffiEnum implements ActivitySessionCreated__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.ActivitySessionCreated;
+        readonly inner: 
+Readonly<{serverKey: string; session: ActivitySessionRecord}>;
+        constructor(
+inner: {serverKey: string; session: ActivitySessionRecord }) {
+            super("MobileEvent", "ActivitySessionCreated");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; session: ActivitySessionRecord }): ActivitySessionCreated_ {
+            return new ActivitySessionCreated_(inner);
+        }
+
+        static instanceOf(obj: any): obj is ActivitySessionCreated_ {
+            return obj.tag === MobileEvent_Tags.ActivitySessionCreated;
+        }
+
+    }
+
+    type ActivitySessionUpdated__interface = {
+        tag: MobileEvent_Tags.ActivitySessionUpdated;
+        inner: 
+Readonly<{serverKey: string; session: ActivitySessionRecord}>
+    };
+    /**
+     * Who has it open changed.
+     */
+    class ActivitySessionUpdated_ extends UniffiEnum implements ActivitySessionUpdated__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.ActivitySessionUpdated;
+        readonly inner: 
+Readonly<{serverKey: string; session: ActivitySessionRecord}>;
+        constructor(
+inner: {serverKey: string; session: ActivitySessionRecord }) {
+            super("MobileEvent", "ActivitySessionUpdated");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; session: ActivitySessionRecord }): ActivitySessionUpdated_ {
+            return new ActivitySessionUpdated_(inner);
+        }
+
+        static instanceOf(obj: any): obj is ActivitySessionUpdated_ {
+            return obj.tag === MobileEvent_Tags.ActivitySessionUpdated;
+        }
+
+    }
+
+    type ActivitySessionDeleted__interface = {
+        tag: MobileEvent_Tags.ActivitySessionDeleted;
+        inner: 
+Readonly<{serverKey: string; sessionId: string; channelId: string; reason: ActivityEndReason}>
+    };
+    class ActivitySessionDeleted_ extends UniffiEnum implements ActivitySessionDeleted__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.ActivitySessionDeleted;
+        readonly inner: 
+Readonly<{serverKey: string; sessionId: string; channelId: string; reason: ActivityEndReason}>;
+        constructor(
+inner: {serverKey: string; sessionId: string; channelId: string; reason: ActivityEndReason }) {
+            super("MobileEvent", "ActivitySessionDeleted");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; sessionId: string; channelId: string; reason: ActivityEndReason }): ActivitySessionDeleted_ {
+            return new ActivitySessionDeleted_(inner);
+        }
+
+        static instanceOf(obj: any): obj is ActivitySessionDeleted_ {
+            return obj.tag === MobileEvent_Tags.ActivitySessionDeleted;
+        }
+
+    }
+
     function instanceOf(obj: any): obj is MobileEvent {
         return obj[uniffiTypeNameSymbol] === "MobileEvent";
     }
@@ -7720,12 +8338,17 @@ inner: {serverKey: string; pluginUsers: Array<PluginUserRecord> }): PluginUsersU
   MusicUpload: MusicUpload_, 
   SendProgress: SendProgress_, 
   Notice: Notice_, 
-  PluginUsersUpdated: PluginUsersUpdated_
+  PluginUsersUpdated: PluginUsersUpdated_, 
+  PluginChannelTypesUpdated: PluginChannelTypesUpdated_, 
+  PluginActivitiesUpdated: PluginActivitiesUpdated_, 
+  ActivitySessionCreated: ActivitySessionCreated_, 
+  ActivitySessionUpdated: ActivitySessionUpdated_, 
+  ActivitySessionDeleted: ActivitySessionDeleted_
     });
 
 })();
 export type MobileEvent = InstanceType<
-    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated']
+    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated' | 'PluginChannelTypesUpdated' | 'PluginActivitiesUpdated' | 'ActivitySessionCreated' | 'ActivitySessionUpdated' | 'ActivitySessionDeleted']
 >;
 
 // FfiConverter for enum MobileEvent
@@ -7771,6 +8394,11 @@ const FfiConverterTypeMobileEvent = (() => {
                 case 35: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
                 case 36: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
                 case 37: return new MobileEvent.PluginUsersUpdated({serverKey: FfiConverterString.readFromCursor(c), pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c) });
+                case 38: return new MobileEvent.PluginChannelTypesUpdated({serverKey: FfiConverterString.readFromCursor(c), types: FfiConverterSequenceTypePluginChannelTypeRecord.readFromCursor(c) });
+                case 39: return new MobileEvent.PluginActivitiesUpdated({serverKey: FfiConverterString.readFromCursor(c), activities: FfiConverterSequenceTypePluginActivityRecord.readFromCursor(c) });
+                case 40: return new MobileEvent.ActivitySessionCreated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
+                case 41: return new MobileEvent.ActivitySessionUpdated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
+                case 42: return new MobileEvent.ActivitySessionDeleted({serverKey: FfiConverterString.readFromCursor(c), sessionId: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), reason: FfiConverterTypeActivityEndReason.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -8047,6 +8675,43 @@ const FfiConverterTypeMobileEvent = (() => {
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypePluginUserRecord.writeIntoCursor(inner.pluginUsers, c);
+                    return;
+                }
+                case MobileEvent_Tags.PluginChannelTypesUpdated: {
+                    c.writeI32(38);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterSequenceTypePluginChannelTypeRecord.writeIntoCursor(inner.types, c);
+                    return;
+                }
+                case MobileEvent_Tags.PluginActivitiesUpdated: {
+                    c.writeI32(39);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterSequenceTypePluginActivityRecord.writeIntoCursor(inner.activities, c);
+                    return;
+                }
+                case MobileEvent_Tags.ActivitySessionCreated: {
+                    c.writeI32(40);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterTypeActivitySessionRecord.writeIntoCursor(inner.session, c);
+                    return;
+                }
+                case MobileEvent_Tags.ActivitySessionUpdated: {
+                    c.writeI32(41);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterTypeActivitySessionRecord.writeIntoCursor(inner.session, c);
+                    return;
+                }
+                case MobileEvent_Tags.ActivitySessionDeleted: {
+                    c.writeI32(42);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterString.writeIntoCursor(inner.sessionId, c);
+                    FfiConverterString.writeIntoCursor(inner.channelId, c);
+                    FfiConverterTypeActivityEndReason.writeIntoCursor(inner.reason, c);
                     return;
                 }
                 default:
@@ -8328,6 +8993,43 @@ const FfiConverterTypeMobileEvent = (() => {
                     size += FfiConverterSequenceTypePluginUserRecord.allocationSize(inner.pluginUsers);
                     return size;
                 }
+                case MobileEvent_Tags.PluginChannelTypesUpdated: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterSequenceTypePluginChannelTypeRecord.allocationSize(inner.types);
+                    return size;
+                }
+                case MobileEvent_Tags.PluginActivitiesUpdated: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterSequenceTypePluginActivityRecord.allocationSize(inner.activities);
+                    return size;
+                }
+                case MobileEvent_Tags.ActivitySessionCreated: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterTypeActivitySessionRecord.allocationSize(inner.session);
+                    return size;
+                }
+                case MobileEvent_Tags.ActivitySessionUpdated: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterTypeActivitySessionRecord.allocationSize(inner.session);
+                    return size;
+                }
+                case MobileEvent_Tags.ActivitySessionDeleted: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterString.allocationSize(inner.sessionId);
+                    size += FfiConverterString.allocationSize(inner.channelId);
+                    size += FfiConverterTypeActivityEndReason.allocationSize(inner.reason);
+                    return size;
+                }
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -8412,6 +9114,9 @@ const FfiConverterTypeMusicPlacement = (() => {
     return new FFIConverter();
 })();
 
+// FfiConverter for Array<string>
+const FfiConverterSequenceString = new FfiConverterArray(FfiConverterString);
+
 // FfiConverter for number | undefined
 const FfiConverterOptionalUInt32 = new FfiConverterOptional(FfiConverterUInt32);
 
@@ -8421,14 +9126,14 @@ const FfiConverterSequenceUInt16 = new FfiConverterArray(FfiConverterUInt16);
 // FfiConverter for string | undefined
 const FfiConverterOptionalString = new FfiConverterOptional(FfiConverterString);
 
+// FfiConverter for PluginChannelRecord | undefined
+const FfiConverterOptionalTypePluginChannelRecord = new FfiConverterOptional(FfiConverterTypePluginChannelRecord);
+
 // FfiConverter for Array<CommandChoiceRecord>
 const FfiConverterSequenceTypeCommandChoiceRecord = new FfiConverterArray(FfiConverterTypeCommandChoiceRecord);
 
 // FfiConverter for Array<CommandOptionRecord>
 const FfiConverterSequenceTypeCommandOptionRecord = new FfiConverterArray(FfiConverterTypeCommandOptionRecord);
-
-// FfiConverter for Array<string>
-const FfiConverterSequenceString = new FfiConverterArray(FfiConverterString);
 
 // FfiConverter for Array<CommandRecord>
 const FfiConverterSequenceTypeCommandRecord = new FfiConverterArray(FfiConverterTypeCommandRecord);
@@ -8471,6 +9176,15 @@ const FfiConverterSequenceTypeSoundboardSoundRecord = new FfiConverterArray(FfiC
 
 // FfiConverter for Array<PluginUserRecord>
 const FfiConverterSequenceTypePluginUserRecord = new FfiConverterArray(FfiConverterTypePluginUserRecord);
+
+// FfiConverter for Array<PluginChannelTypeRecord>
+const FfiConverterSequenceTypePluginChannelTypeRecord = new FfiConverterArray(FfiConverterTypePluginChannelTypeRecord);
+
+// FfiConverter for Array<PluginActivityRecord>
+const FfiConverterSequenceTypePluginActivityRecord = new FfiConverterArray(FfiConverterTypePluginActivityRecord);
+
+// FfiConverter for Array<ActivitySessionRecord>
+const FfiConverterSequenceTypeActivitySessionRecord = new FfiConverterArray(FfiConverterTypeActivitySessionRecord);
 
 // FfiConverter for Array<SpeakingChangeRecord>
 const FfiConverterSequenceTypeSpeakingChangeRecord = new FfiConverterArray(FfiConverterTypeSpeakingChangeRecord);
@@ -8523,6 +9237,12 @@ function uniffiEnsureInitialized() {
     const scaffoldingContractVersion = nativeModule().ubrn_ffi_opencord_mobile_uniffi_contract_version();
     if (bindingsContractVersion !== scaffoldingContractVersion) {
         throw new UniffiInternalError.ContractVersionMismatch(scaffoldingContractVersion, bindingsContractVersion);
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_activity_end() !== 40369) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_activity_end");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_activity_start() !== 43582) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_activity_start");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_attachment_file() !== 48188) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_attachment_file");
@@ -8752,6 +9472,8 @@ function uniffiEnsureInitialized() {
 export default Object.freeze({
   initialize: uniffiEnsureInitialized,
   converters: {
+    FfiConverterTypeActivityEndReason,
+    FfiConverterTypeActivitySessionRecord,
     FfiConverterTypeAddServerResult,
     FfiConverterTypeAttachmentKind,
     FfiConverterTypeAttachmentRecord,
@@ -8793,6 +9515,10 @@ export default Object.freeze({
     FfiConverterTypeNewIdentity,
     FfiConverterTypeOutgoingFileRecord,
     FfiConverterTypePlaybackItemRecord,
+    FfiConverterTypePluginActivityRecord,
+    FfiConverterTypePluginChannelRecord,
+    FfiConverterTypePluginChannelState,
+    FfiConverterTypePluginChannelTypeRecord,
     FfiConverterTypePluginUserRecord,
     FfiConverterTypeServerEntry,
     FfiConverterTypeServerSnapshot,

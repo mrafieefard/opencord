@@ -33,7 +33,9 @@ function world() {
 }
 
 function areaIdOf(area: FakeArea): string {
-  return area.calls.find((call) => call.method === 'createArea')!.args[0] as string;
+  const created = area.calls.find((call) => call.method === 'createArea');
+  if (!created) throw new Error('no area was created');
+  return created.args[0] as string;
 }
 
 const openingJson = opened.batches.map((b) => JSON.stringify(b));
@@ -47,9 +49,9 @@ describe('a view session', () => {
     expect(core.calls.some((call) => call.method === 'viewOpen')).toBe(false);
     area.input(areaIdOf(area), context);
     await flush();
-    const open = core.calls.find((call) => call.method === 'viewOpen')!;
+    const open = core.calls.find((call) => call.method === 'viewOpen');
     const { kind: _kind, ...withoutKind } = context;
-    expect(open.args).toEqual([place.serverKey, place.channelId, JSON.stringify(withoutKind)]);
+    expect(open?.args).toEqual([place.serverKey, place.channelId, JSON.stringify(withoutKind)]);
     session.close();
   });
 

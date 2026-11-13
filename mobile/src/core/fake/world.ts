@@ -5,6 +5,7 @@
 import {
   AttachmentKind,
   ChannelKind,
+  PluginChannelState,
   CommandOptionKindRecord,
   MusicPlayState,
   MusicRepeat,
@@ -40,6 +41,8 @@ export const CHANNELS = {
   voiceCategory: '31',
   lounge: '20',
   quiet: '21',
+  helpDesk: '13',
+  oldBoard: '14',
 } as const;
 
 const MINUTE = 60_000;
@@ -72,7 +75,12 @@ function channel(
   parentId?: string,
   topic?: string,
 ): ChannelRecord {
-  return { id, kind, name, topic, parentId, position, userLimit: 0, textInVoice: false };
+  return { id, kind, name, topic, parentId, position, userLimit: 0, textInVoice: false, plugin: undefined };
+}
+
+/** A plugin channel of [typeKey] (plugins M4): available, or its plugin stopped. */
+function pluginChannel(id: string, name: string, position: number, parentId: string, typeKey: string, state: PluginChannelState): ChannelRecord {
+  return { ...channel(id, ChannelKind.Plugin, name, position, parentId), plugin: { pluginId: typeKey, typeKey, state } };
 }
 
 export function fullAccess(channelId: string): ChannelAccess {
@@ -92,6 +100,8 @@ export function fullAccess(channelId: string): ChannelAccess {
     useSoundboard: true,
     useExternalSounds: true,
     sendVoiceMessages: true,
+    startActivities: true,
+    manageChannel: false,
   };
 }
 
@@ -136,6 +146,8 @@ function nightOwlsChannels(): ChannelRecord[] {
     channel(CHANNELS.musicRequests, ChannelKind.Text, 'music-requests', 1),
     channel(CHANNELS.textCategory, ChannelKind.Category, 'Text', 2),
     channel(CHANNELS.offTopic, ChannelKind.Text, 'off-topic', 0, CHANNELS.textCategory),
+    pluginChannel(CHANNELS.helpDesk, 'help-desk', 1, CHANNELS.textCategory, 'tickets', PluginChannelState.Available),
+    pluginChannel(CHANNELS.oldBoard, 'old-board', 2, CHANNELS.textCategory, 'board', PluginChannelState.PluginStopped),
     channel(CHANNELS.voiceCategory, ChannelKind.Category, 'Voice', 3),
     channel(CHANNELS.lounge, ChannelKind.Voice, 'Lounge', 0, CHANNELS.voiceCategory),
     channel(CHANNELS.quiet, ChannelKind.Voice, 'Quiet room', 1, CHANNELS.voiceCategory),
@@ -185,6 +197,34 @@ export function snapshot(serverKey: string): ServerSnapshot {
           ]
         : [],
     commands: serverKey === NIGHT_OWLS ? nightOwlsCommands() : { commands: [], resultsPublic: true },
+    // One plugin channel type and one activity; no activity runs in a call.
+    pluginChannelTypes:
+      serverKey === NIGHT_OWLS
+        ? [
+            {
+              pluginId: 'tickets',
+              typeKey: 'tickets',
+              name: 'Tickets',
+              description: 'Open and track support tickets',
+              icon: 'assets/ticket.png',
+              pluginName: 'Tickets',
+            },
+          ]
+        : [],
+    pluginActivities:
+      serverKey === NIGHT_OWLS
+        ? [
+            {
+              pluginId: 'paint',
+              activityKey: 'paint',
+              name: 'Paint together',
+              description: 'Draw with everyone in the call',
+              icon: 'assets/icon.png',
+              pluginName: 'Shared Paint',
+            },
+          ]
+        : [],
+    activitySessions: [],
   };
 }
 

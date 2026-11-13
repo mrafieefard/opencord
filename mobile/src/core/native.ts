@@ -93,4 +93,6 @@ export const NativeCore: CoreApi = {
   pluginAssetFile: (key, plugin, path) => native.pluginAssetFile(key, plugin, path),
   pluginImageFile: (key, plugin, source) => native.pluginImageFile(key, plugin, source),
   viewUpload: (view, node, path) => native.viewUpload(view, node, path),
+  activityStart: (key, channel, plugin, activity) => native.activityStart(key, channel, plugin, activity),
+  activityEnd: (key, session) => native.activityEnd(key, session),
 };

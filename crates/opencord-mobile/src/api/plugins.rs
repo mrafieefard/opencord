@@ -4,9 +4,10 @@
 //! renderer; the renderer's inputs come back through `view_input`.
 
 use crate::MobileError;
+use crate::convert;
 use crate::ids::parse_id;
 use crate::mobile::{mobile, on_runtime};
-use crate::types::ViewOutputRecord;
+use crate::types::{ActivitySessionRecord, ViewOutputRecord};
 
 /// What `Identify` lists in `features` from the next connection on;
 /// `["plugin_users"]` until called. The phone adds `"plugin_channels"` and
@@ -138,5 +139,33 @@ pub async fn plugin_image_file(
 #[uniffi::export]
 pub async fn view_upload(view_id: String, node_id: u64, path: String) -> Result<(), MobileError> {
     on_runtime(move |client| async move { Ok(client.view_upload(&view_id, node_id, path).await?) })
+        .await
+}
+
+/// Starts a plugin's activity in the call `channel_id`, which this device
+/// is in; the running session if it already runs there. A fifth activity
+/// fails with the server's `plugin_limit`.
+#[uniffi::export]
+pub async fn activity_start(
+    server_key: String,
+    channel_id: String,
+    plugin_id: String,
+    activity_key: String,
+) -> Result<ActivitySessionRecord, MobileError> {
+    let channel_id = parse_id(&channel_id)?;
+    on_runtime(move |client| async move {
+        let session = client
+            .start_activity(&server_key, channel_id, plugin_id, activity_key)
+            .await?;
+        Ok(convert::activity_session(session))
+    })
+    .await
+}
+
+/// Ends an activity session for everyone in its call.
+#[uniffi::export]
+pub async fn activity_end(server_key: String, session_id: String) -> Result<(), MobileError> {
+    let session_id = parse_id(&session_id)?;
+    on_runtime(move |client| async move { Ok(client.end_activity(&server_key, session_id).await?) })
         .await
 }

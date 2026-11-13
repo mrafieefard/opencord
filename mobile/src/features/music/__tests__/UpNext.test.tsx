@@ -86,6 +86,8 @@ function initUpNextServer({
     useSoundboard: true,
     useExternalSounds: true,
     sendVoiceMessages: true,
+    startActivities: false,
+    manageChannel: false,
     ...accessOverrides,
   };
 

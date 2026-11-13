@@ -3,6 +3,7 @@
 // with the same words, the echo of a send with its nonce, the events the
 // core sends after each call (plan rule 11).
 import {
+  ActivityEndReason,
   AddServerResult,
   AttachmentKind,
   AttachmentVariant,
@@ -17,6 +18,7 @@ import {
   PlaybackItemRecord,
   UploadPhaseRecord,
   VoiceLinkState,
+  type ActivitySessionRecord,
   type CommandChoiceRecord,
   type CommandOptionValueRecord,
   type CommandOutcomeRecord,
@@ -39,21 +41,6 @@ import {
 } from '@opencord/core-native';
 
 import type { CoreApi } from '../api';
-import ticketsOpened from './fixtures/tickets-1.json';
-import ticketsNew from './fixtures/tickets-2.json';
-import ticketsTyped from './fixtures/tickets-3.json';
-import ticketsCancelled from './fixtures/tickets-4.json';
-
-interface RecordedStep {
-  input: Record<string, unknown> | null;
-  batches: unknown[];
-}
-
-/** A real tickets session, recorded from the core (plugins M4 Task 6). */
-const ticketsSession: RecordedStep[] = [ticketsOpened, ticketsNew, ticketsTyped, ticketsCancelled];
-
-/** What the fake answers for a plugin's asset or image. */
-const FAKE_PLUGIN_IMAGE = '/fake/cache/plugin-image.png';
 import {
   CHANNELS,
   NIGHT_OWLS,
@@ -71,6 +58,21 @@ import {
   track,
   user,
 } from './world';
+import ticketsOpened from './fixtures/tickets-1.json';
+import ticketsNew from './fixtures/tickets-2.json';
+import ticketsTyped from './fixtures/tickets-3.json';
+import ticketsCancelled from './fixtures/tickets-4.json';
+
+interface RecordedStep {
+  input: Record<string, unknown> | null;
+  batches: unknown[];
+}
+
+/** A real tickets session, recorded from the core (plugins M4 Task 6). */
+const ticketsSession: RecordedStep[] = [ticketsOpened, ticketsNew, ticketsTyped, ticketsCancelled];
+
+/** What the fake answers for a plugin's asset or image. */
+const FAKE_PLUGIN_IMAGE = '/fake/cache/plugin-image.png';
 
 export type Scenario = 'default' | 'empty';
 
@@ -143,6 +145,7 @@ export class FakeCore implements CoreApi {
   private viewOpenGate: Promise<void> | null = null;
   private viewIds = 0;
   private openViews = new Set<string>();
+  private activities: ActivitySessionRecord[] = [];
   private waiter: Waiter | null = null;
   private failures = new Map<keyof CoreApi, unknown>();
   private settings = new Map<string, string>();
@@ -1106,6 +1109,46 @@ export class FakeCore implements CoreApi {
 
   async viewUpload(viewId: string, nodeId: bigint, path: string): Promise<void> {
     this.enter('viewUpload', [viewId, nodeId, path]);
+  }
+
+  /** Starts an activity in a call: the running one when it runs there; four at most. */
+  async activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string): Promise<ActivitySessionRecord> {
+    this.enter('activityStart', [serverKey, channelId, pluginId, activityKey]);
+    const inCall = this.activities.filter((session) => session.channelId === channelId);
+    const running = inCall.find((session) => session.pluginId === pluginId && session.activityKey === activityKey);
+    if (running) return running;
+    if (inCall.length >= 4) {
+      throw new MobileError.Server({ code: 'plugin_limit', message: 'this call has as many activities as it can', retryAfterMs: undefined });
+    }
+    const registered = snapshot(serverKey).pluginActivities.find((entry) => entry.pluginId === pluginId && entry.activityKey === activityKey);
+    if (!registered) {
+      throw new MobileError.Server({ code: 'plugin_unavailable', message: 'that activity is not available', retryAfterMs: undefined });
+    }
+    const session: ActivitySessionRecord = {
+      id: String(this.nextId++),
+      channelId,
+      pluginId,
+      activityKey,
+      name: registered.name,
+      icon: registered.icon,
+      pluginName: registered.pluginName,
+      starterId: SELF_ID,
+      startedAtMs: BigInt(this.now()),
+      viewerIds: [],
+    };
+    this.activities.push(session);
+    this.emit(new MobileEvent.ActivitySessionCreated({ serverKey, session }));
+    return session;
+  }
+
+  async activityEnd(serverKey: string, sessionId: string): Promise<void> {
+    this.enter('activityEnd', [serverKey, sessionId]);
+    const session = this.activities.find((entry) => entry.id === sessionId);
+    if (!session) return;
+    this.activities = this.activities.filter((entry) => entry.id !== sessionId);
+    this.emit(
+      new MobileEvent.ActivitySessionDeleted({ serverKey, sessionId, channelId: session.channelId, reason: ActivityEndReason.Ended }),
+    );
   }
 
   private async playView(): Promise<string> {
