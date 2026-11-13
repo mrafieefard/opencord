@@ -1,7 +1,7 @@
 // Stage A's developer screen (plugins M4 plan, Task 6): opens one plugin
 // channel through every real layer, wired by hand as Task 7 will wire it
 // properly, and shows the area's status. Reached by a deep link:
-//   opencord-app://dev/plugin-area?server=<key>&channel=<id>
+//   opencord-app://dev/plugin-area?server=<key>&channel=<id>[&busy=1][&second=1]
 // Development builds, and a release built with EXPO_PUBLIC_PLUGIN_GATES=1
 // for the measurements.
 import * as PluginArea from '@opencord/plugin-area';
@@ -171,9 +171,10 @@ function useBusyJs(on: boolean) {
 export default function PluginAreaGate() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ server?: string; channel?: string }>();
-  const [busy, setBusy] = useState(false);
-  const [second, setSecond] = useState(false);
+  const params = useLocalSearchParams<{ server?: string; channel?: string; busy?: string; second?: string }>();
+  // busy=1 and second=1 in the link turn the switches on (scripted gate runs).
+  const [busy, setBusy] = useState(params.busy === '1');
+  const [second, setSecond] = useState(params.second === '1');
   useBusyJs(busy);
   if (!enabled) return null;
   const serverKey = params.server ?? '';
