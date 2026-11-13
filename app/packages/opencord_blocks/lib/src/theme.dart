@@ -28,6 +28,7 @@ class BlocksTheme {
     required Map<String, Color> colors,
     required this.text,
     this.radius = 8,
+    this.minTouchSize = 0,
     Map<String, List<BoxShadow>>? shadows,
   }) : colors = Map.unmodifiable(colors),
        shadows = Map.unmodifiable(shadows ?? defaultShadows) {
@@ -65,6 +66,11 @@ class BlocksTheme {
 
   /// The corner radius blocks use for their own shapes.
   final double radius;
+
+  /// The least height and width a control's tap target takes, in logical
+  /// pixels; what the control draws keeps its size, centred in it. 0 on the
+  /// desktop (a mouse); 44 on a phone, for a finger.
+  final double minTouchSize;
 
   final Map<String, List<BoxShadow>> shadows;
 

@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import 'dart:io';
+
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord_plugin_area/src/area.dart';
@@ -40,7 +43,19 @@ class _Native {
     await tester.pump();
   }
 
-  Future<void> setup() => send('setup', {'json': setupJson()});
+  Future<void> setup({String theme = 'dark'}) => send('setup', {'json': setupJson(theme: theme)});
+
+  /// Native code asks Dart what back does.
+  Future<bool> back() async {
+    Object? answer;
+    await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+      AreaChannel.name,
+      _codec.encodeMethodCall(const MethodCall('back')),
+      (data) => answer = data == null ? null : _codec.decodeEnvelope(data),
+    );
+    await tester.pump();
+    return answer == true;
+  }
 
   Future<void> batch(String json) => send('batch', {'json': json});
 
@@ -161,4 +176,159 @@ void main() {
     await tester.pump();
     expect(native.calls.where((c) => c.method == 'ready'), hasLength(1));
   });
+
+  Map<String, Object?> modal(String name, {bool sheet = false, bool dismissible = true, int id = 20}) => {
+    'id': id,
+    'name': name,
+    'size': 'medium',
+    // Left out unless set: at a phone's width the renderer then shows a sheet.
+    if (sheet) 'sheet': true,
+    'dismissible': dismissible,
+  };
+
+  String withModals(int seq, List<Map<String, Object?>> modals, {bool nodes = true}) => batch(seq, [
+    if (nodes) ...[
+      create(21, 'text', props: {'text': 'In the sheet'}),
+      create(20, 'column', children: [21]),
+      create(31, 'text', props: {'text': 'In the modal'}),
+      create(30, 'column', children: [31]),
+    ],
+    {'op': 'roots', 'main': 1, 'modals': modals},
+  ]);
+
+  // Fails if back closes the wrong overlay (the sheet under the modal), or
+  // leaves the screen while one is open.
+  testWidgets('back closes the top overlay first', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withModals(2, [modal('filters', sheet: true), modal('edit', id: 30)]));
+    await tester.pump();
+    expect(await native.back(), isTrue);
+    expect(native.inputs('modal_dismiss').last, {'kind': 'modal_dismiss', 'name': 'edit'});
+    // The core closes it: the roots come back without it.
+    await native.batch(withModals(3, [modal('filters', sheet: true)], nodes: false));
+    expect(await native.back(), isTrue);
+    expect(native.inputs('modal_dismiss').last, {'kind': 'modal_dismiss', 'name': 'filters'});
+    await native.batch(withModals(4, [], nodes: false));
+    expect(await native.back(), isFalse);
+    expect(native.inputs('modal_dismiss'), hasLength(2));
+  });
+
+  // Fails if back dismisses a modal the plugin made undismissable.
+  testWidgets('a modal that isn\'t dismissible keeps back', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withModals(2, [modal('locked', dismissible: false, id: 30)]));
+    expect(await native.back(), isFalse);
+    expect(native.inputs('modal_dismiss'), isEmpty);
+    expect(find.text('In the modal'), findsOneWidget);
+  });
+
+  // Fails if back doesn't answer a waiting dialog first (confirm: no).
+  testWidgets('back answers a dialog before a modal', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withModals(2, [modal('edit', id: 30)]));
+    await native.batch(batch(3, [
+      {'op': 'dialog', 'id': 7, 'kind': 'confirm', 'text': 'Delete it?'},
+    ]));
+    expect(await native.back(), isTrue);
+    expect(native.inputs('dialog'), [
+      {'kind': 'dialog', 'id': 7, 'result': false},
+    ]);
+    expect(native.inputs('modal_dismiss'), isEmpty);
+  });
+
+  // Fails if React Native isn't told how many overlays are open (it decides
+  // what its own back does from this).
+  testWidgets('the status counts overlays', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withModals(2, [modal('filters', sheet: true), modal('edit', id: 30)]));
+    await tester.pump();
+    expect(native.statuses().last['overlays'], 2);
+  });
+
+  // Fails if a theme change rebuilds the view as new (a second context
+  // input, state lost) or doesn't recolour it.
+  testWidgets('a new setup recolours without a new context input', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await tester.pump();
+    final before = native.inputs('context').length;
+    await native.setup(theme: 'light');
+    await tester.pump();
+    await tester.pump();
+    final contexts = native.inputs('context');
+    expect(contexts.length, before + 1, reason: 'the theme is part of the context');
+    expect(contexts.last['theme'], 'light');
+    expect(find.text('Hello from the plugin'), findsOneWidget);
+  });
+
+  // Fails if a resize sends no context input, or one per frame.
+  testWidgets('a new size sends one context input', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await tester.pump();
+    final before = native.inputs('context').length;
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    final contexts = native.inputs('context');
+    expect(contexts.length, before + 1);
+    expect(contexts.last['width'], 820);
+  });
+
+  // Fails if a modal at a phone's width shows as a centred card instead of
+  // a sheet along the bottom (§12.5).
+  testWidgets('a modal is a sheet at 390 wide', (tester) async {
+    tester.view.physicalSize = const Size(390, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withModals(2, [modal('edit', id: 30)]));
+    await tester.pumpAndSettle();
+    final card = tester.getRect(find.byKey(const ValueKey<String>('modal_card_edit')));
+    expect(card.width, 390);
+    expect(card.bottom, 760);
+  });
+
+  // The recorded tickets session (fixtures from the real core, Task 6) at a
+  // phone's and a tablet's size, dark and light.
+  for (final (width, height) in [(390.0, 760.0), (820.0, 1180.0)]) {
+    for (final theme in ['dark', 'light']) {
+      testWidgets('tickets at ${width.toInt()} $theme', (tester) async {
+        tester.view.physicalSize = Size(width, height);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final native = await _start(tester);
+        await native.setup(theme: theme);
+        for (final step in [1, 2]) {
+          final recorded = jsonDecode(
+            File('../src/core/fake/fixtures/tickets-$step.json').readAsStringSync(),
+          ) as Map<String, Object?>;
+          for (final batch in recorded['batches']! as List<Object?>) {
+            await native.batch(jsonEncode(batch));
+          }
+        }
+        await tester.pumpAndSettle();
+        await expectLater(
+          find.byType(PluginAreaApp),
+          matchesGoldenFile('goldens/tickets_${width.toInt()}_$theme.png'),
+        );
+      });
+    }
+  }
 }
+

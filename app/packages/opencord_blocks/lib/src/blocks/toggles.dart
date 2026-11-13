@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 import '../view.dart';
+import 'touch.dart';
 
 /// `checkbox` (design §12.2): square check toggle with optional label.
 final checkboxBlock = BlockRenderer(_checkbox);
@@ -171,7 +172,7 @@ Widget _wrapToggle({
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: interactive && b.node.handles('change') ? onTap : null,
-      child: row,
+      child: touchTarget(b.theme, row),
     ),
   );
 }

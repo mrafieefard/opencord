@@ -32,6 +32,24 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     _inputs = _controller.inputs.listen(widget.channel.sendInput);
     _controller.addListener(_sendStatus);
     widget.channel.setup.addListener(_setupChanged);
+    widget.channel.onBack = _back;
+  }
+
+  /// The system back (§12.5): answers the top dialog (a confirm with no),
+  /// else dismisses the top modal or sheet when it's dismissible, as Esc
+  /// does on the desktop. False when nothing was closed: React Native then
+  /// does its own back.
+  bool _back() {
+    final dialogs = _controller.dialogs;
+    if (dialogs.isNotEmpty) {
+      final top = dialogs.last;
+      _controller.answerDialog(top.id, top.kind == 'confirm' ? false : null);
+      return true;
+    }
+    final modals = _controller.roots?.modals ?? const <BlocksModalRoot>[];
+    if (modals.isEmpty || !modals.last.dismissible) return false;
+    _controller.send({'kind': 'modal_dismiss', 'name': modals.last.name});
+    return true;
   }
 
   void _setupChanged() {
@@ -54,6 +72,7 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
 
   @override
   void dispose() {
+    widget.channel.onBack = null;
     widget.channel.setup.removeListener(_setupChanged);
     _controller.removeListener(_sendStatus);
     unawaited(_batches?.cancel());
@@ -109,6 +128,8 @@ BlocksTheme blocksThemeOf(AreaSetup setup) {
       color: colors['text'],
     ),
     radius: 8,
+    // A finger, not a mouse.
+    minTouchSize: 44,
   );
 }
 

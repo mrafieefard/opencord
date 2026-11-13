@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../view.dart';
+import 'touch.dart';
 
 /// `button` (design §12.2): primary, secondary, danger and plain buttons;
 /// shows a spinner when [loading] and dims when [disabled].
@@ -88,7 +89,7 @@ Widget _button(BlockBuild b) {
       onLongPress: interactive && b.node.handles('long_press')
           ? () => b.send('long_press')
           : null,
-      child: button,
+      child: touchTarget(b.theme, button),
     ),
   );
 }
@@ -121,7 +122,7 @@ Widget _iconButton(BlockBuild b) {
       onTap: interactive && b.node.handles('press')
           ? () => b.send('press')
           : null,
-      child: child,
+      child: touchTarget(theme, child),
     ),
   );
 }

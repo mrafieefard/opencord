@@ -28,23 +28,41 @@ Map<String, Object?> roots(int main) => {
   'modals': const <Object?>[],
 };
 
-/// A setup as the native side sends it: the desktop's dark colours.
+const _dark = {
+  'text': '#EDEDEF',
+  'text_secondary': '#A1A1A8',
+  'text_muted': '#6E6E76',
+  'background': '#0E0E10',
+  'surface': '#18181B',
+  'elevated': '#1F1F23',
+  'border': '#222226',
+  'accent': '#EDEDEF',
+  'on_accent': '#0E0E10',
+  'selected': '#27272C',
+  'hover': '#1C1C20',
+  'danger': '#F2555A',
+};
+
+const _light = {
+  'text': '#111114',
+  'text_secondary': '#55555C',
+  'text_muted': '#8A8A92',
+  'background': '#F3F3F5',
+  'surface': '#FFFFFF',
+  'elevated': '#FFFFFF',
+  'border': '#E3E3E7',
+  'accent': '#111114',
+  'on_accent': '#FFFFFF',
+  'selected': '#E7E7EA',
+  'hover': '#F2F2F4',
+  'danger': '#DC3E42',
+};
+
+/// A setup as the native side sends it: the phone's colours, which are the
+/// desktop's (mobile/src/ui/theme/tokens.ts).
 String setupJson({String theme = 'dark'}) => jsonEncode({
   'theme': theme,
-  'colors': {
-    'text': '#EDEDEF',
-    'text_secondary': '#A1A1A8',
-    'text_muted': '#6E6E76',
-    'background': '#0E0E10',
-    'surface': '#18181B',
-    'elevated': '#1F1F23',
-    'border': '#222226',
-    'accent': '#EDEDEF',
-    'on_accent': '#0E0E10',
-    'selected': '#27272C',
-    'hover': '#1C1C20',
-    'danger': '#F2555A',
-  },
+  'colors': theme == 'light' ? _light : _dark,
   'text_scale': 1.0,
   'safe_area': {'top': 0, 'right': 0, 'bottom': 0, 'left': 0},
   'reduce_motion': false,

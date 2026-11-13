@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 import '../view.dart';
+import 'touch.dart';
 
 /// `tabs` (design §12.2): horizontal tab bar with active indicator.
 final tabsBlock = BlockRenderer(_tabs);
@@ -54,41 +55,46 @@ Widget _tabItem({
           b.send('change', {'value': val});
         }
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isSelected ? theme.colors['accent']! : Colors.transparent,
-              width: 2,
+      child: touchTarget(
+        b.theme,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected
+                    ? theme.colors['accent']!
+                    : Colors.transparent,
+                width: 2,
+              ),
             ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (iconData != null) ...[
-              Icon(
-                iconData,
-                size: 16,
-                color: isSelected
-                    ? theme.colors['accent']!
-                    : theme.colors['text_secondary']!,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (iconData != null) ...[
+                Icon(
+                  iconData,
+                  size: 16,
+                  color: isSelected
+                      ? theme.colors['accent']!
+                      : theme.colors['text_secondary']!,
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: theme.text.fontFamily ?? 'Inter',
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? theme.colors['accent']!
+                      : theme.colors['text_secondary']!,
+                ),
               ),
-              const SizedBox(width: 6),
             ],
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: theme.text.fontFamily ?? 'Inter',
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected
-                    ? theme.colors['accent']!
-                    : theme.colors['text_secondary']!,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     ),
@@ -143,37 +149,40 @@ Widget _segmentItem({
           b.send('change', {'value': val});
         }
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colors['selected']! : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (iconData != null) ...[
-              Icon(
-                iconData,
-                size: 14,
-                color: isSelected
-                    ? theme.colors['text']!
-                    : theme.colors['text_secondary']!,
+      child: touchTarget(
+        b.theme,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? theme.colors['selected']! : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (iconData != null) ...[
+                Icon(
+                  iconData,
+                  size: 14,
+                  color: isSelected
+                      ? theme.colors['text']!
+                      : theme.colors['text_secondary']!,
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: theme.text.fontFamily ?? 'Inter',
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? theme.colors['text']!
+                      : theme.colors['text_secondary']!,
+                ),
               ),
-              const SizedBox(width: 6),
             ],
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: theme.text.fontFamily ?? 'Inter',
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected
-                    ? theme.colors['text']!
-                    : theme.colors['text_secondary']!,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     ),
