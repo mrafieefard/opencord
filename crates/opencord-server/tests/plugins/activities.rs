@@ -381,7 +381,16 @@ impl World {
 
     /// A server running `source` as "paint"; `source` logs "ready".
     async fn running(source: &str) -> Self {
-        let server = TestServer::start_with(|config| config.gateway.identify_per_minute = 60).await;
+        Self::running_for(source, 100).await
+    }
+
+    /// [`World::running`], each handler given `handler_ms` to run.
+    async fn running_for(source: &str, handler_ms: u32) -> Self {
+        let server = TestServer::start_with(|config| {
+            config.gateway.identify_per_minute = 60;
+            config.plugins.handler_ms = handler_ms;
+        })
+        .await;
         let (mut owner, owner_ready) = owner(&server).await;
         let code = invite(&mut owner, None).await;
         plugin_at(&server, &mut owner, &owner_ready, "paint", "1.0.0", source).await;
@@ -776,6 +785,72 @@ async fn only_the_starter_or_a_channel_manager_ends_it() {
         let line = format!("end {} {} ended", session.id, session.activity_key);
         assert_eq!(world.settled_count(&line).await, 1, "{line}");
     }
+}
+
+/// [`SESSIONS_SOURCE`], and a `message_create` handler that holds the VM
+/// (its thread, so no event is taken) until it has seen a view of the
+/// plugin open and then none, or 4 s pass (Luau's `os.clock` is a
+/// monotonic clock).
+const HELD_SOURCE: &str = r#"
+opencord.on("message_create", function()
+    log.info("holding")
+    local seen = false
+    local deadline = os.clock() + 4
+    while os.clock() < deadline do
+        if #ui.views() > 0 then
+            seen = true
+        elseif seen then
+            break
+        end
+    end
+    log.info("let go after a view " .. (seen and "closed" or "never closed"))
+end)
+"#;
+
+#[tokio::test]
+async fn a_session_ended_before_the_vm_takes_its_start_starts_then_ends() {
+    // Catches (3623716): the VM looking the session up when it takes
+    // `activity_start`. The session has ended by then, so the start is
+    // skipped and the `activity_end` behind it dropped: the log shows
+    // neither. The VM is held inside a handler while A starts the session,
+    // opens its view and ends it; the view closing lets it go.
+    let source = format!("{SESSIONS_SOURCE}{HELD_SOURCE}");
+    let mut world = World::running_for(&source, 5_000).await;
+    let (mut a, a_id, _) = world.member(2, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+
+    world.server.state().plugins.deliver(
+        "paint",
+        opencord_server::plugins::PluginEvent {
+            name: "message_create".to_owned(),
+            payload: serde_json::json!({}),
+            reply: None,
+            command: None,
+        },
+    );
+    wait_for_log(&mut world.owner, "paint", "holding").await;
+    let paint = started(&mut a, voice, "paint").await;
+    open_view(&mut a, paint.id).await;
+    let Response::Ack(_) = paced(&mut a, end(paint.id)).await else {
+        panic!("A couldn't end it");
+    };
+
+    let lines = lines_after(&mut world, &format!("end {}", paint.id)).await;
+    assert!(
+        lines.contains(&"let go after a view closed".to_owned()),
+        "the VM wasn't held until the end, so the race wasn't made: {lines:?}"
+    );
+    let start = format!(
+        "start {} paint by {a_id}/{a_id} in {voice}/{voice} at number with {a_id}",
+        paint.id
+    );
+    let end_line = format!("end {} paint ended", paint.id);
+    let ours: Vec<&String> = lines
+        .iter()
+        .filter(|line| line.starts_with(&format!("start {} ", paint.id)) || **line == end_line)
+        .collect();
+    assert_eq!(ours, [&start, &end_line], "{lines:?}");
 }
 
 #[tokio::test]
