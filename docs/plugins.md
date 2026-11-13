@@ -121,7 +121,6 @@ All sensitive operations require explicit permissions declared in the manifest a
 | `manage_channels` | Create, update, reorder, and delete channels. |
 | `create_channel_types` | Create custom plugin channels. |
 | `register_activities` | Register activities that run in voice calls. |
-| `START_ACTIVITIES` | Member permission (bit 33): start an activity in a voice call. On for @everyone by default; customizable per channel. |
 | `register_commands` | Register slash commands and handle autocomplete. |
 | `read_members` | Read the server member list and receive member join/leave/update events. |
 | `read_roles` | Read role names, colors, and permissions. |
@@ -143,6 +142,11 @@ All sensitive operations require explicit permissions declared in the manifest a
 | `receive_web_requests` | Expose incoming HTTP web hooks under `/plugins/{id}/hooks`. |
 | `accept_uploads` | Accept files through interactive blocks. |
 | `talk_to_plugins` | Emit and listen to inter-plugin bus events. |
+
+### Member Permissions
+
+Starting voice activities requires the server member permission:
+- `START_ACTIVITIES` (bit 33): start an activity in a voice call one is in. On for `@everyone` by default; can be overridden per channel with permission overwrites.
 
 ---
 
@@ -548,8 +552,8 @@ end)
     - `"ended"`: ended by the session starter or a channel manager (`manage_channels`).
     - `"plugin"`: ended by the plugin via `activity.finish`.
     - `"call_empty"`: all members left the voice call.
-    - `"plugin_stopping"`: the plugin was stopped, unloaded, or upgraded.
-    - `"unavailable"`: the activity or plugin became unavailable.
+    - `"plugin_stopping"`: the plugin was stopped, turned off, uninstalled, or failed to start.
+    - `"unavailable"`: the plugin restarted or updated without registering this activity again, or the activity became unavailable.
 
 ### 4. Ending an Activity from Script
 
@@ -612,8 +616,8 @@ An activity session ends when:
 1. The starter or a member with `manage_channels` in the voice channel chooses **End activity** from the tile's menu (`"ended"`).
 2. The plugin server script calls `activity.finish(session)` (`"plugin"`).
 3. The last participant disconnects from the voice channel (`"call_empty"`).
-4. The plugin is stopped, reloaded, or disabled (`"plugin_stopping"`).
-5. The activity or plugin becomes unavailable (`"unavailable"`).
+4. The plugin is stopped, turned off, uninstalled, or fails to start (`"plugin_stopping"`). A restart or update that registers the activity again keeps the session.
+5. The plugin restarts or updates without registering the activity again (`"unavailable"`).
 
 When ended, the activity's tile is removed from the stage, any open views receive a `closed` event with reason `"activity_ended"`, and `activity_end` fires on the server.
 
@@ -640,8 +644,8 @@ When the view returns to the screen, it is resumed (`app.listen("resume", ...)` 
 ### 10. Example: Shared Paint Activity
 
 A complete shared whiteboard activity is located in `examples/plugins/paint/`:
-- `examples/plugins/paint/manifest.lua`: requests `register_activities` and defines the `paint` activity.
-- `examples/plugins/paint/server/main.luau`: receives drawing strokes via `ui.on("stroke", ...)`, validates point coordinates and color choices, stores up to 300 strokes per session in memory, sends canvas history to new viewers in batches of 30 strokes, and broadcasts strokes with `ui.send_place({ session_id = session.id }, ...)`.
+- `examples/plugins/paint/manifest.lua`: requests the `register_activities` permission.
+- `examples/plugins/paint/server/main.luau`: registers the `paint` activity with `ui.register_activity`, receives drawing strokes via `ui.on("stroke", ...)`, validates point coordinates and color choices, stores up to 300 strokes per session in memory, sends canvas history to new viewers in batches of 30 strokes, and broadcasts strokes with `ui.send_place({ session_id = session.id }, ...)`.
 - `examples/plugins/paint/client/main.luau`: renders an interactive 1600 × 1000 canvas with color palette buttons, stroke width selectors, a Clear button, touch/mouse path drawing, stroke thinning, and participant counters using `app.call.members` and `app.listen("call_members_change", ...)`.
 
 ---
