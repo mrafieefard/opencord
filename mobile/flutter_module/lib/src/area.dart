@@ -69,16 +69,19 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
         brightness: setup.dark ? Brightness.dark : Brightness.light,
         scaffoldBackgroundColor: const Color(0x00000000),
       ),
-      builder: (context, _) => MediaQuery(
+      // Over the navigator, so the renderer's text fields and overlays get
+      // the setup's scale and insets too.
+      builder: (context, navigator) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(setup.textScale),
           padding: setup.safeArea,
           disableAnimations: setup.reduceMotion,
         ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: BlocksView(controller: _controller, host: host, theme: theme),
-        ),
+        child: navigator!,
+      ),
+      home: Material(
+        type: MaterialType.transparency,
+        child: BlocksView(controller: _controller, host: host, theme: theme),
       ),
     );
   }
