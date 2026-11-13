@@ -23,6 +23,49 @@ BlocksController _showWithModals({
 
 void main() {
   group('modals and sheets', () {
+    // A named modal's root as the core sends it (`app.modals.<name>`
+    // returns `ui.modal(props, children)`): the `modal` block itself, never
+    // opened by an `open` prop. Fails if the layer draws that block as the
+    // in-tree modal (nothing shows: the tickets example's New ticket sheet
+    // was empty on the phone), on a sheet or on a card.
+    for (final (width, shape) in [(360.0, 'sheet'), (800.0, 'card')]) {
+      testWidgets('a_named_modal_shows_its_content_as_a_$shape', (tester) async {
+        final controller = _showWithModals(
+          nodes: [
+            create(1, 'box', props: {'background': 'surface'}),
+            create(21, 'text', props: {'text': 'Open New Ticket'}),
+            create(20, 'column', children: [21]),
+            create(
+              2,
+              'modal',
+              props: {'size': 'medium', 'title': 'Tickets'},
+              children: [20],
+            ),
+          ],
+          main: 1,
+          modals: [
+            {
+              'id': 2,
+              'name': 'new_ticket',
+              'size': 'medium',
+              'dismissible': true,
+            },
+          ],
+        );
+        await pumpView(
+          tester,
+          controller,
+          width: width,
+          height: 500,
+          window: Size(width, 600),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Open New Ticket'), findsOneWidget);
+        expect(find.text('Tickets'), findsOneWidget);
+        expect(tester.getSize(find.text('Open New Ticket')).height, greaterThan(0));
+      });
+    }
+
     // Fails if modal backdrop or card overflows the plugin area bounds.
     testWidgets('a_modal_stays_inside_the_area', (tester) async {
       final controller = _showWithModals(

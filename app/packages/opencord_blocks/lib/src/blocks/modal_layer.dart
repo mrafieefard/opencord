@@ -108,6 +108,42 @@ class _ModalWidgetState extends State<_ModalWidget>
     }
   }
 
+  /// What the card holds. A named modal's root is the `ui.modal` block its
+  /// function returned: its title and its child are drawn here, since that
+  /// block's own renderer is the in-tree modal, which shows only when
+  /// `open`. Any other root is drawn as it is.
+  Widget _rootContent(BlocksModalRoot modal) {
+    final node = widget.controller.node(modal.id);
+    if (node == null || node.block != 'modal') {
+      return BlockWidget(key: ValueKey<int>(modal.id), id: modal.id);
+    }
+    final title = node.props['title'];
+    final theme = widget.theme;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (title is String && title.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                title,
+                style: theme.text.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colors['text'],
+                ),
+              ),
+            ),
+          for (final child in node.children)
+            BlockWidget(key: ValueKey<int>(child), id: child),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final modal = widget.modal;
@@ -158,9 +194,7 @@ class _ModalWidgetState extends State<_ModalWidget>
             : (modal.size == 'full'
                   ? BorderRadius.zero
                   : BorderRadius.circular(12)),
-        child: SingleChildScrollView(
-          child: BlockWidget(key: ValueKey<int>(modal.id), id: modal.id),
-        ),
+        child: SingleChildScrollView(child: _rootContent(modal)),
       ),
     );
 
