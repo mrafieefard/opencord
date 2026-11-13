@@ -6,6 +6,7 @@ pub mod commands;
 pub mod files;
 pub mod identity;
 pub mod music;
+pub mod plugins;
 pub mod servers;
 pub mod setup;
 pub mod soundboard;

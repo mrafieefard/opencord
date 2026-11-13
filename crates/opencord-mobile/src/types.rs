@@ -563,3 +563,11 @@ pub enum PlaybackItemRecord {
         draft_id: f64,
     },
 }
+
+/// A batch for the renderer of one plugin view: the core's id for the view
+/// and the batch as JSON (the plugins plans' "view wire format").
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ViewOutputRecord {
+    pub view_id: String,
+    pub json: String,
+}
