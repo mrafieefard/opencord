@@ -1,0 +1,27 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.opencord'
+version = '0.0.1'
+
+android {
+  namespace "dev.opencord.pluginarea"
+  defaultConfig {
+    versionCode 1
+    versionName '0.0.1'
+  }
+  testOptions {
+    unitTests.returnDefaultValues = true
+  }
+}
+
+dependencies {
+  // The Flutter module's AARs (mobile/scripts/build-flutter.sh), found in
+  // the repositories plugins/withPluginArea.ts adds. The module is built in
+  // debug for debug builds, and in release with --release.
+  debugImplementation 'dev.opencord.opencord_plugin_area:flutter_debug:1.0'
+  releaseImplementation 'dev.opencord.opencord_plugin_area:flutter_release:1.0'
+  testImplementation 'junit:junit:4.13.2'
+}

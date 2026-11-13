@@ -4,6 +4,7 @@ import type { ExpoConfig } from 'expo/config';
 
 // With their extensions: Expo loads this file the way Node does.
 import { versionCode } from './plugins/versionCode.ts';
+import { withPluginArea } from './plugins/withPluginArea.ts';
 import { withReleaseSigning } from './plugins/withReleaseSigning.ts';
 
 const fonts = [
@@ -89,4 +90,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default withReleaseSigning(config);
+export default withPluginArea(withReleaseSigning(config));

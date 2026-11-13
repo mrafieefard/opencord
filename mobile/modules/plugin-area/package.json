@@ -1,0 +1,19 @@
+{
+  "name": "@opencord/plugin-area",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Hosts plugin areas in the phone app: one Flutter engine per area, drawing a plugin's view with the desktop's renderer (plugins milestone 4).",
+  "license": "MPL-2.0",
+  "author": "Opencord",
+  "homepage": "https://github.com/mrafieefard/opencord",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrafieefard/opencord.git",
+    "directory": "mobile/modules/plugin-area"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "expo": "*"
+  }
+}

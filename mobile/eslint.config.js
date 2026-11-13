@@ -16,6 +16,9 @@ module.exports = defineConfig([
       'packages/core-native/cpp/*',
       'packages/core-native/android/*',
       'packages/core-native/ios/*',
+      // The plugin area's Flutter module: Dart, and what Flutter generates.
+      'flutter_module/*',
+      'modules/plugin-area/android/build/*',
     ],
   },
   {
