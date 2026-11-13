@@ -349,11 +349,14 @@ pub fn add(state: &AppState, session: Session) -> proto::ActivitySession {
             session: Some(shown.clone()),
         }),
     );
+    // The start as it is now rides along: should the session end before
+    // the VM takes this event, the VM still hears it start, then end.
+    let start = start_payload(state, &session);
     state.plugins.deliver(
         &session.plugin_id,
         PluginEvent {
             name: "activity_start".to_owned(),
-            payload: serde_json::json!({ "session_id": session.id }),
+            payload: serde_json::json!({ "session_id": session.id, "start": start }),
             reply: None,
             command: None,
         },

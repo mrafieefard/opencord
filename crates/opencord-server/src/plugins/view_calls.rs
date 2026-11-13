@@ -161,17 +161,24 @@ fn calls(vm: &Vm, env: &PluginEnv, event: &PluginEvent) -> mlua::Result<Calls> {
             let Some(state) = env.state().ok() else {
                 return Ok(Vec::new());
             };
-            let session = event.payload["session_id"]
-                .as_i64()
-                .and_then(|session_id| state.plugins.activities.session(session_id))
-                .filter(|session| session.plugin_id == env.plugin_id);
-            let Some(session) = session else {
+            let Some(session_id) = event.payload["session_id"].as_i64() else {
                 return Ok(Vec::new());
             };
-            if !heard_start(env, &state, session.id) {
+            // A running session's start shows its call as it is now; one
+            // that already ended (its `activity_end` waits behind this)
+            // shows the start as it was.
+            let start = match state.plugins.activities.session(session_id) {
+                Some(session) if session.plugin_id == env.plugin_id => {
+                    activities::start_payload(&state, &session)
+                }
+                Some(_) => return Ok(Vec::new()),
+                None if event.payload["start"].is_object() => event.payload["start"].clone(),
+                None => return Ok(Vec::new()),
+            };
+            if !heard_start(env, &state, session_id) {
                 return Ok(Vec::new());
             }
-            let argument = payload_value(lua, &activities::start_payload(&state, &session))?;
+            let argument = payload_value(lua, &start)?;
             with_each(handlers_for(lua, "activity_start")?, &[argument])
         }
         "activity_end" => match end_argument(vm, env, &event.payload)? {
