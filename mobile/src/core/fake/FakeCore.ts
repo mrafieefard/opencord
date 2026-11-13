@@ -34,6 +34,7 @@ import {
   type OutgoingFileRecord,
   type ServerEntry,
   type UserRecord,
+  type ViewOutputRecord,
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
@@ -121,6 +122,7 @@ export class FakeCore implements CoreApi {
   private readonly uploadStepMs: number;
   private queue: MobileEvent[] = [];
   private generation = 0n;
+  private viewGeneration = 0n;
   private waiter: Waiter | null = null;
   private failures = new Map<keyof CoreApi, unknown>();
   private settings = new Map<string, string>();
@@ -995,6 +997,54 @@ export class FakeCore implements CoreApi {
   voiceStop(): void {
     this.enter('voiceStop', []);
     this.playing = null;
+  }
+
+  // Plugin views: the fake world has no plugin yet (plugins M4 Task 7 gives
+  // it recorded sessions); views can't be opened.
+  setPluginFeatures(features: string[]): void {
+    this.enter('setPluginFeatures', [features]);
+  }
+
+  viewOutputsAttach(): bigint {
+    this.enter('viewOutputsAttach', []);
+    return ++this.viewGeneration;
+  }
+
+  nextViewOutputs(generation: bigint, max: number): Promise<ViewOutputRecord[]> {
+    this.enter('nextViewOutputs', [generation, max]);
+    return new Promise(() => {});
+  }
+
+  async viewOpen(serverKey: string, channelId: string, contextJson: string): Promise<string> {
+    this.enter('viewOpen', [serverKey, channelId, contextJson]);
+    throw new MobileError.NotConnected();
+  }
+
+  async viewOpenActivity(serverKey: string, sessionId: string, channelId: string, activityKey: string, contextJson: string): Promise<string> {
+    this.enter('viewOpenActivity', [serverKey, sessionId, channelId, activityKey, contextJson]);
+    throw new MobileError.NotConnected();
+  }
+
+  viewInput(viewId: string, json: string): void {
+    this.enter('viewInput', [viewId, json]);
+  }
+
+  viewClose(viewId: string): void {
+    this.enter('viewClose', [viewId]);
+  }
+
+  async pluginAssetFile(serverKey: string, pluginId: string, path: string): Promise<string> {
+    this.enter('pluginAssetFile', [serverKey, pluginId, path]);
+    throw new MobileError.NotConnected();
+  }
+
+  async pluginImageFile(serverKey: string, pluginId: string, sourceJson: string): Promise<string> {
+    this.enter('pluginImageFile', [serverKey, pluginId, sourceJson]);
+    throw new MobileError.NotConnected();
+  }
+
+  async viewUpload(viewId: string, nodeId: bigint, path: string): Promise<void> {
+    this.enter('viewUpload', [viewId, nodeId, path]);
   }
 
   private emitPlayback(playing: boolean): void {

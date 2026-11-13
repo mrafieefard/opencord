@@ -1,5 +1,7 @@
 // The core this app runs on: NativeCore, or FakeCore with
 // EXPO_PUBLIC_FAKE_CORE=1 (screenshots, and running without a server).
+import * as PluginArea from '@opencord/plugin-area';
+
 import type { CoreApi } from './api';
 import type { BootDeps } from './boot';
 import { FakeCore, type Scenario } from './fake/FakeCore';
@@ -27,9 +29,10 @@ export function setCore(core: CoreApi): void {
 export function bootDeps(): BootDeps {
   const core = getCore();
   if (core instanceof FakeCore && core.scenario === 'default') {
-    return { dataDir: () => '/fake/data', cacheDir: () => '/fake/cache', loadIdentity: async () => core.fakeIdentity() };
+    return { dataDir: () => '/fake/data', cacheDir: () => '/fake/cache', loadIdentity: async () => core.fakeIdentity(), pluginRenderer: true };
   }
-  return { dataDir, cacheDir, loadIdentity };
+  // The fake core always says it can draw plugins (plugins M4 Task 8).
+  return { dataDir, cacheDir, loadIdentity, pluginRenderer: fakeMode || PluginArea.available };
 }
 
 export type { CoreApi } from './api';

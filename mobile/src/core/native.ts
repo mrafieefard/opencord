@@ -82,4 +82,15 @@ export const NativeCore: CoreApi = {
   voiceSeek: (positionMs) => native.voiceSeek(positionMs),
   voiceSetSpeed: (speed) => native.voiceSetSpeed(speed),
   voiceStop: () => native.voiceStop(),
+
+  setPluginFeatures: (features) => native.setPluginFeatures(features),
+  viewOutputsAttach: () => native.viewOutputsAttach(),
+  nextViewOutputs: (generation, max) => native.nextViewOutputs(generation, max),
+  viewOpen: (key, channel, context) => native.viewOpen(key, channel, context),
+  viewOpenActivity: (key, session, channel, activity, context) => native.viewOpenActivity(key, session, channel, activity, context),
+  viewInput: (view, json) => native.viewInput(view, json),
+  viewClose: (view) => native.viewClose(view),
+  pluginAssetFile: (key, plugin, path) => native.pluginAssetFile(key, plugin, path),
+  pluginImageFile: (key, plugin, source) => native.pluginImageFile(key, plugin, source),
+  viewUpload: (view, node, path) => native.viewUpload(view, node, path),
 };
