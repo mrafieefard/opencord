@@ -10,14 +10,14 @@ use opencord_proto::v1 as proto;
 use proto::envelope::Payload;
 
 use super::frames;
-use super::session::{CloseCode, Connection, Session};
+use super::session::{ACTIVITIES, CloseCode, Connection, PLUGIN_CHANNELS, Session};
 use crate::bootstrap::hash_claim_token;
 use crate::db::invites;
 use crate::db::meta::ServerMeta;
 use crate::db::users::{self, UserRow};
 use crate::db::{bans, members};
 use crate::error::ApiError;
-use crate::guild::{Member, User};
+use crate::guild::{Channel, Member, User};
 use crate::random;
 use crate::state::{AppState, Audience, now_ms};
 use crate::voice::media_token;
@@ -114,8 +114,27 @@ pub async fn identify(
             .get(&joined.user_id)
             .map(Member::to_proto);
         state.broadcast(
-            proto::event::Kind::MemberJoin(proto::MemberJoin { member }),
+            proto::event::Kind::MemberJoin(proto::MemberJoin {
+                member: member.clone(),
+            }),
             Audience::Everyone,
+        );
+        let mut table = serde_json::Map::new();
+        if let Some(m) = &member {
+            table.insert("member".to_owned(), crate::plugins::events::member_table(m));
+        }
+        if let Some(code) = &joined.invite_code {
+            table.insert(
+                "invite_code".to_owned(),
+                serde_json::Value::String(code.clone()),
+            );
+        }
+        crate::plugins::events::emit(
+            state,
+            "member_join",
+            crate::plugins::permissions::PluginPermission::ReadMembers,
+            None,
+            serde_json::Value::Object(table),
         );
     }
     if joined.claimed {
@@ -125,7 +144,12 @@ pub async fn identify(
             Audience::Everyone,
         );
     }
-    Ok(open_session(state, joined.user_id, connection))
+    Ok(open_session(
+        state,
+        joined.user_id,
+        identify.features,
+        connection,
+    ))
 }
 
 pub fn resume(
@@ -152,6 +176,7 @@ struct Joined {
     user_id: i64,
     newly_joined: bool,
     claimed: bool,
+    invite_code: Option<String>,
 }
 
 /// Decides whether the key may join, and records the membership.
@@ -227,6 +252,7 @@ async fn admit(
             user
         }
     };
+    let invite_code = invite.as_ref().map(|inv| inv.code.clone());
     if let Some(invite) = &invite {
         invites::increment_uses(&mut tx, &invite.code).await?;
     }
@@ -267,20 +293,29 @@ async fn admit(
         user_id: user.id,
         newly_joined: !is_member,
         claimed,
+        invite_code,
     })
 }
 
-fn open_session(state: &AppState, user_id: i64, connection: &Connection) -> Arc<Session> {
+fn open_session(
+    state: &AppState,
+    user_id: i64,
+    features: Vec<String>,
+    connection: &Connection,
+) -> Arc<Session> {
     let session_id = hex::encode(random::bytes::<16>());
     let resume_token = random::bytes::<32>();
-    let session = Arc::new(Session::new(
-        session_id.clone(),
-        user_id,
-        &resume_token,
-        connection.clone(),
-    ));
+    let session = Arc::new(
+        Session::new(
+            session_id.clone(),
+            user_id,
+            &resume_token,
+            connection.clone(),
+        )
+        .with_features(features),
+    );
     let was_online = state.sessions.has_user(user_id);
-    let ready = ready(state, user_id, session_id, resume_token.to_vec());
+    let ready = ready(state, &session, session_id, resume_token.to_vec());
     if connection
         .outbound
         .try_send(frames::encode(Payload::Ready(Box::new(ready))))
@@ -297,10 +332,11 @@ fn open_session(state: &AppState, user_id: i64, connection: &Connection) -> Arc<
 
 fn ready(
     state: &AppState,
-    user_id: i64,
+    session: &Session,
     session_id: String,
     resume_token: Vec<u8>,
 ) -> proto::Ready {
+    let user_id = session.user_id;
     let server_addresses = state.domains.addresses(state);
     state.domains.mark_announced(&server_addresses);
     let mut presences = state.presences();
@@ -315,6 +351,13 @@ fn ready(
     }
     let guild = state.guild();
     let visible = guild.visible_channel_ids(user_id);
+    // What this app is told about: an older one never hears of plugin
+    // channels (design 2026-11-07 §14).
+    let shown: Vec<&Channel> = guild
+        .channels
+        .values()
+        .filter(|channel| visible.contains(&channel.id) && session.sees_kind(channel.kind))
+        .collect();
     let (voice_states, streams) = {
         let voice = state.voice();
         (
@@ -330,22 +373,20 @@ fn ready(
             .get(&user_id)
             .map(|member| member.user.to_proto()),
         server: Some(guild.server_info()),
-        channels: guild
-            .channels
-            .values()
-            .filter(|channel| visible.contains(&channel.id))
-            .map(|channel| channel.to_proto())
+        channels: shown
+            .iter()
+            .map(|channel| channel.to_proto(&state.plugins.channel_types))
             .collect(),
         roles: guild.roles.values().map(|role| role.to_proto()).collect(),
         members: guild.members.values().map(Member::to_proto).collect(),
         presences,
         server_permissions: guild.base_permissions(user_id).bits(),
-        channel_permissions: visible
+        channel_permissions: shown
             .iter()
-            .map(|channel_id| {
+            .map(|channel| {
                 (
-                    *channel_id,
-                    guild.channel_permissions(user_id, *channel_id).bits(),
+                    channel.id,
+                    guild.channel_permissions(user_id, channel.id).bits(),
                 )
             })
             .collect(),
@@ -376,5 +417,24 @@ fn ready(
         private_messages: false,
         private_messages_v2: state.private.enabled(),
         private_settings: Some(state.private.settings_proto()),
+        plugin_users: crate::plugins::identity::plugin_users_proto(&guild),
+        plugin_channel_types: if session.has_feature(PLUGIN_CHANNELS) {
+            state.plugins.channel_types.list()
+        } else {
+            Vec::new()
+        },
+        plugin_activities: if session.has_feature(ACTIVITIES) {
+            state.plugins.activities.list()
+        } else {
+            Vec::new()
+        },
+        activity_sessions: if session.has_feature(ACTIVITIES) {
+            state
+                .plugins
+                .activities
+                .visible_to(&guild, &state.plugins.views, user_id)
+        } else {
+            Vec::new()
+        },
     }
 }

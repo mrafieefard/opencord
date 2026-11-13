@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO plugin_files (plugin_id, path, size, public, updated_at)\n         VALUES ($1, $2, $3, $4, $5)\n         ON CONFLICT (plugin_id, path) DO UPDATE SET\n             size = excluded.size,\n             public = excluded.public,\n             updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "1c7ee3a454659cda74dfb4c2b5089d31819d1046715246dd6eecc1262cc01327"
+}

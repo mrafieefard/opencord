@@ -456,9 +456,9 @@ class NowPlayingView extends ConsumerWidget {
     final requester = item == null
         ? null
         : ref.watch(
-            serverProvider(channel.server).select(
-              (state) => state.data?.members[item.requesterId]?.displayName,
-            ),
+            serverProvider(
+              channel.server,
+            ).select((state) => state.data?.authorOf(item.requesterId).name),
           );
     final access = ref.watch(musicAccessProvider(channel));
     final track = item?.track;

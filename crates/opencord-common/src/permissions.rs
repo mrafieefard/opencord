@@ -18,6 +18,8 @@ bitflags::bitflags! {
         const CHANGE_NICKNAME = 1 << 12;
         const MANAGE_NICKNAMES = 1 << 13;
         const SEND_VOICE_MESSAGES = 1 << 14;
+        /// Install, configure and remove plugins (design 2026-11-07).
+        const MANAGE_PLUGINS = 1 << 15;
         const CONNECT = 1 << 16;
         const SPEAK = 1 << 17;
         /// Camera.
@@ -46,6 +48,8 @@ bitflags::bitflags! {
         const MUSIC_MANAGE = 1 << 31;
         /// Search every uploaded song, not only one's own.
         const MUSIC_ALL_LOCAL_SONGS = 1 << 32;
+        /// Start an activity in a call one is in (design 2026-11-07 §8.5).
+        const START_ACTIVITIES = 1 << 33;
         const ADMINISTRATOR = 1 << 63;
     }
 }
@@ -67,7 +71,8 @@ impl Permissions {
         .union(Self::USE_SOUNDBOARD)
         .union(Self::USE_EXTERNAL_SOUNDS)
         .union(Self::MUSIC_ADD)
-        .union(Self::MUSIC_CONTROL);
+        .union(Self::MUSIC_CONTROL)
+        .union(Self::START_ACTIVITIES);
 }
 
 /// A role as far as permission checks are concerned.
@@ -498,5 +503,17 @@ mod tests {
             Permissions::SEND_MESSAGES | Permissions::BAN_MEMBERS
         ));
         assert!(can_grant(Permissions::ADMINISTRATOR, Permissions::all()));
+    }
+
+    #[test]
+    fn manage_plugins_is_bit_15() {
+        assert_eq!(Permissions::MANAGE_PLUGINS.bits(), 1 << 15);
+    }
+
+    #[test]
+    fn start_activities_is_bit_33_and_on_for_everyone() {
+        // Fails if the bit moves or leaves the default.
+        assert_eq!(Permissions::START_ACTIVITIES.bits(), 1 << 33);
+        assert!(Permissions::DEFAULT_EVERYONE.contains(Permissions::START_ACTIVITIES));
     }
 }

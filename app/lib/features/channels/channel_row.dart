@@ -62,47 +62,89 @@ class ChannelRow extends ConsumerWidget {
     );
     final selected = ref.watch(currentChannelProvider) == channel.id;
     final permissions = data.permissionsIn(channel.id);
+    final isPlugin = channel.kind == ChannelKind.plugin;
+    final unavailableReason = cannotOpenReason(channel);
+    final unavailable = unavailableReason != null;
+
+    final channelType = isPlugin
+        ? data.pluginChannelTypes
+              .where(
+                (t) =>
+                    t.pluginId == channel.pluginId &&
+                    t.typeKey == channel.typeKey,
+              )
+              .firstOrNull
+        : null;
+    final iconPath = channelType?.icon ?? '';
+    final iconFile = iconPath.isNotEmpty
+        ? ref
+              .watch(
+                pluginAssetFileProvider(
+                  PluginAssetRef(
+                    serverKey: serverKey,
+                    pluginId: channel.pluginId ?? '',
+                    path: iconPath,
+                  ),
+                ),
+              )
+              .value
+        : null;
+
     final last = activity.last;
     final now = ref.watch(clockProvider)();
     String preview() {
+      if (isPlugin) {
+        if (channel.topic case final topic? when topic.isNotEmpty) return topic;
+        return channelType?.description ?? '';
+      }
       if (last == null) return 'No messages yet';
       final author = last.authorId == data.self.id
           ? 'You'
-          : data.members[last.authorId]?.displayName ?? 'Someone';
+          : data.authorOf(last.authorId).name;
       return switch (last.systemEvent) {
         SystemEvent.memberJoined => '$author joined the server',
         SystemEvent.channelCreated => '$author created the channel',
         SystemEvent.messagePinned => '$author pinned a message',
         null =>
-          '$author: ${previewText(messageSummary(last), user: (id) => data.members[id]?.displayName, channel: (id) => data.channels[id]?.name)}',
+          '$author: ${previewText(messageSummary(last), user: (id) => data.authorOf(id).name, channel: (id) => data.channels[id]?.name)}',
       };
     }
 
+    final locked = isPlugin
+        ? !permissions.has(Permissions.viewChannel) ||
+              isPrivate(channel, data.info.everyoneRoleId)
+        : !permissions.has(Permissions.sendMessages) ||
+              isPrivate(channel, data.info.everyoneRoleId) ||
+              isReadOnly(channel, data.info.everyoneRoleId);
+
     return Hoverable(
-      onTap: () => ref
-          .read(navigationProvider.notifier)
-          .openChannel(serverKey, channel.id),
+      onTap: () => openChannelWithToast(context, ref, serverKey, channel.id),
       onSecondaryTap: (position) => _showMenu(context, ref, position, muted),
-      semanticLabel: '${channel.name}, ${activity.read.unread} unread',
+      semanticLabel: isPlugin
+          ? channel.name
+          : '${channel.name}, ${activity.read.unread} unread',
       selected: selected,
       cursor: SystemMouseCursors.basic,
-      builder: (context, state) => ChannelRowView(
-        kind: channel.kind,
-        name: channel.name,
-        time: last == null ? null : rowTime(last.createdAt, now),
-        preview: preview(),
-        unread: activity.read.unread,
-        mentions: activity.read.mentions,
-        muted: muted,
-        // The lock describes the channel, not only what this user may do
-        // there (§4.2): private, read-only for most, or read-only for them.
-        locked:
-            !permissions.has(Permissions.sendMessages) ||
-            isPrivate(channel, data.info.everyoneRoleId) ||
-            isReadOnly(channel, data.info.everyoneRoleId),
-        selected: selected,
-        hovered: state.active,
-      ),
+      builder: (context, state) {
+        final rowView = ChannelRowView(
+          kind: channel.kind,
+          name: channel.name,
+          time: isPlugin || last == null ? null : rowTime(last.createdAt, now),
+          preview: preview(),
+          unread: isPlugin ? 0 : activity.read.unread,
+          mentions: isPlugin ? 0 : activity.read.mentions,
+          muted: muted,
+          locked: locked,
+          selected: selected,
+          hovered: state.active,
+          unavailable: unavailable,
+          iconFile: iconFile,
+        );
+        if (unavailableReason != null) {
+          return Tooltip(message: unavailableReason, child: rowView);
+        }
+        return rowView;
+      },
     );
   }
 
@@ -114,24 +156,27 @@ class ChannelRow extends ConsumerWidget {
   ) {
     final data = ref.read(serverProvider(serverKey)).data;
     final manage = data?.can(Permissions.manageChannels) ?? false;
+    final isPlugin = channel.kind == ChannelKind.plugin;
     return showOcMenu(
       context: context,
       position: position,
       entries: [
-        OcMenuItem(
-          label: 'Mark as read',
-          icon: OcIcons.markChatRead,
-          onSelected: () => ref
-              .read(activityProvider(serverKey).notifier)
-              .markRead(channel.id),
-        ),
-        OcMenuItem(
-          label: muted ? 'Unmute channel' : 'Mute channel',
-          icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,
-          onSelected: () => ref
-              .read(notificationPrefsProvider.notifier)
-              .toggleChannel(serverKey, channel.id),
-        ),
+        if (!isPlugin) ...[
+          OcMenuItem(
+            label: 'Mark as read',
+            icon: OcIcons.markChatRead,
+            onSelected: () => ref
+                .read(activityProvider(serverKey).notifier)
+                .markRead(channel.id),
+          ),
+          OcMenuItem(
+            label: muted ? 'Unmute channel' : 'Mute channel',
+            icon: muted ? OcIcons.notifications : OcIcons.notificationsOff,
+            onSelected: () => ref
+                .read(notificationPrefsProvider.notifier)
+                .toggleChannel(serverKey, channel.id),
+          ),
+        ],
         OcMenuItem(
           label: 'Copy link',
           icon: OcIcons.link,
@@ -214,6 +259,8 @@ class ChannelRowView extends StatelessWidget {
     this.locked = false,
     this.selected = false,
     this.hovered = false,
+    this.unavailable = false,
+    this.iconFile,
   });
 
   final ChannelKind kind;
@@ -226,6 +273,8 @@ class ChannelRowView extends StatelessWidget {
   final bool locked;
   final bool selected;
   final bool hovered;
+  final bool unavailable;
+  final String? iconFile;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +284,7 @@ class ChannelRowView extends StatelessWidget {
         : hovered
         ? colors.hover
         : colors.sidebar;
-    final strong = unread > 0 || selected;
+    final strong = !unavailable && (unread > 0 || selected);
     return AnimatedContainer(
       duration: OcMotion.of(context).hover,
       height: 56,
@@ -252,6 +301,8 @@ class ChannelRowView extends StatelessWidget {
             selected: selected,
             locked: locked,
             ringColor: background,
+            iconFile: iconFile,
+            unavailable: unavailable,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -269,7 +320,11 @@ class ChannelRowView extends StatelessWidget {
                           fontWeight: strong
                               ? FontWeight.w600
                               : FontWeight.w500,
-                          color: strong ? colors.text : colors.textSecondary,
+                          color: unavailable
+                              ? colors.textMuted
+                              : strong
+                              ? colors.text
+                              : colors.textSecondary,
                         ),
                       ),
                     ),

@@ -171,11 +171,14 @@ function finishReady(snapshot: ServerSnapshot, count: number, activity: Awaited<
     const voice = Object.fromEntries(
       snapshot.voiceStates.filter((voiceState) => voiceState.channelId !== undefined).map((voiceState) => [voiceState.userId, voiceState]),
     );
+    const pluginUsers = Object.fromEntries(
+      (snapshot.pluginUsers ?? []).map((u) => [u.userId, u]),
+    );
     const ready: AppState = {
       ...state,
       servers: {
         ...state.servers,
-        [serverKey]: { ...current, snapshot, activity, voice, typing: {}, seeding: false, held: [] },
+        [serverKey]: { ...current, snapshot, activity, voice, typing: {}, pluginUsers, seeding: false, held: [] },
       },
     };
     return applyEvents(ready, current.held, Date.now());

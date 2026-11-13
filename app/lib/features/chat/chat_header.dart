@@ -201,11 +201,11 @@ class _Title extends ConsumerWidget {
     final typing = ref.watch(
       typingProvider(channel.server).select((t) => t.users(channel.channel)),
     );
-    final members = ref.watch(
-      serverProvider(channel.server).select((state) => state.data?.members),
+    final serverData = ref.watch(
+      serverProvider(channel.server).select((state) => state.data),
     );
-    final names = [
-      for (final id in typing) members?[id]?.displayName ?? 'Someone',
+    final names = <String>[
+      for (final id in typing) serverData?.authorOf(id).name ?? 'Someone',
     ];
     final audience = ref.watch(channelAudienceProvider(channel));
     // Voice channels count who is in them instead (§4.10).

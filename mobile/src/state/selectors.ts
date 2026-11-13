@@ -37,7 +37,9 @@ import {
 
 export function memberName(snapshot: ServerSnapshot | null, userId: string): string | undefined {
   const member = snapshot?.members.find((candidate) => candidate.user.id === userId);
-  return member ? (member.nickname ?? member.user.displayName) : undefined;
+  if (member) return member.nickname ?? member.user.displayName;
+  const pluginUser = snapshot?.pluginUsers?.find((candidate) => candidate.userId === userId);
+  return pluginUser?.name;
 }
 
 function channelName(snapshot: ServerSnapshot | null, channelId: string): string | undefined {
@@ -239,9 +241,25 @@ export function useMember(serverKey: string, userId: string) {
   const server = useServer(serverKey);
   return useMemo(() => {
     const member = server?.snapshot?.members.find((candidate) => candidate.user.id === userId);
-    return member
-      ? { userId, name: member.nickname ?? member.user.displayName, avatarHash: member.user.avatarHash }
-      : null;
+    if (member) {
+      return {
+        userId,
+        name: member.nickname ?? member.user.displayName,
+        avatarHash: member.user.avatarHash,
+        isPlugin: false,
+      };
+    }
+    const pluginUser =
+      server?.pluginUsers?.[userId] ?? server?.snapshot?.pluginUsers?.find((candidate) => candidate.userId === userId);
+    if (pluginUser) {
+      return {
+        userId,
+        name: pluginUser.name,
+        avatarHash: pluginUser.avatarHash,
+        isPlugin: true,
+      };
+    }
+    return null;
   }, [server, userId]);
 }
 

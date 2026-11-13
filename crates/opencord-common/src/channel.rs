@@ -4,6 +4,9 @@ pub enum ChannelKind {
     /// Shown in Phase 1 but not joinable yet.
     Voice,
     Category,
+    /// Drawn by a plugin's view; holds no messages or voice (design
+    /// 2026-11-07 §14.2).
+    Plugin,
 }
 
 impl ChannelKind {
@@ -13,6 +16,7 @@ impl ChannelKind {
             Self::Text => "text",
             Self::Voice => "voice",
             Self::Category => "category",
+            Self::Plugin => "plugin",
         }
     }
 
@@ -21,6 +25,7 @@ impl ChannelKind {
             "text" => Some(Self::Text),
             "voice" => Some(Self::Voice),
             "category" => Some(Self::Category),
+            "plugin" => Some(Self::Plugin),
             _ => None,
         }
     }
@@ -32,7 +37,12 @@ mod tests {
 
     #[test]
     fn names_round_trip() {
-        for kind in [ChannelKind::Text, ChannelKind::Voice, ChannelKind::Category] {
+        for kind in [
+            ChannelKind::Text,
+            ChannelKind::Voice,
+            ChannelKind::Category,
+            ChannelKind::Plugin,
+        ] {
             assert_eq!(ChannelKind::parse(kind.as_str()), Some(kind));
         }
         assert_eq!(ChannelKind::parse("forum"), None);

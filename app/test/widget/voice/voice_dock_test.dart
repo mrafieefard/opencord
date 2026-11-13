@@ -78,8 +78,11 @@ void main() {
       moreOrLessEquals(15.0, epsilon: 1.0),
     );
 
-    // With the chat button its width is 517.7 within 2.
-    expect((dockBox.width - 517.7).abs(), lessThanOrEqualTo(2.0));
+    // With the chat button its width is 517.7 within 2, plus 58 (a gap of
+    // 10 and a 48 button) for the Activities button the mock world's
+    // registered activity shows (plugins M3).
+    expect(_control('Activities'), findsOneWidget);
+    expect((dockBox.width - (517.7 + 58)).abs(), lessThanOrEqualTo(2.0));
 
     // Round buttons are 48x48.
     final muteBtn = tester.getRect(_control('Mute'));

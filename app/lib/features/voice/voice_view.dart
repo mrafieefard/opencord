@@ -9,6 +9,7 @@ import 'package:opencord/core/model/video.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
 import 'package:opencord/features/members/member_actions.dart';
+import 'package:opencord/features/plugins/activity_tile.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/music/music_stage.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
@@ -139,11 +140,10 @@ class _StageState extends ConsumerState<_Stage> {
       serverProvider(channel.server).select((state) => state.data?.self.id),
     );
     final pixels = MediaQuery.devicePixelRatioOf(context);
-    final members =
-        ref.watch(
-          serverProvider(channel.server).select((state) => state.data?.members),
-        ) ??
-        const <int, Member>{};
+    final serverData = ref.watch(
+      serverProvider(channel.server).select((state) => state.data),
+    );
+    final members = serverData?.members ?? const <int, Member>{};
     final speaking = ref.watch(speakingProvider(channel.server));
     final sounds = ref.watch(soundPlaysProvider(channel.server));
     final call = ref.watch(callUserAudioProvider);
@@ -161,7 +161,18 @@ class _StageState extends ConsumerState<_Stage> {
     final videoOnly = ref.watch(
       voiceViewPrefsProvider.select((prefs) => prefs.hideNonVideo),
     );
-    final tiles = voiceTiles(participants, videoOnly: videoOnly);
+    // The call's activity sessions (plugins M3, §15.2), each a tile after
+    // the people.
+    final sessions = {
+      for (final session
+          in ref.watch(activitySessionsProvider(channel.server)).values)
+        if (session.channelId == channel.channel) session.id: session,
+    };
+    final tiles = voiceTiles(
+      participants,
+      videoOnly: videoOnly,
+      sessions: sessions.values,
+    );
     final focused = switch (ref.watch(focus)) {
       final tile? when tiles.contains(tile) => tile,
       _ => null,
@@ -184,6 +195,21 @@ class _StageState extends ConsumerState<_Stage> {
     // What moves the tiles, not a resize or a pane on its way.
     final generation = '${tiles.join(',')}|$focused|${music != null}';
     Widget tile(VoiceTileId id, Size size, {bool small = false}) {
+      if (sessions[id.session] case final session?) {
+        return FlipBox(
+          key: _tileKeys.putIfAbsent(id, GlobalKey.new),
+          generation: generation,
+          arriveDelay: FlipBox.stagger(tiles.indexOf(id)),
+          child: ActivityTile(
+            key: ValueKey(id),
+            serverKey: channel.server,
+            session: session,
+            focused: id == focused,
+            small: small,
+            onFocus: () => ref.read(focus.notifier).toggle(id),
+          ),
+        );
+      }
       final participant = byUser[id.userId];
       final own = id.userId == self;
       final stream = id.screen && !own
@@ -197,9 +223,13 @@ class _StageState extends ConsumerState<_Stage> {
           : null;
       final watched = stream != null && watching.contains(stream.key);
       final video = switch (id) {
-        (screen: false, :final userId) => feeds.of(userId, self: self),
+        (screen: false, :final userId, session: _) => feeds.of(
+          userId,
+          self: self,
+        ),
         _ when own => ownShare?.preview,
-        (screen: true, :final userId) when watched => feeds.screens[userId],
+        (screen: true, :final userId, session: _) when watched =>
+          feeds.screens[userId],
         _ => null,
       };
       if (video != null) {
@@ -211,6 +241,7 @@ class _StageState extends ConsumerState<_Stage> {
           ),
         );
       }
+      final author = serverData?.authorOf(id.userId);
       return FlipBox(
         key: _tileKeys.putIfAbsent(id, GlobalKey.new),
         generation: generation,
@@ -218,12 +249,8 @@ class _StageState extends ConsumerState<_Stage> {
         child: VoiceTileView(
           key: ValueKey(id),
           userId: id.userId,
-          name: members[id.userId]?.displayName ?? 'Someone',
-          picture: avatarImage(
-            ref,
-            widget.channel.server,
-            members[id.userId]?.user.avatarHash,
-          ),
+          name: author?.name ?? 'Someone',
+          picture: avatarImage(ref, widget.channel.server, author?.avatarHash),
           screen: id.screen,
           muted:
               participant != null &&
@@ -292,7 +319,7 @@ class _StageState extends ConsumerState<_Stage> {
                 }
               : null,
           viewers: id.screen && own && ownShare != null ? viewers.length : null,
-          onViewers: () => _showViewers(context, viewers, members),
+          onViewers: () => _showViewers(context, viewers, serverData),
         ),
       );
     }
@@ -321,7 +348,7 @@ class _StageState extends ConsumerState<_Stage> {
   void _showViewers(
     BuildContext context,
     List<int> viewers,
-    Map<int, Member> members,
+    ServerData? serverData,
   ) {
     final colors = context.oc;
     showPopover<void>(
@@ -345,13 +372,13 @@ class _StageState extends ConsumerState<_Stage> {
                           MemberAvatar(
                             serverKey: widget.channel.server,
                             userId: id,
-                            name: members[id]?.displayName ?? 'Someone',
+                            name: serverData?.authorOf(id).name ?? 'Someone',
                             size: 24,
                           ),
                           const SizedBox(width: OcSpace.s8),
                           Expanded(
                             child: Text(
-                              members[id]?.displayName ?? 'Someone',
+                              serverData?.authorOf(id).name ?? 'Someone',
                               overflow: TextOverflow.ellipsis,
                               style: OcText.body.copyWith(color: colors.text),
                             ),

@@ -146,6 +146,16 @@ pub struct ServerSnapshot {
     pub soundboard_sounds: Vec<SoundboardSoundRecord>,
     /// The longest voice message this server takes.
     pub voice_message_max_seconds: u32,
+    pub plugin_users: Vec<PluginUserRecord>,
+    pub commands: CommandListRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginUserRecord {
+    pub user_id: String,
+    pub plugin_id: String,
+    pub name: String,
+    pub avatar_hash: Option<String>,
 }
 
 /// The server's soundboard settings (Phase 2 plan §11.2), from its voice
@@ -217,8 +227,102 @@ pub struct MessageRecord {
     /// The sender's nonce, on the echo of this device's own send.
     pub nonce: Option<String>,
     /// The command that made this message, for command replies.
-    pub command: Option<String>,
+    pub interaction: Option<MessageInteractionRecord>,
     pub attachments: Vec<AttachmentRecord>,
+}
+
+/// Who ran the command a message answers, and where its reply stands.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct MessageInteractionRecord {
+    pub user_id: String,
+    pub command: String,
+    pub state: CommandRunStateRecord,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum CommandRunStateRecord {
+    Answered,
+    /// The plugin asked for more time; the reply will replace this.
+    Thinking,
+    /// It never came.
+    NoAnswer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum CommandOptionKindRecord {
+    Text,
+    Integer,
+    Boolean,
+    Choice,
+    User,
+    Channel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CommandChoiceRecord {
+    pub name: String,
+    pub value: String,
+    /// A track's artwork, for `/play`; empty otherwise.
+    pub artwork_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CommandOptionRecord {
+    pub name: String,
+    pub description: String,
+    pub kind: CommandOptionKindRecord,
+    pub required: bool,
+    pub autocomplete: bool,
+    pub choices: Vec<CommandChoiceRecord>,
+    /// For integers; both 0 for no bounds.
+    pub min: f64,
+    pub max: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CommandRecord {
+    pub name: String,
+    pub description: String,
+    pub options: Vec<CommandOptionRecord>,
+    /// "music", or `plugin:<id>`.
+    pub feature: String,
+    /// Empty for Opencord's commands, `plugin:<id>` for a plugin's.
+    pub source: String,
+    pub permission_summary: String,
+    pub aliases: Vec<String>,
+    /// Which music permissions it needs, as `ChannelAccess` names them.
+    pub needs: Vec<String>,
+    pub enabled: bool,
+    /// Empty: every channel.
+    pub channel_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CommandListRecord {
+    pub commands: Vec<CommandRecord>,
+    pub results_public: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CommandOptionValueRecord {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CommandOutcomeRecord {
+    pub message_id: Option<String>,
+    pub ephemeral: bool,
+}
+
+/// A reply only this device sees. A later one with the same nonce replaces
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct EphemeralNoteRecord {
+    pub channel_id: String,
+    pub nonce: String,
+    pub content: String,
+    pub state: CommandRunStateRecord,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]

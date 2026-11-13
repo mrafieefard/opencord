@@ -3,11 +3,13 @@ import type {
   ChannelAccess,
   ChannelRecord,
   ConnectionRecord,
+  EphemeralNoteRecord,
   MessageRecord,
   MobileEvent,
   MusicNowPlayingRecord,
   MusicSessionRecord,
   MusicSettingsRecord,
+  PluginUserRecord,
   ServerEntry,
   ServerSnapshot,
   UploadPhaseRecord,
@@ -44,6 +46,15 @@ export interface ServerState {
   voice: Record<string, VoiceStateRecord>;
   nowPlaying: Record<string, MusicNowPlayingRecord>;
   musicSettings: MusicSettingsRecord | null;
+  /** Plugin users by user id. */
+  pluginUsers?: Record<string, PluginUserRecord>;
+  /** Replies only this device sees, by channel; never stored. */
+  ephemeral?: Record<string, EphemeralNote[]>;
+}
+
+export interface EphemeralNote extends EphemeralNoteRecord {
+  /** What the server refused, or a failed request. */
+  error?: boolean;
 }
 
 export interface PickedFile {

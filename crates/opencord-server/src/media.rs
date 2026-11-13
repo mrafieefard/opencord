@@ -281,12 +281,19 @@ pub(crate) fn reply_error(error: &ApiError) -> Response {
         Code::Forbidden => StatusCode::FORBIDDEN,
         Code::NotFound => StatusCode::NOT_FOUND,
         Code::RateLimited => StatusCode::TOO_MANY_REQUESTS,
-        Code::SoundboardFull | Code::Conflict | Code::UploadOffsetMismatch => StatusCode::CONFLICT,
+        Code::SoundboardFull
+        | Code::Conflict
+        | Code::UploadOffsetMismatch
+        | Code::PluginNotSameAuthor
+        | Code::PluginLimit => StatusCode::CONFLICT,
         Code::SoundTooLong
         | Code::SoundInvalid
         | Code::InvalidArgument
         | Code::VoiceMessageInvalid
-        | Code::VoiceMessageTooLong => StatusCode::BAD_REQUEST,
+        | Code::VoiceMessageTooLong
+        | Code::PluginPackageInvalid
+        | Code::PluginSignatureInvalid => StatusCode::BAD_REQUEST,
+        Code::PluginUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         Code::FileTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
         Code::FileTypeBlocked => StatusCode::UNSUPPORTED_MEDIA_TYPE,
         Code::StorageUnavailable => StatusCode::SERVICE_UNAVAILABLE,

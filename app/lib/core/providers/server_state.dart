@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:opencord/core/model/author.dart';
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/private.dart';
 import 'package:opencord/core/model/attachment.dart';
 import 'package:opencord/core/model/channel.dart';
@@ -31,6 +33,9 @@ class ServerData {
     this.uploadSettings = UploadSettings.fallback,
     this.privateMessages = false,
     this.privateSettings = const ServerPrivateSettings(),
+    this.pluginUsers = const {},
+    this.pluginChannelTypes = const [],
+    this.pluginActivities = const [],
   });
 
   factory ServerData.fromSnapshot(ReadySnapshot snapshot) => ServerData(
@@ -48,6 +53,9 @@ class ServerData {
     uploadSettings: snapshot.uploadSettings,
     privateMessages: snapshot.privateMessages,
     privateSettings: snapshot.privateSettings,
+    pluginUsers: {for (final u in snapshot.pluginUsers) u.userId: u},
+    pluginChannelTypes: snapshot.pluginChannelTypes,
+    pluginActivities: snapshot.pluginActivities,
   );
 
   final User self;
@@ -57,6 +65,11 @@ class ServerData {
   final Map<int, Member> members;
   final Permissions serverPermissions;
   final Map<int, Permissions> channelPermissions;
+  final Map<int, PluginUser> pluginUsers;
+  final List<PluginChannelType> pluginChannelTypes;
+
+  /// The activities running plugins register (plugins M3).
+  final List<PluginActivity> pluginActivities;
 
   /// Whether the server has voice at all.
   final bool voiceEnabled;
@@ -135,6 +148,42 @@ class ServerData {
     ],
   );
 
+  /// One resolver for an author or player: a member, else a plugin user
+  /// (with its Plugin badge), else "Someone".
+  Author authorOf(int userId) {
+    if (members[userId] case final member?) {
+      final highest = highestRole(member);
+      final roleName = highest == null || highest.id == info.everyoneRoleId
+          ? null
+          : highest.name;
+      return Author(
+        name: member.displayName,
+        avatarHash: member.user.avatarHash,
+        role: roleName,
+        isPlugin: false,
+      );
+    }
+    if (userId == self.id) {
+      return Author(
+        name: self.displayName,
+        avatarHash: self.avatarHash,
+        role: null,
+        isPlugin: false,
+      );
+    }
+    if (pluginUsers[userId] case final pluginUser?) {
+      return Author(
+        name: pluginUser.name,
+        avatarHash: pluginUser.avatarHash.isEmpty
+            ? null
+            : pluginUser.avatarHash,
+        role: null,
+        isPlugin: true,
+      );
+    }
+    return const Author(name: 'Someone');
+  }
+
   ServerData copyWith({
     ServerInfo? info,
     Map<int, Channel>? channels,
@@ -148,6 +197,9 @@ class ServerData {
     UploadSettings? uploadSettings,
     bool? privateMessages,
     ServerPrivateSettings? privateSettings,
+    Map<int, PluginUser>? pluginUsers,
+    List<PluginChannelType>? pluginChannelTypes,
+    List<PluginActivity>? pluginActivities,
   }) => ServerData(
     self: self,
     info: info ?? this.info,
@@ -163,6 +215,9 @@ class ServerData {
     uploadSettings: uploadSettings ?? this.uploadSettings,
     privateMessages: privateMessages ?? this.privateMessages,
     privateSettings: privateSettings ?? this.privateSettings,
+    pluginUsers: pluginUsers ?? this.pluginUsers,
+    pluginChannelTypes: pluginChannelTypes ?? this.pluginChannelTypes,
+    pluginActivities: pluginActivities ?? this.pluginActivities,
   );
 }
 
@@ -262,6 +317,29 @@ ServerState reduceServer(ServerState state, RepoEvent event) {
     PrivateSettingsEvent(:final settings) => data.copyWith(
       privateMessages: settings.enabled,
       privateSettings: settings,
+    ),
+    PluginUsersUpdated(:final users) => data.copyWith(
+      pluginUsers: {for (final u in users) u.userId: u},
+    ),
+    PluginChannelTypesUpdated(:final channelTypes) => data.copyWith(
+      pluginChannelTypes: channelTypes,
+    ),
+    PluginActivitiesUpdated(:final activities) => data.copyWith(
+      pluginActivities: activities,
+    ),
+    PluginRemoved(:final pluginId) => data.copyWith(
+      pluginUsers: {
+        for (final entry in data.pluginUsers.entries)
+          entry.key: entry.value.pluginId == pluginId
+              ? PluginUser(
+                  userId: entry.value.userId,
+                  pluginId: entry.value.pluginId,
+                  name: entry.value.name,
+                  avatarHash: entry.value.avatarHash,
+                  installed: false,
+                )
+              : entry.value,
+      },
     ),
     _ => null,
   };

@@ -125,5 +125,55 @@ void main() {
         matchesGoldenFile('goldens/channel_rows_$name.png'),
       );
     });
+
+    testWidgets('plugin channel row states ($name)', (tester) async {
+      await pumpThemed(
+        tester,
+        colors: colors,
+        background: (c) => c.sidebar,
+        surface: const Size(304, 5 * 58 + 8),
+        const Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Column(
+            children: [
+              ChannelRowView(
+                kind: ChannelKind.plugin,
+                name: 'tickets',
+                preview: 'Open and track support tickets',
+              ),
+              ChannelRowView(
+                kind: ChannelKind.plugin,
+                name: 'tickets-selected',
+                preview: 'Open and track support tickets',
+                selected: true,
+              ),
+              ChannelRowView(
+                kind: ChannelKind.plugin,
+                name: 'tickets-hovered',
+                preview: 'Open and track support tickets',
+                hovered: true,
+              ),
+              ChannelRowView(
+                kind: ChannelKind.plugin,
+                name: 'legacy-help',
+                preview: 'Archive of old support requests',
+                unavailable: true,
+              ),
+              ChannelRowView(
+                kind: ChannelKind.plugin,
+                name: 'defunct-channel',
+                preview: 'Legacy plugin channel',
+                unavailable: true,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/plugin_channel_rows_$name.png'),
+      );
+    });
   }
 }

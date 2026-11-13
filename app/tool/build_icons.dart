@@ -72,6 +72,7 @@ const icons = <String, String>{
   'error': 'error',
   'expandLess': 'expand_less',
   'expandMore': 'expand_more',
+  'extension': 'extension',
   'fingerprint': 'fingerprint',
   'folder': 'folder',
   'folderZip': 'folder_zip',

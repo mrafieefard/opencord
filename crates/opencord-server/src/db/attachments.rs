@@ -2,6 +2,9 @@ use sqlx::SqliteConnection;
 
 const HOUR_MS: i64 = 3_600_000;
 const DAY_MS: i64 = 24 * HOUR_MS;
+/// How long a finished upload for a plugin view (channel id 0) waits for
+/// its plugin to keep it (plan M2 Task 12). Other ready uploads wait a day.
+pub const VIEW_UPLOAD_KEPT_MS: i64 = HOUR_MS;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct AttachmentRow {
@@ -305,16 +308,22 @@ pub async fn count_unfinished(
     Ok(count)
 }
 
+/// Uploads nobody finished, sent or kept: still uploading or ready a day
+/// after their last change, failed for an hour, and ready view uploads an
+/// hour after they finished ([`VIEW_UPLOAD_KEPT_MS`]).
 pub async fn expired(conn: &mut SqliteConnection, now: i64) -> Result<Vec<i64>, sqlx::Error> {
     let day_ago = now - DAY_MS;
     let hour_ago = now - HOUR_MS;
+    let view_upload_ago = now - VIEW_UPLOAD_KEPT_MS;
     let ids = sqlx::query_scalar!(
         "SELECT id FROM attachments
          WHERE (state = 'uploading' AND updated_at < $1)
             OR (state = 'ready' AND updated_at < $1)
-            OR (state = 'failed' AND updated_at < $2)",
+            OR (state = 'failed' AND updated_at < $2)
+            OR (state = 'ready' AND channel_id = 0 AND updated_at < $3)",
         day_ago,
-        hour_ago
+        hour_ago,
+        view_upload_ago
     )
     .fetch_all(conn)
     .await?;

@@ -1,0 +1,33 @@
+{
+  "before": {
+    "block": "column",
+    "props": { "gap": 8, "padding": { "top": 4, "right": 4, "bottom": 4, "left": 4 } },
+    "events": [],
+    "children": [
+      { "block": "text", "key": "a", "props": { "text": "A" }, "events": [], "children": [] },
+      { "block": "button", "props": { "text": "Go" }, "events": ["press"], "children": [] },
+      {
+        "block": "canvas",
+        "props": { "items": [{ "id": "p", "kind": "rect", "x": 1 }] },
+        "events": [],
+        "children": []
+      }
+    ]
+  },
+  "after": {
+    "block": "column",
+    "props": { "gap": 8, "padding": { "top": 4, "right": 4, "bottom": 4, "left": 4 } },
+    "events": [],
+    "children": [
+      { "block": "text", "key": "a", "props": { "text": "A" }, "events": [], "children": [] },
+      { "block": "button", "props": { "text": "Go" }, "events": ["press"], "children": [] },
+      {
+        "block": "canvas",
+        "props": { "items": [{ "id": "p", "kind": "rect", "x": 1 }] },
+        "events": [],
+        "children": []
+      }
+    ]
+  },
+  "ops": []
+}

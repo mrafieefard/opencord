@@ -19,6 +19,7 @@ extension type const Permissions(int bits) {
   static const changeNickname = Permissions(1 << 12);
   static const manageNicknames = Permissions(1 << 13);
   static const sendVoiceMessages = Permissions(1 << 14);
+  static const managePlugins = Permissions(1 << 15);
   static const connect = Permissions(1 << 16);
   static const speak = Permissions(1 << 17);
   static const video = Permissions(1 << 18);
@@ -52,6 +53,9 @@ extension type const Permissions(int bits) {
 
   /// Search every uploaded song, not only one's own.
   static const musicAllLocalSongs = Permissions(1 << 32);
+
+  /// Start a plugin's activity in a voice call one is in (plugins M3).
+  static const startActivities = Permissions(1 << 33);
   static const administrator = Permissions(1 << 63);
 
   /// Every defined bit.
@@ -71,6 +75,7 @@ extension type const Permissions(int bits) {
         (1 << 12) |
         (1 << 13) |
         (1 << 14) |
+        (1 << 15) |
         (1 << 16) |
         (1 << 17) |
         (1 << 18) |
@@ -88,6 +93,7 @@ extension type const Permissions(int bits) {
         (1 << 30) |
         (1 << 31) |
         (1 << 32) |
+        (1 << 33) |
         (1 << 63),
   );
 
@@ -108,7 +114,8 @@ extension type const Permissions(int bits) {
         (1 << 25) |
         (1 << 26) |
         (1 << 28) |
-        (1 << 29),
+        (1 << 29) |
+        (1 << 33),
   );
 
   bool has(Permissions other) => bits & other.bits == other.bits;

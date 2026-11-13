@@ -1,0 +1,433 @@
+// SPDX-License-Identifier: MPL-2.0
+syntax = "proto3";
+
+package opencord.v1;
+
+// Plugins (design 2026-11-07).
+
+enum PluginState {
+  PLUGIN_STATE_UNSPECIFIED = 0;
+  PLUGIN_STATE_STARTING = 1;
+  PLUGIN_STATE_RUNNING = 2;
+  // Turned off by an admin.
+  PLUGIN_STATE_STOPPED = 3;
+  // Turned off after failing again and again; `status_reason` says why.
+  PLUGIN_STATE_CRASHED = 4;
+}
+
+enum PluginSignature {
+  PLUGIN_SIGNATURE_UNSPECIFIED = 0;
+  PLUGIN_SIGNATURE_UNSIGNED = 1;
+  PLUGIN_SIGNATURE_SIGNED = 2;
+  // Pushed by dev mode.
+  PLUGIN_SIGNATURE_DEV = 3;
+}
+
+enum GithubCheck {
+  // No GitHub link, or not signed.
+  GITHUB_CHECK_UNSPECIFIED = 0;
+  GITHUB_CHECK_VERIFIED = 1;
+  // The repository publishes another key, or none.
+  GITHUB_CHECK_MISMATCH = 2;
+  // GitHub couldn't be reached.
+  GITHUB_CHECK_FAILED = 3;
+}
+
+enum PluginConfigKind {
+  PLUGIN_CONFIG_KIND_UNSPECIFIED = 0;
+  PLUGIN_CONFIG_KIND_TEXT = 1;
+  PLUGIN_CONFIG_KIND_SECRET = 2;
+  PLUGIN_CONFIG_KIND_NUMBER = 3;
+  PLUGIN_CONFIG_KIND_BOOLEAN = 4;
+  PLUGIN_CONFIG_KIND_CHOICE = 5;
+  PLUGIN_CONFIG_KIND_ROLE = 6;
+  PLUGIN_CONFIG_KIND_CHANNEL = 7;
+  PLUGIN_CONFIG_KIND_USER = 8;
+}
+
+message PluginConfigField {
+  string key = 1;
+  string label = 2;
+  PluginConfigKind kind = 3;
+  repeated string choices = 4;
+  bool required = 5;
+}
+
+// A config value as text: numbers and ids in decimal, booleans "true" or
+// "false". Secrets are never sent to apps: `value` is empty and
+// `has_value` says whether one is stored. Sending an empty secret keeps
+// the stored one.
+message PluginConfigValue {
+  string key = 1;
+  string value = 2;
+  bool has_value = 3;
+}
+
+message PluginPermissionGrant {
+  // "send_messages".
+  string name = 1;
+  bool granted = 2;
+  // Whether the member asking holds what granting it needs.
+  bool grantable = 3;
+}
+
+// The user behind a plugin's messages, plays and tracks.
+message PluginUser {
+  int64 user_id = 1;
+  string plugin_id = 2;
+  string name = 3;
+  // The plugin's icon as a profile picture; empty for none.
+  string avatar_hash = 4;
+  // False once the plugin is uninstalled: its old messages keep the name.
+  bool installed = 5;
+}
+
+message Plugin {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string author = 4;
+  string description = 5;
+  // Empty for none.
+  string github = 6;
+  string license = 7;
+  PluginSignature signature = 8;
+  // Empty when unsigned.
+  string key_fingerprint = 9;
+  GithubCheck github_check = 10;
+  PluginState state = 11;
+  string status_reason = 12;
+  repeated PluginPermissionGrant permissions = 13;
+  repeated string domains = 14;
+  repeated PluginConfigField config_fields = 15;
+  repeated PluginConfigValue config = 16;
+  int64 user_id = 17;
+  int64 role_id = 18;
+  int64 installed_at_ms = 19;
+  int64 updated_at_ms = 20;
+  // CPU time over the last 5 s, in thousandths of one core.
+  uint32 cpu_permille = 21;
+  uint64 memory_bytes = 22;
+  uint64 database_bytes = 23;
+  uint64 files_bytes = 24;
+}
+
+message Plugins {
+  repeated Plugin plugins = 1;
+}
+
+// What an uploaded zip would install (POST /plugins/packages), or what a
+// dev push waits for.
+message PluginReview {
+  string review_id = 1;
+  // As it would be once installed; permissions start granted where the
+  // member asking may grant them.
+  Plugin plugin = 2;
+  // The version it replaces, for an update.
+  optional Plugin installed = 3;
+  // Permissions the installed version didn't ask for.
+  repeated string new_permissions = 4;
+  bool license_needs_acceptance = 5;
+  int64 expires_at_ms = 6;
+  // Set for a dev push.
+  bool dev = 7;
+}
+
+message PluginReviews {
+  repeated PluginReview reviews = 1;
+}
+
+enum PluginLogLevel {
+  PLUGIN_LOG_LEVEL_UNSPECIFIED = 0;
+  PLUGIN_LOG_LEVEL_INFO = 1;
+  PLUGIN_LOG_LEVEL_WARN = 2;
+  PLUGIN_LOG_LEVEL_ERROR = 3;
+  // Something the plugin did: "deleted message 123 in #general".
+  PLUGIN_LOG_LEVEL_ACTION = 4;
+}
+
+message PluginLogLine {
+  uint64 seq = 1;
+  int64 at_ms = 2;
+  PluginLogLevel level = 3;
+  string text = 4;
+}
+
+// Oldest first.
+message PluginLog {
+  repeated PluginLogLine lines = 1;
+}
+
+message PluginDevToken {
+  int64 id = 1;
+  string plugin_id = 2;
+  int64 created_by = 3;
+  int64 created_at_ms = 4;
+  int64 expires_at_ms = 5;
+  optional int64 last_used_at_ms = 6;
+}
+
+message PluginDevTokens {
+  repeated PluginDevToken tokens = 1;
+}
+
+message CreatedPluginDevToken {
+  PluginDevToken token = 1;
+  // Shown once.
+  string secret = 2;
+  // For `opencord-plugin dev --fingerprint`.
+  string server_fingerprint = 3;
+}
+
+// Requests. All need MANAGE_PLUGINS.
+message FetchPlugins {}
+message FetchPluginReviews {}
+message ConfirmPluginReview {
+  string review_id = 1;
+  repeated string granted = 2;
+  repeated PluginConfigValue config = 3;
+  bool accept_license = 4;
+}
+message DiscardPluginReview {
+  string review_id = 1;
+}
+message SetPluginPermissions {
+  string plugin_id = 1;
+  repeated string granted = 2;
+}
+message SetPluginConfig {
+  string plugin_id = 1;
+  repeated PluginConfigValue config = 2;
+}
+message SetPluginRunning {
+  string plugin_id = 1;
+  bool running = 2;
+}
+message RestartPlugin {
+  string plugin_id = 1;
+}
+message UninstallPlugin {
+  string plugin_id = 1;
+  bool delete_data = 2;
+}
+message FetchPluginLog {
+  string plugin_id = 1;
+  // Lines before this sequence number; none for the newest.
+  optional uint64 before = 2;
+  // 1–500; 0 means 200.
+  uint32 limit = 3;
+}
+message WatchPluginLog {
+  string plugin_id = 1;
+  bool watch = 2;
+}
+message CreatePluginDevToken {
+  string plugin_id = 1;
+  // 1–30; 0 means 7.
+  uint32 days = 2;
+}
+message RevokePluginDevToken {
+  int64 token_id = 1;
+}
+message FetchPluginDevTokens {}
+
+// Events. To members with MANAGE_PLUGINS, except where noted.
+message PluginUpdate {
+  Plugin plugin = 1;
+}
+message PluginRemove {
+  string plugin_id = 1;
+}
+message PluginReviewUpdate {
+  PluginReview review = 1;
+}
+message PluginReviewRemove {
+  string review_id = 1;
+}
+// To the sessions watching that plugin's log.
+message PluginLogAppend {
+  string plugin_id = 1;
+  repeated PluginLogLine lines = 2;
+}
+// To everyone: the whole list.
+message PluginUsersUpdate {
+  repeated PluginUser users = 1;
+}
+
+// A kind of custom channel a running plugin registered (§14.1).
+message PluginChannelType {
+  string plugin_id = 1;
+  // [a-z0-9_], 1 to 40.
+  string type_key = 2;
+  string name = 3;
+  string description = 4;
+  // A path under the plugin's assets/, or empty.
+  string icon = 5;
+  string plugin_name = 6;
+}
+
+// A file of a plugin's package a view may load: under client/ or assets/.
+message PluginFileRef {
+  string path = 1;
+  // Lowercase hex SHA-256.
+  string sha256 = 2;
+  uint64 size_bytes = 3;
+}
+
+// Where a view is open: a plugin channel, or an activity session in a call.
+message ViewPlace {
+  oneof kind {
+    int64 channel_id = 1;
+    int64 activity_session_id = 2;
+  }
+}
+
+// -> view_opened. VIEW_CHANNEL in an available plugin channel; the session
+// lists "plugin_channels"; at most 4 open views per session. For an activity
+// session: the caller is in its call, and the session lists "activities".
+message OpenView {
+  ViewPlace place = 1;
+  // "desktop" or "phone".
+  string platform = 2;
+}
+
+message ViewOpened {
+  int64 view_id = 1;
+  string plugin_id = 2;
+  // The manifest's api.
+  uint32 api = 3;
+  // The manifest's client entry, like "client/main.luau".
+  string entry = 4;
+  repeated PluginFileRef files = 5;
+  // Errors show their file, line and trace: the viewer manages plugins or
+  // holds a live dev token for this plugin.
+  bool show_errors = 6;
+}
+
+// -> ack. One's own view.
+message CloseView {
+  int64 view_id = 1;
+}
+
+// -> ack. 30 a second and 128 KiB a second per view; data at most 64 KiB.
+message SendViewEvent {
+  int64 view_id = 1;
+  // [a-z0-9_.:-], 1 to 64.
+  string name = 2;
+  string data_json = 3;
+}
+
+// -> ack. An error in a view's Lua, for the plugin's log: one per view
+// every 10 seconds, at most 2,000 characters.
+message ReportViewError {
+  int64 view_id = 1;
+  string text = 2;
+}
+
+// A server script's event to one view.
+message ViewMessage {
+  int64 view_id = 1;
+  string name = 2;
+  string data_json = 3;
+}
+
+enum ViewCloseReason {
+  VIEW_CLOSE_REASON_UNSPECIFIED = 0;
+  VIEW_CLOSE_REASON_PLUGIN_STOPPED = 1;
+  VIEW_CLOSE_REASON_LOST_ACCESS = 2;
+  VIEW_CLOSE_REASON_CHANNEL_DELETED = 3;
+  VIEW_CLOSE_REASON_UNAVAILABLE = 4;
+  VIEW_CLOSE_REASON_ACTIVITY_ENDED = 5;
+  VIEW_CLOSE_REASON_LEFT_CALL = 6;
+}
+
+// The server closed a view.
+message ViewClosed {
+  int64 view_id = 1;
+  ViewCloseReason reason = 2;
+}
+
+// A plugin's client files changed (an update or a dev push): open views
+// load them again, keeping their state (§11.6).
+message ViewScriptsUpdate {
+  string plugin_id = 1;
+  string entry = 2;
+  repeated PluginFileRef files = 3;
+}
+
+message PluginChannelTypesUpdate {
+  repeated PluginChannelType types = 1;
+}
+
+// An activity a running plugin registered (§15.1).
+message PluginActivity {
+  string plugin_id = 1;
+  // [a-z0-9_], 1 to 40.
+  string activity_key = 2;
+  string name = 3;
+  string description = 4;
+  // A path under the plugin's assets/, or empty.
+  string icon = 5;
+  string plugin_name = 6;
+}
+
+// One activity running in one call (§15.2).
+message ActivitySession {
+  int64 id = 1;
+  // The voice channel.
+  int64 channel_id = 2;
+  string plugin_id = 3;
+  string activity_key = 4;
+  // As registered when it started.
+  string name = 5;
+  string icon = 6;
+  string plugin_name = 7;
+  int64 starter_id = 8;
+  int64 started_at_ms = 9;
+  // Who has it open, by user id, ascending.
+  repeated int64 viewer_ids = 10;
+}
+
+// -> activity_session. The caller is in this voice channel and holds
+// START_ACTIVITIES there; the session lists "activities". An activity
+// already running in the call answers with its session. At most 4 in a call.
+message StartActivity {
+  int64 channel_id = 1;
+  string plugin_id = 2;
+  string activity_key = 3;
+}
+
+// -> ack. The starter, or MANAGE_CHANNELS in the session's channel.
+message EndActivity {
+  int64 session_id = 1;
+}
+
+enum ActivityEndReason {
+  ACTIVITY_END_REASON_UNSPECIFIED = 0;
+  // A member ended it.
+  ACTIVITY_END_REASON_ENDED = 1;
+  // The plugin ended it.
+  ACTIVITY_END_REASON_PLUGIN = 2;
+  ACTIVITY_END_REASON_CALL_EMPTY = 3;
+  ACTIVITY_END_REASON_PLUGIN_STOPPED = 4;
+  // The plugin runs without the activity.
+  ACTIVITY_END_REASON_UNAVAILABLE = 5;
+}
+
+// To sessions that list "activities": the whole list.
+message PluginActivitiesUpdate {
+  repeated PluginActivity activities = 1;
+}
+
+// To sessions that list "activities" and can see the session's channel.
+message ActivitySessionCreate {
+  ActivitySession session = 1;
+}
+message ActivitySessionUpdate {
+  ActivitySession session = 1;
+}
+message ActivitySessionDelete {
+  int64 session_id = 1;
+  int64 channel_id = 2;
+  ActivityEndReason reason = 3;
+}

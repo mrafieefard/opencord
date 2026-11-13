@@ -4,6 +4,7 @@ use opencord_common::limits::{
 };
 use opencord_common::permissions::{Overwrite, OverwriteTarget, Permissions};
 use opencord_common::validation;
+use opencord_plugins::manifest;
 use opencord_proto::v1 as proto;
 use proto::response::Result as Response;
 
@@ -11,8 +12,9 @@ use super::settings::save_voice_settings;
 use super::{Ctx, ack};
 use crate::db::channels;
 use crate::error::ApiError;
-use crate::guild::{Channel, Guild, overwrite_row, overwrite_target_to_db};
+use crate::guild::{Channel, Guild, PluginChannelRef, overwrite_row, overwrite_target_to_db};
 use crate::permissions::{require_base, require_channel, require_grantable};
+use crate::plugins::{PluginEvent, event_tables, events};
 use crate::state::now_ms;
 use crate::visibility::Visibility;
 use crate::voice;
@@ -20,6 +22,7 @@ use crate::voice::settings::VoiceSettings;
 
 pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Response, ApiError> {
     let kind = kind_from_proto(request.kind)?;
+    let plugin = plugin_from_request(kind, request.plugin_id, request.type_key)?;
     let name = validation::channel_name(kind, &request.name)?;
     let topic = optional_topic(request.topic.as_deref())?;
     let parent_id = request.parent_id.filter(|id| *id != 0);
@@ -28,6 +31,23 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Resp
     let position = {
         let guild = ctx.state.guild();
         require_base(&guild, ctx.user_id, Permissions::MANAGE_CHANNELS)?;
+        // Types change under the write lock, so this still holds at the
+        // insert.
+        if plugin.as_ref().is_some_and(|plugin| {
+            if ctx.plugin_id == Some(plugin.plugin_id.as_str()) {
+                !ctx.state
+                    .plugins
+                    .channel_types
+                    .is_registered_by(&plugin.plugin_id, &plugin.type_key)
+            } else {
+                ctx.state.plugins.channel_types.state(plugin)
+                    != proto::PluginChannelState::Available
+            }
+        }) {
+            return Err(ApiError::invalid_argument(
+                "that channel type isn't available",
+            ));
+        }
         if guild.channels.len() >= MAX_CHANNELS {
             return Err(ApiError::conflict(format!(
                 "a server can have at most {MAX_CHANNELS} channels"
@@ -53,6 +73,7 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Resp
         bitrate: CHANNEL_BITRATE_DEFAULT,
         user_limit: 0,
         text_in_voice: true,
+        plugin,
     };
     channels::insert(
         &mut *ctx.state.db.acquire().await?,
@@ -67,7 +88,30 @@ pub async fn create(ctx: &Ctx<'_>, request: proto::CreateChannel) -> Result<Resp
         .channels
         .insert(channel.id, channel.clone());
     before.announce(ctx.state, &[]);
-    Ok(Response::Channel(channel.to_proto()))
+    let shown = channel.to_proto(&ctx.state.plugins.channel_types);
+    if let Some(plugin) = &channel.plugin {
+        tell_plugin(
+            ctx,
+            &plugin.plugin_id,
+            "plugin_channel_create",
+            serde_json::json!({ "channel": event_tables::channel_table(&shown) }),
+        );
+    }
+    Ok(Response::Channel(shown))
+}
+
+/// Tells a plugin channel's plugin it was created or deleted, whatever the
+/// plugin may read (design 2026-11-07 §14.2).
+fn tell_plugin(ctx: &Ctx<'_>, plugin_id: &str, name: &str, payload: serde_json::Value) {
+    ctx.state.plugins.deliver(
+        plugin_id,
+        PluginEvent {
+            name: name.to_owned(),
+            payload,
+            reply: None,
+            command: None,
+        },
+    );
 }
 
 pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateChannel) -> Result<Response, ApiError> {
@@ -135,25 +179,28 @@ pub async fn update(ctx: &Ctx<'_>, request: proto::UpdateChannel) -> Result<Resp
     if request.bitrate.is_some() || request.user_limit.is_some() {
         voice::limits_changed(ctx.state, &[updated.id]);
     }
-    Ok(Response::Channel(updated.to_proto()))
+    Ok(Response::Channel(
+        updated.to_proto(&ctx.state.plugins.channel_types),
+    ))
 }
 
 pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteChannel) -> Result<Response, ApiError> {
     let _writes = ctx.state.write_lock().await;
-    let children: Vec<i64> = {
+    let (children, plugin) = {
         let guild = ctx.state.guild();
-        require_channel(
+        let channel = require_channel(
             &guild,
             ctx.user_id,
             request.channel_id,
             Permissions::MANAGE_CHANNELS,
         )?;
-        guild
+        let children: Vec<i64> = guild
             .channels
             .values()
             .filter(|channel| channel.parent_id == Some(request.channel_id))
             .map(|channel| channel.id)
-            .collect()
+            .collect();
+        (children, channel.plugin.clone())
     };
     channels::delete(&mut *ctx.state.db.acquire().await?, request.channel_id).await?;
 
@@ -168,6 +215,14 @@ pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteChannel) -> Result<Resp
         }
     }
     before.announce(ctx.state, &children);
+    if let Some(plugin) = plugin {
+        tell_plugin(
+            ctx,
+            &plugin.plugin_id,
+            "plugin_channel_delete",
+            serde_json::json!({ "channel_id": events::id(request.channel_id) }),
+        );
+    }
     crate::music::end(ctx.state, Some(request.channel_id));
     let afk_cleared = {
         let guild = ctx.state.guild();
@@ -276,7 +331,9 @@ pub async fn set_overwrite(
     )
     .await?;
     replace_and_announce(ctx, vec![updated.clone()]);
-    Ok(Response::Channel(updated.to_proto()))
+    Ok(Response::Channel(
+        updated.to_proto(&ctx.state.plugins.channel_types),
+    ))
 }
 
 pub async fn delete_overwrite(
@@ -319,7 +376,9 @@ pub async fn delete_overwrite(
     )
     .await?;
     replace_and_announce(ctx, vec![updated.clone()]);
-    Ok(Response::Channel(updated.to_proto()))
+    Ok(Response::Channel(
+        updated.to_proto(&ctx.state.plugins.channel_types),
+    ))
 }
 
 /// Puts the channels in the cache and tells everyone affected.
@@ -370,8 +429,50 @@ fn kind_from_proto(kind: i32) -> Result<ChannelKind, ApiError> {
         Ok(proto::ChannelKind::Text) => Ok(ChannelKind::Text),
         Ok(proto::ChannelKind::Voice) => Ok(ChannelKind::Voice),
         Ok(proto::ChannelKind::Category) => Ok(ChannelKind::Category),
+        Ok(proto::ChannelKind::Plugin) => Ok(ChannelKind::Plugin),
         _ => Err(ApiError::invalid_argument("unknown channel kind")),
     }
+}
+
+/// A plugin channel's plugin and type, which only plugin channels have and
+/// they must (design 2026-11-07 §14.2).
+fn plugin_from_request(
+    kind: ChannelKind,
+    plugin_id: Option<String>,
+    type_key: Option<String>,
+) -> Result<Option<PluginChannelRef>, ApiError> {
+    match (kind, plugin_id, type_key) {
+        (ChannelKind::Plugin, Some(plugin_id), Some(type_key)) => {
+            if !manifest::valid_id(&plugin_id) {
+                return Err(ApiError::invalid_argument("plugin_id is not a plugin id"));
+            }
+            if !valid_type_key(&type_key) {
+                return Err(ApiError::invalid_argument(
+                    "type_key must be 1 to 40 of a-z, 0-9 and _",
+                ));
+            }
+            Ok(Some(PluginChannelRef {
+                plugin_id,
+                type_key,
+            }))
+        }
+        (ChannelKind::Plugin, _, _) => Err(ApiError::invalid_argument(
+            "a plugin channel needs its plugin_id and type_key",
+        )),
+        (_, None, None) => Ok(None),
+        _ => Err(ApiError::invalid_argument(
+            "only plugin channels have a plugin_id and type_key",
+        )),
+    }
+}
+
+/// Whether `key` is a channel type's key: `^[a-z0-9_]{1,40}$` (design
+/// 2026-11-07 §14.1).
+pub(crate) fn valid_type_key(key: &str) -> bool {
+    (1..=40).contains(&key.len())
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
 fn target_from_proto(kind: i32, id: i64) -> Result<OverwriteTarget, ApiError> {

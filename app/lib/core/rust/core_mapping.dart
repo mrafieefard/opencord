@@ -41,6 +41,8 @@ Message messageFrom(core.Message message) => Message(
   },
   nonce: message.nonce,
   command: message.command,
+  commandUserId: message.commandUserId,
+  commandState: commandRunStateFrom(message.commandState),
   attachments: [for (final a in message.attachments) attachmentFrom(a)],
 );
 
@@ -70,13 +72,22 @@ ChannelKind channelKindFrom(core.ChannelKind kind) => switch (kind) {
   core.ChannelKind.text => ChannelKind.text,
   core.ChannelKind.voice => ChannelKind.voice,
   core.ChannelKind.category => ChannelKind.category,
+  core.ChannelKind.plugin => ChannelKind.plugin,
 };
+
+PluginChannelState pluginChannelStateFrom(core.PluginChannelState state) =>
+    switch (state) {
+      core.PluginChannelState.available => PluginChannelState.available,
+      core.PluginChannelState.pluginStopped => PluginChannelState.pluginStopped,
+      core.PluginChannelState.typeGone => PluginChannelState.typeGone,
+    };
 
 /// Announcement channels are not in Phase 1's protocol; they go as text.
 core.ChannelKind channelKindTo(ChannelKind kind) => switch (kind) {
   ChannelKind.text || ChannelKind.announcement => core.ChannelKind.text,
   ChannelKind.voice => core.ChannelKind.voice,
   ChannelKind.category => core.ChannelKind.category,
+  ChannelKind.plugin => core.ChannelKind.plugin,
 };
 
 OverwriteTargetKind _targetFrom(core.OverwriteTargetKind kind) =>
@@ -119,6 +130,11 @@ Channel channelFrom(core.Channel channel) => Channel(
       : Channel.defaultBitrate,
   userLimit: channel.userLimit,
   textInVoice: channel.kind != core.ChannelKind.voice || channel.textInVoice,
+  pluginId: channel.pluginId,
+  typeKey: channel.typeKey,
+  pluginState: channel.pluginState == null
+      ? null
+      : pluginChannelStateFrom(channel.pluginState!),
 );
 
 VoiceParticipant participantFrom(core.VoiceState state) => VoiceParticipant(
@@ -242,6 +258,7 @@ Role roleFrom(core.Role role) => Role(
   hoist: role.hoist,
   mentionable: role.mentionable,
   maxUploadBytes: role.maxUploadBytes?.toInt(),
+  pluginId: role.pluginId,
 );
 
 ServerInfo serverInfoFrom(core.ServerInfo info) => ServerInfo(
@@ -368,7 +385,66 @@ ReadySnapshot snapshotFrom(
   uploadSettings: uploadSettingsFrom(ready.uploadSettings),
   privateMessages: ready.privateMessages,
   privateSettings: privateSettingsFrom(ready.privateSettings),
+  pluginUsers: [for (final user in ready.pluginUsers) pluginUserFrom(user)],
+  pluginChannelTypes: [
+    for (final type in ready.pluginChannelTypes) pluginChannelTypeFrom(type),
+  ],
+  pluginActivities: [
+    for (final activity in ready.pluginActivities) pluginActivityFrom(activity),
+  ],
+  activitySessions: {
+    for (final session in ready.activitySessions)
+      session.id: activitySessionFrom(session),
+  },
 );
+
+PluginActivity pluginActivityFrom(core.PluginActivity activity) =>
+    PluginActivity(
+      pluginId: activity.pluginId,
+      activityKey: activity.activityKey,
+      name: activity.name,
+      description: activity.description,
+      icon: activity.icon,
+      pluginName: activity.pluginName,
+    );
+
+ActivitySession activitySessionFrom(core.ActivitySession session) =>
+    ActivitySession(
+      id: session.id,
+      channelId: session.channelId,
+      pluginId: session.pluginId,
+      activityKey: session.activityKey,
+      name: session.name,
+      icon: session.icon,
+      pluginName: session.pluginName,
+      starterId: session.starterId,
+      startedAt: _time(session.startedAtMs),
+      viewerIds: List.unmodifiable([
+        for (final id in session.viewerIds) id.toInt(),
+      ]),
+    );
+
+ActivityEndReason activityEndReasonFrom(core.ActivityEndReason reason) =>
+    switch (reason) {
+      core.ActivityEndReason.ended => ActivityEndReason.ended,
+      core.ActivityEndReason.plugin => ActivityEndReason.plugin,
+      core.ActivityEndReason.callEmpty => ActivityEndReason.callEmpty,
+      core.ActivityEndReason.pluginStopped => ActivityEndReason.pluginStopped,
+      core.ActivityEndReason.unavailable => ActivityEndReason.unavailable,
+    };
+
+PluginChannelType pluginChannelTypeFrom(core.PluginChannelType type) =>
+    PluginChannelType(
+      pluginId: type.pluginId,
+      typeKey: type.typeKey,
+      name: type.name,
+      description: type.description,
+      icon: type.icon,
+      pluginName: type.pluginName,
+    );
+
+ViewOutput viewOutputFrom(core.ViewOutput output) =>
+    ViewOutput(viewId: output.viewId, json: output.json);
 
 ServerPrivateSettings privateSettingsFrom(core.PrivateSettings s) =>
     ServerPrivateSettings(
@@ -597,6 +673,8 @@ RepoErrorKind _kindFrom(core.ErrorCode code) => switch (code) {
     RepoErrorKind.privateMessagesUnavailable,
   core.ErrorCode.friendsOnly => RepoErrorKind.friendsOnly,
   core.ErrorCode.keysNotAccepted => RepoErrorKind.keysNotAccepted,
+  core.ErrorCode.pluginLimit => RepoErrorKind.pluginLimit,
+  core.ErrorCode.pluginUnavailable => RepoErrorKind.pluginUnavailable,
   core.ErrorCode.deviceListChanged => RepoErrorKind.other,
   core.ErrorCode.internal || core.ErrorCode.unknown => RepoErrorKind.other,
 };
@@ -780,3 +858,132 @@ HotkeySupport hotkeySupportFrom(core.HotkeySupport support) =>
       core.HotkeySupport_FocusedOnly(:final reason, :final settingsUrl) =>
         HotkeySupport.focusedOnly(reason, settingsUrl: settingsUrl),
     };
+
+PluginState pluginStateFrom(core.PluginState state) => switch (state) {
+  core.PluginState.starting => PluginState.starting,
+  core.PluginState.running => PluginState.running,
+  core.PluginState.stopped => PluginState.stopped,
+  core.PluginState.crashed => PluginState.crashed,
+};
+
+PluginSignature pluginSignatureFrom(core.PluginSignature sig) => switch (sig) {
+  core.PluginSignature.unsigned => PluginSignature.unsigned,
+  core.PluginSignature.signed => PluginSignature.signed,
+  core.PluginSignature.dev => PluginSignature.dev,
+};
+
+GithubCheck githubCheckFrom(core.GithubCheck check) => switch (check) {
+  core.GithubCheck.unspecified => GithubCheck.unspecified,
+  core.GithubCheck.verified => GithubCheck.verified,
+  core.GithubCheck.mismatch => GithubCheck.mismatch,
+  core.GithubCheck.failed => GithubCheck.failed,
+};
+
+PluginConfigKind pluginConfigKindFrom(core.PluginConfigKind kind) =>
+    switch (kind) {
+      core.PluginConfigKind.text => PluginConfigKind.text,
+      core.PluginConfigKind.secret => PluginConfigKind.secret,
+      core.PluginConfigKind.number => PluginConfigKind.number,
+      core.PluginConfigKind.boolean => PluginConfigKind.boolean,
+      core.PluginConfigKind.choice => PluginConfigKind.choice,
+      core.PluginConfigKind.role => PluginConfigKind.role,
+      core.PluginConfigKind.channel => PluginConfigKind.channel,
+      core.PluginConfigKind.user => PluginConfigKind.user,
+    };
+
+PluginLogLevel pluginLogLevelFrom(core.PluginLogLevel level) => switch (level) {
+  core.PluginLogLevel.info => PluginLogLevel.info,
+  core.PluginLogLevel.warn => PluginLogLevel.warn,
+  core.PluginLogLevel.error => PluginLogLevel.error,
+  core.PluginLogLevel.action => PluginLogLevel.action,
+};
+
+PluginConfigField pluginConfigFieldFrom(core.PluginConfigField f) =>
+    PluginConfigField(
+      key: f.key,
+      label: f.label,
+      kind: pluginConfigKindFrom(f.kind),
+      choices: f.choices,
+      required: f.required_,
+    );
+
+PluginConfigValue pluginConfigValueFrom(core.PluginConfigValue v) =>
+    PluginConfigValue(key: v.key, value: v.value, hasValue: v.hasValue);
+
+core.PluginConfigValue pluginConfigValueTo(PluginConfigValue v) =>
+    core.PluginConfigValue(key: v.key, value: v.value, hasValue: v.hasValue);
+
+PluginPermissionGrant pluginPermissionGrantFrom(core.PluginPermissionGrant g) =>
+    PluginPermissionGrant(
+      name: g.name,
+      granted: g.granted,
+      grantable: g.grantable,
+    );
+
+PluginUser pluginUserFrom(core.PluginUser u) => PluginUser(
+  userId: u.userId.toInt(),
+  pluginId: u.pluginId,
+  name: u.name,
+  avatarHash: u.avatarHash,
+  installed: u.installed,
+);
+
+Plugin pluginFrom(core.Plugin p) => Plugin(
+  id: p.id,
+  name: p.name,
+  version: p.version,
+  author: p.author,
+  description: p.description,
+  github: p.github,
+  license: p.license,
+  signature: pluginSignatureFrom(p.signature),
+  keyFingerprint: p.keyFingerprint,
+  githubCheck: githubCheckFrom(p.githubCheck),
+  state: pluginStateFrom(p.state),
+  statusReason: p.statusReason,
+  permissions: [for (final g in p.permissions) pluginPermissionGrantFrom(g)],
+  domains: p.domains,
+  configFields: [for (final f in p.configFields) pluginConfigFieldFrom(f)],
+  config: [for (final v in p.config) pluginConfigValueFrom(v)],
+  userId: p.userId.toInt(),
+  roleId: p.roleId.toInt(),
+  installedAt: _time(p.installedAtMs.toInt()),
+  updatedAt: _time(p.updatedAtMs.toInt()),
+  cpuPermille: p.cpuPermille,
+  memoryBytes: p.memoryBytes.toInt(),
+  databaseBytes: p.databaseBytes.toInt(),
+  filesBytes: p.filesBytes.toInt(),
+);
+
+PluginReview pluginReviewFrom(core.PluginReview r) => PluginReview(
+  reviewId: r.reviewId,
+  plugin: pluginFrom(r.plugin),
+  installed: r.installed != null ? pluginFrom(r.installed!) : null,
+  newPermissions: r.newPermissions,
+  licenseNeedsAcceptance: r.licenseNeedsAcceptance,
+  expiresAt: _time(r.expiresAtMs.toInt()),
+  dev: r.dev,
+);
+
+PluginLogLine pluginLogLineFrom(core.PluginLogLine l) => PluginLogLine(
+  seq: l.seq.toInt(),
+  at: _time(l.atMs.toInt()),
+  level: pluginLogLevelFrom(l.level),
+  text: l.text,
+);
+
+PluginDevToken pluginDevTokenFrom(core.PluginDevToken t) => PluginDevToken(
+  id: t.id.toInt(),
+  pluginId: t.pluginId,
+  createdBy: t.createdBy.toInt(),
+  createdAt: _time(t.createdAtMs.toInt()),
+  expiresAt: _time(t.expiresAtMs.toInt()),
+  lastUsedAt: t.lastUsedAtMs != null ? _time(t.lastUsedAtMs!.toInt()) : null,
+);
+
+CreatedPluginDevToken createdPluginDevTokenFrom(core.CreatedPluginDevToken c) =>
+    CreatedPluginDevToken(
+      token: pluginDevTokenFrom(c.token),
+      secret: c.secret,
+      serverFingerprint: c.serverFingerprint,
+    );
