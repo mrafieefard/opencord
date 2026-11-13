@@ -21,6 +21,7 @@ class PluginAreaApp extends StatefulWidget {
 
 class _PluginAreaAppState extends State<PluginAreaApp> {
   final _controller = BlocksController();
+  PhoneBlocksHost? _host;
   StreamSubscription<String>? _batches;
   StreamSubscription<String>? _inputs;
   var _statusSent = false;
@@ -66,7 +67,8 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     final setup = widget.channel.setup.value;
     if (setup == null) return const SizedBox.shrink();
     final theme = blocksThemeOf(setup);
-    final host = PhoneBlocksHost(channel: widget.channel, theme: theme);
+    // One host per area, so its caches last; a new setup only re-themes it.
+    final host = (_host ??= PhoneBlocksHost(channel: widget.channel, theme: theme))..theme = theme;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       color: const Color(0x00000000),
