@@ -12,7 +12,7 @@ import type { FakeArea } from '@/test/fakeArea';
 import * as ui from '@/ui';
 
 import { activityActions } from '../activityActions';
-import { ENDED_SHOWN_MS, stageInPane, watchOpenActivity } from '../activityHolder';
+import { ENDED_SHOWN_MS, OPEN_WAIT_MS, stageInPane, watchOpenActivity } from '../activityHolder';
 import { viewersLine } from '../ActivityTile';
 
 jest.mock('@opencord/plugin-area', () => {
@@ -258,6 +258,33 @@ describe('activities in a call', () => {
     await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
     expect(inputs(core, 'call')).toHaveLength(2);
     expect(inputs(core, 'call').at(-1)?.members).toEqual([...inLounge, '1003']);
+  });
+
+  // Fails if a session opened before its creation event arrives is
+  // dropped: the picker opens what it started as soon as the server
+  // answers, and the event that adds it to the snapshot can come after.
+  it('opens an activity whose session arrives after it was opened', async () => {
+    const core = await inCall();
+    await pane();
+    await act(async () => openActivity(NIGHT_OWLS, CHANNELS.lounge, '900'));
+    await settle();
+    expect(useAppStore.getState().openActivity?.sessionId).toBe('900');
+    await act(async () => onEvents([new MobileEvent.ActivitySessionCreated({ serverKey: NIGHT_OWLS, session: session('900', 'paint') })]));
+    await settle();
+    await act(async () => area.input(lastAreaId(), context));
+    await settle();
+    const opened = core.calls.filter((call) => call.method === 'viewOpenActivity').map((call) => call.args[1]);
+    expect(opened).toEqual(['900']);
+    expect(screen.getByTestId('activity-stage')).toBeTruthy();
+  });
+
+  // Fails if a session that never arrives keeps the open slot forever.
+  it('gives up on a session that never arrives', async () => {
+    await inCall();
+    jest.useFakeTimers();
+    await act(async () => openActivity(NIGHT_OWLS, CHANNELS.lounge, '900'));
+    await act(async () => jest.advanceTimersByTime(OPEN_WAIT_MS));
+    expect(useAppStore.getState().openActivity).toBeNull();
   });
 
   it('leaving the call closes the opened activity', async () => {

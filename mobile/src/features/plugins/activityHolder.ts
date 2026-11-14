@@ -25,6 +25,13 @@ import { ViewSession } from './viewSession';
 /** How long `This activity ended` shows before the grid comes back. */
 export const ENDED_SHOWN_MS = 3000;
 
+/**
+ * How long an open waits for its session to reach the snapshot. The picker
+ * opens what it started as soon as the server answers, and the event that
+ * adds the session can come after that answer.
+ */
+export const OPEN_WAIT_MS = 5000;
+
 export interface Held {
   key: string;
   serverKey: string;
@@ -39,6 +46,13 @@ export interface Held {
 
 let held: Held | null = null;
 let endedTimer: ReturnType<typeof setTimeout> | null = null;
+/** An open whose session hasn't arrived yet: its key and when it gives up. */
+let waiting: { key: string; timer: ReturnType<typeof setTimeout> } | null = null;
+
+function stopWaiting() {
+  if (waiting) clearTimeout(waiting.timer);
+  waiting = null;
+}
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -207,11 +221,23 @@ function follow(state: AppState) {
     return;
   }
   const key = target ? `${target.serverKey}/${target.sessionId}` : null;
+  if (waiting && waiting.key !== key) stopWaiting();
   if (held && held.key !== key) release();
-  if (target && !held) {
+  if (target && key && !held) {
     held = open(state, target);
-    if (!held) closeOpenActivity();
-    emit();
+    if (held) {
+      stopWaiting();
+      emit();
+    } else if (!waiting) {
+      // Not in the snapshot yet: opens when it arrives, unless it never does.
+      waiting = {
+        key,
+        timer: setTimeout(() => {
+          waiting = null;
+          if (!held) closeOpenActivity();
+        }, OPEN_WAIT_MS),
+      };
+    }
     return;
   }
   if (held && target) {
@@ -226,6 +252,7 @@ export function watchOpenActivity(): () => void {
   const unsubscribe = useAppStore.subscribe(follow);
   return () => {
     unsubscribe();
+    stopWaiting();
     release();
   };
 }
