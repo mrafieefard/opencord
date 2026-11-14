@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
 
@@ -49,6 +50,22 @@ describe('the call sheet', () => {
       closeCall();
     });
     expect(callProgress.get()).toBe(0);
+  });
+
+  // Fails if the glass behind the call takes touches: on Android it's a
+  // raised surface, dispatched to before what's laid over it, so a plugin's
+  // activity in the call got no touch at all (found live).
+  it("the glass behind the call takes no touches", async () => {
+    await inLounge();
+    await render(
+      <GestureHandlerRootView>
+        <CallSheet />
+      </GestureHandlerRootView>,
+    );
+    const glass = screen.getByTestId('call-glass', { includeHiddenElements: true });
+    // React Native keeps it as the prop or moves it into the style.
+    const style = StyleSheet.flatten(glass.props.style) as { pointerEvents?: string } | undefined;
+    expect(glass.props.pointerEvents ?? style?.pointerEvents).toBe('none');
   });
 
   it('leaving the call puts it away', async () => {
