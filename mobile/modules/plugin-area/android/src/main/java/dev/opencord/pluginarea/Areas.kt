@@ -15,6 +15,31 @@ enum class EngineState { RESUMED, PAUSED }
 fun engineState(hasView: Boolean, inBackground: Boolean): EngineState =
   if (hasView && !inBackground) EngineState.RESUMED else EngineState.PAUSED
 
+/**
+ * Backs waiting for Dart's answer. Each is answered once: by Dart, or with
+ * false when the area goes first, so JavaScript's `back()` always settles.
+ */
+class PendingBacks {
+  private var next = 0
+  private val waiting = mutableMapOf<Int, (Boolean) -> Unit>()
+
+  fun add(answer: (Boolean) -> Unit): Int {
+    val id = next++
+    waiting[id] = answer
+    return id
+  }
+
+  fun answer(id: Int, result: Boolean) {
+    waiting.remove(id)?.invoke(result)
+  }
+
+  fun failAll() {
+    val all = waiting.values.toList()
+    waiting.clear()
+    all.forEach { it(false) }
+  }
+}
+
 /** Where an area's inputs, status and host calls go: the module's events. */
 typealias AreaEvents = (name: String, body: Map<String, Any?>) -> Unit
 
@@ -94,14 +119,17 @@ class Area(val engine: FlutterEngine, private val events: () -> AreaEvents?) {
     channel.invokeMethod("hostReply", mapOf("id" to id, "json" to json))
   }
 
+  private val backs = PendingBacks()
+
   fun back(answer: (Boolean) -> Unit) {
+    val id = backs.add(answer)
     channel.invokeMethod(
       "back",
       null,
       object : MethodChannel.Result {
-        override fun success(result: Any?) = answer(result == true)
-        override fun error(code: String, message: String?, details: Any?) = answer(false)
-        override fun notImplemented() = answer(false)
+        override fun success(result: Any?) = backs.answer(id, result == true)
+        override fun error(code: String, message: String?, details: Any?) = backs.answer(id, false)
+        override fun notImplemented() = backs.answer(id, false)
       },
     )
   }
@@ -110,6 +138,7 @@ class Area(val engine: FlutterEngine, private val events: () -> AreaEvents?) {
     view?.detach()
     readyWaiters.toList().forEach { it(IllegalStateException("destroyed")) }
     readyWaiters.clear()
+    backs.failAll()
     channel.setMethodCallHandler(null)
     engine.destroy()
   }

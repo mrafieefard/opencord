@@ -93,9 +93,17 @@ final class Area {
     channel.invokeMethod("hostReply", arguments: ["id": id, "json": json])
   }
 
+  /// Backs waiting for Dart, each answered once: by Dart, or with false
+  /// when the area goes first, so JavaScript's `back()` always settles.
+  private var backs: [Int: (Bool) -> Void] = [:]
+  private var nextBack = 0
+
   func back(_ answer: @escaping (Bool) -> Void) {
-    channel.invokeMethod("back", arguments: nil) { result in
-      answer((result as? Bool) == true)
+    let id = nextBack
+    nextBack += 1
+    backs[id] = answer
+    channel.invokeMethod("back", arguments: nil) { [weak self] result in
+      self?.backs.removeValue(forKey: id)?((result as? Bool) == true)
     }
   }
 
@@ -105,6 +113,9 @@ final class Area {
     let waiting = readyWaiters
     readyWaiters.removeAll()
     waiting.forEach { $0(AreaGone()) }
+    let pendingBacks = backs.values
+    backs.removeAll()
+    pendingBacks.forEach { $0(false) }
     channel.setMethodCallHandler(nil)
     engine.destroyContext()
   }

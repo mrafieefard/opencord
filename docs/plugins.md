@@ -316,7 +316,7 @@ Client scripts access view state, server messaging, device storage, timers, and 
 - `app.on(name, handler)`: registers a handler for events sent by the server via `view:send(name, data)`.
 - `app.listen(event_name, handler)`: listens for view lifecycle and input events (`"close"`, `"pause"`, `"resume"`, `"resize"`, `"theme_change"`, `"connection_change"`, `"focus"`, `"blur"`, `"key_down"`, `"key_up"`).
 - `app.copy(text)`: copies text to the system clipboard (allowed only during press handlers).
-- `app.on_back(handler)`: on the phone, the system back button or gesture first closes the plugin's top modal, sheet or dialog; with none open it calls `handler`. Return `true` when the plugin went back itself (a detail screen back to its list); anything else, an error, or no answer within half a second leaves the plugin. The desktop never calls it.
+- `app.on_back(handler)`: on the phone, the system back button or gesture first closes the plugin's top modal, sheet or dialog; with none open it calls `handler`. Return `true` when the plugin went back itself (a detail screen back to its list); anything else, an error, or no answer within half a second leaves the plugin, so `handler` must answer at once: it can't wait on `app.confirm` or another dialog. To ask before leaving, open your own modal and return `true`. The desktop never calls it.
 - `app.open_link(url)`: prompts the user to open an external HTTP or HTTPS URL.
 - `app.open_channel(channel_id)`: navigates to a channel.
 - `app.play_sound(asset, options?)`: plays a local audio asset from `assets/` with optional volume and `on_end` callback.

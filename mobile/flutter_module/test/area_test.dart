@@ -350,13 +350,14 @@ void main() {
     int seq, {
     required String block,
     bool dismissible = true,
+    bool handles = true,
   }) => batch(seq, [
     create(41, 'text', props: {'text': 'Half-filled form'}),
     create(
       40,
       block,
       props: {'open': true, 'dismissible': dismissible, 'title': 'Form'},
-      events: ['dismiss'],
+      events: [if (handles) 'dismiss'],
       children: [41],
     ),
     {
@@ -416,6 +417,18 @@ void main() {
       isTrue,
       reason: 'the screen stays under an open modal',
     );
+    expect(native.inputs('event'), isEmpty);
+  });
+
+  // Fails if back sends a dismiss the plugin doesn't handle, or leaves the
+  // screen from under its open modal (it's not dismissible on purpose).
+  testWidgets('an in-tree modal with no dismiss handler keeps the screen', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withInTree(2, block: 'modal', handles: false));
+    await tester.pump();
+    expect(await native.back(), isTrue);
     expect(native.inputs('event'), isEmpty);
   });
 
