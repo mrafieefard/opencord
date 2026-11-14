@@ -96,6 +96,20 @@ export function useStageOwner(): symbol | null {
   return useSyncExternalStore(subscribe, stageOwner);
 }
 
+/** The stages' priorities: the open call sheet over the voice pane. */
+export const STAGE_CALL = 2;
+export const STAGE_PANE = 1;
+
+/** Whether the voice pane, not the call sheet, draws the open activity. */
+export function stageInPane(): boolean {
+  const owner = stageOwner();
+  return owner !== null && stages.get(owner) === STAGE_PANE;
+}
+
+export function useStageInPane(): boolean {
+  return useSyncExternalStore(subscribe, stageInPane);
+}
+
 function release() {
   if (endedTimer !== null) clearTimeout(endedTimer);
   endedTimer = null;

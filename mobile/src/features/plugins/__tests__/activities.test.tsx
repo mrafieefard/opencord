@@ -12,7 +12,7 @@ import type { FakeArea } from '@/test/fakeArea';
 import * as ui from '@/ui';
 
 import { activityActions } from '../activityActions';
-import { ENDED_SHOWN_MS, watchOpenActivity } from '../activityHolder';
+import { ENDED_SHOWN_MS, stageInPane, watchOpenActivity } from '../activityHolder';
 import { viewersLine } from '../ActivityTile';
 
 jest.mock('@opencord/plugin-area', () => {
@@ -297,5 +297,23 @@ describe('activities in a call', () => {
     );
     await openIt('900');
     expect(screen.getAllByTestId('activity-stage')).toHaveLength(1);
+  });
+
+  // Fails if the phone can't tell that the pane, not the call sheet, draws
+  // the activity: the sidebar's swipe must step aside only for the pane's.
+  it('says whether the pane draws it', async () => {
+    await inCall(session('900', 'paint'));
+    const shown = await pane();
+    expect(stageInPane()).toBe(false);
+    await openIt('900');
+    expect(stageInPane()).toBe(true);
+    await shown.rerender(
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />
+        <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} asCall shown />
+      </GestureHandlerRootView>,
+    );
+    await settle();
+    expect(stageInPane()).toBe(false);
   });
 });

@@ -14,7 +14,7 @@ import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader'
 import { showActivitiesButton } from '@/features/plugins/ActivityPicker';
 import { ActivityStage } from '@/features/plugins/ActivityStage';
 import { ActivityTile } from '@/features/plugins/ActivityTile';
-import { claimStage, useOpenActivity, useStageOwner } from '@/features/plugins/activityHolder';
+import { STAGE_CALL, STAGE_PANE, claimStage, useOpenActivity, useStageOwner } from '@/features/plugins/activityHolder';
 import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
 import { activitySessions, useChannelInfo, useMusicSettings, useMyVoice, useServer, useVoiceMembers } from '@/state/selectors';
 import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/ui';
@@ -68,7 +68,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const mine = open?.serverKey === serverKey && open.channelId === channelId ? open : null;
   const [stageClaim] = useState(() => Symbol('activity stage'));
   const claims = mine !== null && !covered && (!asCall || shown);
-  useEffect(() => (claims ? claimStage(stageClaim, asCall ? 2 : 1) : undefined), [claims, stageClaim, asCall]);
+  useEffect(() => (claims ? claimStage(stageClaim, asCall ? STAGE_CALL : STAGE_PANE) : undefined), [claims, stageClaim, asCall]);
   const stageOwner = useStageOwner();
   const drawing = mine !== null && stageOwner === stageClaim;
 

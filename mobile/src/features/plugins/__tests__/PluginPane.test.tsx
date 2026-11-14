@@ -5,9 +5,13 @@ import { ConnectionRecord, MobileEvent, PluginChannelState, type ChannelRecord }
 import type { FakeCore } from '@/core/fake/FakeCore';
 import { CHANNELS, NIGHT_OWLS, snapshot } from '@/core/fake/world';
 import { ContentPane } from '@/features/server/ContentPane';
+import { PhonePanes } from '@/features/server/PhonePanes';
+import type { ServerPanes } from '@/features/server/useServerPanes';
 import { onEvents } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 import type { FakeArea } from '@/test/fakeArea';
+
+import { STAGE_PANE, claimStage } from '../activityHolder';
 
 // The native module, faked: one FakeArea for the whole file, its view
 // visible to the test.
@@ -42,6 +46,19 @@ jest.mock('@/features/servers/chrome', () => ({
 }));
 
 const area = (jest.requireMock('@opencord/plugin-area') as { __fake: FakeArea }).__fake;
+
+// The phone's sidebar pan, its settings visible to the test.
+const mockPanConfigs: { enabled?: boolean }[] = [];
+jest.mock('react-native-gesture-handler', () => {
+  const actual = jest.requireActual<typeof import('react-native-gesture-handler')>('react-native-gesture-handler');
+  return {
+    ...actual,
+    usePanGesture: (config: Parameters<typeof actual.usePanGesture>[0]) => {
+      mockPanConfigs.push(config as { enabled?: boolean });
+      return actual.usePanGesture(config);
+    },
+  };
+});
 
 // The renderer's first input once it has a size (BlocksView._reportContext).
 const context = {
@@ -161,5 +178,39 @@ describe('a plugin channel', () => {
     );
     await settle();
     expect(screen.getByTestId('connected-bar-pressable')).toBeTruthy();
+  });
+
+  // Fails if the phone's sidebar swipe can take a horizontal drag from a
+  // plugin's screen (a stroke, a slider): it steps aside while a plugin
+  // channel, or an activity the voice pane draws, is in front.
+  it("the sidebar's swipe steps aside for a plugin in front", async () => {
+    await ready();
+    const panes = (open: { id: string; kind: 'plugin' | 'voice' | 'text' }): ServerPanes => ({
+      mode: 'content',
+      open,
+      sidebarOpen: false,
+      select: jest.fn(),
+      back: jest.fn(() => true),
+      openSidebar: jest.fn(),
+      closeSidebar: jest.fn(),
+    });
+    const phone = (open: Parameters<typeof panes>[0]) => (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <PhonePanes serverKey={NIGHT_OWLS} panes={panes(open)} width={412} />
+      </GestureHandlerRootView>
+    );
+    const shown = await render(phone({ id: CHANNELS.general, kind: 'text' }));
+    expect(mockPanConfigs.at(-1)?.enabled).toBe(true);
+    await shown.rerender(phone({ id: CHANNELS.helpDesk, kind: 'plugin' }));
+    await settle();
+    expect(mockPanConfigs.at(-1)?.enabled).toBe(false);
+    await shown.rerender(phone({ id: CHANNELS.lounge, kind: 'voice' }));
+    await settle();
+    expect(mockPanConfigs.at(-1)?.enabled).toBe(true);
+    const stop = claimStage(Symbol('pane'), STAGE_PANE);
+    await shown.rerender(phone({ id: CHANNELS.lounge, kind: 'voice' }));
+    expect(mockPanConfigs.at(-1)?.enabled).toBe(false);
+    await act(async () => stop());
+    expect(mockPanConfigs.at(-1)?.enabled).toBe(true);
   });
 });
