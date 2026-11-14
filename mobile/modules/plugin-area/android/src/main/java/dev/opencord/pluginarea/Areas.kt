@@ -1,6 +1,9 @@
 package dev.opencord.pluginarea
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
+import android.os.Bundle
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineGroup
 import io.flutter.plugin.common.MethodCall
@@ -37,6 +40,31 @@ class PendingBacks {
     val all = waiting.values.toList()
     waiting.clear()
     all.forEach { it(false) }
+  }
+}
+
+/**
+ * Whether the app is in the background, from its activities starting and
+ * stopping: only when none is started. Begins in the foreground (an area is
+ * made by the running app). Expo's foreground event can be skipped (no
+ * current activity at resume), so it isn't used.
+ */
+class Foreground(private val changed: (inBackground: Boolean) -> Unit) {
+  private var started = 1
+
+  val inBackground: Boolean
+    get() = started == 0
+
+  fun started() {
+    val was = inBackground
+    started += 1
+    if (was) changed(false)
+  }
+
+  fun stopped() {
+    if (started == 0) return
+    started -= 1
+    if (started == 0) changed(true)
   }
 }
 
@@ -159,15 +187,32 @@ object Areas {
   private val areas = mutableMapOf<String, Area>()
   var events: AreaEvents? = null
 
-  /** The app's activity is in the background: every engine pauses. */
-  var inBackground = false
-    set(value) {
-      if (field == value) return
-      field = value
-      areas.values.forEach { it.tellLifecycle() }
-    }
+  private val foreground = Foreground { areas.values.forEach { area -> area.tellLifecycle() } }
+  private var watching = false
+
+  /** The app is in the background: every engine pauses. */
+  val inBackground: Boolean
+    get() = foreground.inBackground
+
+  /** Follows the app's activities, once per process. */
+  private fun watchApp(context: Context) {
+    if (watching) return
+    watching = true
+    (context.applicationContext as Application).registerActivityLifecycleCallbacks(
+      object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityStarted(activity: Activity) = foreground.started()
+        override fun onActivityStopped(activity: Activity) = foreground.stopped()
+        override fun onActivityCreated(activity: Activity, state: Bundle?) {}
+        override fun onActivityResumed(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
+        override fun onActivityDestroyed(activity: Activity) {}
+      },
+    )
+  }
 
   private fun newArea(context: Context): Area {
+    watchApp(context)
     val app = context.applicationContext
     val engineGroup = group ?: FlutterEngineGroup(app).also { group = it }
     return Area(engineGroup.createAndRunDefaultEngine(app)) { events }
