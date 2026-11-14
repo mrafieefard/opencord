@@ -172,7 +172,7 @@ function Cover({ status, onReload }: { status: AreaStatus; onReload: () => void 
         <Button title="Reload" variant="secondary" onPress={onReload} />
         {status.detail !== '' && (
           <ScrollView style={styles.detail} contentContainerStyle={styles.detailBody}>
-            <Text variant="caption" color="textSecondary" selectable style={{ fontFamily: fonts.mono }}>
+            <Text variant="footnote" color="textSecondary" selectable style={{ fontFamily: fonts.mono }}>
               {status.detail}
             </Text>
           </ScrollView>

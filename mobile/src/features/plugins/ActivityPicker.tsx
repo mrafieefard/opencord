@@ -66,17 +66,19 @@ export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPicker
                 onPress={disabled ? undefined : () => void start(activity.pluginId, activity.activityKey)}
                 style={styles.row}
               >
-                <PluginIcon serverKey={serverKey} pluginId={activity.pluginId} icon={activity.icon} size={ICON_SIZE} radius={ICON_RADIUS} />
+                <View style={styles.icon}>
+                  <PluginIcon serverKey={serverKey} pluginId={activity.pluginId} icon={activity.icon} size={ICON_SIZE} radius={ICON_RADIUS} />
+                </View>
                 <View style={styles.text}>
                   <Text variant="body" numberOfLines={1}>
                     {activity.name}
                   </Text>
-                  <Text variant="caption" color="textSecondary" numberOfLines={1}>
+                  <Text variant="footnote" color="textSecondary" numberOfLines={1}>
                     {activity.description !== '' ? activity.description : activity.pluginName}
                   </Text>
                 </View>
                 {running && (
-                  <Text variant="caption" color="textSecondary">
+                  <Text variant="footnote" color="textSecondary">
                     Running
                   </Text>
                 )}
@@ -85,7 +87,7 @@ export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPicker
           );
         })}
         {full && (
-          <Text variant="caption" color="textSecondary" style={styles.full}>
+          <Text variant="footnote" color="textSecondary" style={styles.full}>
             {`This call already has ${ACTIVITY_SESSIONS_PER_CALL} activities.`}
           </Text>
         )}
@@ -94,9 +96,13 @@ export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPicker
   );
 }
 
+// The sheet's side margin, as the soundboard's.
+const GUTTER = space.lg;
+
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  row: { paddingHorizontal: space.lg, gap: space.md },
-  text: { flex: 1, gap: 2 },
-  full: { paddingHorizontal: space.lg, paddingTop: space.md },
+  root: { flex: 1, paddingHorizontal: GUTTER },
+  row: { borderRadius: 12 },
+  icon: { marginRight: space.md },
+  text: { flex: 1, gap: 2, marginRight: space.sm },
+  full: { paddingTop: space.md },
 });

@@ -50,12 +50,12 @@ export function ActivityTile({ serverKey, session, width, height }: ActivityTile
               {session.name}
             </Text>
             {height >= WITH_STARTER && (
-              <Text variant="caption" color="textSecondary" numberOfLines={1}>
+              <Text variant="footnote" color="textSecondary" numberOfLines={1}>
                 {`Started by ${starter}`}
               </Text>
             )}
             {height >= WITH_VIEWERS && (
-              <Text variant="caption" color="textMuted" numberOfLines={1}>
+              <Text variant="footnote" color="textMuted" numberOfLines={1}>
                 {viewersLine(session.viewerIds.length)}
               </Text>
             )}
