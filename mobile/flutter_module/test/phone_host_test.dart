@@ -272,4 +272,44 @@ void main() {
     expect(side.sentTo('names').length, 1);
     expect(side.sentTo('user').length, 1);
   });
+
+  // Fails if a failed user or names call is kept for the area's life ("User
+  // 1001" and "@unknown" until the screen closes) instead of asked again.
+  testWidgets('a failed user or names call is asked again next time', (tester) async {
+    final side = _HostSide(tester);
+    side.errors.addAll(['names', 'user']);
+    final host = _host(AreaChannel());
+    await _show(tester, Column(children: [host.richText('<@42>', const TextStyle()), host.user('1001', 24, true)]));
+    await tester.pump();
+    await tester.pump();
+    side.errors.clear();
+    side.answers['names'] = (_) => {
+      'users': {'42': 'Ava'},
+      'channels': <String, Object?>{},
+    };
+    side.answers['user'] = (_) => {'name': 'Kai', 'avatar_path': null};
+    await _show(tester, Column(children: [host.richText('<@42> ', const TextStyle()), host.user('1001', 24, false)]));
+    await tester.pump();
+    await tester.pump();
+    expect(side.sentTo('names').length, 2);
+    expect(side.sentTo('user').length, 2);
+    expect(find.textContaining('Ava'), findsOneWidget);
+    expect(find.text('Kai'), findsNothing, reason: 'showName is false');
+  });
+
+  // Fails if a link in rich text isn't underlined on the phone, where the
+  // accent can be the text's colour.
+  testWidgets('richText underlines links', (tester) async {
+    _HostSide(tester);
+    final host = _host(AreaChannel());
+    await _show(tester, host.richText('see https://opencord.dev', const TextStyle()));
+    TextStyle? link;
+    for (final rich in tester.widgetList<RichText>(find.byType(RichText))) {
+      rich.text.visitChildren((span) {
+        if (span is TextSpan && span.text == 'https://opencord.dev') link = span.style;
+        return true;
+      });
+    }
+    expect(link?.decoration, TextDecoration.underline);
+  });
 }

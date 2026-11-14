@@ -18,6 +18,7 @@ class MarkdownText extends StatefulWidget {
     this.userName,
     this.channelName,
     this.onLink,
+    this.underlineLinks = false,
   });
 
   final String markdown;
@@ -32,6 +33,9 @@ class MarkdownText extends StatefulWidget {
   final String? Function(int id)? channelName;
 
   final void Function(String url)? onLink;
+
+  /// Underlines links, for a theme whose link colour may be the text's.
+  final bool underlineLinks;
 
   static const String monospace = 'JetBrainsMono';
 
@@ -82,7 +86,12 @@ class _MarkdownTextState extends State<MarkdownText> {
           ),
           MdLink(:final url) => TextSpan(
             text: url,
-            style: TextStyle(color: widget.linkColor),
+            style: TextStyle(
+              color: widget.linkColor,
+              decoration: widget.underlineLinks
+                  ? TextDecoration.underline
+                  : null,
+            ),
             recognizer: widget.onLink == null
                 ? null
                 : (TapGestureRecognizer()..onTap = () => widget.onLink!(url))

@@ -14,6 +14,7 @@ Future<void> _pump(
   String? Function(int id)? channelName,
   void Function(String url)? onLink,
   Brightness brightness = Brightness.dark,
+  bool underlineLinks = false,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -34,6 +35,7 @@ Future<void> _pump(
             userName: userName,
             channelName: channelName,
             onLink: onLink,
+            underlineLinks: underlineLinks,
           ),
         ),
       ),
@@ -114,6 +116,15 @@ void main() {
 
   // Fails if a link isn't the link colour, or a tap doesn't reach onLink
   // with its url.
+  // Fails if a phone's link isn't underlined (its accent can be the text's
+  // colour, so it looks like plain text), or the desktop's now is.
+  testWidgets('links are underlined only when asked', (tester) async {
+    await _pump(tester, 'see https://opencord.dev ok');
+    expect(_styleOf(tester, 'https://opencord.dev').decoration, isNot(TextDecoration.underline));
+    await _pump(tester, 'see https://opencord.dev ok', underlineLinks: true);
+    expect(_styleOf(tester, 'https://opencord.dev').decoration, TextDecoration.underline);
+  });
+
   testWidgets('tapping a link calls onLink with its url', (tester) async {
     final opened = <String>[];
     await _pump(tester, 'see https://opencord.dev/docs ok', onLink: opened.add);

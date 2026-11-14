@@ -61,6 +61,8 @@ class PhoneBlocksHost implements BlocksHost {
   Widget user(String id, double size, bool showName) => _UserView(host: this, id: id, size: size, showName: showName);
 
   Future<_User> _user(String id) => _users[id] ??= _call('user', {'id': id}).then((reply) {
+    // A failed call is asked again the next time the user is drawn.
+    if (reply == null) _users.remove(id);
     final name = reply?['name'];
     final avatar = reply?['avatar_path'];
     return _User(name is String && name.isNotEmpty ? name : 'User $id', avatar is String ? avatar : null);
@@ -76,6 +78,11 @@ class PhoneBlocksHost implements BlocksHost {
     if (newUsers.isEmpty && newChannels.isEmpty) return;
     unawaited(
       _call('names', {'users': newUsers, 'channels': newChannels}).then((reply) {
+        if (reply == null) {
+          // Failed: asked again the next time they're drawn.
+          _namesAsked.removeAll([for (final id in newUsers) 'u$id', for (final id in newChannels) 'c$id']);
+          return;
+        }
         final users = reply?['users'];
         final channels = reply?['channels'];
         for (final id in newUsers) {
@@ -224,6 +231,8 @@ class _RichTextState extends State<_RichText> {
       userName: (id) => host._userNames['$id'],
       channelName: (id) => host._channelNames['$id'],
       onLink: (url) => unawaited(host.confirmLink(url)),
+      // The phone's accent can be the text's colour.
+      underlineLinks: true,
     );
   }
 }
