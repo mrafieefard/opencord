@@ -42,6 +42,7 @@ export function ContentPane({ serverKey, open, onOpenSidebar, onOpenChannel, cov
       channelId={open.id}
       onOpenSidebar={onOpenSidebar}
       onOpenChannel={onOpenChannel}
+      covered={covered}
     />
   ) : (
     <ChatPane

@@ -367,7 +367,7 @@ export function CallSheet() {
                 <View style={[styles.grabber, { backgroundColor: colors.textMuted }]} />
               </View>
             </GestureDetector>
-            {inIt && <VoicePane serverKey={call.serverKey} channelId={call.channelId} asCall headerGesture={headerDrag} />}
+            {inIt && <VoicePane serverKey={call.serverKey} channelId={call.channelId} asCall headerGesture={headerDrag} shown={up} />}
           </Animated.View>
         </Animated.View>
       </Animated.View>
