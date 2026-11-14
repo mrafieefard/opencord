@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { ConnectionRecord, MobileError, MobileEvent, type ActivitySessionRecord, type PluginActivityRecord } from '@opencord/core-native';
 
 import { CHANNELS, NIGHT_OWLS, SELF_ID, snapshot } from '@/core/fake/world';
@@ -119,6 +119,27 @@ describe('the activity picker', () => {
     await settle();
     expect(core.calls.filter((call) => call.method === 'activityStart')).toHaveLength(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Fails if a picker already swiped away closes again when its start comes
+  // back (that `router.back()` would leave the server screen), or doesn't
+  // open what started; the pressed row shows it's starting meanwhile.
+  it('a start that comes back after the sheet went opens without closing', async () => {
+    const core = await ready();
+    let finish: (record: ActivitySessionRecord) => void = () => {};
+    jest.spyOn(core, 'activityStart').mockImplementationOnce(
+      () => new Promise<ActivitySessionRecord>((resolve) => (finish = resolve)),
+    );
+    const onClose = jest.fn();
+    const shown = await render(<ActivityPicker serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} onClose={onClose} />);
+    await fireEvent.press(screen.getByText('Paint together'));
+    expect(screen.getByText('Starting…')).toBeTruthy();
+    await shown.unmount();
+    const started = session('950', 'paint', 'paint');
+    await act(async () => finish(started));
+    await settle();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(useAppStore.getState().openActivity).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, sessionId: '950' });
   });
 
   // Fails if the started session isn't the one opened (Task 15).

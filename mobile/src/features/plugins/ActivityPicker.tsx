@@ -5,7 +5,7 @@
 // finds it running) and opens it.
 import * as PluginArea from '@opencord/plugin-area';
 import { router } from 'expo-router';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { openCall } from '@/features/voice/callPosition';
@@ -48,16 +48,28 @@ export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPicker
   // One start at a time: a second tap mustn't close the sheet twice
   // (the second `router.back()` would leave the server screen too).
   const starting = useRef(false);
+  const [pending, setPending] = useState<string | null>(null);
+  // Swiped away or backed out of while the start was on its way: its
+  // `router.back()` is done already.
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
   const start = async (pluginId: string, activityKey: string) => {
     if (starting.current) return;
     starting.current = true;
+    setPending(`${pluginId}/${activityKey}`);
     const session = await startActivity(serverKey, channelId, pluginId, activityKey);
     // Refused: another try may go. Started: the sheet is on its way out.
     if (!session) {
       starting.current = false;
+      if (mounted.current) setPending(null);
       return;
     }
-    close();
+    if (mounted.current) close();
     openActivity(serverKey, channelId, session.id);
     // The call shows it; Android put the call away to open this sheet.
     openCall(serverKey, channelId);
@@ -89,10 +101,16 @@ export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPicker
                     {activity.description !== '' ? activity.description : activity.pluginName}
                   </Text>
                 </View>
-                {running && (
+                {pending === `${activity.pluginId}/${activity.activityKey}` ? (
                   <Text variant="footnote" color="textSecondary">
-                    Running
+                    Starting…
                   </Text>
+                ) : (
+                  running && (
+                    <Text variant="footnote" color="textSecondary">
+                      Running
+                    </Text>
+                  )
                 )}
               </Row>
             </View>
