@@ -34,6 +34,8 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     _controller.addListener(_sendStatus);
     widget.channel.setup.addListener(_setupChanged);
     widget.channel.onBack = _back;
+    // A setup that came before this state was made.
+    if (widget.channel.setup.value != null) _setupChanged(building: true);
   }
 
   /// The system back (§12.5) closes the top overlay: answers a dialog (a
@@ -63,7 +65,7 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     return true;
   }
 
-  void _setupChanged() {
+  void _setupChanged({bool building = false}) {
     if (widget.channel.setup.value == null) return;
     // Batches are applied from the first setup on: one before it would
     // build widgets with no theme.
@@ -73,7 +75,8 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     });
     Gates.startFrameCount();
     if (!_statusSent) _sendStatus();
-    setState(() {});
+    // The first build reads the setup itself.
+    if (!building) setState(() {});
   }
 
   void _sendStatus() {

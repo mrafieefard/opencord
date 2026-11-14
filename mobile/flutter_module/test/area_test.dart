@@ -201,6 +201,18 @@ void main() {
     expect(native.statuses().last['detail'], 'boom at line 3');
   });
 
+  // Fails if a setup that reached the channel before the area was built
+  // leaves the area loading forever (its batches never subscribed).
+  testWidgets('a setup before the area is built still draws', (tester) async {
+    final channel = AreaChannel();
+    final native = _Native(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await tester.pumpWidget(PluginAreaApp(channel: channel));
+    await tester.pump();
+    expect(find.text('Hello from the plugin'), findsOneWidget);
+  });
+
   // Fails if Dart says ready more than once (native code would send held
   // batches twice) or never.
   testWidgets('ready is sent once', (tester) async {
