@@ -5,13 +5,14 @@
 // belongs to the session: unmounting this keeps it, closing the session
 // destroys it.
 import { PluginAreaView } from '@opencord/plugin-area';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, AppState, BackHandler, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 
 import { Button, Text, fonts, space, useTheme } from '@/ui';
 
 import { areaSetup } from './areaSetup';
+import { keyboardOverlap } from './keyboardOverlap';
 import type { AreaStatus, ViewSession } from './viewSession';
 
 export interface PluginAreaProps {
@@ -74,9 +75,19 @@ export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwi
   const status = useStatus(session);
   const background = useInBackground();
   const reduceMotion = useReduceMotion();
-  const { fontScale } = useWindowDimensions();
-  const keyboard = useKeyboardState((state) => (state.isVisible ? state.height : 0));
+  const { fontScale, height: screenHeight } = useWindowDimensions();
   const serverKey = session.place.serverKey;
+
+  // The keyboard covers the area's bottom: pad it by that, measured on
+  // screen (keyboardOverlap.ts).
+  const keyboard = useKeyboardState((state) => (state.isVisible ? state.height : 0));
+  const frame = useRef<ComponentRef<typeof View>>(null);
+  const [areaBottom, setAreaBottom] = useState<number | null>(null);
+  const measure = useCallback(() => {
+    frame.current?.measureInWindow((_x, y, _width, height) => setAreaBottom(y + height));
+  }, []);
+  useEffect(measure, [measure, keyboard]);
+  const lift = areaBottom === null ? 0 : keyboardOverlap({ areaBottom, screenHeight, keyboardHeight: keyboard });
 
   // The setup follows the theme and the keyboard; the area redraws in place.
   const setupJson = useMemo(
@@ -84,13 +95,15 @@ export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwi
       areaSetup({
         colors,
         scheme,
-        insets: { top: 0, right: 0, bottom: keyboard, left: 0 },
+        // The keyboard shrinks the area instead (padded below):
+        // the renderer's sheets sit on the area's bottom, not on an inset.
+        insets: { top: 0, right: 0, bottom: 0, left: 0 },
         textScale: fontScale,
         reduceMotion,
         serverKey,
         pluginId,
       }),
-    [colors, scheme, keyboard, fontScale, reduceMotion, serverKey, pluginId],
+    [colors, scheme, fontScale, reduceMotion, serverKey, pluginId],
   );
   useEffect(() => session.setSetup(setupJson), [session, setupJson]);
 
@@ -126,7 +139,11 @@ export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwi
   useEffect(() => onSwipeBackChange?.(swipeBack), [onSwipeBackChange, swipeBack]);
 
   if (status.state === 'running') {
-    return <PluginAreaView areaId={session.areaId} style={styles.fill} />;
+    return (
+      <View ref={frame} onLayout={measure} style={[styles.fill, { paddingBottom: lift }]} testID="plugin-area-frame">
+        <PluginAreaView areaId={session.areaId} style={styles.fill} />
+      </View>
+    );
   }
   if (status.state === 'loading') {
     return (

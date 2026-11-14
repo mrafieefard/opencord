@@ -181,30 +181,23 @@ describe('the plugin area', () => {
     expect(w.onLeave).toHaveBeenCalledTimes(1);
   });
 
-  // Fails if the keyboard's height doesn't reach the area as its bottom
-  // inset (the plugin's focused field would stay under the keyboard), or a
-  // render with nothing changed sends another setup.
-  it("the keyboard's height is the area's bottom inset", async () => {
+  // Fails if the keyboard covers the plugin's sheet and its buttons: the
+  // area must shrink above it (padded by keyboardOverlap), not only be told
+  // an inset the renderer's sheet ignores; nor may it be lifted twice.
+  it('the area shrinks above the keyboard, and its setup inset stays 0', async () => {
     const w = await world();
-    const setups = () => w.area.calls.filter((c) => c.method === 'setSetup').map((c) => JSON.parse(c.args[1] as string) as {
-      safe_area: { bottom: number };
-      plugin_id: string;
-      server_key: string;
-    });
-    const first = setups().at(-1);
-    expect(first?.plugin_id).toBe('tickets');
-    expect(first?.server_key).toBe('night-owls');
-    expect(first?.safe_area.bottom).toBe(0);
-    const count = setups().length;
-    await w.rendered.rerender(w.view());
-    await flush();
-    expect(setups()).toHaveLength(count);
+    await w.status({ state: 'running' });
+    // The native view sits in the frame that's padded by the keyboard.
+    const view = screen.getByTestId(`area-view-${w.session.areaId}`);
+    expect(view.parent?.props.testID).toBe('plugin-area-frame');
     const keyboard = jest.requireMock<{ useKeyboardState: jest.Mock }>('react-native-keyboard-controller').useKeyboardState;
     const up = { isVisible: true, height: 300 };
     keyboard.mockImplementation((selector?: (state: typeof up) => unknown) => (selector ? selector(up) : up));
     await w.rendered.rerender(w.view());
     await flush();
-    expect(setups().at(-1)?.safe_area.bottom).toBe(300);
+    const setups = w.area.calls.filter((c) => c.method === 'setSetup').map((c) => JSON.parse(c.args[1] as string) as { safe_area: { bottom: number }; plugin_id: string });
+    expect(setups.at(-1)?.plugin_id).toBe('tickets');
+    expect(setups.every((setup) => setup.safe_area.bottom === 0)).toBe(true);
     keyboard.mockReset();
   });
 });
