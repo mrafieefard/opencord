@@ -1884,3 +1884,82 @@ The owner's beta install kept downloading `0.0.1-canary.4` from October 26 after
 - **The example** is `examples/plugins/paint`: one board per session in the server script's memory (300 strokes at most), 1600 × 1000 board units at any tile size, strokes thinned to 100 points, checked by the server against a five-colour palette and sent to the session's views, the board in events of 30 for someone opening later, and Clear for anyone in the call.
 - **Tests:** the Review Focus cases are pinned (`the_call_emptying_ends_its_sessions`, `a_dropped_last_member_ends_the_session_after_the_grace`, `ending_a_session_closes_its_views_once`, `only_someone_in_the_call_opens_it`, `leaving_the_call_closes_ones_view`, `sessions_survive_a_restart_and_the_new_vm_hears_them`, `stopping_ends_sessions`, `a_restart_without_the_activity_ends_its_sessions`, `starting_twice_gives_the_running_session`, `a_fifth_activity_is_refused`, `the_upgrade_gives_everyone_start_activities_and_nothing_else`, and the widget test `an open activity survives leaving the voice page`). `crates/opencord-core/tests/views.rs` opens, reopens and closes activities against a real server. The paint example runs in `tests/plugins/paint.rs` over the gateway and its client script in `views/tests/paint.rs`.
 - **Not tested here:** two real desktops drawing in one call, and the app by hand on any OS (CI runs the tests on Linux, Windows and macOS).
+
+## D97: Plugins, milestone 4: plugin channels and activities on the phone (2026-11-14)
+
+(The plan `docs/superpowers/plans/2026-11-13-plugins-m4-phone.md` and the design `docs/superpowers/specs/2026-11-07-plugins-design.md` §11.4, §12.5, §14, §15 and §18; branch `feat/plugins-phone`, pull request #52. For developers: `docs/mobile.md` → "Plugins on the phone"; for plugin authors, `docs/plugins.md` → "On the phone".)
+
+**Decision:** the phone draws a plugin's screen with the desktop's own renderer, `opencord_blocks`, in Flutter engines embedded in the React Native app: one engine per area, at most two alive (a plugin channel and an activity). The core runs the client script as on the desktop. JavaScript carries its batches and inputs, as JSON strings it never parses, between the core and a native module that owns the engines. React Native draws everything around the area.
+
+- **The facade** (`crates/opencord-mobile`) gains view calls:
+  - `view_open` / `view_open_activity`, `view_input`, `view_close` and `view_upload`;
+  - the plugin asset and image files;
+  - `next_view_outputs`, pulled by generation like events, so a JavaScript reload takes the stream over and `view_outputs_attach` closes the views the old start left open;
+  - plugin channels, activities and activity sessions in the snapshot and its events, plus `activity_start` / `activity_end`.
+  
+  The phone sends the plugin features only when the renderer is in the build, and opens views as `platform: phone`. Until this milestone the core told every view `app.platform = "desktop"`; it now keeps the platform per client.
+- **The Flutter module** (`mobile/flutter_module`) runs `BlocksView` at a 44-point touch size (`BlocksTheme.minTouchSize`, 0 on the desktop) with the setup's theme, scale and insets, and answers the renderer's host calls through React Native. The shared Dart package `app/packages/opencord_plugin_host` holds the markdown, the icon glyphs and the fonts both apps use.
+- **Back (§11.4, §12.5):**
+  - the system back closes the top overlay: a quick dialog, then a named or in-tree modal or sheet;
+  - an open overlay that isn't dismissible keeps back;
+  - with none open, the plugin's `app.on_back` is asked: the core sends `back_handler` when one is set and answers a `back` input with exactly one `back` op;
+  - the phone waits at most 500 ms, so a plugin can never trap the viewer;
+  - iOS's swipe-back is off while the plugin could take back.
+- **The native module** (`mobile/modules/plugin-area`, Kotlin and Swift) has:
+  - a `FlutterEngineGroup`, with a spare engine kept warm while a server with plugins is open or the device is in a call, and dropped 60 s after;
+  - one `MethodChannel` per area that holds batches until Dart says `ready`;
+  - a transparent texture view.
+
+  An area lives from `createArea` to `destroyArea`, whatever view shows it. Its engine runs while shown, or before it was ever shown, since it must lay out to open its view; it pauses once it lost its view, or while the app is in the background, counted from the app's activities starting and stopping.
+- **JavaScript** (`mobile/src/features/plugins`):
+  - `ViewSession` and the view pump;
+  - `PluginArea`: the native view from the start, covered by React Native's own states until the plugin runs; `pause`/`resume` once per change; Android's back asked of the area first; the area padded by how much the keyboard covers it, measured on screen;
+  - the host calls with the phone's pickers, link question, clipboard, navigation and sounds;
+  - plugin channels in the list (the type's icon, never an unread dot; an unavailable one dimmed and saying why) and their pane;
+  - the call's Activities button and picker;
+  - activity tiles after the people;
+  - the opened activity over the call's stage, at most one, kept paused while no stage draws it, closed on leaving the call, its view closing or a moment after its session ends;
+  - the `call` input at most every 100 ms.
+- **The gates** (Stage A, Android emulator, `.superpowers/sdd/plugins-m4/gates.md`):
+  - G1 draws and answers;
+  - G2, the road from a press to the next frame: median 3.9 ms, 95th 6.1 ms idle; 11.7 / 34.1 ms with JavaScript kept busy;
+  - G3, a canvas at 13–24 fps, **accepted** as the emulator's software rasteriser (35–59 ms a frame); to be measured again on a phone;
+  - G4, a cold start of 75–567 ms;
+  - G5, the APK's growth: 8.9 MB on arm64 and 9.0 MB on x86_64 once native libraries are compressed (`useLegacyPackaging`; 18–19.5 MB stored);
+  - G6, two areas, +2.6 MB of memory;
+  - G7, the keyboard and back, passed on the emulator in Task 16;
+  - G8, both phones build in CI.
+- **Rulings** worth knowing (the full list, each with its cost, is in the pull request):
+  - `app.on_back` was built here because the design's milestone list names it, though the plan had missed it;
+  - the APK holds only arm64 and x86_64, the core's processor types;
+  - CI builds the iOS frameworks unsigned;
+  - a font-scale change restarts the app on Android (its `configChanges`), losing a plugin screen's state with everything else.
+- **Found only on the emulator, against a real server** (Task 16), each fixed with a test:
+  - engines left paused drew nothing;
+  - a second plugin channel never left its spinner;
+  - the keyboard covered a sheet's buttons;
+  - plugins were told they ran on a desktop;
+  - **the call's glass, a raised surface on Android, took every touch from an activity in the call.**
+- **Tests:** the Review Focus cases are pinned:
+  - `attach_closes_views_left_by_an_older_generation`;
+  - `batches before ready are held in order`;
+  - `early batches wait for the view's id`;
+  - `starting the pump destroys leftover areas before attaching`;
+  - `features follow the renderer`;
+  - `back closes the top overlay first`;
+  - `an area outlives its native view and is destroyed with its session`;
+  - `an open activity survives leaving the call's pane`;
+  - `an ended activity closes its screen and its tile goes`;
+  - `leaving the call closes the opened activity`;
+  - and, from the live checks, `the glass behind the call takes no touches` and `a_phone_view_says_phone`.
+  
+  The core's `views::back` tests pin `app.on_back`. The module's tickets goldens are drawn from batches recorded from the real core.
+- **Not tested here:**
+  - **iOS beyond compiling in CI:** no engine, back, swipe-back, keyboard, picker or activity has run on an iPhone or a simulator;
+  - real Android phones;
+  - two phones in one call;
+  - a plugin turned off and on while open;
+  - the tablet layout live;
+  - a call from another app during an activity;
+  - the app killed and reopened on a plugin channel;
+  - G3 on real hardware.

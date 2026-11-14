@@ -342,7 +342,7 @@ Client scripts access view state, server messaging, device storage, timers, and 
 - `app.state`: read-only access to the current state table.
 - `app.viewer`: `{ id: string, name: string, roles: { string } }`.
 - `app.place`: `{ kind: "channel", channel_id: string }`.
-- `app.platform`: platform name (`"desktop"`).
+- `app.platform`: `"desktop"` or `"phone"`; `init`'s `ctx.platform` and the server's `view.platform` say the same.
 - `app.size`: `{ width: number, height: number }`.
 - `app.safe_area`: `{ top: number, right: number, bottom: number, left: number }`.
 - `app.theme`: `"dark"` or `"light"`.
@@ -494,6 +494,19 @@ The `icon` block and button controls support 43 standard icon names:
 `add`, `arrow_back`, `arrow_forward`, `arrow_up`, `arrow_down`, `check`, `close`, `delete`, `edit`, `search`, `settings`, `info`, `warning`, `error`, `star`, `person`, `group`, `chat`, `send`, `image`, `link`, `lock`, `lock_open`, `refresh`, `play`, `pause`, `stop`, `music`, `mic`, `volume`, `schedule`, `history`, `pin`, `tag`, `copy`, `download`, `upload`, `more`, `menu`, `visibility`, `visibility_off`, `palette`, `extension`.
 
 ---
+
+### 6. On the phone
+
+The phone apps draw plugin channels and activities with the same renderer and the same blocks as the desktop, from the same client script. What differs:
+
+- `app.platform` is `"phone"`. `app.input` is `"touch"`, and a phone's area is usually narrower than 600 px, so `app.breakpoint` is `"compact"`. Lay out for it.
+- A modal is a sheet from the bottom at compact width, unless it sets `sheet = false`.
+- Nothing hovers: `on_hover_enter` and `on_hover_exit` never fire, and a `tooltip` doesn't show.
+- Controls get a touch target at least 44 points high and wide around what they draw. A small button looks the same but is easier to hit.
+- The system back closes your top dialog, modal or sheet first (a modal that isn't dismissible keeps it), then calls `app.on_back`.
+- An opened activity takes the call's whole stage, with the people in a strip above it.
+- `rich_text` shows code blocks in a monospace box, without syntax colours.
+- `app.on("pause")` is heard when the screen goes out of sight: another channel, the call sheet closed, the app in the background. `resume` follows when it's back. The script keeps its state in between.
 
 ## Activities
 
