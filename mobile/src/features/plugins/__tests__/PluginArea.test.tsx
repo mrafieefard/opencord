@@ -4,7 +4,10 @@ import { AppState, BackHandler, type AppStateStatus, type NativeEventSubscriptio
 import { FakeCore } from '@/core/fake/FakeCore';
 import { FakeArea } from '@/test/fakeArea';
 
+import { NavigationContext } from 'expo-router/react-navigation';
+
 import { PluginArea } from '../PluginArea';
+import { swipeBackHeld } from '../swipeBack';
 import { startViewPump } from '../viewPump';
 import { ViewSession, type AreaStatus, type ViewPlace } from '../viewSession';
 
@@ -203,5 +206,56 @@ describe('the plugin area', () => {
     expect(setups.at(-1)?.plugin_id).toBe('tickets');
     expect(setups.every((setup) => setup.safe_area.bottom === 0)).toBe(true);
     keyboard.mockReset();
+  });
+
+  // Fails if the iOS edge swipe can leave while the plugin could take back:
+  // an open overlay or `app.on_back` holds it; nothing, or a paused or gone
+  // area, lets it go.
+  it('holds the swipe-back while the plugin could take back', async () => {
+    const w = await world();
+    await w.status({ state: 'running' });
+    expect(swipeBackHeld()).toBe(false);
+    await w.status({ state: 'running', overlays: 1 });
+    expect(swipeBackHeld()).toBe(true);
+    await w.rendered.rerender(w.view(true));
+    expect(swipeBackHeld()).toBe(false);
+    await w.rendered.rerender(w.view(false));
+    expect(swipeBackHeld()).toBe(true);
+    await w.status({ state: 'running', overlays: 0, back: true });
+    expect(swipeBackHeld()).toBe(true);
+    await w.status({ state: 'running', overlays: 0, back: false });
+    expect(swipeBackHeld()).toBe(false);
+    await w.status({ state: 'running', overlays: 2 });
+    await w.rendered.unmount();
+    expect(swipeBackHeld()).toBe(false);
+  });
+
+  // Fails if Android's back reaches a plugin whose screen has a sheet pushed
+  // over it: the sheet's own back must win.
+  it('back is not the area’s while its screen is not in front', async () => {
+    const handlers: ((event: never) => boolean | null | undefined)[] = [];
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_type, handler) => {
+      handlers.push(handler);
+      return { remove: () => void handlers.splice(handlers.indexOf(handler), 1) };
+    });
+    const focus = new Set<() => void>();
+    let focused = false;
+    const navigation = {
+      isFocused: () => focused,
+      addListener: (event: string, listener: () => void) => {
+        const wrapped = () => {
+          focused = event === 'focus';
+          listener();
+        };
+        focus.add(wrapped);
+        return () => focus.delete(wrapped);
+      },
+    };
+    const w = await world();
+    await w.rendered.rerender(
+      <NavigationContext.Provider value={navigation as never}>{w.view()}</NavigationContext.Provider>,
+    );
+    await w.status({ state: 'running' });
+    expect(handlers).toHaveLength(0);
   });
 });

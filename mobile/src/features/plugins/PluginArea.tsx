@@ -5,7 +5,8 @@
 // belongs to the session: unmounting this keeps it, closing the session
 // destroys it.
 import { PluginAreaView } from '@opencord/plugin-area';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef } from 'react';
+import { NavigationContext } from 'expo-router/react-navigation';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, AppState, BackHandler, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 
@@ -13,6 +14,7 @@ import { Button, Text, fonts, space, useTheme } from '@/ui';
 
 import { areaSetup } from './areaSetup';
 import { keyboardOverlap } from './keyboardOverlap';
+import { holdSwipeBack } from './swipeBack';
 import type { AreaStatus, ViewSession } from './viewSession';
 
 export interface PluginAreaProps {
@@ -24,8 +26,6 @@ export interface PluginAreaProps {
   onLeave: () => void;
   /** The error and closed states' Reload: a new session in place of this one. */
   onReload: () => void;
-  /** Whether the iOS swipe-back may leave: not while the plugin uses back. */
-  onSwipeBackChange?: (enabled: boolean) => void;
 }
 
 /** The closed op's reasons that mean the channel itself is gone or stopped. */
@@ -53,6 +53,25 @@ function useInBackground(): boolean {
   return background;
 }
 
+/**
+ * Whether the screen holding the area is in front: not while a sheet is
+ * pushed over it. Outside a screen (the root layout's call sheet) it is.
+ */
+function useScreenFocused(): boolean {
+  const navigation = useContext(NavigationContext);
+  const [focused, setFocused] = useState(() => navigation?.isFocused() ?? true);
+  useEffect(() => {
+    if (!navigation) return undefined;
+    const stopFocus = navigation.addListener('focus', () => setFocused(true));
+    const stopBlur = navigation.addListener('blur', () => setFocused(false));
+    return () => {
+      stopFocus();
+      stopBlur();
+    };
+  }, [navigation]);
+  return focused;
+}
+
 function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
   useEffect(() => {
@@ -70,7 +89,7 @@ function useReduceMotion(): boolean {
   return reduce;
 }
 
-export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwipeBackChange }: PluginAreaProps) {
+export function PluginArea({ session, pluginId, paused, onLeave, onReload }: PluginAreaProps) {
   const { colors, scheme } = useTheme();
   const status = useStatus(session);
   const background = useInBackground();
@@ -116,13 +135,15 @@ export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwi
     session.send({ kind: 'lifecycle', event: pausedNow ? 'pause' : 'resume' });
   }, [session, pausedNow]);
 
-  // Android's back: the area and the plugin first.
+  // Android's back: the area and the plugin first, while its screen is in
+  // front (a sheet pushed over it takes its own back).
+  const focused = useScreenFocused();
   const leave = useRef(onLeave);
   useEffect(() => {
     leave.current = onLeave;
   }, [onLeave]);
   useEffect(() => {
-    if (paused) return undefined;
+    if (paused || !focused) return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       session.back().then(
         (took) => {
@@ -133,10 +154,13 @@ export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwi
       return true;
     });
     return () => subscription.remove();
-  }, [session, paused]);
+  }, [session, paused, focused]);
 
-  const swipeBack = status.state !== 'running' || (status.overlays === 0 && status.back !== true);
-  useEffect(() => onSwipeBackChange?.(swipeBack), [onSwipeBackChange, swipeBack]);
+  // iOS's edge swipe would leave without asking: held while the plugin
+  // could take back (swipeBack.ts).
+  const takesBack = status.state === 'running' && (status.overlays > 0 || status.back === true);
+  const [swipeOwner] = useState(() => Symbol('plugin area'));
+  useEffect(() => holdSwipeBack(swipeOwner, takesBack && !paused && focused), [swipeOwner, takesBack, paused, focused]);
 
   // The native view is there from the start: the engine needs a view to lay
   // out and send the context that opens the plugin's view. Until it runs,
