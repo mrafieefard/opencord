@@ -83,8 +83,8 @@ class PhoneBlocksHost implements BlocksHost {
           _namesAsked.removeAll([for (final id in newUsers) 'u$id', for (final id in newChannels) 'c$id']);
           return;
         }
-        final users = reply?['users'];
-        final channels = reply?['channels'];
+        final users = reply['users'];
+        final channels = reply['channels'];
         for (final id in newUsers) {
           _userNames[id] = users is Map ? users[id] as String? : null;
         }

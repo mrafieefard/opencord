@@ -557,7 +557,20 @@ void main() {
         tester.view.physicalSize = Size(width, height);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
-        final native = await _start(tester);
+        // Over the setup's background, as React Native draws it in the app:
+        // the area itself is transparent.
+        final native = _Native(tester);
+        final setup = AreaSetup.fromJson(jsonDecode(setupJson(theme: theme)) as Map<String, Object?>);
+        await tester.pumpWidget(
+          RepaintBoundary(
+            key: const ValueKey('area'),
+            child: ColoredBox(
+              color: setup.colors['background']!,
+              child: PluginAreaApp(channel: AreaChannel()),
+            ),
+          ),
+        );
+        await tester.pump();
         await native.setup(theme: theme);
         for (final step in [1, 2]) {
           final recorded =
@@ -573,7 +586,7 @@ void main() {
         }
         await tester.pumpAndSettle();
         await expectLater(
-          find.byType(PluginAreaApp),
+          find.byKey(const ValueKey('area')),
           matchesGoldenFile('goldens/tickets_${width.toInt()}_$theme.png'),
         );
       });
