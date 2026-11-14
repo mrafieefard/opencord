@@ -223,6 +223,7 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
               onOpenSidebar={openSidebar}
               onOpenChannel={openChannel}
               covered={listOut}
+              onBack={back}
             />
           </View>
           <Animated.View

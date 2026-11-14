@@ -10,7 +10,7 @@ export type PaneMode = 'channels' | 'content';
 
 export interface OpenChannel {
   id: string;
-  kind: 'text' | 'voice';
+  kind: 'text' | 'voice' | 'plugin';
 }
 
 export interface ServerPanes {
@@ -89,7 +89,9 @@ export function useServerPanes(serverKey: string, initialChannelId?: string): Se
   const openKind: OpenChannel['kind'] | undefined = channel
     ? channel.kind === ChannelKind.Voice
       ? 'voice'
-      : 'text'
+      : channel.kind === ChannelKind.Plugin
+        ? 'plugin'
+        : 'text'
     : undefined;
   const open = useMemo(
     (): OpenChannel | null => (openId && openKind ? { id: openId, kind: openKind } : null),

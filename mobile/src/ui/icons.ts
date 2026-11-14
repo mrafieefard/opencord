@@ -10,6 +10,8 @@ export const icons = {
   add: { ios: 'plus', android: 'add' },
   textChannel: { ios: 'number', android: 'tag' },
   voiceChannel: { ios: 'speaker.wave.2', android: 'volume_up' },
+  // A plugin's channel or activity with no icon of its own.
+  extension: { ios: 'puzzlepiece.extension', android: 'extension' },
   sidebar: { ios: 'sidebar.left', android: 'menu' },
   back: { ios: 'chevron.left', android: 'arrow_back' },
   dismiss: { ios: 'chevron.down', android: 'keyboard_arrow_down' },
