@@ -128,6 +128,9 @@ class _MenuItemTileState extends State<_MenuItemTile> {
         onTap: widget.onTap,
         child: Container(
           color: bg,
+          // A finger's height on the phone; the desktop's rows keep theirs.
+          constraints: BoxConstraints(minHeight: theme.minTouchSize),
+          alignment: theme.minTouchSize > 0 ? Alignment.centerLeft : null,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             mainAxisSize: MainAxisSize.min,

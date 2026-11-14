@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controller.dart';
 import '../theme.dart';
+import 'touch.dart';
 
 /// Draws quick dialogs (`confirm`, `alert`, `prompt`) on top of the view,
 /// answering through [BlocksController.answerDialog].
@@ -199,23 +200,27 @@ class _QuickDialogWidgetState extends State<_QuickDialogWidget> {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onPressed,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-            border: primary
-                ? null
-                : Border.all(color: theme.colors['border']!, width: 1),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: theme.text.fontFamily ?? 'Inter',
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: fg,
+        child: touchTarget(
+          theme,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+              border: primary
+                  ? null
+                  : Border.all(color: theme.colors['border']!, width: 1),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: theme.text.fontFamily ?? 'Inter',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: fg,
+              ),
             ),
           ),
         ),
