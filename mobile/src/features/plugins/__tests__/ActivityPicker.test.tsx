@@ -8,6 +8,11 @@ import { freshStore, settle } from '@/test/store';
 import { ActivityPicker, showActivitiesButton } from '../ActivityPicker';
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
+const mockOpenCall = jest.fn();
+jest.mock('@/features/voice/callPosition', () => ({
+  ...jest.requireActual<object>('@/features/voice/callPosition'),
+  openCall: (...args: unknown[]) => mockOpenCall(...args),
+}));
 
 const CHESS: PluginActivityRecord = {
   pluginId: 'chess',
@@ -113,6 +118,8 @@ describe('the activity picker', () => {
     await settle();
     const started = (await start.mock.results[0]?.value) as ActivitySessionRecord;
     expect(useAppStore.getState().openActivity).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, sessionId: started.id });
+    // The call comes up to show it (Android put it away for the sheet).
+    expect(mockOpenCall).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.lounge);
   });
 
   it('a running activity says Running', async () => {

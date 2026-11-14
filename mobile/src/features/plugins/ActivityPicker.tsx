@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { openCall } from '@/features/voice/callPosition';
 import { ACTIVITY_SESSIONS_PER_CALL, openActivity, startActivity } from '@/state/actions/plugins';
 import { activitySessions, canStartActivities, pluginActivities, useServer } from '@/state/selectors';
 import type { ServerState } from '@/state/types';
@@ -49,6 +50,8 @@ export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPicker
     if (!session) return;
     close();
     openActivity(serverKey, channelId, session.id);
+    // The call shows it; Android put the call away to open this sheet.
+    openCall(serverKey, channelId);
   };
 
   return (
