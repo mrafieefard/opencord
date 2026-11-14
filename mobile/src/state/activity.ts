@@ -35,7 +35,8 @@ export function readableChannels(snapshot: ServerSnapshot): string[] {
     snapshot.access.filter((access) => access.view && access.readHistory).map((access) => access.channelId),
   );
   return snapshot.channels
-    .filter((channel) => channel.kind !== ChannelKind.Category && readable.has(channel.id))
+    // Categories and plugin channels have no chat.
+    .filter((channel) => (channel.kind === ChannelKind.Text || channel.kind === ChannelKind.Voice) && readable.has(channel.id))
     .map((channel) => channel.id);
 }
 
