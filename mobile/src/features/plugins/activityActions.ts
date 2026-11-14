@@ -3,11 +3,12 @@
 // call's channel. Ending asks first, in the app's confirm dialog.
 import type { ActivitySessionRecord } from '@opencord/core-native';
 
-import { endActivity, openActivity } from '@/state/actions/plugins';
+import { endActivity } from '@/state/actions/plugins';
 import type { ServerState } from '@/state/types';
 import { confirm, type MenuAction } from '@/ui';
 
 import { closeOpenActivity } from './activityHolder';
+import { showActivity } from './showActivity';
 
 export function activityActions(
   server: ServerState | undefined,
@@ -22,7 +23,7 @@ export function activityActions(
 }
 
 export function runActivityAction(serverKey: string, session: ActivitySessionRecord, id: string): void {
-  if (id === 'open') openActivity(serverKey, session.channelId, session.id);
+  if (id === 'open') showActivity(serverKey, session.channelId, session.id);
   else if (id === 'close') closeOpenActivity();
   else if (id === 'end') {
     confirm({

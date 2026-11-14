@@ -101,6 +101,14 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/activity/[sessionId]"
+            options={{
+              // Over the call (iOS draws modals above it): the activity's own page.
+              presentation: 'fullScreenModal',
+              contentStyle: { backgroundColor: colors.chat },
+            }}
+          />
+          <Stack.Screen
             name="viewer"
             options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
           />

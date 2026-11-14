@@ -36,7 +36,8 @@ Dart (mobile/flutter_module: area.dart, channel.dart, phone_host.dart, overlays.
 
 - **What JavaScript does:** opens a view on the renderer's first context input; pumps batches to the area that owns them, holding early ones until the view's id is known; answers host calls (images, fonts, users, pickers, uploads, the link question, copy, opening channels, sounds) with the phone's own controls; tells the plugin `pause` and `resume`.
 - **Back:** Android's back asks the area first, while its screen is in front (a sheet pushed over it takes its own back). It closes the plugin's top dialog, modal or sheet, then asks the plugin's `app.on_back`, and leaves the screen only when neither went back. iOS's swipe-back is off while either could: a shown area holds it (`swipeBack.ts`) and the server screen turns its stack gesture off.
-- **Drags:** on a phone, the sidebar's swipe is off while a plugin channel, or an activity the voice pane draws, is in front; the header's sidebar button opens it.
+- **Drags:** on a phone, the sidebar's swipe is off while a plugin channel is in front; the header's sidebar button opens it.
+- **Activities have their own page** (`ActivityPage`, route `server/[serverKey]/activity/[sessionId]`), shown over the call: the plugin's screen under a header with its name, the call's channel, a way back to the call and its menu (Close, End activity). The call shows a running activity as a tile, and the control bar gets a button with its icon (a menu of them when more than one runs); either, or starting one from the picker, opens its page. Going back keeps the activity open, paused; Close, its end or leaving the call closes it, and the page goes too.
 - **The engine is warmed** while a server with plugins is open or this device is in a call, and dropped 60 seconds after.
 
 ### Building the Flutter module
@@ -99,7 +100,7 @@ The first screen offers **Create an identity**, which asks only what people shou
 ### Voice
 
 - **Join** from a voice channel's page. Mute, deafen, the soundboard and leave are at its foot.
-- **While in voice**, a bar shows the channel (and what music plays) above the tab bar, and floats above the field in a chat. Tap it, or pull it up, to open the call; pull the call down to put it away.
+- **While in voice**, a bar shows the channel (and what music plays) above the tab bar, and floats above the field in a chat. Tap it, or pull it up, to open the call, which fills the screen; pull the call down to put it away. A running activity has a button in the call's controls that opens it on its own page.
 - **Tap a person** to set how loud they are for you, or to mute them for you alone.
 - **Voice keeps going** with the screen off or another app in front. Android shows a notification while it does.
 - **The soundboard** plays a sound for everyone in the channel. Long-press one to **Preview** it for yourself, or to make it a favourite.

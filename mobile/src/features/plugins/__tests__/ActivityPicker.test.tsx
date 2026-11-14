@@ -7,12 +7,12 @@ import { freshStore, settle } from '@/test/store';
 
 import { ActivityPicker, showActivitiesButton } from '../ActivityPicker';
 
-jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
-const mockOpenCall = jest.fn();
-jest.mock('@/features/voice/callPosition', () => ({
-  ...jest.requireActual<object>('@/features/voice/callPosition'),
-  openCall: (...args: unknown[]) => mockOpenCall(...args),
-}));
+jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) } }));
+const router = (jest.requireMock('expo-router') as { router: { back: jest.Mock; push: jest.Mock; replace: jest.Mock; canGoBack: jest.Mock } }).router;
+
+beforeEach(() => {
+  for (const fn of Object.values(router)) fn.mockClear();
+});
 
 const CHESS: PluginActivityRecord = {
   pluginId: 'chess',
@@ -97,7 +97,7 @@ describe('the activity picker', () => {
   });
 
   // Fails if the start goes to the wrong channel, plugin or key (two
-  // activities), or the sheet stays open.
+  // activities), or its page doesn't take the sheet's place.
   it("pressing a row starts it in the call's channel", async () => {
     const core = await ready();
     const onClose = await picker();
@@ -106,23 +106,28 @@ describe('the activity picker', () => {
     expect(core.calls.filter((call) => call.method === 'activityStart').map((call) => call.args)).toEqual([
       [NIGHT_OWLS, CHANNELS.lounge, 'paint', 'paint'],
     ]);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    const started = core.calls.find((call) => call.method === 'activityStart');
+    expect(started).toBeTruthy();
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    expect(router.replace.mock.calls[0]?.[0]).toMatch(new RegExp(`^/server/${NIGHT_OWLS}/activity/`));
+    expect(onClose).not.toHaveBeenCalled();
   });
 
-  // Fails if a second tap while the start is on its way closes the sheet
-  // again: the second `router.back()` would leave the server screen too.
-  it('a double tap starts and closes once', async () => {
+  // Fails if a second tap while the start is on its way starts or navigates
+  // again: a second page, or leaving the server screen.
+  it('a double tap starts and opens once', async () => {
     const core = await ready();
-    const onClose = await picker();
+    await picker();
     await fireEvent.press(screen.getByText('Paint together'));
     await fireEvent.press(screen.getByText('Paint together'));
     await settle();
     expect(core.calls.filter((call) => call.method === 'activityStart')).toHaveLength(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    expect(router.back).not.toHaveBeenCalled();
   });
 
-  // Fails if a picker already swiped away closes again when its start comes
-  // back (that `router.back()` would leave the server screen), or doesn't
+  // Fails if a picker already swiped away replaces or closes anything when
+  // its start comes back (that would leave the server screen), or doesn't
   // open what started; the pressed row shows it's starting meanwhile.
   it('a start that comes back after the sheet went opens without closing', async () => {
     const core = await ready();
@@ -139,6 +144,8 @@ describe('the activity picker', () => {
     await act(async () => finish(started));
     await settle();
     expect(onClose).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/activity/950`);
     expect(useAppStore.getState().openActivity).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, sessionId: '950' });
   });
 
@@ -151,8 +158,7 @@ describe('the activity picker', () => {
     await settle();
     const started = (await start.mock.results[0]?.value) as ActivitySessionRecord;
     expect(useAppStore.getState().openActivity).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, sessionId: started.id });
-    // The call comes up to show it (Android put it away for the sheet).
-    expect(mockOpenCall).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.lounge);
+    expect(router.replace).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/activity/${started.id}`);
   });
 
   it('a running activity says Running', async () => {
@@ -173,13 +179,14 @@ describe('the activity picker', () => {
       ),
     );
     await settle();
-    const onClose = await picker();
+    await picker();
     expect(screen.getByText('This call already has 4 activities.')).toBeTruthy();
     await fireEvent.press(screen.getByText('Chess'));
-    expect(onClose).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText('Paint together'));
     await settle();
-    expect(onClose).toHaveBeenCalledTimes(1);
+    // The running one may still be opened: its page takes the sheet's place.
+    expect(router.replace).toHaveBeenCalledTimes(1);
   });
 
   it.each([

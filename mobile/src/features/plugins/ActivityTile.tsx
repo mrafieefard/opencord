@@ -6,12 +6,12 @@
 import type { ActivitySessionRecord } from '@opencord/core-native';
 import { StyleSheet, View } from 'react-native';
 
-import { openActivity } from '@/state/actions/plugins';
 import { memberName, useServer } from '@/state/selectors';
 import { Menu, Row, Text, radius, space, useTheme } from '@/ui';
 
 import { activityActions, runActivityAction } from './activityActions';
 import { PluginIcon } from './PluginIcon';
+import { showActivity } from './showActivity';
 
 export interface ActivityTileProps {
   serverKey: string;
@@ -43,7 +43,7 @@ export function ActivityTile({ serverKey, session, width, height }: ActivityTile
       testID={`activity-tile-${session.id}`}
     >
       <View style={[styles.tile, { width, height, backgroundColor: colors.surface }]}>
-        <Row height={height} accessibilityLabel={session.name} onPress={() => openActivity(serverKey, session.channelId, session.id)} style={styles.row}>
+        <Row height={height} accessibilityLabel={session.name} onPress={() => showActivity(serverKey, session.channelId, session.id)} style={styles.row}>
           <View style={styles.body}>
             {height >= WITH_ICON && <PluginIcon serverKey={serverKey} pluginId={session.pluginId} icon={session.icon} size={40} radius={10} />}
             <Text variant="headline" numberOfLines={1}>
