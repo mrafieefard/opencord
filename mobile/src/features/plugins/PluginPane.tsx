@@ -8,7 +8,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useServer } from '@/state/selectors';
+import { chrome } from '@/features/servers/chrome';
+import { ConnectedBar } from '@/features/voice/ConnectedBar';
+import { useMyVoice, useServer } from '@/state/selectors';
 import { PaneHeader, Text, space, useTheme } from '@/ui';
 
 import { PluginArea } from './PluginArea';
@@ -48,6 +50,8 @@ export function PluginPane({ serverKey, channelId, onOpenSidebar, onOpenChannel,
   const comebacks = useTimesOn(available);
   const place = useMemo(() => (available ? { kind: 'channel' as const, serverKey, channelId } : null), [available, serverKey, channelId]);
   const openChannel = useCallback((id: string) => onOpenChannel?.(id), [onOpenChannel]);
+  const myVoice = useMyVoice();
+  const showBar = onOpenChannel !== undefined && myVoice !== null && chrome.serversVoiceBar;
   const session = usePluginSession({
     place,
     pluginId: plugin?.pluginId ?? '',
@@ -62,7 +66,7 @@ export function PluginPane({ serverKey, channelId, onOpenSidebar, onOpenChannel,
         titleIcon="extension"
         left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
       />
-      <View style={[styles.body, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.body, { paddingBottom: showBar ? 0 : insets.bottom }]}>
         {session ? (
           <PluginArea
             session={session}
@@ -79,6 +83,12 @@ export function PluginPane({ serverKey, channelId, onOpenSidebar, onOpenChannel,
           )
         )}
       </View>
+      {/* The call this device is in elsewhere, as a voice pane shows it (Android). */}
+      {showBar && (
+        <View style={{ paddingBottom: insets.bottom }}>
+          <ConnectedBar serverKey={serverKey} channelId={channelId} />
+        </View>
+      )}
     </View>
   );
 }

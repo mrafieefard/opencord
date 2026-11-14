@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, MobileEvent, PluginChannelState, type ChannelRecord } from '@opencord/core-native';
 
 import type { FakeCore } from '@/core/fake/FakeCore';
@@ -35,6 +36,10 @@ jest.mock('@opencord/plugin-area', () => {
   };
 });
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
+// Android's chrome: the connected bar at a pane's foot.
+jest.mock('@/features/servers/chrome', () => ({
+  chrome: { serversSearch: true, serversVoiceBar: true, tabBarSearch: false, floatingVoice: false },
+}));
 
 const area = (jest.requireMock('@opencord/plugin-area') as { __fake: FakeArea }).__fake;
 
@@ -140,5 +145,21 @@ describe('a plugin channel', () => {
     });
     await settle();
     expect(area.calls.filter((call) => call.method === 'createArea')).toHaveLength(1);
+  });
+
+  // Fails if a plugin channel hides the way back to the call this device is
+  // in elsewhere (found live: no bar, no way back but the sidebar).
+  it('in a call elsewhere, the pane shows the connected bar', async () => {
+    const core = await ready();
+    await core.voiceJoin(NIGHT_OWLS, CHANNELS.lounge);
+    onEvents(await core.nextEvents(core.eventsAttach(), 100));
+    await settle();
+    await render(
+      <GestureHandlerRootView>
+        <ContentPane serverKey={NIGHT_OWLS} open={{ id: CHANNELS.helpDesk, kind: 'plugin' }} onOpenChannel={jest.fn()} />
+      </GestureHandlerRootView>,
+    );
+    await settle();
+    expect(screen.getByTestId('connected-bar-pressable')).toBeTruthy();
   });
 });
