@@ -15,6 +15,8 @@ export interface ControlBarProps {
   onToggleMute: () => void;
   onToggleDeafen: () => void;
   onOpenSoundboard?: () => void;
+  /** Given when this call can start an activity (plugins M4 Task 14). */
+  onOpenActivities?: () => void;
   onLeave: () => void;
 }
 
@@ -26,6 +28,7 @@ export function ControlBar({
   onToggleMute,
   onToggleDeafen,
   onOpenSoundboard,
+  onOpenActivities,
   onLeave,
 }: ControlBarProps) {
   const { colors } = useTheme();
@@ -88,6 +91,21 @@ export function ControlBar({
           <Icon name="soundboard" size={24} color="text" />
         </View>
       </Touchable>
+
+      {/* Activities */}
+      {onOpenActivities && (
+        <Touchable
+          onPress={onOpenActivities}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Activities"
+          testID="control-activities"
+        >
+          <View style={[styles.button, { backgroundColor: colors.surface }]}>
+            <Icon name="extension" size={24} color="text" />
+          </View>
+        </Touchable>
+      )}
 
       {/* Leave */}
       <Touchable

@@ -37,6 +37,7 @@ export function initialState(): AppState {
     chatInFront: false,
     voicePageInFront: null,
     call: null,
+    openActivity: null,
     tabInset: 0,
     voiceSlot: null,
     voiceSpeed: 1,

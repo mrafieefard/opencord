@@ -194,6 +194,8 @@ export interface AppState {
   voiceSlot: { y: number; height: number } | null;
   /** The call the call sheet shows (features/voice/callPosition.ts), open or not. */
   call: { serverKey: string; channelId: string } | null;
+  /** The activity this device has open in its call (plugins M4 Task 15); at most one. */
+  openActivity: { serverKey: string; channelId: string; sessionId: string } | null;
   /** The voice page of a channel fills a phone's screen. */
   voicePageInFront: { serverKey: string; channelId: string } | null;
   /** Voice messages play at 1, 1.5 or 2 times. */

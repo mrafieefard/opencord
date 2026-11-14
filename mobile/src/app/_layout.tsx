@@ -90,6 +90,17 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/activities/[channelId]"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
             name="viewer"
             options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
           />

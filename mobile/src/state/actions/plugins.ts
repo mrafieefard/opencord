@@ -5,6 +5,7 @@ import { MobileError, MobileError_Tags, type ActivitySessionRecord } from '@open
 
 import { describeError, getCore } from '@/core';
 
+import { useAppStore } from '../store';
 import { toast } from './ui';
 
 /** The most activities one call holds (the server's limit). */
@@ -46,4 +47,9 @@ export async function endActivity(serverKey: string, sessionId: string): Promise
   } catch (error: unknown) {
     toast(describeError(error), 'error');
   }
+}
+
+/** Opens an activity on this device (Task 15 draws it); another open one closes. */
+export function openActivity(serverKey: string, channelId: string, sessionId: string): void {
+  useAppStore.setState({ openActivity: { serverKey, channelId, sessionId } });
 }

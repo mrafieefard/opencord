@@ -11,8 +11,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
 import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader';
+import { showActivitiesButton } from '@/features/plugins/ActivityPicker';
 import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
-import { useChannelInfo, useMusicSettings, useMyVoice, useVoiceMembers } from '@/state/selectors';
+import { useChannelInfo, useMusicSettings, useMyVoice, useServer, useVoiceMembers } from '@/state/selectors';
 import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/ui';
 
 import { chrome } from '@/features/servers/chrome';
@@ -53,6 +54,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const musicSettings = useMusicSettings(serverKey);
   const myVoice = useMyVoice();
   const members = useVoiceMembers(serverKey, channelId);
+  const server = useServer(serverKey);
 
   const here = myVoice?.serverKey === serverKey && myVoice.channelId === channelId ? myVoice : null;
   const showMusic = !!(musicSettings?.supported && musicSettings.enabled);
@@ -79,6 +81,11 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
     () => openSheet(`/server/${serverKey}/soundboard/${channelId}`),
     [openSheet, serverKey, channelId],
   );
+  const openActivities = useCallback(
+    () => openSheet(`/server/${serverKey}/activities/${channelId}`),
+    [openSheet, serverKey, channelId],
+  );
+  const canOpenActivities = showActivitiesButton(server, channelId);
   const openMember = useCallback((userId: string) => openSheet(`/server/${serverKey}/member/${userId}`), [openSheet, serverKey]);
   // In the call, the grid scrolls only when not everyone fits; a pull down
   // at its top (or anywhere, when it doesn't scroll) takes the call down.
@@ -190,6 +197,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
             onToggleMute={() => setMuted(!here.muted)}
             onToggleDeafen={() => setDeafened(!here.deafened)}
             onOpenSoundboard={openSoundboard}
+            onOpenActivities={canOpenActivities ? openActivities : undefined}
             onLeave={leave}
           />
         </View>
