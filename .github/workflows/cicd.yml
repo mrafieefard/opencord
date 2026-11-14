@@ -861,7 +861,9 @@ jobs:
             apk=opencord-android-unsigned-debugkey.apk
           fi
           npx expo prebuild -p android --no-install
-          (cd android && ./gradlew assembleRelease --no-daemon)
+          # The Flutter engine's libraries are compressed in the APK: more heap
+          # than the template's 2 GB.
+          (cd android && ./gradlew assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g")
           rm -f "$RUNNER_TEMP/release.keystore"
           mkdir -p "$RUNNER_TEMP/dist"
           cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/dist/$apk"

@@ -33,11 +33,12 @@ android)
 ios)
     out=../modules/plugin-area/ios/Frameworks
     rm -rf "$out"
+    # Unsigned: the app that embeds them is signed when it's built.
     if $release; then
-        flutter build ios-framework --no-debug --no-profile --output="$out"
+        flutter build ios-framework --no-debug --no-profile --no-codesign --output="$out"
         mv "$out/Release"/* "$out/" && rmdir "$out/Release"
     else
-        flutter build ios-framework --no-profile --no-release --output="$out"
+        flutter build ios-framework --no-profile --no-release --no-codesign --output="$out"
         mv "$out/Debug"/* "$out/" && rmdir "$out/Debug"
     fi
     ;;
