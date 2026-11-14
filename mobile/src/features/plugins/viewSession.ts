@@ -32,6 +32,8 @@ export interface AreaStatus {
   reason: string;
   detail: string;
   overlays: number;
+  /** The plugin set `app.on_back`: back with no overlay open asks it. */
+  back?: boolean;
 }
 
 export interface ViewSessionOptions {
@@ -65,6 +67,10 @@ export class ViewSession {
     this.options = options;
   }
 
+  get place(): ViewPlace {
+    return this.options.place;
+  }
+
   /** Creates the area and listens to it; resolves when Dart is ready. */
   async start(): Promise<void> {
     const { area } = this.options;
@@ -87,6 +93,17 @@ export class ViewSession {
   /** An input React Native originates (`call`, lifecycle). */
   send(input: object): void {
     this.toCore(JSON.stringify(input));
+  }
+
+  /** A new setup (theme, insets, keyboard); the area redraws, keeping state. */
+  setSetup(setupJson: string): void {
+    if (!this.closed) this.options.area.setSetup(this.areaId, setupJson);
+  }
+
+  /** The system back: true when the area or the plugin went back with it. */
+  async back(): Promise<boolean> {
+    if (this.closed) return false;
+    return this.options.area.back(this.areaId);
   }
 
   subscribe(listener: (status: AreaStatus) => void): () => void {

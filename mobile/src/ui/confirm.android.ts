@@ -19,9 +19,12 @@ export function confirm(options: ConfirmOptions): void {
   emit();
 }
 
-export function closeConfirm(): void {
+/** Closes the question; unless it was answered yes, that's a cancel. */
+export function closeConfirm(confirmed = false): void {
+  const was = open;
   open = null;
   emit();
+  if (!confirmed) was?.onCancel?.();
 }
 
 export function useOpenConfirm(): ConfirmOptions | null {
