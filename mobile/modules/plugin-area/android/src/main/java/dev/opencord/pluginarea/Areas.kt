@@ -12,11 +12,12 @@ import io.flutter.plugin.common.MethodChannel
 enum class EngineState { RESUMED, PAUSED }
 
 /**
- * What an area's engine is told: it runs (ticks, animates, draws) only while
- * a view shows it and the app is in the foreground.
+ * What an area's engine is told: it runs (ticks, animates, draws) while a
+ * view shows it, or before any has (it must lay out to open its view), and
+ * the app is in the foreground. One that lost its view pauses.
  */
-fun engineState(hasView: Boolean, inBackground: Boolean): EngineState =
-  if (hasView && !inBackground) EngineState.RESUMED else EngineState.PAUSED
+fun engineState(hasView: Boolean, wasShown: Boolean, inBackground: Boolean): EngineState =
+  if ((hasView || !wasShown) && !inBackground) EngineState.RESUMED else EngineState.PAUSED
 
 /**
  * Backs waiting for Dart's answer. Each is answered once: by Dart, or with
@@ -86,14 +87,18 @@ class Area(val engine: FlutterEngine, private val events: () -> AreaEvents?) {
   var view: PluginAreaView? = null
     set(value) {
       field = value
+      if (value != null) shown = true
       tellLifecycle()
     }
+
+  /** A view has shown it at some point. */
+  private var shown = false
 
   private var told: EngineState? = null
 
   /** Tells the engine whether to run, when that changed. */
   fun tellLifecycle() {
-    val state = engineState(view != null, Areas.inBackground)
+    val state = engineState(view != null, shown, Areas.inBackground)
     if (state == told) return
     told = state
     when (state) {
@@ -233,8 +238,6 @@ object Areas {
     area.id = id
     area.pipe.setup(setupJson)
     areas[id] = area
-    // Paused until a view shows it.
-    area.tellLifecycle()
     return area
   }
 
