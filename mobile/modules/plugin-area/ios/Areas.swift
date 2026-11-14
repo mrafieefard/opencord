@@ -119,6 +119,8 @@ enum Areas {
   private static var spare: Area?
   private static var areas: [String: Area] = [:]
   static var events: AreaEvents?
+  /// The module that set `events`; only it clears them.
+  static weak var eventsOwner: AnyObject?
 
   private static func newArea() -> Area {
     let engineGroup = group ?? FlutterEngineGroup(name: "plugin-areas", project: nil)

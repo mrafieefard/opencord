@@ -33,7 +33,7 @@ class PluginAreaView: ExpoView {
     detach()
     area.view?.detach()
     let flutter = FlutterViewController(engine: area.engine, nibName: nil, bundle: nil)
-    flutter.view.isOpaque = false
+    flutter.isViewOpaque = false
     flutter.view.backgroundColor = .clear
     parent.addChild(flutter)
     flutter.view.frame = bounds

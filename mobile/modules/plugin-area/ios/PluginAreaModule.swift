@@ -8,18 +8,20 @@ public class PluginAreaModule: Module {
     Events("input", "status", "hostCall")
 
     OnCreate {
+      Areas.eventsOwner = self
       Areas.events = { [weak self] name, body in
         self?.sendEvent(name, body as [String: Any?])
       }
     }
 
     OnDestroy {
-      Areas.events = nil
+      // A reloaded JavaScript's module may already have set its own.
+      if Areas.eventsOwner === self { Areas.events = nil }
     }
 
-    Function("warmUp") { Areas.warmUp() }.runOnQueue(.main)
+    Function("warmUp") { onMain { Areas.warmUp() } }
 
-    Function("coolDown") { Areas.coolDown() }.runOnQueue(.main)
+    Function("coolDown") { onMain { Areas.coolDown() } }
 
     AsyncFunction("createArea") { (areaId: String, setupJson: String, promise: Promise) in
       Areas.create(id: areaId, setupJson: setupJson).whenReady { error in
@@ -31,21 +33,21 @@ public class PluginAreaModule: Module {
       }
     }.runOnQueue(.main)
 
-    Function("destroyArea") { (areaId: String) in Areas.destroy(id: areaId) }.runOnQueue(.main)
+    Function("destroyArea") { (areaId: String) in onMain { Areas.destroy(id: areaId) } }
 
-    Function("destroyAllAreas") { Areas.destroyAll() }.runOnQueue(.main)
+    Function("destroyAllAreas") { onMain { Areas.destroyAll() } }
 
     Function("setSetup") { (areaId: String, setupJson: String) in
-      Areas[areaId]?.pipe.setup(setupJson)
-    }.runOnQueue(.main)
+      onMain { Areas[areaId]?.pipe.setup(setupJson) }
+    }
 
     Function("pushBatch") { (areaId: String, json: String) in
-      Areas[areaId]?.pipe.push(json)
-    }.runOnQueue(.main)
+      onMain { Areas[areaId]?.pipe.push(json) }
+    }
 
     Function("hostReply") { (areaId: String, id: Int, json: String) in
-      Areas[areaId]?.hostReply(id: id, json: json)
-    }.runOnQueue(.main)
+      onMain { Areas[areaId]?.hostReply(id: id, json: json) }
+    }
 
     AsyncFunction("back") { (areaId: String, promise: Promise) in
       guard let area = Areas[areaId] else {
@@ -61,4 +63,10 @@ public class PluginAreaModule: Module {
       }
     }
   }
+}
+
+/// Runs `work` on the main queue after what is already there, so the
+/// synchronous calls keep their order with the `.main` async ones.
+private func onMain(_ work: @escaping () -> Void) {
+  DispatchQueue.main.async(execute: work)
 }
