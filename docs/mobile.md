@@ -35,7 +35,8 @@ Dart (mobile/flutter_module: area.dart, channel.dart, phone_host.dart, overlays.
 ```
 
 - **What JavaScript does:** opens a view on the renderer's first context input; pumps batches to the area that owns them, holding early ones until the view's id is known; answers host calls (images, fonts, users, pickers, uploads, the link question, copy, opening channels, sounds) with the phone's own controls; tells the plugin `pause` and `resume`.
-- **Back:** Android's back asks the area first. It closes the plugin's top dialog, modal or sheet, then asks the plugin's `app.on_back`, and leaves the screen only when neither went back. iOS's swipe-back is off while either could.
+- **Back:** Android's back asks the area first, while its screen is in front (a sheet pushed over it takes its own back). It closes the plugin's top dialog, modal or sheet, then asks the plugin's `app.on_back`, and leaves the screen only when neither went back. iOS's swipe-back is off while either could: a shown area holds it (`swipeBack.ts`) and the server screen turns its stack gesture off.
+- **Drags:** on a phone, the sidebar's swipe is off while a plugin channel, or an activity the voice pane draws, is in front; the header's sidebar button opens it.
 - **The engine is warmed** while a server with plugins is open or this device is in a call, and dropped 60 seconds after.
 
 ### Building the Flutter module

@@ -1904,7 +1904,8 @@ The owner's beta install kept downloading `0.0.1-canary.4` from October 26 after
   - an open overlay that isn't dismissible keeps back;
   - with none open, the plugin's `app.on_back` is asked: the core sends `back_handler` when one is set and answers a `back` input with exactly one `back` op;
   - the phone waits at most 500 ms, so a plugin can never trap the viewer;
-  - iOS's swipe-back is off while the plugin could take back.
+  - iOS's swipe-back is off while the plugin could take back: a shown area holds it and the server screen turns its stack gesture off. Android's back reaches an area only while its screen is in front.
+  - On a phone, the sidebar's swipe steps aside while a plugin's screen is in front, so its horizontal drags stay the plugin's.
 - **The native module** (`mobile/modules/plugin-area`, Kotlin and Swift) has:
   - a `FlutterEngineGroup`, with a spare engine kept warm while a server with plugins is open or the device is in a call, and dropped 60 s after;
   - one `MethodChannel` per area that holds batches until Dart says `ready`;
