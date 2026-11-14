@@ -5,6 +5,7 @@ import 'package:opencord_blocks/opencord_blocks.dart';
 
 import 'channel.dart';
 import 'gates.dart';
+import 'overlays.dart';
 import 'phone_host.dart';
 import 'status.dart';
 
@@ -35,20 +36,24 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     widget.channel.onBack = _back;
   }
 
-  /// The system back (§12.5): answers the top dialog (a confirm with no),
-  /// else dismisses the top modal or sheet when it's dismissible, as Esc
-  /// does on the desktop. False when nothing was closed: React Native then
-  /// does its own back.
+  /// The system back (§12.5) closes the top overlay: answers a dialog (a
+  /// confirm with no), or dismisses a named or in-tree modal or sheet when
+  /// it's dismissible, as Esc does on the desktop. An open overlay that
+  /// isn't dismissible keeps back too: it leaves the plugin only when none
+  /// is open. False then, and React Native does its own back.
   bool _back() {
-    final dialogs = _controller.dialogs;
-    if (dialogs.isNotEmpty) {
-      final top = dialogs.last;
-      _controller.answerDialog(top.id, top.kind == 'confirm' ? false : null);
-      return true;
+    final overlays = overlaysOf(_controller);
+    if (overlays.isEmpty) return false;
+    switch (overlays.last) {
+      case DialogOverlay(:final dialog):
+        _controller.answerDialog(dialog.id, dialog.kind == 'confirm' ? false : null);
+      case NamedOverlay(:final modal):
+        if (modal.dismissible) {
+          _controller.send({'kind': 'modal_dismiss', 'name': modal.name});
+        }
+      case InTreeOverlay(:final node):
+        if (node.props['dismissible'] != false) _controller.event(node.id, 'dismiss');
     }
-    final modals = _controller.roots?.modals ?? const <BlocksModalRoot>[];
-    if (modals.isEmpty || !modals.last.dismissible) return false;
-    _controller.send({'kind': 'modal_dismiss', 'name': modals.last.name});
     return true;
   }
 

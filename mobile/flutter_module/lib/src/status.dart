@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:opencord_blocks/opencord_blocks.dart';
 
+import 'overlays.dart';
+
 /// What React Native draws around the area ("The plugin area channel",
 /// `status`).
 @immutable
@@ -21,7 +23,7 @@ class AreaStatus {
   /// The details an `error` op carries for those allowed to see them.
   final String detail;
 
-  /// Open modals, sheets and dialogs.
+  /// Open modals, sheets (named and in-tree) and dialogs.
   final int overlays;
 
   Map<String, Object?> toJson() => {
@@ -44,6 +46,6 @@ AreaStatus statusOf(BlocksController controller) {
   if (roots == null) return const AreaStatus(state: 'loading');
   return AreaStatus(
     state: 'running',
-    overlays: roots.modals.length + controller.dialogs.length,
+    overlays: overlaysOf(controller).length,
   );
 }

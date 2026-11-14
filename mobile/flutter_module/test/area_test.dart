@@ -187,11 +187,12 @@ void main() {
   };
 
   String withModals(int seq, List<Map<String, Object?>> modals, {bool nodes = true}) => batch(seq, [
+    // Named modal roots as the core sends them: the `modal` block itself.
     if (nodes) ...[
       create(21, 'text', props: {'text': 'In the sheet'}),
-      create(20, 'column', children: [21]),
+      create(20, 'modal', props: {'size': 'medium', 'title': 'Filters'}, children: [21]),
       create(31, 'text', props: {'text': 'In the modal'}),
-      create(30, 'column', children: [31]),
+      create(30, 'modal', props: {'size': 'medium', 'title': 'Edit'}, children: [31]),
     ],
     {'op': 'roots', 'main': 1, 'modals': modals},
   ]);
@@ -215,13 +216,14 @@ void main() {
     expect(native.inputs('modal_dismiss'), hasLength(2));
   });
 
-  // Fails if back dismisses a modal the plugin made undismissable.
-  testWidgets('a modal that isn\'t dismissible keeps back', (tester) async {
+  // Fails if back dismisses a modal the plugin made undismissable, or leaves
+  // the screen from under it (§12.5: back leaves only when no modal is open).
+  testWidgets('a modal that isn\'t dismissible keeps the screen', (tester) async {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
     await native.batch(withModals(2, [modal('locked', dismissible: false, id: 30)]));
-    expect(await native.back(), isFalse);
+    expect(await native.back(), isTrue);
     expect(native.inputs('modal_dismiss'), isEmpty);
     expect(find.text('In the modal'), findsOneWidget);
   });
@@ -249,8 +251,70 @@ void main() {
     await native.setup();
     await native.batch(_hello);
     await native.batch(withModals(2, [modal('filters', sheet: true), modal('edit', id: 30)]));
+    await native.batch(batch(3, [
+      {'op': 'dialog', 'id': 7, 'kind': 'confirm', 'text': 'Delete it?'},
+    ]));
     await tester.pump();
-    expect(native.statuses().last['overlays'], 2);
+    expect(native.statuses().last['overlays'], 3);
+  });
+
+  // An in-tree `ui.modal({open = true})` or `ui.sheet` added under the main
+  // root, as the core sends it: the block with `open` and the plugin's
+  // `dismiss`, then a `children` op on the parent.
+  String withInTree(int seq, {required String block, bool dismissible = true}) => batch(seq, [
+    create(41, 'text', props: {'text': 'Half-filled form'}),
+    create(40, block, props: {'open': true, 'dismissible': dismissible, 'title': 'Form'}, events: ['dismiss'], children: [41]),
+    {'op': 'children', 'id': 1, 'children': [2, 3, 40]},
+  ]);
+
+  // The plugin closes it: `open` goes false.
+  String closeInTree(int seq) => batch(seq, [
+    {'op': 'props', 'id': 40, 'set': {'open': false}, 'unset': <String>[]},
+  ]);
+
+  // Fails if back on an open in-tree modal or sheet leaves the screen (the
+  // view closes and the form is lost) instead of sending its dismiss.
+  for (final block in ['modal', 'sheet']) {
+    testWidgets('back dismisses an open in-tree $block first', (tester) async {
+      final native = await _start(tester);
+      await native.setup();
+      await native.batch(_hello);
+      await native.batch(withInTree(2, block: block));
+      await tester.pump();
+      expect(native.statuses().last['overlays'], 1);
+      expect(await native.back(), isTrue);
+      expect(native.inputs('event').last, {'kind': 'event', 'node': 40, 'event': 'dismiss', 'data': <String, Object?>{}});
+      // The plugin closes it: back then leaves.
+      await native.batch(closeInTree(3));
+      await tester.pump();
+      expect(native.statuses().last['overlays'], 0);
+      expect(await native.back(), isFalse);
+    });
+  }
+
+  // Fails if back dismisses an in-tree modal the plugin made undismissable,
+  // or leaves the screen from under it.
+  testWidgets('an in-tree modal that isn\'t dismissible keeps the screen', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withInTree(2, block: 'modal', dismissible: false));
+    await tester.pump();
+    expect(await native.back(), isTrue, reason: 'the screen stays under an open modal');
+    expect(native.inputs('event'), isEmpty);
+  });
+
+  // Fails if back closes an in-tree modal under a named one.
+  testWidgets('a named modal is above the main tree\'s in-tree modal', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withInTree(2, block: 'modal'));
+    await native.batch(withModals(3, [modal('edit', id: 30)]));
+    await tester.pump();
+    expect(await native.back(), isTrue);
+    expect(native.inputs('modal_dismiss').last, {'kind': 'modal_dismiss', 'name': 'edit'});
+    expect(native.inputs('event'), isEmpty);
   });
 
   // Fails if a theme change rebuilds the view as new (a second context
