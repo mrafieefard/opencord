@@ -138,13 +138,26 @@ export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwi
   const swipeBack = status.state !== 'running' || (status.overlays === 0 && status.back !== true);
   useEffect(() => onSwipeBackChange?.(swipeBack), [onSwipeBackChange, swipeBack]);
 
-  if (status.state === 'running') {
-    return (
+  // The native view is there from the start: the engine needs a view to lay
+  // out and send the context that opens the plugin's view. Until it runs,
+  // React Native's own words cover it.
+  return (
+    <View style={styles.fill}>
       <View ref={frame} onLayout={measure} style={[styles.fill, { paddingBottom: lift }]} testID="plugin-area-frame">
         <PluginAreaView areaId={session.areaId} style={styles.fill} />
       </View>
-    );
-  }
+      {status.state !== 'running' && !(status.state === 'closed' && status.reason === 'left_call') && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.chat }]} testID="plugin-area-cover">
+          <Cover status={status} onReload={onReload} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** What React Native draws over the area while the plugin isn't running. */
+function Cover({ status, onReload }: { status: AreaStatus; onReload: () => void }) {
+  const { colors } = useTheme();
   if (status.state === 'loading') {
     return (
       <View style={styles.center} testID="plugin-area-loading">
@@ -174,8 +187,6 @@ export function PluginArea({ session, pluginId, paused, onLeave, onReload, onSwi
       </View>
     );
   }
-  // closed
-  if (status.reason === 'left_call') return null;
   if (UNAVAILABLE.has(status.reason)) {
     return (
       <View style={styles.center}>

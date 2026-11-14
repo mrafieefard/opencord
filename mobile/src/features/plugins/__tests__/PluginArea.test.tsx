@@ -64,7 +64,7 @@ describe('the plugin area', () => {
     const w = await world();
     await w.status(status as Partial<AreaStatus>);
     expect(screen.getByText(words)).toBeTruthy();
-    expect(screen.queryByTestId(`area-view-${w.session.areaId}`)).toBeNull();
+    expect(screen.getByTestId('plugin-area-cover')).toBeTruthy();
   });
 
   it('loading shows a spinner', async () => {
@@ -91,16 +91,20 @@ describe('the plugin area', () => {
     expect(screen.queryByText('This plugin closed this screen')).toBeNull();
   });
 
-  // Fails if the native view shows before the plugin's first roots (an
-  // empty transparent area) or after it stops.
-  it('the native view shows only while running', async () => {
+  // Fails if the native view waits for `running` to mount: with no view the
+  // engine is paused and lays nothing out, so the renderer never sends the
+  // context that opens the view (found live: a spinner for ever). It's
+  // mounted from the start, covered by React Native's states until it runs.
+  it('the native view is mounted from the start and covered until it runs', async () => {
     const w = await world();
     const id = `area-view-${w.session.areaId}`;
-    expect(screen.queryByTestId(id)).toBeNull();
+    expect(screen.getByTestId(id)).toBeTruthy();
+    expect(screen.getByTestId('plugin-area-cover')).toBeTruthy();
     await w.status({ state: 'running' });
     expect(screen.getByTestId(id)).toBeTruthy();
+    expect(screen.queryByTestId('plugin-area-cover')).toBeNull();
     await w.status({ state: 'error' });
-    expect(screen.queryByTestId(id)).toBeNull();
+    expect(screen.getByTestId('plugin-area-cover')).toBeTruthy();
   });
 
   // Fails if unmounting the component destroys the area (an activity's
