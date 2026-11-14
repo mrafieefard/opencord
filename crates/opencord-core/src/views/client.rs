@@ -57,7 +57,7 @@ use sha2::{Digest, Sha256};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
-use super::{Place, ViewContext, ViewHandle, ViewSink, ViewSpec, Viewer, start};
+use super::{Place, ViewContext, ViewHandle, ViewPlatform, ViewSink, ViewSpec, Viewer, start};
 use crate::api::types::{CoreError, ErrorCode};
 use crate::http::HttpResponse;
 
@@ -73,9 +73,6 @@ const OUTGOING_QUEUE: usize = 256;
 const MAX_EXPECTED: usize = 16;
 /// What one unclaimed view keeps of what arrived for it.
 const MAX_EARLY: usize = 64;
-/// The platform every view opened here says it's on (§11.4). The phone
-/// opens no views before milestone 4.
-const PLATFORM: &str = "desktop";
 /// The words of an `error` op the core sends itself, as the VM's.
 const ERROR_MESSAGE: &str = "This plugin hit an error";
 /// How long an activity's view opening again on a new session waits for
@@ -125,6 +122,8 @@ struct Shared {
     images_dir: PathBuf,
     /// Their names, oldest first.
     images: Mutex<VecDeque<String>>,
+    /// What this device's views say they're on (§11.4).
+    platform: Mutex<ViewPlatform>,
 }
 
 #[derive(Default)]
@@ -221,8 +220,19 @@ impl Views {
                 verified: Mutex::default(),
                 images_dir,
                 images: Mutex::default(),
+                platform: Mutex::default(),
             }),
         }
+    }
+
+    /// What views opened from now on say they're on: the phone's facade
+    /// sets `Phone` once at start.
+    pub(crate) fn set_platform(&self, platform: ViewPlatform) {
+        *lock(&self.shared.platform) = platform;
+    }
+
+    pub(crate) fn platform(&self) -> ViewPlatform {
+        self.shared.platform()
     }
 
     /// Every view's batches from now on; an earlier receiver hears nothing
@@ -313,6 +323,7 @@ impl Views {
             place: at.place(),
             show_errors: opened.show_errors,
             storage_dir: self.shared.storage_dir(key, &opened.plugin_id),
+            platform: self.shared.platform(),
         };
         let handle = Arc::new(start(spec, sink));
         self.shared.runtime.spawn(Shared::send_out(
@@ -594,12 +605,16 @@ impl Shared {
         lock(&self.state)
     }
 
+    fn platform(&self) -> ViewPlatform {
+        *lock(&self.platform)
+    }
+
     async fn open_on_server(&self, key: &str, at: &At) -> Result<proto::ViewOpened, CoreError> {
         let request = Request::OpenView(proto::OpenView {
             place: Some(proto::ViewPlace {
                 kind: Some(at.wire()),
             }),
-            platform: PLATFORM.to_owned(),
+            platform: self.platform().as_str().to_owned(),
         });
         let _opening = Opening::new(self, key);
         match self.transport.request(key, request).await? {

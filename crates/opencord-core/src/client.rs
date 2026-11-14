@@ -361,6 +361,16 @@ impl Client {
     /// `["plugin_users"]` until called. The desktop adds
     /// `"plugin_channels"`; the phone's facade never calls this, so phones
     /// get no plugin channels before milestone 4.
+    /// What this device's plugin views say they're on (§11.4): the phone's
+    /// facade sets `Phone` at start; the desktop keeps `Desktop`.
+    pub fn set_view_platform(&self, platform: crate::views::ViewPlatform) {
+        self.inner.views.set_platform(platform);
+    }
+
+    pub fn view_platform(&self) -> crate::views::ViewPlatform {
+        self.inner.views.platform()
+    }
+
     pub fn set_plugin_features(&self, features: Vec<String>) -> Result<(), CoreError> {
         let valid = |feature: &String| {
             (1..=32).contains(&feature.len())

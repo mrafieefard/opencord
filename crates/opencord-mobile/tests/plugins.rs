@@ -122,3 +122,15 @@ async fn features_are_checked_by_the_core() {
         "{refused:?}"
     );
 }
+
+// Fails if the phone's plugin views say they're on a desktop (the plugin's
+// `app.platform` and the server's `view.platform` would be wrong).
+#[tokio::test(flavor = "multi_thread")]
+async fn the_phone_opens_views_as_a_phone() {
+    let dir = tempfile::tempdir().unwrap();
+    let mobile = start(&dir);
+    assert_eq!(
+        mobile.client().view_platform(),
+        opencord_core::views::ViewPlatform::Phone
+    );
+}

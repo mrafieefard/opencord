@@ -36,6 +36,8 @@ impl Mobile {
         open_devices: bool,
     ) -> Result<Self, MobileError> {
         let (client, core_events) = Client::new(data_dir, runtime.clone())?;
+        // Plugins see the phone as a phone (§11.4).
+        client.set_view_platform(opencord_core::views::ViewPlatform::Phone);
         let media_events = client.enable_media(MediaOptions { open_devices });
         Ok(Self {
             client,

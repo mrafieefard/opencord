@@ -17,7 +17,7 @@ use serde_json::json;
 use super::{At, ViewOutput, ViewTransport, Views};
 use crate::api::types::{CoreError, ErrorCode};
 use crate::http::HttpResponse;
-use crate::views::Viewer;
+use crate::views::{ViewPlatform, Viewer};
 
 const CONTEXT: &str = r#"{"width":800,"height":600,"theme":"dark","input":"mouse",
     "safe_area":{"top":0,"right":0,"bottom":0,"left":0},"text_scale":1}"#;
@@ -525,4 +525,22 @@ async fn a_reopen_refused_out_of_the_call_closes_with_left_call() {
         })
     );
     assert_eq!(views.place_of(&id), None);
+}
+
+// Fails if a phone's view is opened on the server as a desktop's (the
+// plugin's `view.platform` would lie), or a desktop's as a phone's.
+#[tokio::test]
+async fn views_open_on_the_server_with_this_devices_platform() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = FakeServer::new(opened(opencord_plugins::API_VERSION, "0".repeat(64)));
+    let views = views_with(server.clone(), &dir);
+    views.open("s", At::Channel(42), CONTEXT).await.unwrap();
+    views.set_platform(ViewPlatform::Phone);
+    views.open("s", At::Channel(42), CONTEXT).await.unwrap();
+    let platforms: Vec<String> = server
+        .open_views()
+        .into_iter()
+        .map(|open| open.platform)
+        .collect();
+    assert_eq!(platforms, ["desktop", "phone"]);
 }

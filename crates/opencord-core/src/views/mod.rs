@@ -73,6 +73,25 @@ pub struct ViewSpec {
     /// This plugin's folder on this device, for `app.storage`:
     /// `<core data dir>/plugins/<server key hash>/<plugin id>`.
     pub storage_dir: PathBuf,
+    pub platform: ViewPlatform,
+}
+
+/// Where this device draws plugin views: what `app.platform`, `init`'s
+/// `ctx.platform` and the server's `view.platform` say.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ViewPlatform {
+    #[default]
+    Desktop,
+    Phone,
+}
+
+impl ViewPlatform {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ViewPlatform::Desktop => "desktop",
+            ViewPlatform::Phone => "phone",
+        }
+    }
 }
 
 /// The plugin area the view is drawn in, as the renderer's `context`

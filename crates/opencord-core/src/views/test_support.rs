@@ -281,6 +281,7 @@ pub(super) fn spec(source: &str) -> ViewSpec {
         // Nothing is written here unless a script saves; tests that do
         // give a folder of their own.
         storage_dir: std::env::temp_dir().join("opencord-view-tests-unused"),
+        platform: crate::views::ViewPlatform::Desktop,
     }
 }
 

@@ -4,10 +4,8 @@
 
 use mlua::{Lua, Table};
 
-use super::{InputKind, Place, Theme, ViewContext, Viewer};
+use super::{InputKind, Place, Theme, ViewContext, ViewPlatform, Viewer};
 
-/// `app.platform`: the phone (M4) will say its own.
-pub(super) const PLATFORM: &str = "desktop";
 /// `app.breakpoint`: under this wide is `compact`.
 const COMPACT_BELOW: f64 = 600.0;
 /// Under this wide is `medium`; from here it's `expanded`.
@@ -49,11 +47,12 @@ pub(super) fn install(
     viewer: &Viewer,
     place: &Place,
     context: &ViewContext,
+    platform: ViewPlatform,
 ) -> mlua::Result<()> {
     writing(app, || {
         app.raw_set("viewer", viewer_table(lua, viewer)?)?;
         app.raw_set("place", place_table(lua, place)?)?;
-        app.raw_set("platform", PLATFORM)?;
+        app.raw_set("platform", platform.as_str())?;
         set_fields(lua, app, context)
     })
 }

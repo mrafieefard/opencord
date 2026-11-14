@@ -37,13 +37,16 @@ use super::api_app::{self, LISTEN_KEY, ON_KEY, Phase, Shared};
 use super::api_ui;
 use super::back;
 use super::call::{self, Call};
-use super::context::{self, PLATFORM};
+use super::context;
 use super::draw::{Drawing, Failure, Scene};
 use super::frames;
 use super::handlers::{self, Finished, HandlerKind, Handlers, Running};
 use super::modals;
 use super::timers;
-use super::{Command, Place, ViewContext, ViewHandle, ViewSink, ViewSpec, ViewThread, Viewer, cut};
+use super::{
+    Command, Place, ViewContext, ViewHandle, ViewPlatform, ViewSink, ViewSpec, ViewThread, Viewer,
+    cut,
+};
 
 /// Luau caps its C call depth; this leaves it room, as on the server.
 const VM_STACK_BYTES: usize = 8 * 1024 * 1024;
@@ -217,6 +220,7 @@ struct View {
     context: ViewContext,
     viewer: Viewer,
     place: Place,
+    platform: ViewPlatform,
     /// `app.call`: an activity's only. Kept across a reload, as is the
     /// context: it's the renderer's, not the script's.
     call: Option<Call>,
@@ -248,6 +252,7 @@ impl View {
             viewer: spec.viewer,
             call: Call::of(&spec.place),
             place: spec.place,
+            platform: spec.platform,
             show_errors: spec.show_errors,
             shared: Arc::new(Shared::new(sink, spec.storage_dir)),
             live: None,
@@ -361,7 +366,15 @@ impl View {
         let setup = |error: mlua::Error| ("starting the view".to_owned(), Started::from(error));
         api_ui::install(lua).map_err(setup)?;
         let app = api_app::install(lua, &self.shared).map_err(setup)?;
-        context::install(lua, &app, &self.viewer, &self.place, &self.context).map_err(setup)?;
+        context::install(
+            lua,
+            &app,
+            &self.viewer,
+            &self.place,
+            &self.context,
+            self.platform,
+        )
+        .map_err(setup)?;
         if let Some(call) = &self.call {
             call::install(lua, &app, call).map_err(setup)?;
         }
@@ -413,7 +426,7 @@ impl View {
             "place": self.place,
             "size": { "width": self.context.width, "height": self.context.height },
             "theme": self.context.theme,
-            "platform": PLATFORM,
+            "platform": self.platform.as_str(),
         });
         let options = mlua::SerializeOptions::new()
             .serialize_none_to_null(false)

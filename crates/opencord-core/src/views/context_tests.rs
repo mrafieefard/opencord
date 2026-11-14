@@ -4,8 +4,8 @@
 use opencord_plugins::view::Patch;
 use serde_json::{Value as Json, json};
 
-use crate::views::ViewHandle;
 use crate::views::test_support::{Recorder, input, open, settle, spec};
+use crate::views::{ViewHandle, ViewPlatform};
 
 const SHOW: &str = r#"
 function init() return {} end
@@ -349,4 +349,32 @@ fn too_many_effects_in_one_turn_raises() {
     assert_eq!(seen.links().len(), 1000);
     view.server_message("next".into(), "null".into());
     assert_eq!(settle(&view, &recorder).sent("next"), [json!("no error")]);
+}
+
+// Fails if a phone's view tells its script it runs on a desktop, in
+// `init`'s ctx or in `app.platform`.
+#[test]
+fn a_phone_view_says_phone() {
+    let mut phone = spec(&format!(
+        "{SHOW}\napp.on(\"init_platform\", function() app.send(\"platform\", app.state.platform) end)"
+    ));
+    phone.sources = phone
+        .sources
+        .into_iter()
+        .map(|(path, source)| {
+            (
+                path,
+                source.replace(
+                    "function init() return {} end",
+                    "function init(ctx) return { platform = ctx.platform } end",
+                ),
+            )
+        })
+        .collect();
+    phone.platform = ViewPlatform::Phone;
+    let (view, recorder) = open(phone);
+    recorder.first_batch();
+    assert_eq!(read(&view, &recorder)["platform"], json!("phone"));
+    view.server_message("init_platform".into(), "null".into());
+    assert_eq!(settle(&view, &recorder).sent("platform"), [json!("phone")]);
 }
