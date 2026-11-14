@@ -65,11 +65,16 @@ describe('a view session', () => {
     area.input(id, context);
     await flush();
     await flush();
+    // More of the view's batches while its id is still unknown: the next
+    // recorded ones, so order can be seen.
+    const later = newTicket.batches.map((b) => JSON.stringify(b));
+    core.emitViewOutputs(...later.map((json) => ({ viewId: 'fake-view-1', json })));
+    await flush();
     expect(area.pushed.get(id)).toBeUndefined();
     release();
     await flush();
-    expect(openingJson.length).toBeGreaterThanOrEqual(1);
-    expect(area.pushed.get(id)).toEqual(openingJson);
+    expect(openingJson.length + later.length).toBeGreaterThanOrEqual(2);
+    expect(area.pushed.get(id)).toEqual([...openingJson, ...later]);
     session.close();
   });
 
