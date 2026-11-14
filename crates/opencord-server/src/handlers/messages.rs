@@ -14,6 +14,7 @@ use crate::attachments::http::attachment_to_proto;
 use crate::db::attachments;
 use crate::db::messages::{self, MessageRow};
 use crate::error::ApiError;
+use crate::guild::Channel;
 use crate::permissions::require_channel;
 use crate::state::{Audience, now_ms};
 
@@ -204,12 +205,12 @@ pub async fn delete(ctx: &Ctx<'_>, request: proto::DeleteMessage) -> Result<Resp
 }
 
 pub async fn fetch(ctx: &Ctx<'_>, request: proto::FetchMessages) -> Result<Response, ApiError> {
-    require_channel(
+    refuse_plugin_channel(require_channel(
         &ctx.state.guild(),
         ctx.user_id,
         request.channel_id,
         Permissions::VIEW_CHANNEL | Permissions::READ_HISTORY,
-    )?;
+    )?)?;
     let limit = i64::from(validation::fetch_limit(request.limit));
     let before = request.before.unwrap_or(i64::MAX);
     let mut conn = ctx.state.db.acquire().await?;
@@ -268,9 +269,19 @@ pub(crate) fn require_message_channel(
         ChannelKind::Voice => Err(ApiError::invalid_argument(
             "this voice channel's text chat is off",
         )),
-        _ => Err(ApiError::invalid_argument(
-            "only text and voice channels have messages",
-        )),
+        ChannelKind::Category | ChannelKind::Plugin => Err(ApiError::invalid_argument(NO_MESSAGES)),
+    }
+}
+
+const NO_MESSAGES: &str = "only text and voice channels have messages";
+
+/// Plugin channels hold no messages (design 2026-11-07 §14.2): for the
+/// requests that don't check the channel's kind otherwise.
+pub(crate) fn refuse_plugin_channel(channel: &Channel) -> Result<(), ApiError> {
+    if channel.kind == ChannelKind::Plugin {
+        Err(ApiError::invalid_argument(NO_MESSAGES))
+    } else {
+        Ok(())
     }
 }
 
@@ -286,8 +297,9 @@ fn to_proto(row: MessageRow, attachments: Vec<proto::Attachment>) -> proto::Mess
         interaction: row
             .interaction_command
             .map(|command| proto::MessageInteraction {
-                user_id: row.author_id,
+                user_id: row.interaction_user_id.unwrap_or(row.author_id),
                 command,
+                state: row.command_state as i32,
             }),
         attachments,
     }

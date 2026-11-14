@@ -12,6 +12,9 @@ use opencord_common::limits::{
     RateLimit, STREAM_CREATE_RATE, UPLOAD_CREATE_RATE, VOICE_NODE_RATE, VOICE_STATE_RATE,
 };
 use opencord_common::sound::EXTERNAL_UPLOAD_RATE;
+use opencord_plugins::limits::{
+    DEV_PUSHES_PER_SECOND, IMAGE_FETCH_PERIOD, IMAGE_FETCHES_PER_MEMBER,
+};
 
 #[derive(Debug)]
 pub struct RateLimits {
@@ -28,6 +31,12 @@ pub struct RateLimits {
     friend_requests: DefaultKeyedRateLimiter<i64>,
     private_messages: DefaultKeyedRateLimiter<(i64, i64)>,
     key_claims: DefaultKeyedRateLimiter<i64>,
+    /// Per dev token.
+    dev_pushes: DefaultKeyedRateLimiter<i64>,
+    /// Per plugin id for web hooks (60/min).
+    web_hooks: DefaultKeyedRateLimiter<String>,
+    /// Per member, plugin images fetched for them (not in the cache).
+    plugin_images: DefaultKeyedRateLimiter<i64>,
     clock: DefaultClock,
 }
 
@@ -60,6 +69,18 @@ impl RateLimits {
             friend_requests: DefaultKeyedRateLimiter::keyed(quota(FRIEND_REQUEST_RATE)),
             private_messages: DefaultKeyedRateLimiter::keyed(quota(PRIVATE_MESSAGE_RATE)),
             key_claims: DefaultKeyedRateLimiter::keyed(quota(KEY_CLAIM_RATE)),
+            dev_pushes: DefaultKeyedRateLimiter::keyed(quota(RateLimit {
+                burst: DEV_PUSHES_PER_SECOND,
+                period: Duration::from_secs(1),
+            })),
+            web_hooks: DefaultKeyedRateLimiter::keyed(quota(RateLimit {
+                burst: 60,
+                period: Duration::from_secs(60),
+            })),
+            plugin_images: DefaultKeyedRateLimiter::keyed(quota(RateLimit {
+                burst: IMAGE_FETCHES_PER_MEMBER,
+                period: IMAGE_FETCH_PERIOD,
+            })),
             clock: DefaultClock::default(),
         }
     }
@@ -147,6 +168,26 @@ impl RateLimits {
             .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
     }
 
+    /// Plugin dev pushes, per dev token.
+    pub fn check_dev_push(&self, token_id: i64) -> Result<(), Duration> {
+        self.dev_pushes
+            .check_key(&token_id)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
+    pub fn check_web_hook(&self, plugin_id: &str) -> Result<(), Duration> {
+        self.web_hooks
+            .check_key(&plugin_id.to_string())
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
+    /// A plugin image fetched for `user_id` because it wasn't cached.
+    pub fn check_plugin_image(&self, user_id: i64) -> Result<(), Duration> {
+        self.plugin_images
+            .check_key(&user_id)
+            .map_err(|not_until| not_until.wait_time_from(self.clock.now()))
+    }
+
     /// Forgets keys whose limits have fully recovered.
     pub fn prune(&self) {
         self.identify.retain_recent();
@@ -164,6 +205,9 @@ impl RateLimits {
         self.friend_requests.retain_recent();
         self.private_messages.retain_recent();
         self.key_claims.retain_recent();
+        self.dev_pushes.retain_recent();
+        self.web_hooks.retain_recent();
+        self.plugin_images.retain_recent();
     }
 }
 

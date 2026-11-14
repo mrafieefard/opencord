@@ -9,6 +9,8 @@ import { router, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { BackHandler, useWindowDimensions } from 'react-native';
 
+import { useSwipeBackHeld } from '@/features/plugins/swipeBack';
+import { useEngineWarmUp } from '@/features/plugins/warmUp';
 import { openCall } from '@/features/voice/callPosition';
 import { useAppStore } from '@/state/store';
 
@@ -30,6 +32,8 @@ export function ServerScreen({ serverKey, channelId, startWithSidebar = false }:
   const { width } = useWindowDimensions();
   const tablet = width >= TABLET_MIN_WIDTH;
   const opened = useServerPanes(serverKey, channelId);
+  // A plugin channel or activity opens fast when the engine is ready.
+  useEngineWarmUp(serverKey);
   const { mode, back, openSidebar } = opened;
   const panes = useMemo(
     () => ({
@@ -49,10 +53,12 @@ export function ServerScreen({ serverKey, channelId, startWithSidebar = false }:
     [opened, serverKey],
   );
   const navigation = useNavigation();
+  // Not while a plugin on screen could take back (iOS's edge swipe skips it).
+  const pluginHoldsBack = useSwipeBackHeld();
 
   useLayoutEffect(() => {
-    navigation.setOptions({ gestureEnabled: tablet || mode === 'channels' });
-  }, [navigation, tablet, mode]);
+    navigation.setOptions({ gestureEnabled: (tablet || mode === 'channels') && !pluginHoldsBack });
+  }, [navigation, tablet, mode, pluginHoldsBack]);
 
   useFocusEffect(
     useCallback(() => {

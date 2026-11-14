@@ -1,3 +1,4 @@
+import { CommandRunStateRecord } from '@opencord/core-native';
 import type { MessageRecord } from '@opencord/core-native';
 
 import type { PendingSend } from '@/state/types';
@@ -133,5 +134,18 @@ describe('items', () => {
     // Middle own bubble
     expect(msgItems[4]?.position).toBe('middle');
     expect(msgItems[4]?.own).toBe(true);
+  });
+
+  it('ephemeral_notes_come_after_the_messages', () => {
+    const baseTime = 1700000000000;
+    const items = buildChatItems([msg('1', OTHER, 'loaded', baseTime)], [], {
+      selfId: SELF,
+      ephemeral: [
+        { channelId: '10', nonce: 'n', content: 'just for you', state: CommandRunStateRecord.Answered },
+      ],
+    });
+
+    expect(items.at(-1)).toMatchObject({ type: 'ephemeral', id: 'ephemeral-n' });
+    expect(items.at(-2)?.type).toBe('message');
   });
 });

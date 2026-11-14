@@ -4,6 +4,7 @@ import type { ExpoConfig } from 'expo/config';
 
 // With their extensions: Expo loads this file the way Node does.
 import { versionCode } from './plugins/versionCode.ts';
+import { withPluginArea } from './plugins/withPluginArea.ts';
 import { withReleaseSigning } from './plugins/withReleaseSigning.ts';
 
 const fonts = [
@@ -75,8 +76,13 @@ const config: ExpoConfig = {
     [
       'expo-build-properties',
       {
-        // cpal's AAudio back end needs Android 8.0.
-        android: { minSdkVersion: 26 },
+        // cpal's AAudio back end needs Android 8.0. Native libraries are
+        // compressed in the APK: Opencord ships the APK itself, and the
+        // plugin areas' Flutter engine would otherwise add 18 MB to the
+        // download instead of 9 (plugins M4, gate G5). Only the processor
+        // types the core is built for (scripts/build-core.sh): a 32-bit
+        // phone has no core to start.
+        android: { minSdkVersion: 26, useLegacyPackaging: true, buildArchs: ['arm64-v8a', 'x86_64'] },
         // @react-native-menu/menu 2.0.0 imports "RCTBridge.h" as a local
         // header, which the precompiled React core doesn't provide.
         ios: { buildReactNativeFromSource: true },
@@ -89,4 +95,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default withReleaseSigning(config);
+export default withPluginArea(withReleaseSigning(config));

@@ -10,33 +10,52 @@ use crate::error::ApiError;
 use crate::gateway::session::Session;
 use crate::state::AppState;
 
-mod channels;
+mod activities;
+pub(crate) mod channels;
 mod commands;
 mod domains;
 mod friends;
-mod invites;
+pub(crate) mod invites;
 mod lavalink;
-mod members;
-mod messages;
+pub(crate) mod members;
+pub(crate) mod messages;
 pub(crate) mod music;
 mod network;
+mod plugins;
 mod private;
 mod profile;
-mod roles;
+pub(crate) mod roles;
 pub(crate) mod settings;
 pub(crate) mod soundboard;
 mod storage;
 mod streams;
-mod uploads;
-mod voice;
+pub(crate) mod uploads;
+mod views;
+pub(crate) mod voice;
 
 /// The caller of a request.
 pub struct Ctx<'a> {
     pub state: &'a Arc<AppState>,
     pub user_id: i64,
-    /// The gateway session the request came on.
+    /// The gateway session the request came on; empty for a plugin.
     pub session_id: &'a str,
-    pub session: &'a Arc<Session>,
+    /// `None` for a plugin.
+    pub session: Option<&'a Arc<Session>>,
+    /// The plugin acting, if one is (design 2026-11-07).
+    pub plugin_id: Option<&'a str>,
+}
+
+impl<'a> Ctx<'a> {
+    /// A plugin acting as its plugin user.
+    pub fn for_plugin(state: &'a Arc<AppState>, user_id: i64, plugin_id: &'a str) -> Self {
+        Self {
+            state,
+            user_id,
+            session_id: "",
+            session: None,
+            plugin_id: Some(plugin_id),
+        }
+    }
 }
 
 pub async fn handle(
@@ -48,9 +67,17 @@ pub async fn handle(
         state,
         user_id: session.user_id,
         session_id: &session.id,
-        session,
+        session: Some(session),
+        plugin_id: None,
     };
-    let result = match state.rate_limits.check_request(ctx.user_id) {
+    // A view's events have their own limits, per view (plan M2 Task 10).
+    let limited = !matches!(request.kind, Some(Kind::SendViewEvent(_)));
+    let checked = if limited {
+        state.rate_limits.check_request(ctx.user_id)
+    } else {
+        Ok(())
+    };
+    let result = match checked {
         Ok(()) => dispatch(&ctx, request).await,
         Err(wait) => Err(ApiError::rate_limited(wait)),
     };
@@ -179,6 +206,26 @@ async fn dispatch(ctx: &Ctx<'_>, request: proto::Request) -> Result<Response, Ap
         Kind::UpdatePrivateSettings(request) => {
             private::update_private_settings(ctx, request).await
         }
+        Kind::FetchPlugins(_) => plugins::fetch(ctx).await,
+        Kind::FetchPluginReviews(_) => plugins::fetch_reviews(ctx).await,
+        Kind::ConfirmPluginReview(request) => plugins::confirm(ctx, request).await,
+        Kind::DiscardPluginReview(request) => plugins::discard(ctx, request).await,
+        Kind::SetPluginPermissions(request) => plugins::set_permissions(ctx, request).await,
+        Kind::SetPluginConfig(request) => plugins::set_config(ctx, request).await,
+        Kind::SetPluginRunning(request) => plugins::set_running(ctx, request).await,
+        Kind::RestartPlugin(request) => plugins::restart(ctx, request).await,
+        Kind::UninstallPlugin(request) => plugins::uninstall(ctx, request).await,
+        Kind::FetchPluginLog(request) => plugins::fetch_log(ctx, request).await,
+        Kind::CreatePluginDevToken(request) => plugins::create_dev_token(ctx, request).await,
+        Kind::RevokePluginDevToken(request) => plugins::revoke_dev_token(ctx, request).await,
+        Kind::FetchPluginDevTokens(_) => plugins::fetch_dev_tokens(ctx).await,
+        Kind::WatchPluginLog(request) => plugins::watch_log(ctx, request).await,
+        Kind::OpenView(request) => views::open(ctx, request).await,
+        Kind::CloseView(request) => views::close(ctx, &request),
+        Kind::SendViewEvent(request) => views::send_event(ctx, request),
+        Kind::ReportViewError(request) => views::report_error(ctx, request),
+        Kind::StartActivity(request) => activities::start(ctx, request).await,
+        Kind::EndActivity(request) => activities::end(ctx, request).await,
     }
 }
 

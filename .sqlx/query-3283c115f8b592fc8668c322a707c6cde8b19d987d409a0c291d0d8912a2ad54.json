@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users (id, public_key, display_name, avatar_hash, created_at, plugin_id)\n         VALUES ($1, $2, $3, $4, $5, $6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "3283c115f8b592fc8668c322a707c6cde8b19d987d409a0c291d0d8912a2ad54"
+}

@@ -1,0 +1,162 @@
+{
+  "batches": [
+    {
+      "ops": [
+        {
+          "block": "text",
+          "children": [],
+          "events": [],
+          "id": 12,
+          "op": "create",
+          "props": {
+            "size": 18,
+            "text": "Open New Ticket",
+            "weight": "semibold"
+          }
+        },
+        {
+          "block": "text_input",
+          "children": [],
+          "events": [
+            "change"
+          ],
+          "id": 13,
+          "op": "create",
+          "props": {
+            "placeholder": "Title",
+            "value": ""
+          }
+        },
+        {
+          "block": "text_input",
+          "children": [],
+          "events": [
+            "change"
+          ],
+          "id": 14,
+          "op": "create",
+          "props": {
+            "lines": 4,
+            "placeholder": "Description",
+            "value": ""
+          }
+        },
+        {
+          "block": "segmented",
+          "children": [],
+          "events": [
+            "change"
+          ],
+          "id": 15,
+          "op": "create",
+          "props": {
+            "options": [
+              {
+                "label": "Low",
+                "value": "low"
+              },
+              {
+                "label": "Normal",
+                "value": "normal"
+              },
+              {
+                "label": "High",
+                "value": "high"
+              }
+            ],
+            "value": "normal"
+          }
+        },
+        {
+          "block": "button",
+          "children": [],
+          "events": [
+            "press"
+          ],
+          "id": 17,
+          "op": "create",
+          "props": {
+            "text": "Cancel",
+            "variant": "secondary"
+          }
+        },
+        {
+          "block": "button",
+          "children": [],
+          "events": [
+            "press"
+          ],
+          "id": 18,
+          "op": "create",
+          "props": {
+            "text": "Open ticket",
+            "variant": "primary"
+          }
+        },
+        {
+          "block": "row",
+          "children": [
+            17,
+            18
+          ],
+          "events": [],
+          "id": 16,
+          "op": "create",
+          "props": {
+            "align": "end",
+            "gap": 8
+          }
+        },
+        {
+          "block": "column",
+          "children": [
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
+          "events": [],
+          "id": 11,
+          "op": "create",
+          "props": {
+            "gap": 12,
+            "padding": 16
+          }
+        },
+        {
+          "block": "modal",
+          "children": [
+            11
+          ],
+          "events": [],
+          "id": 10,
+          "op": "create",
+          "props": {
+            "size": "medium"
+          }
+        },
+        {
+          "main": 1,
+          "modals": [
+            {
+              "dismissible": true,
+              "id": 10,
+              "name": "new_ticket",
+              "size": "medium"
+            }
+          ],
+          "op": "roots"
+        }
+      ],
+      "seq": 2,
+      "view": "1"
+    }
+  ],
+  "input": {
+    "data": {},
+    "event": "press",
+    "kind": "event",
+    "node": 4
+  }
+}

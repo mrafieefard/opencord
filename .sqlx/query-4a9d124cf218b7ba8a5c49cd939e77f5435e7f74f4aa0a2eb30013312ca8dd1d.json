@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT key, value, sealed AS \"sealed: bool\"\n           FROM plugin_config WHERE plugin_id = $1 ORDER BY key",
+  "describe": {
+    "columns": [
+      {
+        "name": "key",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_config",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "value",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "plugin_config",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "name": "sealed: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_config",
+            "name": "sealed"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4a9d124cf218b7ba8a5c49cd939e77f5435e7f74f4aa0a2eb30013312ca8dd1d"
+}

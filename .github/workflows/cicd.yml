@@ -37,7 +37,7 @@ env:
   # The server's crates, and the app's. opencord-common and opencord-proto
   # are tested with the server's; opencord-voice with the app's, as its tests
   # call in through the app's media crate and need its native libraries.
-  SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto
+  SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto -p opencord-plugins -p opencord-plugin-cli
   CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher -p opencord-mobile
   FLUTTER_VERSION: 3.44.0
   # Native libraries the app's crates build against on Linux: cpal's PipeWire
@@ -398,6 +398,33 @@ jobs:
       - name: Test the app
         working-directory: app
         run: flutter test
+
+      # The plugin view renderer, a package of its own (app/packages).
+      - name: Analyze the renderer
+        working-directory: app/packages/opencord_blocks
+        run: |
+          flutter pub get
+          flutter analyze
+
+      - name: Test the renderer
+        working-directory: app/packages/opencord_blocks
+        run: flutter test
+
+      # What the desktop and the phone's plugin areas share (app/packages).
+      - name: Analyze and test the plugin host package
+        working-directory: app/packages/opencord_plugin_host
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      # The phone's plugin area module (mobile/flutter_module).
+      - name: Analyze and test the phone's Flutter module
+        working-directory: mobile/flutter_module
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
 
       - name: Build
         working-directory: app
@@ -778,6 +805,16 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.1.12297006" > /dev/null
           cargo install cargo-ndk --locked --version 4.1.2
 
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      # The plugin areas' Flutter module, as AARs the app's Gradle build takes.
+      - name: Build the Flutter module
+        run: mobile/scripts/build-flutter.sh android --release
+
       - name: Install
         working-directory: mobile
         run: yarn install --frozen-lockfile
@@ -824,7 +861,9 @@ jobs:
             apk=opencord-android-unsigned-debugkey.apk
           fi
           npx expo prebuild -p android --no-install
-          (cd android && ./gradlew assembleRelease --no-daemon)
+          # The Flutter engine's libraries are compressed in the APK: more heap
+          # than the template's 2 GB.
+          (cd android && ./gradlew assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g")
           rm -f "$RUNNER_TEMP/release.keystore"
           mkdir -p "$RUNNER_TEMP/dist"
           cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/dist/$apk"
@@ -868,6 +907,16 @@ jobs:
       - name: Build the core
         working-directory: mobile
         run: scripts/build-core.sh ios --release
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      # The plugin areas' Flutter module, as the frameworks the PluginArea pod vendors.
+      - name: Build the Flutter module
+        run: mobile/scripts/build-flutter.sh ios --release
 
       # A phone build, unsigned: Apple signs nothing without a developer
       # account, so people install the IPA with a sideloading app (AltStore,

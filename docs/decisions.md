@@ -1807,3 +1807,160 @@ The owner's beta install kept downloading `0.0.1-canary.4` from October 26 after
 - **Ping** shows in a tooltip on the voice card's signal bars, with no wait, and in the row's label for screen readers.
 - **Checks:** Rust tests for the processor and the hotkey matchers; widget tests for every part, and the review scenes in `test/support/floating_scenes.dart` scored at each breakpoint at four checkpoints.
 - **Owed by hand** (`docs/plans/check-windows-by-hand.md`, `docs/plans/check-macos.md`): mouse keybinds in another app on X11, Windows and macOS, the Wayland footer, and the test on headphones and speakers with a second person listening.
+
+## D93: Plugins, milestone 1: the runtime, the resource manager and bots (2026-11-09)
+
+(The plan `docs/superpowers/plans/2026-11-07-plugins-m1.md` and its spec `docs/superpowers/specs/2026-11-07-plugins-design.md`; branch `feat/plugins`, commits `0971a4b` to the Stage E review. For developers: `docs/plugins.md`.)
+
+**Decision:** a server admin drops a plugin's zip into Server settings → Plugins, reviews what it asks for, and runs it. Its Luau scripts run on the server and act as a bot, through the same checks as a member. Custom channels, activities, client scripts and serving plugin files to apps are later milestones.
+
+- **`opencord-plugins`** (MPL-2.0) is what the server and the developer tool share: the Luau sandbox (mlua), the package and manifest rules, signing, and the limits (`opencord_plugins::limits`).
+- **A package** is a zip of at most 2,000 files, 200 MiB unpacked and 20 MiB a file. An entry over 1 MiB may not unpack to more than 100 times its size. Bad paths and symlinks are refused with the rule broken and nothing written. A file holding a private key is refused whatever its name.
+- **Signing** is ed25519 over the package (`SIGNATURE`, with `KEY-ROTATION` to change keys). Unsigned plugins are allowed and labelled. A manifest's GitHub link is checked against `.opencord/plugin.pub` in that repository, which gives **Verified**, **GitHub publishes a different key** or **Couldn't check GitHub**.
+- **A plugin is a user and a role.** Each has a `users` row nobody can sign in as and a managed role (`Role.plugin_id`), so every existing handler and permission check works for it. The role is locked on the Roles page and left out of member role menus. Apps send `Identify.features = ["plugin_users"]` and get `Ready.plugin_users`. MANAGE_PLUGINS is permission bit 15.
+- **The runtime** gives each plugin one VM on its own thread, with memory and per-handler time limits from the config. Five failures in 10 minutes restart it, with backoff from 1 s to 60 s. The fifth break in an hour turns it off, with the reason on its page.
+- **Installing** is `POST /plugins/packages`, then a review that lasts an hour and is confirmed or discarded. An update that fails to start brings the old version back with its data.
+- **Events** reach a plugin filtered by its permissions and what its role can see. Private messages, network and storage events never do.
+- **The API:** messages, channels, roles, members, voice, the soundboard, music, `/commands`, timers, the plugin bus and config, each behind a plugin permission and counted against a member's rate limits on the plugin user. Each plugin has its own SQLite database and files. The internet is limited to the manifest's domains, private addresses are refused on every connection and redirect, and web hooks arrive at `/plugins/{id}/hooks`. Ids in Lua are decimal strings and errors are `"<CODE>: <message>"` strings. `opencord.d.luau` holds the types.
+- **Dev mode:** a dev token lasts 1 to 30 days. `PUT /plugins/dev/{id}` installs a change at once, unless the plugin isn't installed yet or the change asks for more than the installed manifest did; those wait for a review. `GET /plugins/dev/{id}/log` long-polls the log.
+- **`opencord-plugin`** (MPL-2.0) has `init`, `keygen`, `pack`, `rotate-key` and `dev`. `dev` polls the folder every 300 ms, retries every 2 s while the server is away, and accepts the server by `--fingerprint` or a certificate from the bundled root list (`webpki-roots`), not the system's store.
+- **Desktop:** the Plugins tab with its drop zone and list, the review dialog, a plugin's page (Overview, Permissions, Settings, Log, Actions) and dev tokens. Config fields are typed: switch, chips, number, password, and pickers for channels, roles and users. `ServerData.authorOf` is the one resolver for names and avatars, so a plugin's messages, typing and invites show its name and a **Plugin** label.
+- **Phone:** plugin authors only. Managing plugins stays on desktop.
+- **The example** is `examples/plugins/welcome-bot`.
+- **Tests:** the Review Focus cases are pinned (`an_endless_loop_does_not_delay_chat`, `a_plugin_that_keeps_failing_is_turned_off`, `stops_a_zip_bomb_while_reading`, `refuses_each_bad_path`, `a_refused_zip_leaves_no_files`, `a_name_resolving_to_a_private_address_is_refused`, `ipv4_mapped_loopback_is_refused`, `a_redirect_to_a_private_address_is_refused`, `each_connection_checks_the_address_again`, `a_hidden_channel_sends_the_plugin_nothing`, `off_limits_events_never_reach_a_plugin`, `an_update_that_fails_to_start_rolls_back`). `the_welcome_bot_works_end_to_end` installs the example. `definitions_match_the_api` compares names only, so shapes in `opencord.d.luau` were checked by hand.
+- **Review:** three rounds each for stages D and E. The last round broke the code under each test: the first-push retry test and the review dialog's two in-flight tests couldn't fail, and were rewritten until they did.
+- **Not run in CI when this was written:** `.github/check.sh` and `cicd.yml` listed neither `opencord-plugins` nor `opencord-plugin-cli`.
+- **Owed by hand:** installing and running a plugin on Windows and macOS, `opencord-plugin dev` there, and a plugin's message on a real phone (checked on the emulator's fake world only).
+
+## D94: Plugins, milestone 1.5: commands (2026-11-09)
+
+(The plan `docs/superpowers/plans/2026-11-09-plugins-m1-5-commands.md`, the design's §26, and the approved prototype `docs/superpowers/specs/2026-11-09-command-popup-prototype.html`; branch `feat/plugins-commands`.)
+
+**Decision:** a plugin's slash command is a function that can take its time, no command failure is silent, plugins can share names, and the `/` popup belongs to the floating UI on desktop and exists at all on the phone.
+
+- **A function per command:** `commands.register(spec, fn)`, and an option's `autocomplete = fn`. The shared `command` and `command_autocomplete` events are gone, and `opencord.on` refuses a name that isn't an event, so a typo isn't silent. A function that raises answers "{plugin} ran into an error" at once.
+- **`cmd:defer`:** the message says "{plugin} is thinking…" and the plugin has 15 minutes (`plugins.thinking_secs`). A reply edits that message with no edited mark, or replaces the private note by nonce. A reply, the time running out and the plugin stopping all start by removing the entry, so one of them wins. What was thinking when the server stopped becomes "didn't answer" at the next start.
+- **Late replies** raise `TIMEOUT: too late to reply` and log how late. The wait ends with `close` then `try_recv`, so an answer is either used or the plugin is told it wasn't.
+- **Names per source:** `Commands.plugins` is keyed by (plugin, name). With no source, Opencord's runs if it's set up here, then the only plugin; two plugins ask to pick. Settings are `plugin:<id>/<name>`; built-ins keep their plain keys.
+- **`interaction_user_id`** keeps who ran a command, which a plugin's reply can't say through its author.
+- **A share of the CPU:** 25 % of one core over 10 seconds, measured on the time Lua ran, then events wait. Plugin threads have a lower priority: `nice` 10 on Linux, utility QoS on macOS, below normal on Windows.
+- **Desktop:** one `ComposerPopup` for commands (with the rail and sticky groups), mentions, channels, emoji and an option's choices, 14 radius, 36 rows, 340 cap. The command being written has no box of its own. A name typed and sent without picking runs through the server. Messages are rows, so a thinking command is a state of the one-line result.
+- **Phone:** the attach menu has Commands. The list floats above the dock at no more than 75 % of the room (40 % left less than one row with the keyboard up), inside the dock so it rides the keyboard and adds nothing to its height. Backspace on an empty field is seen through a zero-width mark, because not every Android keyboard reports it. Phones keep their bubbles and list only the server's commands.
+- **Tests:** each of the plan's Review Focus cases is pinned (`a_restart_turns_thinking_into_no_answer`, `a_reply_after_the_message_was_deleted_logs_and_does_not_raise`, `commands_changing_while_open_keep_a_real_selection`, `no_source_prefers_a_plugin_when_the_builtin_feature_is_not_set_up`, `a_thinking_note_goes_when_the_connection_returns`, `reconnecting_clears_thinking_notes`).
+- **Not tested here:** the popup on Windows and macOS; the keyboard, back gesture and haptics on real phones; Backspace out of a command on iOS, Gboard and Samsung Keyboard; the lower thread priority on Windows and macOS.
+
+## D95: Plugins, milestone 2: custom channels on desktop (2026-11-12)
+
+(The plan `docs/superpowers/plans/2026-11-09-plugins-m2-channels.md` and the design `docs/superpowers/specs/2026-11-07-plugins-design.md`; branch `feat/plugins-channels`, pull request #50, commits `434acca` to the Stage E review. For developers: `docs/plugins.md` → "Client Scripts and Custom Channels".)
+
+**Decision:** a plugin can register channel types, and an admin creates channels of them. Opening one runs the plugin's client script in a sandbox in the app, which draws the plugin's own blocks in the main area and talks to the plugin's server script. Activities are milestone 3 and phones milestone 4.
+
+- **The channel:** `CHANNEL_KIND_PLUGIN` with `plugin_id`, `type_key` and `plugin_state` (`AVAILABLE`, `PLUGIN_STOPPED`, `TYPE_GONE`). Migration 0016 rebuilds the channels table to allow the kind. Only sessions with `Identify.features` `"plugin_channels"` are sent plugin channels. A running plugin with `create_channel_types` calls `ui.register_channel_type` (at most 20 types per plugin), and apps hear `PluginChannelTypesUpdate`.
+- **Views:** `OpenView` needs VIEW_CHANNEL in an available plugin channel, at most 4 per session, and answers `ViewOpened` with the manifest's `api`, the client entry and its files with SHA-256 hashes. `show_errors` is MANAGE_PLUGINS (a dev token needs it too). A view sends 30 events and 128 KiB a second, 64 KiB at most each; the server sends a view 60 events and 512 KiB a second. `ViewClosed` gives the reason: plugin stopped, lost access, channel deleted or unavailable. Losing access closes the view at once. Views outlive a server VM restart and the new VM hears `view_open` for each; stopping the plugin closes them. `ReportViewError` writes a client error to the plugin's log, one per view every 10 seconds.
+- **The client VM** lives in `opencord-core` (`views/`): Luau with 32 MiB, 50 ms a handler and 8 ms a frame. `init`, `render(state)` and `migrate` are the script's; `app` holds state, `app.set`, server messages (`app.on`), surroundings (`app.listen`), named modals, quick dialogs, timers, frames and device storage (1 MB). Each render is checked (20,000 blocks, 64 deep, no `NaN`, no duplicate keys) and diffed into JSON patches. Handlers are addressed by node id and event name, so a tap racing a redraw reaches the current function. An `api` above the app's shows "Update Opencord to open this".
+- **Hot reload:** `ViewScriptsUpdate` (an update or a dev push) reloads open views, carrying the state across as JSON, so functions in it are dropped.
+- **Files over HTTP:** `/plugins/{id}/assets/{*path}` (public, hashed), `/plugins/{id}/files/t/{token}` and `/plugins/{id}/files/{*path}` (plugin storage; private files need a token that lasts an hour, at most 10,000 a plugin), and `/plugins/{id}/images` for images from the manifest's domains (10 MiB and 40 megapixels at most, a 100 MiB cache, 20 fetches per member per 10 s; private addresses refused). Server scripts are never served. Apps never reach the internet themselves.
+- **Uploads from a view** are attachment rows with channel 0. A plugin with `accept_uploads` hears `file_uploaded` while the view is open, and `files.put` keeps the file. One that isn't kept is deleted after an hour.
+- **The renderer** is `app/packages/opencord_blocks`: the 35 blocks, layout, controls, lazy lists, animation, a canvas, and overlays that stay inside the plugin area.
+- **Desktop:** plugin channel rows show the type's icon and no unread marks. Unavailable ones are greyed, say why on hover and in a toast, and can't be opened from the row, the keyboard, the quick switcher, a link, a plugin's `open_channel` or back and forward. The create dialog lists the plugin types. `PluginArea` shows loading, running, error (with **Reload**, and details only to those allowed), unavailable, too old and closed. The area gets keys only after the app's own shortcuts, and leaving the channel closes the view.
+- **The example** is `examples/plugins/tickets`.
+- **Tests:** the Review Focus cases are pinned (`losing_access_closes_the_view`, `views_survive_a_restart_and_the_new_vm_hears_them`, `stopping_closes_views`, `a_dev_push_reloads_open_views_keeping_state`, `a_nan_size_is_refused_with_its_path`, `too_many_blocks_is_refused`, `an_endless_render_shows_the_error_and_the_app_goes_on`, `a_memory_bomb_stops_the_view_only`, `a_new_session_reopens_open_views_keeping_state`, `server_scripts_are_never_served`, `a_private_file_needs_its_own_token`, `a_domain_off_the_list_is_refused`, `a_name_resolving_to_a_private_address_is_refused`, `the_rebuild_keeps_channels_overwrites_and_messages`). `the_ticket_system_works_end_to_end` installs the example over the gateway, and `ticket_client_script_opens_modal_and_submits_ticket` runs its client script in the core.
+- **Review:** three rounds each for stages C, D and E. At each round the reviewer broke the code under the tests. Tests that couldn't fail were rewritten until they did, the last of them the tickets test's delivery to the support role.
+- **Not tested here:** plugin channels on Windows and macOS by hand, and a real plugin's area at the narrowest window size outside the goldens.
+
+## D96: Plugins, milestone 3: activities in voice calls (2026-11-13)
+
+(The plan `docs/superpowers/plans/2026-11-12-plugins-m3-activities.md` and the design `docs/superpowers/specs/2026-11-07-plugins-design.md` §15; branch `feat/plugins-activities`, pull request #51, commits `ae945b2` to the Stage E review. For developers: `docs/plugins.md` → "Activities".)
+
+**Decision:** a plugin registers activities; a member in a voice call starts one from the call bar, everyone who can see the channel sees its tile on the call's stage, and members in the call open the plugin's own screen in that tile. A view's place is now a plugin channel or an activity session; everything else milestone 2 built for views is reused. Phones are milestone 4: they don't send the `"activities"` feature, so they hear of no activity and no session.
+
+- **The permission:** `START_ACTIVITIES` is bit 33, part of @everyone's defaults, checked in the voice channel so an overwrite can turn it off for one call. Migration 0017 adds it to existing @everyone roles and changes nothing else.
+- **Registered activities:** `ui.register_activity(key, { name, description?, icon? })` needs `register_activities`, at most 20 per plugin, with the channel types' checks. The list lives in memory beside the channel types, with the same start, restart and stop moments, and reaches sessions with `"activities"` in `Ready.plugin_activities` and `PluginActivitiesUpdate`.
+- **Sessions:** `StartActivity` needs `"activities"` (else `NOT_FOUND`), the caller in the call ("join the call to start an activity"), `START_ACTIVITIES` there, and the plugin running with a client entry and the key ("this activity is unavailable"). An activity already running in the call answers with its session; a fifth is `PLUGIN_LIMIT` ("this call already has 4 activities"). `EndActivity` is the starter's, or needs MANAGE_CHANNELS in the channel. One function, `activities::end`, ends a session for every reason: a member (`ENDED`), `activity.finish` (`PLUGIN`), the call emptying (`CALL_EMPTY`, from `voice::announce`, so leaving, moves, lost access, a deleted channel and a dropped connection after its grace all count), the plugin stopping (`PLUGIN_STOPPED`) and a restart that no longer registers the activity (`UNAVAILABLE`). A restart that registers it again keeps the session. Sessions with `"activities"` that can see the channel hear `ActivitySessionCreate`, `…Update` (when `viewer_ids`, the people with it open, changes) and `…Delete`; gaining or losing sight of the channel sends a create or a delete.
+- **The plugin** hears `activity_start` (`{ session, starter, call }`) once per VM and `activity_end` (`{ session, reason }`) only after its start, with reasons `ended`, `plugin`, `call_empty`, `plugin_stopping` and `unavailable`. The start event carries its payload, so a session ended before the VM takes the start still starts, then ends. `activity` is a new read-only global; `activity.finish(session)` (not `end`, a Luau keyword) ends only the plugin's own session and returns whether it ran.
+- **Views:** `OpenView` with `activity_session_id` needs `"activities"`, the session, and the caller in its call ("join the call to open this activity"), and counts toward the 4 views per session. A session's end closes its views (`ACTIVITY_ENDED`, plugin reason `activity_ended`) before `activity_end` runs; leaving the call closes one's own (`LEFT_CALL`, `left_call`). A view's `place` is `{ kind = "activity", session_id, channel_id, activity }`, and `ui.views` / `ui.send_place` take `{ session_id = … }`; `{ channel_id = … }` never matches an activity's view.
+- **The client VM:** `views::Place::Activity`; the renderer sends the `call` input (`members`, `speaking`, decimal ids, at most 1,000 each, else ignored with a warning), which fills the read-only `app.call` and runs `call_members_change` (`members`, `joined`, `left`) and `speaking_change` only when its list changed. A channel's view has no `app.call`. The core opens views by place, reopens an activity's view on a new connection, and closes it with `activity_ended` when its session is gone.
+- **Desktop:** `ViewPlaceRef` (`ChannelPlace`, `ActivityPlace`, the latter equal by session id) keys `pluginViewProvider`; `PluginArea` takes a place. The dock's Activities button shows when the server has an activity and the member holds `START_ACTIVITIES` in the call's channel, and opens a picker of every registered activity (`Running` beside a running one; rows disabled at 4). Activity tiles come after every person and screen; not opened they show the starter and how many have it open, dropping the icon, then who has it open, then the starter as the tile gets shorter (the name and Open never shrink); opened, a 28 px bar (Make large / Back to grid, Close, as icon buttons below 200 px wide) over the plugin's area; and in focus mode's strip only the icon and name. The menu's End activity, for the starter or a channel manager, asks first. `openActivitiesProvider` keeps an opened view while its page is elsewhere, tells it `pause` and `resume` once per change, sends it the `call` input at most every 100 ms, and empties when the call changes.
+- **The example** is `examples/plugins/paint`: one board per session in the server script's memory (300 strokes at most), 1600 × 1000 board units at any tile size, strokes thinned to 100 points, checked by the server against a five-colour palette and sent to the session's views, the board in events of 30 for someone opening later, and Clear for anyone in the call.
+- **Tests:** the Review Focus cases are pinned (`the_call_emptying_ends_its_sessions`, `a_dropped_last_member_ends_the_session_after_the_grace`, `ending_a_session_closes_its_views_once`, `only_someone_in_the_call_opens_it`, `leaving_the_call_closes_ones_view`, `sessions_survive_a_restart_and_the_new_vm_hears_them`, `stopping_ends_sessions`, `a_restart_without_the_activity_ends_its_sessions`, `starting_twice_gives_the_running_session`, `a_fifth_activity_is_refused`, `the_upgrade_gives_everyone_start_activities_and_nothing_else`, and the widget test `an open activity survives leaving the voice page`). `crates/opencord-core/tests/views.rs` opens, reopens and closes activities against a real server. The paint example runs in `tests/plugins/paint.rs` over the gateway and its client script in `views/tests/paint.rs`.
+- **Not tested here:** two real desktops drawing in one call, and the app by hand on any OS (CI runs the tests on Linux, Windows and macOS).
+
+## D97: Plugins, milestone 4: plugin channels and activities on the phone (2026-11-14)
+
+(The plan `docs/superpowers/plans/2026-11-13-plugins-m4-phone.md` and the design `docs/superpowers/specs/2026-11-07-plugins-design.md` §11.4, §12.5, §14, §15 and §18; branch `feat/plugins-phone`, pull request #52. For developers: `docs/mobile.md` → "Plugins on the phone"; for plugin authors, `docs/plugins.md` → "On the phone".)
+
+**Decision:** the phone draws a plugin's screen with the desktop's own renderer, `opencord_blocks`, in Flutter engines embedded in the React Native app: one engine per area, at most two alive (a plugin channel and an activity). The core runs the client script as on the desktop. JavaScript carries its batches and inputs, as JSON strings it never parses, between the core and a native module that owns the engines. React Native draws everything around the area.
+
+- **The facade** (`crates/opencord-mobile`) gains view calls:
+  - `view_open` / `view_open_activity`, `view_input`, `view_close` and `view_upload`;
+  - the plugin asset and image files;
+  - `next_view_outputs`, pulled by generation like events, so a JavaScript reload takes the stream over and `view_outputs_attach` closes the views the old start left open;
+  - plugin channels, activities and activity sessions in the snapshot and its events, plus `activity_start` / `activity_end`.
+  
+  The phone sends the plugin features only when the renderer is in the build, and opens views as `platform: phone`. Until this milestone the core told every view `app.platform = "desktop"`; it now keeps the platform per client.
+- **The Flutter module** (`mobile/flutter_module`) runs `BlocksView` at a 44-point touch size (`BlocksTheme.minTouchSize`, 0 on the desktop) with the setup's theme, scale and insets, and answers the renderer's host calls through React Native. The shared Dart package `app/packages/opencord_plugin_host` holds the markdown, the icon glyphs and the fonts both apps use.
+- **Back (§11.4, §12.5):**
+  - the system back closes the top overlay: a quick dialog, then a named or in-tree modal or sheet;
+  - an open overlay that isn't dismissible keeps back;
+  - with none open, the plugin's `app.on_back` is asked: the core sends `back_handler` when one is set and answers a `back` input with exactly one `back` op;
+  - the phone waits at most 500 ms, so a plugin can never trap the viewer;
+  - iOS's swipe-back is off while the plugin could take back: a shown area holds it and the server screen turns its stack gesture off. Android's back reaches an area only while its screen is in front.
+  - On a phone, the sidebar's swipe steps aside while a plugin's screen is in front, so its horizontal drags stay the plugin's.
+- **The native module** (`mobile/modules/plugin-area`, Kotlin and Swift) has:
+  - a `FlutterEngineGroup`, with a spare engine kept warm while a server with plugins is open or the device is in a call, and dropped 60 s after;
+  - one `MethodChannel` per area that holds batches until Dart says `ready`;
+  - a transparent texture view.
+
+  An area lives from `createArea` to `destroyArea`, whatever view shows it. Its engine runs while shown, or before it was ever shown, since it must lay out to open its view; it pauses once it lost its view, or while the app is in the background, counted from the app's activities starting and stopping.
+- **JavaScript** (`mobile/src/features/plugins`):
+  - `ViewSession` and the view pump;
+  - `PluginArea`: the native view from the start, covered by React Native's own states until the plugin runs; `pause`/`resume` once per change; Android's back asked of the area first; the area padded by how much the keyboard covers it, measured on screen;
+  - the host calls with the phone's pickers, link question, clipboard, navigation and sounds;
+  - plugin channels in the list (the type's icon, never an unread dot; an unavailable one dimmed and saying why) and their pane;
+  - the call's Activities button and picker;
+  - activity tiles after the people;
+  - the opened activity over the call's stage, at most one, kept paused while no stage draws it, closed on leaving the call, its view closing or a moment after its session ends;
+  - the `call` input at most every 100 ms.
+- **The gates** (Stage A, Android emulator, `.superpowers/sdd/plugins-m4/gates.md`):
+  - G1 draws and answers;
+  - G2, the road from a press to the next frame: median 3.9 ms, 95th 6.1 ms idle; 11.7 / 34.1 ms with JavaScript kept busy;
+  - G3, a canvas at 13–24 fps, **accepted** as the emulator's software rasteriser (35–59 ms a frame); to be measured again on a phone;
+  - G4, a cold start of 75–567 ms;
+  - G5, the APK's growth: 8.9 MB on arm64 and 9.0 MB on x86_64 once native libraries are compressed (`useLegacyPackaging`; 18–19.5 MB stored);
+  - G6, two areas, +2.6 MB of memory;
+  - G7, the keyboard and back, passed on the emulator in Task 16;
+  - G8, both phones build in CI.
+- **Rulings** worth knowing (the full list, each with its cost, is in the pull request):
+  - `app.on_back` was built here because the design's milestone list names it, though the plan had missed it;
+  - the APK holds only arm64 and x86_64, the core's processor types;
+  - CI builds the iOS frameworks unsigned;
+  - a font-scale change restarts the app on Android (its `configChanges`), losing a plugin screen's state with everything else.
+- **Found only on the emulator, against a real server** (Task 16), each fixed with a test:
+  - engines left paused drew nothing;
+  - a second plugin channel never left its spinner;
+  - the keyboard covered a sheet's buttons;
+  - plugins were told they ran on a desktop;
+  - **the call's glass, a raised surface on Android, took every touch from an activity in the call.**
+- **Tests:** the Review Focus cases are pinned:
+  - `attach_closes_views_left_by_an_older_generation`;
+  - `batches before ready are held in order`;
+  - `early batches wait for the view's id`;
+  - `starting the pump destroys leftover areas before attaching`;
+  - `features follow the renderer`;
+  - `back closes the top overlay first`;
+  - `an area outlives its native view and is destroyed with its session`;
+  - `an open activity survives leaving the call's pane`;
+  - `an ended activity closes its screen and its tile goes`;
+  - `leaving the call closes the opened activity`;
+  - and, from the live checks, `the glass behind the call takes no touches` and `a_phone_view_says_phone`.
+  
+  The core's `views::back` tests pin `app.on_back`. The module's tickets goldens are drawn from batches recorded from the real core.
+- **Not tested here:**
+  - **iOS beyond compiling in CI:** no engine, back, swipe-back, keyboard, picker or activity has run on an iPhone or a simulator;
+  - real Android phones;
+  - two phones in one call;
+  - a plugin turned off and on while open;
+  - the tablet layout live;
+  - a call from another app during an activity;
+  - the app killed and reopened on a plugin channel;
+  - G3 on real hardware.

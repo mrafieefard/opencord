@@ -57,6 +57,7 @@ impl TestServer {
         config.server.public_host = "127.0.0.1".to_owned();
         config.server.data_dir = dir.path().join("data");
         config.server.name = "Test Server".to_owned();
+        config.plugins.enabled = true;
         config.voice.udp_port = 0;
         config.music.audio_udp_port = 0;
         config.network.ip_lookup_v4 = String::new();
@@ -1419,4 +1420,99 @@ async fn after_the_app_dies_in_voice_the_next_launch_gets_voice_back() {
     );
     drop(media);
     second.shutdown_background();
+}
+
+fn test_plugin_package(files: &[(&str, &[u8])]) -> Vec<u8> {
+    let dir = tempfile::tempdir().unwrap();
+    for (path, bytes) in files {
+        let p = dir.path().join(path);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, bytes).unwrap();
+    }
+    opencord_plugins::package::Package::from_dir(dir.path())
+        .unwrap()
+        .write_zip()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_plugin_package_and_requests() {
+    let server = TestServer::start().await;
+    let (owner, _, _, _) = owner_and_member(&server).await;
+    let key = server.address();
+
+    let zip_bytes = test_plugin_package(&[
+        (
+            "manifest.lua",
+            b"return { id = 'sample', name = 'Sample', version = '1.0.0', author = 'Author', license = 'MIT', api = 1, server = { 'server/main.luau' } }",
+        ),
+        ("server/main.luau", b"log.info('hello from core test')"),
+    ]);
+
+    let review = owner
+        .client
+        .upload_plugin_package(&key, zip_bytes)
+        .await
+        .unwrap();
+
+    assert_eq!(review.plugin.id, "sample");
+    assert_eq!(review.plugin.name, "Sample");
+
+    let reviews = owner.client.fetch_plugin_reviews(&key).await.unwrap();
+    assert_eq!(reviews.len(), 1);
+    assert_eq!(reviews[0].review_id, review.review_id);
+
+    let plugins = owner.client.fetch_plugins(&key).await.unwrap();
+    assert!(plugins.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn plugin_users_arrive_in_ready_and_updates() {
+    let server = TestServer::start().await;
+    let (mut owner, _, _, _) = owner_and_member(&server).await;
+    let key = server.address();
+
+    let zip_bytes = test_plugin_package(&[
+        (
+            "manifest.lua",
+            b"return { id = 'bot', name = 'Bot', version = '1.0.0', author = 'Author', license = 'MIT', api = 1, server = { 'server/main.luau' } }",
+        ),
+        ("server/main.luau", b""),
+    ]);
+
+    let review = owner
+        .client
+        .upload_plugin_package(&key, zip_bytes)
+        .await
+        .unwrap();
+
+    owner
+        .client
+        .confirm_plugin_review(&key, review.review_id, vec![], vec![], false)
+        .await
+        .unwrap();
+
+    let users = owner
+        .wait_for(|payload| match payload {
+            CoreEventPayload::PluginUsersUpdate(users) => Some(users.clone()),
+            _ => None,
+        })
+        .await;
+
+    assert!(users.iter().any(|u| u.plugin_id == "bot" && u.installed));
+
+    let invite = owner
+        .client
+        .create_invite(&server.address(), None, None, None)
+        .await
+        .unwrap();
+
+    let mut fresh = TestClient::new("Fresh");
+    fresh.client.add_server(&invite.link, None).await.unwrap();
+    let ready = fresh.ready().await;
+    assert!(
+        ready
+            .plugin_users
+            .iter()
+            .any(|u| u.plugin_id == "bot" && u.installed)
+    );
 }

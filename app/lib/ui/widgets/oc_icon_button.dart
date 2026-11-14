@@ -10,7 +10,10 @@ import 'package:opencord/ui/widgets/key_hint.dart';
 enum OcIconButtonSize {
   normal(OcSize.hitDefault, OcSize.iconButton),
   compact(OcSize.hitCompact, OcSize.iconRow),
-  voice(OcSize.hitVoice, 22);
+  voice(OcSize.hitVoice, 22),
+
+  /// Fits a 28 px bar, like an opened activity's when it is narrow.
+  bar(22, 16);
 
   const OcIconButtonSize(this.extent, this.iconSize);
 

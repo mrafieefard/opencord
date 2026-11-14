@@ -12,6 +12,7 @@ import { useTheme } from '@/ui';
 
 import { CategoryHeader } from './CategoryHeader';
 import { ChannelRow } from './ChannelRow';
+import { PluginChannelRow } from './PluginChannelRow';
 import { NowPlayingRow } from './NowPlayingRow';
 import { VoiceChannelRow } from './VoiceChannelRow';
 import { VoiceMemberRow } from './VoiceMemberRow';
@@ -27,6 +28,7 @@ type ListItem =
   | { type: 'category'; id: string; name: string }
   | { type: 'text'; id: string; item: Extract<ChannelItem, { kind: 'text' }> }
   | { type: 'voice'; id: string; item: Extract<ChannelItem, { kind: 'voice' }> }
+  | { type: 'plugin'; id: string; item: Extract<ChannelItem, { kind: 'plugin' }> }
   | { type: 'member'; id: string; member: VoiceMember }
   | { type: 'nowPlaying'; id: string; nowPlaying: MusicNowPlayingRecord };
 
@@ -53,6 +55,8 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
             id: `text-${item.channel.id}`,
             item,
           });
+        } else if (item.kind === 'plugin') {
+          result.push({ type: 'plugin', id: `plugin-${item.channel.id}`, item });
         } else if (item.kind === 'voice') {
           result.push({
             type: 'voice',
@@ -100,6 +104,15 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
               channel={item.item.channel}
               count={item.item.count}
               limit={item.item.limit}
+              selected={item.item.channel.id === highlighted}
+              onSelect={onSelect}
+            />
+          );
+        case 'plugin':
+          return (
+            <PluginChannelRow
+              serverKey={serverKey}
+              item={item.item}
               selected={item.item.channel.id === highlighted}
               onSelect={onSelect}
             />

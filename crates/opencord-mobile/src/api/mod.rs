@@ -2,9 +2,11 @@
 //! then `events_attach` and `identity_load`.
 
 pub mod chat;
+pub mod commands;
 pub mod files;
 pub mod identity;
 pub mod music;
+pub mod plugins;
 pub mod servers;
 pub mod setup;
 pub mod soundboard;

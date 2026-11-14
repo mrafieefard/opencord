@@ -337,7 +337,9 @@ export function CallSheet() {
         importantForAccessibility={up || resting ? 'auto' : 'no-hide-descendants'}
         testID="call-sheet"
       >
-        <AnimatedGlass style={[StyleSheet.absoluteFill, cornerStyle]} />
+        {/* A backdrop only: on Android it's a raised surface, handed touches
+            before what's over it (a plugin's activity got none). */}
+        <AnimatedGlass style={[StyleSheet.absoluteFill, cornerStyle]} pointerEvents="none" testID="call-glass" />
         <Animated.View style={[StyleSheet.absoluteFill, styles.clip, cornerStyle]} pointerEvents="box-none">
           {FILLS && (
             <Animated.View
@@ -367,7 +369,7 @@ export function CallSheet() {
                 <View style={[styles.grabber, { backgroundColor: colors.textMuted }]} />
               </View>
             </GestureDetector>
-            {inIt && <VoicePane serverKey={call.serverKey} channelId={call.channelId} asCall headerGesture={headerDrag} />}
+            {inIt && <VoicePane serverKey={call.serverKey} channelId={call.channelId} asCall headerGesture={headerDrag} shown={up} />}
           </Animated.View>
         </Animated.View>
       </Animated.View>

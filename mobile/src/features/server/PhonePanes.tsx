@@ -3,7 +3,8 @@
 // In `channels` the list is the window's full width; selecting a channel
 // slides it out to the left as the channel slides in (the shift), and from
 // then on the list is a sidebar `min(86 % of the width, 360 pt)` wide,
-// opened by a swipe right from the left half or the pane's sidebar button.
+// opened by a swipe right from the left half or the pane's sidebar button
+// (the button only, while a plugin's screen is in front).
 //
 // Gesture Handler's ReanimatedDrawerLayout can't start open (entering a
 // server would slide the list in after the stack's push), so this is the
@@ -25,6 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { useStageInPane } from '@/features/plugins/activityHolder';
 import { chrome } from '@/features/servers/chrome';
 import { sidebarOut } from '@/features/voice/callPosition';
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
@@ -134,10 +136,15 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
     [openSidebar, closeSidebar],
   );
 
+  // A plugin in front (its channel, or an activity the voice pane draws)
+  // takes its own horizontal drags: the sidebar opens from its button then.
+  const activityInPane = useStageInPane();
+  const pluginInFront = !listOut && (open?.kind === 'plugin' || (open?.kind === 'voice' && activityInPane));
+
   const start = useSharedValue(0);
   const hitSlop = useMemo(() => (sidebarOpen ? undefined : { left: 0, width: width / 2 }), [sidebarOpen, width]);
   const pan = usePanGesture({
-    enabled: !full,
+    enabled: !full && !pluginInFront,
     hitSlop,
     activeOffsetX: sidebarOpen ? -ACTIVE_OFFSET : ACTIVE_OFFSET,
     failOffsetY: [-FAIL_OFFSET_Y, FAIL_OFFSET_Y],
@@ -223,6 +230,7 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
               onOpenSidebar={openSidebar}
               onOpenChannel={openChannel}
               covered={listOut}
+              onBack={back}
             />
           </View>
           <Animated.View

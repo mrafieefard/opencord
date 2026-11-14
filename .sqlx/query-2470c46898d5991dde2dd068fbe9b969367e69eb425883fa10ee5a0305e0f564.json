@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT public_key FROM plugin_leftovers WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "public_key",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "plugin_leftovers",
+            "name": "public_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "2470c46898d5991dde2dd068fbe9b969367e69eb425883fa10ee5a0305e0f564"
+}

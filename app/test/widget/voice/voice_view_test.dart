@@ -196,12 +196,13 @@ void main() {
         settings: (settings) => settings.copyWith(fontSize: fontSize),
       );
       final panel = find.byType(UserPanel);
-      await tester.tap(
-        find.descendant(
-          of: find.byKey(DesktopShell.sidebarKey),
-          matching: find.text('general'),
-        ),
+      final general = find.descendant(
+        of: find.byKey(DesktopShell.sidebarKey),
+        matching: find.text('general'),
       );
+      await tester.ensureVisible(general);
+      await tester.pumpAndSettle();
+      await tester.tap(general);
       await _pumpFor(tester, const Duration(milliseconds: 300));
       expect(
         tester.getRect(panel).top,
@@ -612,12 +613,13 @@ void main() {
         tester.getSize(_tileOf(self)).width.round(),
       );
 
-      await tester.tap(
-        find.descendant(
-          of: find.byKey(DesktopShell.sidebarKey),
-          matching: find.text('general'),
-        ),
+      final general = find.descendant(
+        of: find.byKey(DesktopShell.sidebarKey),
+        matching: find.text('general'),
       );
+      await tester.ensureVisible(general);
+      await tester.pumpAndSettle();
+      await tester.tap(general);
       await _pumpFor(tester, const Duration(milliseconds: 300));
       expect(find.byType(VoiceView), findsNothing);
       expect(app.repository.videoWants, isEmpty);

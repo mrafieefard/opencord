@@ -15,6 +15,7 @@ import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/soundboard/soundboard_ring.dart';
 import 'package:opencord/features/voice/voice_controls.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
+import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/features/settings/server_settings.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -303,7 +304,7 @@ class _Participant extends ConsumerWidget {
               channel: channelId,
             )).notifier,
           )
-          .focus((userId: participant.userId, screen: true)),
+          .focus(personTile(participant.userId, screen: true)),
     );
   }
 
@@ -315,6 +316,11 @@ class _Participant extends ConsumerWidget {
         serverKey,
       ).select((s) => s.data?.members[participant.userId]),
     );
+    final author = ref.watch(
+      serverProvider(
+        serverKey,
+      ).select((s) => s.data?.authorOf(participant.userId)),
+    );
     final speaking = ref.watch(
       speakingProvider(serverKey).select((s) => s.contains(participant.userId)),
     );
@@ -325,7 +331,7 @@ class _Participant extends ConsumerWidget {
         user: participant.userId,
       )).select((audio) => audio.muted),
     );
-    final name = member?.displayName ?? 'Someone';
+    final name = author?.name ?? 'Someone';
     final state = [
       if (mutedHere) 'muted by you',
       if (participant.muted) 'muted',

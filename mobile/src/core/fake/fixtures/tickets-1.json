@@ -1,0 +1,127 @@
+{
+  "batches": [
+    {
+      "ops": [
+        {
+          "block": "text",
+          "children": [],
+          "events": [],
+          "id": 3,
+          "op": "create",
+          "props": {
+            "size": 20,
+            "text": "Support Tickets",
+            "weight": "bold"
+          }
+        },
+        {
+          "block": "button",
+          "children": [],
+          "events": [
+            "press"
+          ],
+          "id": 4,
+          "op": "create",
+          "props": {
+            "text": "New ticket",
+            "variant": "primary"
+          }
+        },
+        {
+          "block": "row",
+          "children": [
+            3,
+            4
+          ],
+          "events": [],
+          "id": 2,
+          "op": "create",
+          "props": {
+            "align": "space_between",
+            "cross": "center",
+            "padding": 12
+          }
+        },
+        {
+          "block": "divider",
+          "children": [],
+          "events": [],
+          "id": 5,
+          "op": "create",
+          "props": {}
+        },
+        {
+          "block": "text",
+          "children": [],
+          "events": [],
+          "id": 9,
+          "op": "create",
+          "props": {
+            "text": "No tickets yet."
+          }
+        },
+        {
+          "block": "column",
+          "children": [
+            9
+          ],
+          "events": [],
+          "id": 8,
+          "op": "create",
+          "props": {
+            "align": "center",
+            "cross": "center",
+            "padding": 32
+          }
+        },
+        {
+          "block": "column",
+          "children": [
+            8
+          ],
+          "events": [],
+          "id": 7,
+          "op": "create",
+          "props": {
+            "gap": 8,
+            "padding": 12
+          }
+        },
+        {
+          "block": "scroll",
+          "children": [
+            7
+          ],
+          "events": [],
+          "id": 6,
+          "op": "create",
+          "props": {
+            "flex": 1
+          }
+        },
+        {
+          "block": "column",
+          "children": [
+            2,
+            5,
+            6
+          ],
+          "events": [],
+          "id": 1,
+          "op": "create",
+          "props": {
+            "flex": 1
+          }
+        },
+        {
+          "main": 1,
+          "modals": [],
+          "op": "roots"
+        }
+      ],
+      "seq": 1,
+      "view": "1"
+    }
+  ],
+  "input": null
+}

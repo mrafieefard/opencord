@@ -10,6 +10,8 @@ export const icons = {
   add: { ios: 'plus', android: 'add' },
   textChannel: { ios: 'number', android: 'tag' },
   voiceChannel: { ios: 'speaker.wave.2', android: 'volume_up' },
+  // A plugin's channel or activity with no icon of its own.
+  extension: { ios: 'puzzlepiece.extension', android: 'extension' },
   sidebar: { ios: 'sidebar.left', android: 'menu' },
   back: { ios: 'chevron.left', android: 'arrow_back' },
   dismiss: { ios: 'chevron.down', android: 'keyboard_arrow_down' },
@@ -18,6 +20,7 @@ export const icons = {
   send: { ios: 'arrow.up', android: 'arrow_upward' },
   photo: { ios: 'photo', android: 'image' },
   file: { ios: 'doc', android: 'description' },
+  commands: { ios: 'slash.circle', android: 'terminal' },
   attach: { ios: 'paperclip', android: 'attach_file' },
   copy: { ios: 'doc.on.doc', android: 'content_copy' },
   edit: { ios: 'pencil', android: 'edit' },

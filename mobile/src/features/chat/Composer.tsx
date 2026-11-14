@@ -3,7 +3,7 @@
 // button once there is something to send, else the mic for a voice
 // message (held to record; useVoiceRecorder). Each is its own glass (iOS)
 // or raised surface (Android). ChatPane keeps it on the keyboard.
-import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text as NativeText, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import * as DocumentPicker from 'expo-document-picker';
@@ -20,6 +20,8 @@ import {
   sendWithFiles,
 } from '@/state/actions/chat';
 import { useChannelInfo } from '@/state/selectors';
+import { runCommand } from '@/state/actions/commands';
+import { toast } from '@/state/actions/ui';
 import { useAppStore } from '@/state/store';
 import type { PickedFile } from '@/state/types';
 import { GlassSurface, Icon, Menu, Text, space, typography, useTheme, type MenuAction } from '@/ui';
@@ -30,6 +32,11 @@ import { RecorderPill } from '@/features/voiceMessages/RecorderPill';
 import { LOCK_DISTANCE, useVoiceRecorder } from '@/features/voiceMessages/useVoiceRecorder';
 
 import { AttachmentChips } from './AttachmentChips';
+import { CommandList } from './commands/CommandList';
+import { CommandChips } from './commands/CommandChips';
+import { groupCommands, type CommandGroup, type CommandRow } from './commands/commandRows';
+import { SourceIcon } from './commands/SourceIcon';
+import { EMPTY_MARK, useCommandDraft } from './commands/useCommandDraft';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
 import { useTypingNotifier } from './useTypingNotifier';
@@ -39,6 +46,8 @@ export interface ComposerProps {
   channelId: string;
 }
 
+/** Just after the invisible character an empty command field holds. */
+const MARK_END = { start: EMPTY_MARK.length, end: EMPTY_MARK.length };
 const MAX_CHARS = 4000;
 const COUNTER_THRESHOLD = 3900;
 /** The field and the round buttons: Telegram's floating 44 pt. */
@@ -48,6 +57,19 @@ const FIELD_PAD_V = (CONTROL - (typography.body.lineHeight ?? 22)) / 2;
 const FIELD_MAX = (typography.body.lineHeight ?? 22) * MAX_LINES + FIELD_PAD_V * 2;
 /** A line more or fewer: the field grows or shrinks over this, as Telegram's. */
 const GROW_MS = 160;
+
+/** The attach button's menu: empty hides the button. */
+export function attachMenuActions(canAttach: boolean, hasCommands: boolean): MenuAction[] {
+  return [
+    ...(canAttach
+      ? ([
+          { id: 'photo', title: 'Photo library', icon: 'photo' },
+          { id: 'file', title: 'Files', icon: 'file' },
+        ] as const)
+      : []),
+    ...(hasCommands ? ([{ id: 'commands', title: 'Commands', icon: 'commands' }] as const) : []),
+  ];
+}
 
 export function Composer({ serverKey, channelId }: ComposerProps) {
   const { colors } = useTheme();
@@ -81,19 +103,82 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     setText('');
   }, []);
 
+  const draft = useCommandDraft(serverKey, channelId);
+  const hasDraft = draft.spec !== null;
+  const { changeField } = draft;
   const handleChangeText = useCallback(
     (nextText: string) => {
+      if (hasDraft) {
+        changeField(nextText);
+        return;
+      }
       setText(nextText);
       if (nextText.length > 0 && !isEditing) {
         notifyTyping();
       }
     },
-    [isEditing, notifyTyping],
+    [hasDraft, changeField, isEditing, notifyTyping],
   );
 
   const canSend = info ? info.access.send : true;
   const canAttach = info ? info.access.attach : true;
   const canVoice = info ? info.access.sendVoiceMessages : true;
+
+  const snapshot = useAppStore((state) => state.servers[serverKey]?.snapshot);
+  const commandList = snapshot?.commands;
+  const voiceChannelId = useAppStore((state) => (state.myVoice?.serverKey === serverKey ? state.myVoice.channelId : undefined));
+  const hasCommands = (commandList?.commands.length ?? 0) > 0;
+
+  // "/" and a word at the start of the field opens the list, until it's
+  // dismissed; typing anything else opens it again.
+  const slash = isEditing || draft.spec ? null : /^\/(\S*)$/.exec(text);
+  const [dismissedAt, setDismissedAt] = useState<string | null>(null);
+  const query = slash && dismissedAt !== text ? slash[1] ?? '' : null;
+  const groups = useMemo(
+    () =>
+      query === null
+        ? []
+        : groupCommands(commandList, query, {
+            channelId,
+            access: snapshot?.access ?? [],
+            pluginUsers: snapshot?.pluginUsers ?? [],
+            voiceChannelId,
+          }),
+    [query, commandList, channelId, snapshot?.access, snapshot?.pluginUsers, voiceChannelId],
+  );
+  const dismissList = useCallback(() => setDismissedAt(text), [text]);
+  const { pick: pickDraft, pickChoice, closeChoices } = draft;
+  const pickRow = useCallback(
+    (row: CommandRow) => {
+      if (row.kind !== 'command') return;
+      if (row.unavailable !== undefined) {
+        toast(row.unavailable);
+        return;
+      }
+      setText('');
+      pickDraft(row.spec);
+    },
+    [pickDraft],
+  );
+  const choiceGroups = useMemo<CommandGroup[]>(
+    () => (draft.choiceRows.length > 0 ? [{ source: { id: '', name: draft.active?.name ?? '' }, rows: draft.choiceRows }] : []),
+    [draft.choiceRows, draft.active?.name],
+  );
+  const focusField = useCallback(() => input.current?.focus(), []);
+  const { focusOption } = draft;
+  const editOption = useCallback(
+    (name: string) => {
+      focusOption(name);
+      focusField();
+    },
+    [focusOption, focusField],
+  );
+  const commandSource = useMemo(() => {
+    if (!draft.spec || draft.spec.source === '') return null;
+    const pluginId = draft.spec.source.slice('plugin:'.length);
+    const user = snapshot?.pluginUsers.find((each) => each.pluginId === pluginId);
+    return { id: draft.spec.source, name: user?.name ?? pluginId, avatarHash: user?.avatarHash };
+  }, [draft.spec, snapshot?.pluginUsers]);
   const recorder = useVoiceRecorder(serverKey, channelId);
 
   // The field's height follows its text, eased rather than jumping. An
@@ -118,13 +203,14 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     transform: [{ translateY: Math.max(dragY.get() * 0.5, -LOCK_DISTANCE / 2) }],
   }));
 
-  const attachActions: MenuAction[] = [
-    { id: 'photo', title: 'Photo library', icon: 'photo' },
-    { id: 'file', title: 'Files', icon: 'file' },
-  ];
+  const attachActions = attachMenuActions(canAttach, hasCommands);
 
   const handleAttachAction = useCallback(async (id: string) => {
-    if (id === 'photo') {
+    if (id === 'commands') {
+      setDismissedAt(null);
+      setText('/');
+      input.current?.focus();
+    } else if (id === 'photo') {
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
@@ -167,7 +253,12 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       ? text.trim().length > 0 && !isOverLimit
       : (text.trim().length > 0 || files.length > 0) && !isOverLimit;
 
+  const { run: runDraft } = draft;
   const handleSubmit = useCallback(async () => {
+    if (hasDraft) {
+      await runDraft();
+      return;
+    }
     if (!canSubmit) return;
     const currentText = text.trim();
 
@@ -181,13 +272,19 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       const toSendFiles = [...files];
       setText('');
       setFiles([]);
+      // A command's name sent without picking: the server decides which.
+      const typedName = toSendFiles.length === 0 ? /^\/(\S+)$/.exec(toSendText)?.[1]?.toLowerCase() : undefined;
+      if (typedName && commandList?.commands.some((spec) => spec.name === typedName || spec.aliases.includes(typedName))) {
+        await runCommand(serverKey, channelId, typedName, '', []);
+        return;
+      }
       if (toSendFiles.length > 0) {
         await sendWithFiles(serverKey, channelId, toSendText, toSendFiles);
       } else {
         await sendMessage(serverKey, channelId, toSendText);
       }
     }
-  }, [canSubmit, text, isEditing, editing, serverKey, channelId, files]);
+  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files, commandList]);
 
   if (!canSend) {
     return (
@@ -202,10 +299,30 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   }
 
   const channelName = info?.channel.name ?? '';
-  const hasSomething = isEditing || text.trim().length > 0 || files.length > 0;
+  const hasSomething = isEditing || hasDraft || text.trim().length > 0 || files.length > 0;
+  const placeholder = draft.spec ? draft.active?.description ?? draft.spec.description : `Message #${channelName}`;
+  const fieldIsEmpty = draft.spec ? draft.fieldText === '' : text === '';
+  const shownInMirror = draft.spec ? draft.fieldText : text;
 
   return (
     <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
+      {choiceGroups.length > 0 && (
+        <CommandList serverKey={serverKey} groups={choiceGroups} onPick={pickChoice} onDismiss={closeChoices} />
+      )}
+      {query !== null && (
+        <CommandList
+          serverKey={serverKey}
+          groups={groups}
+          emptyText={`No commands match /${query}`}
+          onPick={pickRow}
+          onDismiss={dismissList}
+        />
+      )}
+      {draft.spec && draft.spec.options.length > 0 && (
+        <GlassSurface style={styles.card}>
+          <CommandChips options={draft.spec.options} values={draft.values} active={draft.active?.name} onPress={editOption} />
+        </GlassSurface>
+      )}
       {(isEditing || files.length > 0) && (
         <GlassSurface style={styles.card}>
           {isEditing && <EditingBar onCancel={handleCancelEditing} />}
@@ -219,7 +336,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
             so the hold that started recording isn't cut off. */}
         {recorder.mode === 'idle' ? (
           <>
-            {canAttach && !isEditing && (
+            {attachActions.length > 0 && !isEditing && (
               <GlassSurface interactive style={styles.round}>
                 <Menu actions={attachActions} onAction={(id) => report(handleAttachAction(id), 'attach files')} testID="composer-attach">
                   <View style={styles.control} accessible accessibilityRole="button" accessibilityLabel="Attach">
@@ -234,6 +351,23 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
             <View style={styles.fieldSlot}>
             <Animated.View style={[styles.fieldBox, fieldStyle]}>
             <GlassSurface style={styles.field}>
+              {draft.spec && (
+                <Touchable onPress={focusField} style={styles.chipWrap}>
+                  <View
+                    testID="command-chip"
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel={`/${draft.spec.name}`}
+                    style={[styles.chip, { backgroundColor: colors.accent }]}
+                  >
+                    {commandSource && <SourceIcon serverKey={serverKey} source={commandSource} size={16} radius={5} />}
+                    <Text variant="subhead" color="onAccent" numberOfLines={1}>
+                      {`/${draft.spec.name}`}
+                    </Text>
+                  </View>
+                </Touchable>
+              )}
+              <View style={styles.inputWrap}>
               {/* One line, cut with "…": a multiline field wraps its own
                   placeholder, which stays for VoiceOver, unseen. */}
               <NativeText
@@ -245,19 +379,21 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 importantForAccessibility="no-hide-descendants"
               >
                 {/* A last empty line is measured only with something on it. */}
-                {text.endsWith('\n') || text === '' ? `${text} ` : text}
+                {shownInMirror.endsWith('\n') || shownInMirror === '' ? `${shownInMirror} ` : shownInMirror}
               </NativeText>
-              {text === '' && (
+              {fieldIsEmpty && (
                 <Text variant="body" color="textMuted" numberOfLines={1} style={styles.placeholder} testID="composer-placeholder">
-                  {`Message #${channelName}`}
+                  {placeholder}
                 </Text>
               )}
               <TextInput
                 ref={input}
                 style={[typography.body, styles.input, { color: colors.text }]}
-                placeholder={`Message #${channelName}`}
+                placeholder={placeholder}
                 placeholderTextColor="transparent"
-                value={text}
+                value={draft.spec ? draft.fieldValue : text}
+                // After the mark, or Backspace would have nothing to delete.
+                selection={draft.spec && draft.fieldText === '' ? MARK_END : undefined}
                 onChangeText={handleChangeText}
                 scrollEnabled
                 multiline
@@ -265,9 +401,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 textAlignVertical="center"
                 cursorColor={colors.text}
                 selectionColor={colors.selected}
-                accessibilityLabel={`Message #${channelName}`}
+                accessibilityLabel={placeholder}
                 testID="composer-input"
               />
+              </View>
               {showCounter && (
                 <Text
                   variant="footnote"
@@ -311,7 +448,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
           <SendButton
             label={isEditing ? 'Save edit' : 'Send'}
             icon={isEditing ? 'check' : 'send'}
-            disabled={!canSubmit}
+            disabled={hasDraft ? draft.running : !canSubmit}
             onPress={() => report(handleSubmit(), 'send')}
             testID="composer-send"
           />
@@ -423,6 +560,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md + 2,
     overflow: 'hidden',
   },
+  inputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  chipWrap: {
+    alignSelf: 'center',
+    marginRight: space.xs,
+  },
+  chip: {
+    height: 28,
+    borderRadius: 6,
+    paddingHorizontal: space.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
   input: {
     flex: 1,
     paddingTop: FIELD_PAD_V,
@@ -432,15 +586,15 @@ const styles = StyleSheet.create({
   },
   mirror: {
     position: 'absolute',
-    left: space.md + 2,
-    right: space.md + 2,
+    left: 0,
+    right: 0,
     top: 0,
     opacity: 0,
   },
   placeholder: {
     position: 'absolute',
-    left: space.md + 2,
-    right: space.md + 2,
+    left: 0,
+    right: 0,
     top: FIELD_PAD_V,
   },
   counter: {

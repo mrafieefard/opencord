@@ -91,6 +91,8 @@ pub enum ChannelKind {
     Text,
     Voice,
     Category,
+    /// A channel of a type a plugin registered (plugins design §14).
+    Plugin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -106,6 +108,77 @@ pub struct ChannelRecord {
     pub user_limit: u32,
     /// Voice: has a chat of its own.
     pub text_in_voice: bool,
+    /// Plugin channels only.
+    pub plugin: Option<PluginChannelRecord>,
+}
+
+/// What a plugin channel is: the plugin, the type it registered, and
+/// whether it can be opened now.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginChannelRecord {
+    pub plugin_id: String,
+    pub type_key: String,
+    pub state: PluginChannelState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum PluginChannelState {
+    Available,
+    /// Its plugin isn't running, or isn't installed.
+    PluginStopped,
+    /// Its plugin runs but no longer registers this type.
+    TypeGone,
+}
+
+/// A channel type a running plugin registered (§14.2).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginChannelTypeRecord {
+    pub plugin_id: String,
+    pub type_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
+}
+
+/// An activity a running plugin registered (§15.1).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginActivityRecord {
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
+}
+
+/// One activity running in one call (§15.2).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ActivitySessionRecord {
+    pub id: String,
+    /// The voice channel.
+    pub channel_id: String,
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub icon: String,
+    pub plugin_name: String,
+    pub starter_id: String,
+    pub started_at_ms: i64,
+    /// Who has it open, ascending.
+    pub viewer_ids: Vec<String>,
+}
+
+/// Why an activity session ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ActivityEndReason {
+    Ended,
+    Plugin,
+    CallEmpty,
+    PluginStopped,
+    Unavailable,
 }
 
 /// What this user may do in a channel, from its permission bits.
@@ -126,6 +199,8 @@ pub struct ChannelAccess {
     pub use_soundboard: bool,
     pub use_external_sounds: bool,
     pub send_voice_messages: bool,
+    pub start_activities: bool,
+    pub manage_channel: bool,
 }
 
 /// Everything a `Ready` says about a server; it replaces what came before.
@@ -146,6 +221,19 @@ pub struct ServerSnapshot {
     pub soundboard_sounds: Vec<SoundboardSoundRecord>,
     /// The longest voice message this server takes.
     pub voice_message_max_seconds: u32,
+    pub plugin_users: Vec<PluginUserRecord>,
+    pub commands: CommandListRecord,
+    pub plugin_channel_types: Vec<PluginChannelTypeRecord>,
+    pub plugin_activities: Vec<PluginActivityRecord>,
+    pub activity_sessions: Vec<ActivitySessionRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PluginUserRecord {
+    pub user_id: String,
+    pub plugin_id: String,
+    pub name: String,
+    pub avatar_hash: Option<String>,
 }
 
 /// The server's soundboard settings (Phase 2 plan §11.2), from its voice
@@ -217,8 +305,102 @@ pub struct MessageRecord {
     /// The sender's nonce, on the echo of this device's own send.
     pub nonce: Option<String>,
     /// The command that made this message, for command replies.
-    pub command: Option<String>,
+    pub interaction: Option<MessageInteractionRecord>,
     pub attachments: Vec<AttachmentRecord>,
+}
+
+/// Who ran the command a message answers, and where its reply stands.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct MessageInteractionRecord {
+    pub user_id: String,
+    pub command: String,
+    pub state: CommandRunStateRecord,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum CommandRunStateRecord {
+    Answered,
+    /// The plugin asked for more time; the reply will replace this.
+    Thinking,
+    /// It never came.
+    NoAnswer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum CommandOptionKindRecord {
+    Text,
+    Integer,
+    Boolean,
+    Choice,
+    User,
+    Channel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CommandChoiceRecord {
+    pub name: String,
+    pub value: String,
+    /// A track's artwork, for `/play`; empty otherwise.
+    pub artwork_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CommandOptionRecord {
+    pub name: String,
+    pub description: String,
+    pub kind: CommandOptionKindRecord,
+    pub required: bool,
+    pub autocomplete: bool,
+    pub choices: Vec<CommandChoiceRecord>,
+    /// For integers; both 0 for no bounds.
+    pub min: f64,
+    pub max: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CommandRecord {
+    pub name: String,
+    pub description: String,
+    pub options: Vec<CommandOptionRecord>,
+    /// "music", or `plugin:<id>`.
+    pub feature: String,
+    /// Empty for Opencord's commands, `plugin:<id>` for a plugin's.
+    pub source: String,
+    pub permission_summary: String,
+    pub aliases: Vec<String>,
+    /// Which music permissions it needs, as `ChannelAccess` names them.
+    pub needs: Vec<String>,
+    pub enabled: bool,
+    /// Empty: every channel.
+    pub channel_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CommandListRecord {
+    pub commands: Vec<CommandRecord>,
+    pub results_public: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CommandOptionValueRecord {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CommandOutcomeRecord {
+    pub message_id: Option<String>,
+    pub ephemeral: bool,
+}
+
+/// A reply only this device sees. A later one with the same nonce replaces
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct EphemeralNoteRecord {
+    pub channel_id: String,
+    pub nonce: String,
+    pub content: String,
+    pub state: CommandRunStateRecord,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -458,4 +640,12 @@ pub enum PlaybackItemRecord {
     Draft {
         draft_id: f64,
     },
+}
+
+/// A batch for the renderer of one plugin view: the core's id for the view
+/// and the batch as JSON (the plugins plans' "view wire format").
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ViewOutputRecord {
+    pub view_id: String,
+    pub json: String,
 }

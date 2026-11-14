@@ -325,6 +325,13 @@ impl Music {
                 session.push_event(&event, now);
             }
         }
+        // A plugin is never in the call: its role seeing the channel is
+        // enough.
+        if let Some(kind) = &event.kind {
+            state
+                .plugins
+                .observe(&guild, kind, crate::state::Audience::Channel(channel_id));
+        }
         drop(guild);
         for id in gone {
             self.subscribe(channel_id, &id, false);

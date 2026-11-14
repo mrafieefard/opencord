@@ -140,7 +140,8 @@ class _ServerChannelsPageState extends ConsumerState<ServerChannelsPage>
     List<Widget> segments(List<Channel> group) => [
       _segment([
         for (final channel in group)
-          if (channel.kind.isTextLike) channel,
+          if (channel.kind.isTextLike || channel.kind == ChannelKind.plugin)
+            channel,
       ], selected),
       _segment([
         for (final channel in group)
@@ -274,6 +275,7 @@ class _ChannelTile extends StatelessWidget {
                 ChannelKind.voice => OcIcons.volumeUp,
                 ChannelKind.announcement => OcIcons.campaign,
                 ChannelKind.text => OcIcons.tag,
+                ChannelKind.plugin => OcIcons.extension,
               },
               size: 16,
               color: colors.textSecondary,

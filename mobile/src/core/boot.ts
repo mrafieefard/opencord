@@ -19,11 +19,20 @@ export interface BootDeps {
   dataDir: () => string;
   cacheDir: () => string;
   loadIdentity: (core: CoreApi) => Promise<SavedIdentity | null>;
+  /** Whether this build can draw plugin areas (`@opencord/plugin-area`). */
+  pluginRenderer: boolean;
+}
+
+/** What the phone tells servers it can show: only what it can draw. */
+export function pluginFeatures(pluginRenderer: boolean): string[] {
+  return pluginRenderer ? ['plugin_users', 'plugin_channels', 'activities'] : ['plugin_users'];
 }
 
 export async function bootCore(core: CoreApi, deps: BootDeps): Promise<BootResult> {
   try {
     core.coreInit(deps.dataDir(), deps.cacheDir());
+    // Before any server connects: Identify lists them.
+    core.setPluginFeatures(pluginFeatures(deps.pluginRenderer));
     const saved = await deps.loadIdentity(core);
     if (saved === null) return { state: 'onboarding' };
     const info = core.identityLoad(saved.secret, saved.name);

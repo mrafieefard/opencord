@@ -20,6 +20,7 @@ pub mod media;
 pub mod music;
 pub mod network;
 pub mod permissions;
+pub mod plugins;
 pub mod presence;
 pub mod private;
 pub mod random;

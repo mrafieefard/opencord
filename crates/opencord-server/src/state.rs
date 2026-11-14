@@ -24,7 +24,8 @@ use crate::voice::states::VoiceStates;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Audience {
     Everyone,
-    /// Sessions whose user can view the channel.
+    /// Sessions whose user can view the channel, and whose app shows its
+    /// kind (`Session::sees_kind`).
     Channel(i64),
     /// Sessions whose user is connected to the voice channel. Never
     /// broadcast to it while holding the voice states.
@@ -68,6 +69,8 @@ pub struct AppState {
     pub attachments: crate::attachments::Attachments,
     /// Private messages and friends (design 2026-10-22).
     pub private: crate::private::PrivateMessages,
+    /// Running plugins (design 2026-11-07).
+    pub plugins: crate::plugins::Plugins,
     guild: RwLock<Guild>,
     /// Lock after the guild, never before it.
     voice: StdMutex<VoiceStates>,
@@ -120,6 +123,7 @@ impl AppState {
             commands: crate::commands::Commands::default(),
             attachments,
             private,
+            plugins: crate::plugins::Plugins::default(),
             guild: RwLock::new(guild),
             voice: StdMutex::new(VoiceStates::default()),
             writes: Mutex::new(()),
@@ -181,10 +185,17 @@ impl AppState {
                 .collect(),
             _ => HashSet::new(),
         };
+        let channel_kind = match audience {
+            Audience::Channel(channel_id) => guild.channels.get(&channel_id).map(|c| c.kind),
+            _ => None,
+        };
         for session in self.sessions.all() {
             let receives = match audience {
                 Audience::Everyone => true,
-                Audience::Channel(channel_id) => guild.can_view(session.user_id, channel_id),
+                Audience::Channel(channel_id) => {
+                    guild.can_view(session.user_id, channel_id)
+                        && channel_kind.is_some_and(|kind| session.sees_kind(kind))
+                }
                 Audience::Voice(_) => in_voice.contains(&session.user_id),
                 Audience::User(user_id) => session.user_id == user_id,
                 Audience::Holding(needed) => {
@@ -194,6 +205,9 @@ impl AppState {
             if receives {
                 session.push_event(&event, now);
             }
+        }
+        if let Some(kind) = &event.kind {
+            self.plugins.observe(&guild, kind, audience);
         }
     }
 

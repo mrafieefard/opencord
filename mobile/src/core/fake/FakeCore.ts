@@ -3,9 +3,11 @@
 // with the same words, the echo of a send with its nonce, the events the
 // core sends after each call (plan rule 11).
 import {
+  ActivityEndReason,
   AddServerResult,
   AttachmentKind,
   AttachmentVariant,
+  CommandRunStateRecord,
   ConnectionRecord,
   FailureKind,
   MobileError,
@@ -16,6 +18,10 @@ import {
   PlaybackItemRecord,
   UploadPhaseRecord,
   VoiceLinkState,
+  type ActivitySessionRecord,
+  type CommandChoiceRecord,
+  type CommandOptionValueRecord,
+  type CommandOutcomeRecord,
   type DefaultSoundRecord,
   type VoiceDraftRecord,
   type ExternalSoundRecord,
@@ -30,6 +36,7 @@ import {
   type OutgoingFileRecord,
   type ServerEntry,
   type UserRecord,
+  type ViewOutputRecord,
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
@@ -51,6 +58,21 @@ import {
   track,
   user,
 } from './world';
+import ticketsOpened from './fixtures/tickets-1.json';
+import ticketsNew from './fixtures/tickets-2.json';
+import ticketsTyped from './fixtures/tickets-3.json';
+import ticketsCancelled from './fixtures/tickets-4.json';
+
+interface RecordedStep {
+  input: Record<string, unknown> | null;
+  batches: unknown[];
+}
+
+/** A real tickets session, recorded from the core (plugins M4 Task 6). */
+const ticketsSession: RecordedStep[] = [ticketsOpened, ticketsNew, ticketsTyped, ticketsCancelled];
+
+/** What the fake answers for a plugin's asset or image. */
+const FAKE_PLUGIN_IMAGE = '/fake/cache/plugin-image.png';
 
 export type Scenario = 'default' | 'empty';
 
@@ -117,6 +139,13 @@ export class FakeCore implements CoreApi {
   private readonly uploadStepMs: number;
   private queue: MobileEvent[] = [];
   private generation = 0n;
+  private viewGeneration = 0n;
+  private viewQueue: ViewOutputRecord[] = [];
+  private viewWaiter: ((records: ViewOutputRecord[]) => void) | null = null;
+  private viewOpenGate: Promise<void> | null = null;
+  private viewIds = 0;
+  private openViews = new Set<string>();
+  private activities: ActivitySessionRecord[] = [];
   private waiter: Waiter | null = null;
   private failures = new Map<keyof CoreApi, unknown>();
   private settings = new Map<string, string>();
@@ -386,6 +415,41 @@ export class FakeCore implements CoreApi {
   }
 
   // Chat ---------------------------------------------------------------
+
+  async commandExecute(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    options: CommandOptionValueRecord[],
+    nonce: string,
+  ): Promise<CommandOutcomeRecord> {
+    this.enter('commandExecute', [serverKey, channelId, name, source, options, nonce]);
+    this.requireConnected(serverKey);
+    this.emit(
+      new MobileEvent.EphemeralReceived({
+        serverKey,
+        note: { channelId, nonce, content: `Ran /${name}`, state: CommandRunStateRecord.Answered },
+      }),
+    );
+    return { messageId: undefined, ephemeral: true };
+  }
+
+  async commandAutocomplete(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    option: string,
+    value: string,
+  ): Promise<CommandChoiceRecord[]> {
+    this.enter('commandAutocomplete', [serverKey, channelId, name, source, option, value]);
+    this.requireConnected(serverKey);
+    return [
+      { name: `${value} one`, value: `${value}-1`, artworkId: '' },
+      { name: `${value} two`, value: `${value}-2`, artworkId: '' },
+    ];
+  }
 
   async messagesFetch(serverKey: string, channelId: string, before: string | undefined, limit: number): Promise<MessageRecord[]> {
     this.enter('messagesFetch', [serverKey, channelId, before, limit]);
@@ -956,6 +1020,150 @@ export class FakeCore implements CoreApi {
   voiceStop(): void {
     this.enter('voiceStop', []);
     this.playing = null;
+  }
+
+  // Plugin views (plugins M4 Task 7): a view of any plugin channel or
+  // activity plays the recorded tickets session (fixtures/tickets-*.json):
+  // the opening batches at once, and an input equal to a recorded one in
+  // kind, event and node brings the batches it brought.
+  setPluginFeatures(features: string[]): void {
+    this.enter('setPluginFeatures', [features]);
+  }
+
+  viewOutputsAttach(): bigint {
+    this.enter('viewOutputsAttach', []);
+    this.viewGeneration += 1n;
+    // A wait under the older generation ends with an empty batch.
+    const older = this.viewWaiter;
+    this.viewWaiter = null;
+    older?.([]);
+    return this.viewGeneration;
+  }
+
+  nextViewOutputs(generation: bigint, max: number): Promise<ViewOutputRecord[]> {
+    this.enter('nextViewOutputs', [generation, max]);
+    if (generation !== this.viewGeneration) return Promise.resolve([]);
+    if (this.viewQueue.length > 0) return Promise.resolve(this.viewQueue.splice(0, max));
+    return new Promise((resolve) => {
+      this.viewWaiter = (records) => resolve(records.length > 0 ? records.splice(0, max) : records);
+    });
+  }
+
+  /** Batches as the core would send them (tests). */
+  emitViewOutputs(...records: ViewOutputRecord[]): void {
+    this.viewQueue.push(...records);
+    const waiter = this.viewWaiter;
+    if (waiter && this.viewQueue.length > 0) {
+      this.viewWaiter = null;
+      waiter(this.viewQueue.splice(0));
+    }
+  }
+
+  /** The next viewOpen sends its batches but returns its id only when released (tests). */
+  pauseViewOpen(): () => void {
+    let release = () => {};
+    this.viewOpenGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return release;
+  }
+
+  async viewOpen(serverKey: string, channelId: string, contextJson: string): Promise<string> {
+    this.enter('viewOpen', [serverKey, channelId, contextJson]);
+    return this.playView();
+  }
+
+  async viewOpenActivity(serverKey: string, sessionId: string, channelId: string, activityKey: string, contextJson: string): Promise<string> {
+    this.enter('viewOpenActivity', [serverKey, sessionId, channelId, activityKey, contextJson]);
+    return this.playView();
+  }
+
+  viewInput(viewId: string, json: string): void {
+    this.enter('viewInput', [viewId, json]);
+    if (!this.openViews.has(viewId)) return;
+    const input = JSON.parse(json) as Record<string, unknown>;
+    const step = ticketsSession.find(
+      (recorded) =>
+        recorded.input !== null &&
+        recorded.input.kind === input.kind &&
+        recorded.input.event === input.event &&
+        recorded.input.node === input.node,
+    );
+    if (step) this.emitBatches(viewId, step.batches);
+  }
+
+  viewClose(viewId: string): void {
+    this.enter('viewClose', [viewId]);
+    this.openViews.delete(viewId);
+  }
+
+  async pluginAssetFile(serverKey: string, pluginId: string, path: string): Promise<string> {
+    this.enter('pluginAssetFile', [serverKey, pluginId, path]);
+    return FAKE_PLUGIN_IMAGE;
+  }
+
+  async pluginImageFile(serverKey: string, pluginId: string, sourceJson: string): Promise<string> {
+    this.enter('pluginImageFile', [serverKey, pluginId, sourceJson]);
+    return FAKE_PLUGIN_IMAGE;
+  }
+
+  async viewUpload(viewId: string, nodeId: bigint, path: string): Promise<void> {
+    this.enter('viewUpload', [viewId, nodeId, path]);
+  }
+
+  /** Starts an activity in a call: the running one when it runs there; four at most. */
+  async activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string): Promise<ActivitySessionRecord> {
+    this.enter('activityStart', [serverKey, channelId, pluginId, activityKey]);
+    const inCall = this.activities.filter((session) => session.channelId === channelId);
+    const running = inCall.find((session) => session.pluginId === pluginId && session.activityKey === activityKey);
+    if (running) return running;
+    if (inCall.length >= 4) {
+      throw new MobileError.Server({ code: 'plugin_limit', message: 'this call has as many activities as it can', retryAfterMs: undefined });
+    }
+    const registered = snapshot(serverKey).pluginActivities.find((entry) => entry.pluginId === pluginId && entry.activityKey === activityKey);
+    if (!registered) {
+      throw new MobileError.Server({ code: 'plugin_unavailable', message: 'that activity is not available', retryAfterMs: undefined });
+    }
+    const session: ActivitySessionRecord = {
+      id: String(this.nextId++),
+      channelId,
+      pluginId,
+      activityKey,
+      name: registered.name,
+      icon: registered.icon,
+      pluginName: registered.pluginName,
+      starterId: SELF_ID,
+      startedAtMs: BigInt(this.now()),
+      viewerIds: [],
+    };
+    this.activities.push(session);
+    this.emit(new MobileEvent.ActivitySessionCreated({ serverKey, session }));
+    return session;
+  }
+
+  async activityEnd(serverKey: string, sessionId: string): Promise<void> {
+    this.enter('activityEnd', [serverKey, sessionId]);
+    const session = this.activities.find((entry) => entry.id === sessionId);
+    if (!session) return;
+    this.activities = this.activities.filter((entry) => entry.id !== sessionId);
+    this.emit(
+      new MobileEvent.ActivitySessionDeleted({ serverKey, sessionId, channelId: session.channelId, reason: ActivityEndReason.Ended }),
+    );
+  }
+
+  private async playView(): Promise<string> {
+    const viewId = `fake-view-${++this.viewIds}`;
+    this.openViews.add(viewId);
+    // The core sends a view's first batches before view_open returns.
+    this.emitBatches(viewId, ticketsOpened.batches);
+    const gate = this.viewOpenGate;
+    this.viewOpenGate = null;
+    if (gate) await gate;
+    return viewId;
+  }
+
+  private emitBatches(viewId: string, batches: unknown[]): void {
+    this.emitViewOutputs(...batches.map((batch) => ({ viewId, json: JSON.stringify(batch) })));
   }
 
   private emitPlayback(playing: boolean): void {

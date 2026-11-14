@@ -3,7 +3,7 @@
 // Not connected: tiles, Join voice button (or disabled reason).
 import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { type Href, router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
@@ -11,8 +11,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
 import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader';
+import { showActivitiesButton } from '@/features/plugins/ActivityPicker';
+import { ActivityStage } from '@/features/plugins/ActivityStage';
+import { ActivityTile } from '@/features/plugins/ActivityTile';
+import { STAGE_CALL, STAGE_PANE, claimStage, useOpenActivity, useStageOwner } from '@/features/plugins/activityHolder';
 import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
-import { useChannelInfo, useMusicSettings, useMyVoice, useVoiceMembers } from '@/state/selectors';
+import { activitySessions, useChannelInfo, useMusicSettings, useMyVoice, useServer, useVoiceMembers } from '@/state/selectors';
 import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/ui';
 
 import { chrome } from '@/features/servers/chrome';
@@ -36,12 +40,16 @@ export interface VoicePaneProps {
   asCall?: boolean;
   /** The sheet's drag, on the header too: dragging it down takes the sheet down. */
   headerGesture?: ReturnType<typeof Gesture.Pan>;
+  /** In the call sheet: whether the sheet is open (an opened activity draws in it then). */
+  shown?: boolean;
+  /** A phone's sidebar is over the pane: an opened activity doesn't draw here. */
+  covered?: boolean;
 }
 
 const GAP = space.md;
 const PADDING = space.md;
 
-export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, asCall = false, headerGesture }: VoicePaneProps) {
+export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, asCall = false, headerGesture, shown = true, covered = false }: VoicePaneProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -53,6 +61,16 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const musicSettings = useMusicSettings(serverKey);
   const myVoice = useMyVoice();
   const members = useVoiceMembers(serverKey, channelId);
+  const server = useServer(serverKey);
+  const sessions = activitySessions(server, channelId);
+  // An opened activity draws in one place: the open call sheet, else this pane.
+  const open = useOpenActivity();
+  const mine = open?.serverKey === serverKey && open.channelId === channelId ? open : null;
+  const [stageClaim] = useState(() => Symbol('activity stage'));
+  const claims = mine !== null && !covered && (!asCall || shown);
+  useEffect(() => (claims ? claimStage(stageClaim, asCall ? STAGE_CALL : STAGE_PANE) : undefined), [claims, stageClaim, asCall]);
+  const stageOwner = useStageOwner();
+  const drawing = mine !== null && stageOwner === stageClaim;
 
   const here = myVoice?.serverKey === serverKey && myVoice.channelId === channelId ? myVoice : null;
   const showMusic = !!(musicSettings?.supported && musicSettings.enabled);
@@ -79,6 +97,11 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
     () => openSheet(`/server/${serverKey}/soundboard/${channelId}`),
     [openSheet, serverKey, channelId],
   );
+  const openActivities = useCallback(
+    () => openSheet(`/server/${serverKey}/activities/${channelId}`),
+    [openSheet, serverKey, channelId],
+  );
+  const canOpenActivities = showActivitiesButton(server, channelId);
   const openMember = useCallback((userId: string) => openSheet(`/server/${serverKey}/member/${userId}`), [openSheet, serverKey]);
   // In the call, the grid scrolls only when not everyone fits; a pull down
   // at its top (or anywhere, when it doesn't scroll) takes the call down.
@@ -100,7 +123,9 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
     if (width > 0 && height > 0) setRoom({ width, height });
   }, []);
 
-  const grid = tileGrid(sorted.length, room.width - PADDING * 2, room.height - PADDING * 2, GAP);
+  // Activities follow the people, oldest first, and are counted with them.
+  const count = sorted.length + sessions.length;
+  const grid = tileGrid(count, room.width - PADDING * 2, room.height - PADDING * 2, GAP);
   const userLimit = info?.channel.userLimit ?? 0;
   const reason =
     info?.access.connect === false
@@ -145,7 +170,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
       // At its top a pull takes the call down instead of stretching the grid.
       bounces={!asCall}
     >
-      {sorted.length === 0 ? (
+      {count === 0 ? (
         <EmptyState title="No one's here yet" />
       ) : (
         <View style={styles.tiles}>
@@ -155,10 +180,19 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
               serverKey={serverKey}
               channelId={channelId}
               member={member}
-              width={index === sorted.length - 1 ? grid.lastWidth : grid.tileWidth}
+              width={index === count - 1 ? grid.lastWidth : grid.tileWidth}
               height={grid.tileHeight}
               avatar={grid.avatar}
               onPress={() => openMember(member.userId)}
+            />
+          ))}
+          {sessions.map((session, index) => (
+            <ActivityTile
+              key={session.id}
+              serverKey={serverKey}
+              session={session}
+              width={sorted.length + index === count - 1 ? grid.lastWidth : grid.tileWidth}
+              height={grid.tileHeight}
             />
           ))}
         </View>
@@ -177,7 +211,9 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
         header
       )}
       {here && <LinkBanner link={here.link} onRejoin={join} />}
-      {gridDrag ? (
+      {drawing && mine ? (
+        <ActivityStage serverKey={serverKey} channelId={channelId} record={mine.record} session={mine.session} />
+      ) : gridDrag ? (
         <GestureDetector gesture={gridDrag}>{tiles}</GestureDetector>
       ) : (
         tiles
@@ -190,6 +226,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
             onToggleMute={() => setMuted(!here.muted)}
             onToggleDeafen={() => setDeafened(!here.deafened)}
             onOpenSoundboard={openSoundboard}
+            onOpenActivities={canOpenActivities ? openActivities : undefined}
             onLeave={leave}
           />
         </View>

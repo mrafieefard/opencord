@@ -49,6 +49,6 @@ A new Flutter FFI plugin project.
     # 14.2+) must not stop older systems. The media player's FFmpeg is the
     # one app/tool/macos/build_ffmpeg.sh built into FFMPEG_DIR (D89); the
     # Runner copies its dylibs into the app.
-    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a -weak_framework CoreAudio -framework AudioToolbox -framework CoreGraphics -framework Carbon -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework AVFoundation -framework Foundation -framework ScreenCaptureKit -framework AppKit -L${FFMPEG_DIR}/lib -lavcodec -lavformat -lavutil -lswresample -lswscale',
+    'OTHER_LDFLAGS' => '-force_load ${BUILT_PRODUCTS_DIR}/libopencord_core.a -lc++ -weak_framework CoreAudio -framework AudioToolbox -framework CoreGraphics -framework Carbon -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework AVFoundation -framework Foundation -framework ScreenCaptureKit -framework AppKit -L${FFMPEG_DIR}/lib -lavcodec -lavformat -lavutil -lswresample -lswscale',
   }
 end

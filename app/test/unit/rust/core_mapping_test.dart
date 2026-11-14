@@ -24,6 +24,7 @@ void main() {
   test('messages keep ids, times and the nonce', () {
     final message = messageFrom(
       const core.Message(
+        commandState: core.CommandRunState.answered,
         id: 10,
         channelId: 2,
         authorId: 7,
@@ -52,6 +53,7 @@ void main() {
     // A server can send anything; one bad value must not stop its events.
     final message = messageFrom(
       const core.Message(
+        commandState: core.CommandRunState.answered,
         id: 10,
         channelId: 2,
         authorId: 7,
@@ -199,6 +201,10 @@ void main() {
         addresses: const core.ServerAddresses(domains: []),
         commands: const core.CommandList(commands: [], resultsPublic: true),
         uploadSettings: coreUploadSettings,
+        pluginUsers: const [],
+        pluginChannelTypes: const [],
+        pluginActivities: const [],
+        activitySessions: const [],
       ),
     );
 
@@ -207,6 +213,125 @@ void main() {
     expect(snapshot.presences, {7: Presence.idle});
     expect(snapshot.channelPermissions, {2: Permissions.viewChannel});
     expect(snapshot.serverPermissions.bits, 3);
+  });
+
+  // Every field holds a different value, so a dropped or swapped field
+  // fails (plan M3 Task 9).
+  group('activities (plugins M3)', () {
+    const coreActivity = core.PluginActivity(
+      pluginId: 'paint',
+      activityKey: 'board',
+      name: 'Paint together',
+      description: 'A shared whiteboard',
+      icon: 'icons/paint.png',
+      pluginName: 'Paint',
+    );
+    final coreSession = core.ActivitySession(
+      id: 901,
+      channelId: 20,
+      pluginId: 'paint',
+      activityKey: 'board',
+      name: 'Paint together',
+      icon: 'icons/paint.png',
+      pluginName: 'Paint',
+      starterId: 7,
+      startedAtMs: 1760000000123,
+      viewerIds: Int64List.fromList([3, 8]),
+    );
+
+    test('a registered activity maps field for field', () {
+      expect(
+        pluginActivityFrom(coreActivity),
+        const PluginActivity(
+          pluginId: 'paint',
+          activityKey: 'board',
+          name: 'Paint together',
+          description: 'A shared whiteboard',
+          icon: 'icons/paint.png',
+          pluginName: 'Paint',
+        ),
+      );
+    });
+
+    test('a session maps field for field', () {
+      expect(
+        activitySessionFrom(coreSession),
+        ActivitySession(
+          id: 901,
+          channelId: 20,
+          pluginId: 'paint',
+          activityKey: 'board',
+          name: 'Paint together',
+          icon: 'icons/paint.png',
+          pluginName: 'Paint',
+          starterId: 7,
+          startedAt: DateTime.fromMillisecondsSinceEpoch(1760000000123),
+          viewerIds: const [3, 8],
+        ),
+      );
+    });
+
+    test('end reasons map name for name', () {
+      expect(
+        [
+          for (final reason in core.ActivityEndReason.values)
+            activityEndReasonFrom(reason),
+        ],
+        [
+          ActivityEndReason.ended,
+          ActivityEndReason.plugin,
+          ActivityEndReason.callEmpty,
+          ActivityEndReason.pluginStopped,
+          ActivityEndReason.unavailable,
+        ],
+      );
+    });
+
+    test('a Ready snapshot holds the activities and the sessions by id', () {
+      final snapshot = snapshotFrom(
+        core.ReadySnapshot(
+          privateMessages: false,
+          privateSettings: const core.PrivateSettings(
+            enabled: false,
+            friendsOnly: false,
+            allowedByConfig: true,
+          ),
+          voiceEnabled: true,
+          voiceStates: const [],
+          streams: const [],
+          voiceSettings: coreVoiceSettings,
+          soundboardSounds: const [],
+          selfUser: _user,
+          server: const core.ServerInfo(
+            serverIdHex: 'ff',
+            name: 'Home',
+            description: '',
+            ownerId: 7,
+            openJoin: false,
+            everyoneRoleId: 1,
+            iconHash: null,
+          ),
+          channels: const [],
+          roles: const [],
+          members: const [],
+          presences: const [],
+          serverPermissions: 3,
+          channelPermissions: const [],
+          addresses: const core.ServerAddresses(domains: []),
+          commands: const core.CommandList(commands: [], resultsPublic: true),
+          uploadSettings: coreUploadSettings,
+          pluginUsers: const [],
+          pluginChannelTypes: const [],
+          pluginActivities: const [coreActivity],
+          activitySessions: [coreSession],
+        ),
+      );
+
+      expect(snapshot.pluginActivities, [pluginActivityFrom(coreActivity)]);
+      expect(snapshot.activitySessions, {
+        901: activitySessionFrom(coreSession),
+      });
+    });
   });
 
   group('errors', () {
@@ -233,6 +358,27 @@ void main() {
           ),
         ).kind,
         RepoErrorKind.friendsOnly,
+      );
+    });
+
+    test('plugin limit and unavailable refusals keep their kinds', () {
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.pluginLimit,
+            message: 'limit reached',
+          ),
+        ).kind,
+        RepoErrorKind.pluginLimit,
+      );
+      expect(
+        errorFrom(
+          const core.CoreError.server(
+            code: core.ErrorCode.pluginUnavailable,
+            message: 'unavailable',
+          ),
+        ).kind,
+        RepoErrorKind.pluginUnavailable,
       );
     });
 
@@ -394,5 +540,93 @@ void main() {
     expect(sent.afkChannelId, 20);
     expect(sent.afkTimeoutS, 900);
     expect(voiceSettingsTo(settings).afkChannelId, 0);
+  });
+
+  test('plugin mapping converts core types to app types', () {
+    final corePlugin = core.Plugin(
+      id: 'welcome-bot',
+      name: 'Welcome Bot',
+      version: '1.0.0',
+      author: 'Author',
+      description: 'Greets members',
+      github: 'owner/repo',
+      license: 'MIT',
+      signature: core.PluginSignature.signed,
+      keyFingerprint: 'abcd',
+      githubCheck: core.GithubCheck.verified,
+      state: core.PluginState.running,
+      statusReason: '',
+      permissions: const [
+        core.PluginPermissionGrant(
+          name: 'send_messages',
+          granted: true,
+          grantable: true,
+        ),
+      ],
+      domains: const ['api.example.com'],
+      configFields: const [
+        core.PluginConfigField(
+          key: 'channel',
+          label: 'Welcome Channel',
+          kind: core.PluginConfigKind.channel,
+          choices: [],
+          required_: true,
+        ),
+      ],
+      config: const [
+        core.PluginConfigValue(key: 'channel', value: '100', hasValue: true),
+      ],
+      userId: 9001,
+      roleId: 50,
+      installedAtMs: 1700000000000,
+      updatedAtMs: 1700000001000,
+      cpuPermille: 15,
+      memoryBytes: BigInt.from(1048576),
+      databaseBytes: BigInt.from(2048),
+      filesBytes: BigInt.from(4096),
+    );
+
+    final plugin = pluginFrom(corePlugin);
+    expect(plugin.id, 'welcome-bot');
+    expect(plugin.name, 'Welcome Bot');
+    expect(plugin.signature, PluginSignature.signed);
+    expect(plugin.githubCheck, GithubCheck.verified);
+    expect(plugin.state, PluginState.running);
+    expect(plugin.permissions.length, 1);
+    expect(plugin.permissions.first.name, 'send_messages');
+    expect(plugin.permissions.first.granted, isTrue);
+    expect(plugin.configFields.first.kind, PluginConfigKind.channel);
+    expect(plugin.config.first.value, '100');
+    expect(plugin.cpuPermille, 15);
+    expect(plugin.memoryBytes, 1048576);
+  });
+
+  test('role plugin_id and snapshot plugin_users are mapped', () {
+    const coreRole = core.Role(
+      id: 50,
+      name: 'Welcome Bot Role',
+      color: 0,
+      position: 3,
+      permissions: 0,
+      hoist: false,
+      mentionable: false,
+      pluginId: 'welcome-bot',
+    );
+    final role = roleFrom(coreRole);
+    expect(role.id, 50);
+    expect(role.pluginId, 'welcome-bot');
+
+    const coreUser = core.PluginUser(
+      userId: 9001,
+      pluginId: 'welcome-bot',
+      name: 'Welcome Bot',
+      avatarHash: 'hash123',
+      installed: true,
+    );
+    final user = pluginUserFrom(coreUser);
+    expect(user.userId, 9001);
+    expect(user.pluginId, 'welcome-bot');
+    expect(user.name, 'Welcome Bot');
+    expect(user.installed, isTrue);
   });
 }

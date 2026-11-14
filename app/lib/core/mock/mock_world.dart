@@ -13,6 +13,7 @@ import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/music.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/snapshot.dart';
@@ -162,6 +163,18 @@ class MockServer {
   /// The soundboard, by id.
   final Map<int, Sound> sounds = {};
 
+  final Map<String, Plugin> plugins = {};
+  final Map<String, PluginReview> pluginReviews = {};
+  final Map<int, PluginUser> pluginUsers = {};
+  final List<PluginChannelType> pluginChannelTypes = [];
+
+  /// The activities running plugins register, and the sessions running in
+  /// voice channels by id (plugins M3).
+  final List<PluginActivity> pluginActivities = [];
+  final Map<int, ActivitySession> activitySessions = {};
+  final Map<String, List<PluginLogLine>> pluginLogs = {};
+  final List<PluginDevToken> pluginDevTokens = [];
+
   ServerSummary get summary => ServerSummary(
     key: key,
     name: info.name,
@@ -251,6 +264,13 @@ class MockServer {
       uploadSettings: uploadSettings,
       privateMessages: privateMessages,
       privateSettings: privateSettings,
+      pluginUsers: pluginUsers.values.toList(),
+      pluginChannelTypes: List.unmodifiable(pluginChannelTypes),
+      pluginActivities: List.unmodifiable(pluginActivities),
+      activitySessions: {
+        for (final MapEntry(:key, :value) in activitySessions.entries)
+          if (visible.containsKey(value.channelId)) key: value,
+      },
     );
   }
 }
@@ -500,6 +520,34 @@ class _Builder {
     return id;
   }
 
+  int pluginChannel(
+    String name, {
+    required String pluginId,
+    required String typeKey,
+    required PluginChannelState pluginState,
+    int? parent,
+    String? topic,
+    List<PermissionOverwrite> overwrites = const [],
+  }) {
+    final id = channelBase + ++_channelId;
+    final position = server.channels.values
+        .where((c) => c.parentId == parent && !c.isCategory)
+        .length;
+    server.channels[id] = Channel(
+      id: id,
+      kind: ChannelKind.plugin,
+      name: name,
+      topic: topic,
+      parentId: parent,
+      position: position,
+      overwrites: overwrites,
+      pluginId: pluginId,
+      typeKey: typeKey,
+      pluginState: pluginState,
+    );
+    return id;
+  }
+
   PermissionOverwrite everyoneDeny(Permissions deny) => PermissionOverwrite(
     targetKind: OverwriteTargetKind.role,
     targetId: server.info.everyoneRoleId,
@@ -715,6 +763,43 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
   final generalVoice = b.channel('General', ChannelKind.voice, parent: voice);
   b.channel('Pairing', ChannelKind.voice, parent: voice);
   b.channel('Late night', ChannelKind.voice, parent: voice);
+
+  final plugins = b.category('Plugins');
+  server.pluginChannelTypes.add(
+    const PluginChannelType(
+      pluginId: 'support-tickets',
+      typeKey: 'tickets',
+      name: 'Tickets',
+      description: 'Support and feedback desk',
+      icon: '',
+      pluginName: 'Support Tickets',
+    ),
+  );
+  server.pluginActivities.add(
+    const PluginActivity(
+      pluginId: 'paint',
+      activityKey: 'paint',
+      name: 'Paint together',
+      description: 'A shared whiteboard',
+      pluginName: 'Paint',
+    ),
+  );
+  b.pluginChannel(
+    'tickets',
+    pluginId: 'support-tickets',
+    typeKey: 'tickets',
+    pluginState: PluginChannelState.available,
+    parent: plugins,
+    topic: 'Support tickets',
+  );
+  b.pluginChannel(
+    'legacy-help',
+    pluginId: 'support-tickets',
+    typeKey: 'legacy',
+    pluginState: PluginChannelState.pluginStopped,
+    parent: plugins,
+    topic: 'Archived tickets',
+  );
 
   b.inVoice(generalVoice, const [
     VoiceParticipant(userId: mira),
@@ -1032,6 +1117,83 @@ MockServer _opencordDev(DateTime now, MockIds ids) {
     'Yes, once the settings pages land.',
   );
   b.readAll(maintainers);
+
+  const welcomeBotUserId = 9001;
+  const welcomeBotRoleId = 50;
+  const diceRollerUserId = 9002;
+  const diceRollerRoleId = 51;
+
+  final welcomeBotRole = Role(
+    id: welcomeBotRoleId,
+    name: 'Welcome Bot',
+    color: 0,
+    position: 4,
+    permissions: Permissions.none,
+    hoist: false,
+    mentionable: false,
+    pluginId: 'welcome-bot',
+  );
+  server.roles[welcomeBotRoleId] = welcomeBotRole;
+
+  final welcomeBot = Plugin(
+    id: 'welcome-bot',
+    name: 'Welcome Bot',
+    version: '0.1.0',
+    author: 'Opencord Contributors',
+    description: 'Greets new members and rolls dice.',
+    state: PluginState.running,
+    signature: PluginSignature.signed,
+    userId: welcomeBotUserId,
+    roleId: welcomeBotRoleId,
+    installedAt: now.subtract(const Duration(days: 10)),
+    updatedAt: now.subtract(const Duration(days: 10)),
+    permissions: const [
+      PluginPermissionGrant(
+        name: 'send_messages',
+        granted: true,
+        grantable: true,
+      ),
+      PluginPermissionGrant(
+        name: 'read_messages',
+        granted: true,
+        grantable: true,
+      ),
+    ],
+  );
+  server.plugins['welcome-bot'] = welcomeBot;
+
+  final diceRoller = Plugin(
+    id: 'dice-roller',
+    name: 'Dice Roller',
+    version: '0.2.1',
+    author: 'Community',
+    description: 'Rolls complex RPG dice sets.',
+    state: PluginState.crashed,
+    statusReason: 'OOM: memory limit exceeded',
+    signature: PluginSignature.unsigned,
+    userId: diceRollerUserId,
+    roleId: diceRollerRoleId,
+    installedAt: now.subtract(const Duration(days: 5)),
+    updatedAt: now.subtract(const Duration(days: 2)),
+  );
+  server.plugins['dice-roller'] = diceRoller;
+
+  server.pluginUsers[welcomeBotUserId] = const PluginUser(
+    userId: welcomeBotUserId,
+    pluginId: 'welcome-bot',
+    name: 'Welcome Bot',
+    avatarHash: '',
+    installed: true,
+  );
+
+  b.say(
+    offTopic,
+    welcomeBotUserId,
+    b.daysAgo(2, 12, 10),
+    'Electricity and semiconductors.',
+  );
+  b.readAll(offTopic);
+
   return server;
 }
 

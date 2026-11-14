@@ -1,0 +1,35 @@
+{
+  "batches": [
+    {
+      "ops": [
+        {
+          "main": 1,
+          "modals": [],
+          "op": "roots"
+        },
+        {
+          "ids": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18
+          ],
+          "op": "drop"
+        }
+      ],
+      "seq": 4,
+      "view": "1"
+    }
+  ],
+  "input": {
+    "data": {},
+    "event": "press",
+    "kind": "event",
+    "node": 17
+  }
+}

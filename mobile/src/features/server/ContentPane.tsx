@@ -1,6 +1,7 @@
 // The pane beside (or under) the channel list: the open channel's chat or
 // voice pane, or "Choose a channel".
 import { ChatPane } from '@/features/chat/ChatPane';
+import { PluginPane } from '@/features/plugins/PluginPane';
 import { VoicePane } from '@/features/voice/VoicePane';
 
 import { NoChannel } from './NoChannel';
@@ -14,10 +15,25 @@ export interface ContentPaneProps {
   onOpenChannel?: (channelId: string) => void;
   /** The sidebar is over the pane (a phone's). */
   covered?: boolean;
+  /** Back with nothing left in the pane to close: a phone's step out to the channel list. */
+  onBack?: () => void;
 }
 
-export function ContentPane({ serverKey, open, onOpenSidebar, onOpenChannel, covered = false }: ContentPaneProps) {
+export function ContentPane({ serverKey, open, onOpenSidebar, onOpenChannel, covered = false, onBack }: ContentPaneProps) {
   if (!open) return <NoChannel />;
+  if (open.kind === 'plugin') {
+    return (
+      <PluginPane
+        key={open.id}
+        serverKey={serverKey}
+        channelId={open.id}
+        onOpenSidebar={onOpenSidebar}
+        onOpenChannel={onOpenChannel}
+        covered={covered}
+        onBack={onBack}
+      />
+    );
+  }
   // Keyed by channel, so nothing of one channel's pane carries over to the next.
   return open.kind === 'voice' ? (
     <VoicePane
@@ -26,6 +42,7 @@ export function ContentPane({ serverKey, open, onOpenSidebar, onOpenChannel, cov
       channelId={open.id}
       onOpenSidebar={onOpenSidebar}
       onOpenChannel={onOpenChannel}
+      covered={covered}
     />
   ) : (
     <ChatPane

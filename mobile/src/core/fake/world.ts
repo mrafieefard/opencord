@@ -5,10 +5,15 @@
 import {
   AttachmentKind,
   ChannelKind,
+  PluginChannelState,
+  CommandOptionKindRecord,
   MusicPlayState,
   MusicRepeat,
   type ChannelAccess,
   type ChannelRecord,
+  type CommandListRecord,
+  type CommandOptionRecord,
+  type CommandRecord,
   type DefaultSoundRecord,
   type MemberRecord,
   type MessageRecord,
@@ -36,6 +41,8 @@ export const CHANNELS = {
   voiceCategory: '31',
   lounge: '20',
   quiet: '21',
+  helpDesk: '13',
+  oldBoard: '14',
 } as const;
 
 const MINUTE = 60_000;
@@ -68,7 +75,12 @@ function channel(
   parentId?: string,
   topic?: string,
 ): ChannelRecord {
-  return { id, kind, name, topic, parentId, position, userLimit: 0, textInVoice: false };
+  return { id, kind, name, topic, parentId, position, userLimit: 0, textInVoice: false, plugin: undefined };
+}
+
+/** A plugin channel of [typeKey] (plugins M4): available, or its plugin stopped. */
+function pluginChannel(id: string, name: string, position: number, parentId: string, typeKey: string, state: PluginChannelState): ChannelRecord {
+  return { ...channel(id, ChannelKind.Plugin, name, position, parentId), plugin: { pluginId: typeKey, typeKey, state } };
 }
 
 export function fullAccess(channelId: string): ChannelAccess {
@@ -88,6 +100,8 @@ export function fullAccess(channelId: string): ChannelAccess {
     useSoundboard: true,
     useExternalSounds: true,
     sendVoiceMessages: true,
+    startActivities: true,
+    manageChannel: false,
   };
 }
 
@@ -132,6 +146,8 @@ function nightOwlsChannels(): ChannelRecord[] {
     channel(CHANNELS.musicRequests, ChannelKind.Text, 'music-requests', 1),
     channel(CHANNELS.textCategory, ChannelKind.Category, 'Text', 2),
     channel(CHANNELS.offTopic, ChannelKind.Text, 'off-topic', 0, CHANNELS.textCategory),
+    pluginChannel(CHANNELS.helpDesk, 'help-desk', 1, CHANNELS.textCategory, 'tickets', PluginChannelState.Available),
+    pluginChannel(CHANNELS.oldBoard, 'old-board', 2, CHANNELS.textCategory, 'board', PluginChannelState.PluginStopped),
     channel(CHANNELS.voiceCategory, ChannelKind.Category, 'Voice', 3),
     channel(CHANNELS.lounge, ChannelKind.Voice, 'Lounge', 0, CHANNELS.voiceCategory),
     channel(CHANNELS.quiet, ChannelKind.Voice, 'Quiet room', 1, CHANNELS.voiceCategory),
@@ -169,6 +185,94 @@ export function snapshot(serverKey: string): ServerSnapshot {
     soundboard: { enabled: true, allowDefaultSounds: true, allowExternalSounds: true, cooldownMs: 3_000 },
     soundboardSounds: soundboardSounds(serverKey),
     voiceMessageMaxSeconds: 300,
+    pluginUsers:
+      serverKey === NIGHT_OWLS
+        ? [
+            {
+              userId: '9002',
+              pluginId: 'ticket-bot',
+              name: 'Ticket Bot',
+              avatarHash: undefined,
+            },
+          ]
+        : [],
+    commands: serverKey === NIGHT_OWLS ? nightOwlsCommands() : { commands: [], resultsPublic: true },
+    // One plugin channel type and one activity; no activity runs in a call.
+    pluginChannelTypes:
+      serverKey === NIGHT_OWLS
+        ? [
+            {
+              pluginId: 'tickets',
+              typeKey: 'tickets',
+              name: 'Tickets',
+              description: 'Open and track support tickets',
+              icon: 'assets/ticket.png',
+              pluginName: 'Tickets',
+            },
+          ]
+        : [],
+    pluginActivities:
+      serverKey === NIGHT_OWLS
+        ? [
+            {
+              pluginId: 'paint',
+              activityKey: 'paint',
+              name: 'Paint together',
+              description: 'Draw with everyone in the call',
+              icon: 'assets/icon.png',
+              pluginName: 'Shared Paint',
+            },
+          ]
+        : [],
+    activitySessions: [],
+  };
+}
+
+function command(name: string, description: string, feature: string, more: Partial<CommandRecord> = {}): CommandRecord {
+  return {
+    name,
+    description,
+    options: [],
+    feature,
+    source: feature.startsWith('plugin:') ? feature : '',
+    permissionSummary: '',
+    aliases: [],
+    needs: [],
+    enabled: true,
+    channelIds: [],
+    ...more,
+  };
+}
+
+function textOption(name: string, description: string, more: Partial<CommandOptionRecord> = {}): CommandOptionRecord {
+  return {
+    name,
+    description,
+    kind: CommandOptionKindRecord.Text,
+    required: false,
+    autocomplete: false,
+    choices: [],
+    min: 0,
+    max: 0,
+    ...more,
+  };
+}
+
+function nightOwlsCommands(): CommandListRecord {
+  return {
+    resultsPublic: true,
+    commands: [
+      command('play', 'Play a song or playlist', 'music', {
+        options: [textOption('query', 'A song, or a link', { required: true, autocomplete: true })],
+        needs: ['musicAdd'],
+        permissionSummary: 'Add music',
+      }),
+      command('skip', 'Skip this song', 'music', { needs: ['musicControl'], permissionSummary: 'Control playback' }),
+      command('roll', 'Roll a raffle ticket', 'plugin:ticket-bot'),
+      command('ticket', 'Open a support ticket', 'plugin:ticket-bot', {
+        options: [textOption('topic', 'What it is about', { required: true }), textOption('note', 'Anything to know')],
+      }),
+    ],
   };
 }
 
@@ -192,6 +296,7 @@ const lines: [string, string][] = [
   ['1006', 'the release notes are at https://example.com/notes'],
   ['1001', 'I put a few songs in the queue in <#20>'],
   ['1007', '_quietly_ joins'],
+  ['9002', 'Welcome! Ticket bot is active in this channel.'],
   ['1003', 'did the ~~old~~ new mic arrive?'],
 ];
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE users SET display_name = $1, avatar_hash = $2\n         WHERE id = $3 AND plugin_id IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "5bb6641933ce1c1dbd330519c3ed78270855b057f7eb9cf4d9112feaa83e4650"
+}

@@ -12,22 +12,24 @@ use opencord_common::address::{
     is_link, parse_fingerprint,
 };
 use opencord_proto::v1 as proto;
+use prost::Message as _;
 use proto::request::Kind as Request;
 use proto::response::Result as Response;
 use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::api::types::{
-    AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted, Channel,
-    ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
-    ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, KeyWords, MediaEvent,
-    MediaHandle, Member, Message, OutgoingFile, OverwriteTargetKind, OwnDevice,
-    PermissionOverwrite, PlaybackItem, PresenceStatus, PrivacySettingsData, PrivateContact,
-    PrivateEvent, PrivateMessage, PrivateOpened, PrivateSettings, Role, RoleChanges, S3Config,
-    ScreenProblem, ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges,
-    ServerInfo, SharedServer, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges,
-    StorageInfo, StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User,
-    VideoWant, VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ActivitySession, AddServerOutcome, AttachmentVariant, AudioSettings, Ban, CameraStarted,
+    Channel, ChannelChanges, ChannelKind, ChannelPosition, CoreError, CoreEvent, CoreEventPayload,
+    CreatedPluginDevToken, ErrorCode, HotkeyBinding, HotkeySupport, IdentityInfo, Invite, KeyWords,
+    MediaEvent, MediaHandle, Member, Message, OutgoingFile, OverwriteTargetKind, OwnDevice,
+    PermissionOverwrite, PlaybackItem, Plugin, PluginConfigValue, PluginDevToken, PluginLogLine,
+    PluginReview, PresenceStatus, PrivacySettingsData, PrivateContact, PrivateEvent,
+    PrivateMessage, PrivateOpened, PrivateSettings, Role, RoleChanges, S3Config, ScreenProblem,
+    ScreenShareRequest, ScreenShareStarted, ScreenStream, Server, ServerChanges, ServerInfo,
+    SharedServer, SoundDraft, SoundSelection, SoundboardSound, SoundboardSoundChanges, StorageInfo,
+    StorageTestResult, StorageTestTarget, StreamSourceKind, UploadSettings, User, VideoWant,
+    VoiceCue, VoiceDraft, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::artwork::ArtworkCache;
 use crate::attachments::cache::{self, MediaCache};
@@ -40,7 +42,7 @@ use crate::connection::{
     MediaTokens, Route, Routes,
 };
 use crate::convert;
-use crate::http::MediaHttp;
+use crate::http::{HttpResponse, MediaHttp};
 use crate::identity::Identity;
 use crate::media::{self, Media, MediaOptions, MediaTarget};
 use crate::music_listening::MusicListening;
@@ -52,6 +54,7 @@ use crate::private::service::{PrivateService, Transport, parse_hex};
 use crate::private::trust;
 use crate::soundboard::Soundboard;
 use crate::store::{SavedServer, Store, StoreError};
+use crate::views::client::{ViewTransport, Views};
 use crate::voice::VoiceServer;
 use crate::voice_message::player::VoicePlayer;
 use crate::voice_message::recorder::{TapEngine, VoiceRecorder};
@@ -115,6 +118,52 @@ struct Inner {
     voice_player: Arc<VoicePlayer>,
     media_player: Arc<crate::media_player::CoreMediaPlayer>,
     private: PrivateService,
+    views: Views,
+    /// What `Identify` lists in `features`; the desktop adds
+    /// `"plugin_channels"` before connecting.
+    features: RwLock<Vec<String>>,
+}
+
+/// `Identify.features` until the app says otherwise.
+const DEFAULT_FEATURES: &[&str] = &["plugin_users"];
+/// At most this many features, each 1 to 32 of `[a-z_]`.
+const MAX_FEATURES: usize = 8;
+
+/// The plugin views' way to the client, held weakly.
+impl ViewTransport for ClientTransport {
+    fn request(&self, key: &str, kind: Request) -> BoxFuture<'static, Result<Response, CoreError>> {
+        Transport::request(self, key, kind)
+    }
+
+    fn get(
+        &self,
+        key: &str,
+        path: String,
+        limit: usize,
+    ) -> BoxFuture<'static, Result<HttpResponse, CoreError>> {
+        let client = self.0.upgrade().map(|inner| Client { inner });
+        let key = key.to_owned();
+        Box::pin(async move {
+            let client = client.ok_or(CoreError::NotConnected)?;
+            let media = MediaHttp::new(
+                Arc::clone(&client.inner.routes),
+                Arc::clone(&client.inner.media_tokens),
+            );
+            media.request(&client, &key, "GET", &path, &[], limit).await
+        })
+    }
+
+    fn in_call(&self, key: &str, channel_id: i64) -> bool {
+        let Some(inner) = self.0.upgrade() else {
+            return false;
+        };
+        let client = Client { inner };
+        let voice = client.lock_voice();
+        voice
+            .target
+            .as_ref()
+            .is_some_and(|(target, channel)| target == key && *channel == channel_id)
+    }
 }
 
 /// The private messages service's way to the client, held weakly.
@@ -272,6 +321,12 @@ impl Client {
                     data_dir.to_owned(),
                     Arc::new(ClientTransport(weak.clone())),
                 ),
+                views: Views::new(
+                    runtime.clone(),
+                    data_dir,
+                    Arc::new(ClientTransport(weak.clone())),
+                ),
+                features: RwLock::new(DEFAULT_FEATURES.iter().map(|f| (*f).to_owned()).collect()),
             }),
         };
         client.spawn_wake_watch();
@@ -298,7 +353,185 @@ impl Client {
             .unwrap_or_else(PoisonError::into_inner) = Some(Credentials {
             identity,
             display_name,
+            features: Vec::new(),
         });
+    }
+
+    /// What `Identify` lists in `features` from the next connection on;
+    /// `["plugin_users"]` until called. The desktop adds
+    /// `"plugin_channels"`; the phone's facade never calls this, so phones
+    /// get no plugin channels before milestone 4.
+    /// What this device's plugin views say they're on (§11.4): the phone's
+    /// facade sets `Phone` at start; the desktop keeps `Desktop`.
+    pub fn set_view_platform(&self, platform: crate::views::ViewPlatform) {
+        self.inner.views.set_platform(platform);
+    }
+
+    pub fn view_platform(&self) -> crate::views::ViewPlatform {
+        self.inner.views.platform()
+    }
+
+    pub fn set_plugin_features(&self, features: Vec<String>) -> Result<(), CoreError> {
+        let valid = |feature: &String| {
+            (1..=32).contains(&feature.len())
+                && feature.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+        };
+        if features.len() > MAX_FEATURES || !features.iter().all(valid) {
+            return Err(invalid_input(format!(
+                "at most {MAX_FEATURES} features, each 1 to 32 of a-z and _"
+            )));
+        }
+        *self
+            .inner
+            .features
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = features;
+        Ok(())
+    }
+
+    /// Every plugin view's batches from now on; an earlier receiver hears
+    /// nothing more. A view's first batches can come before
+    /// [`Self::view_open`] returns its id: keep what arrives for ids not
+    /// known yet.
+    pub fn view_outputs(&self) -> mpsc::UnboundedReceiver<crate::views::client::ViewOutput> {
+        self.inner.views.outputs()
+    }
+
+    /// Opens the plugin channel `channel_id` on server `key`; the core's id
+    /// for the view, kept when it opens again on a new session.
+    /// `context_json` is the renderer's first `context` input, without
+    /// `kind`.
+    pub async fn view_open(
+        &self,
+        key: &str,
+        channel_id: i64,
+        context_json: &str,
+    ) -> Result<String, CoreError> {
+        let at = crate::views::client::At::Channel(channel_id);
+        self.inner.views.open(key, at, context_json).await
+    }
+
+    /// Opens the activity session `session_id`, running in the call
+    /// `channel_id`, on server `key`; as [`Self::view_open`]. The server
+    /// refuses it unless this device is in that call.
+    pub async fn view_open_activity(
+        &self,
+        key: &str,
+        session_id: i64,
+        channel_id: i64,
+        activity_key: &str,
+        context_json: &str,
+    ) -> Result<String, CoreError> {
+        let at = crate::views::client::At::Activity {
+            session_id,
+            channel_id,
+            activity_key: activity_key.to_owned(),
+        };
+        self.inner.views.open(key, at, context_json).await
+    }
+
+    /// Starts a plugin's activity in the call `channel_id`, which this
+    /// device is in; the running session if it already runs there.
+    pub async fn start_activity(
+        &self,
+        key: &str,
+        channel_id: i64,
+        plugin_id: String,
+        activity_key: String,
+    ) -> Result<ActivitySession, CoreError> {
+        let request = Request::StartActivity(proto::StartActivity {
+            channel_id,
+            plugin_id,
+            activity_key,
+        });
+        match self.request(key, request).await? {
+            Response::ActivitySession(session) => Ok(convert::activity_session(session)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    /// Ends an activity session for everyone in its call: its starter, or
+    /// a member who may manage the channel.
+    pub async fn end_activity(&self, key: &str, session_id: i64) -> Result<(), CoreError> {
+        let request = Request::EndActivity(proto::EndActivity { session_id });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    /// An input from the view's renderer, as JSON (the wire format).
+    pub fn view_input(&self, view_id: &str, json: &str) {
+        self.inner.views.input(view_id, json);
+    }
+
+    /// Closes the view; nothing more arrives for it.
+    pub fn view_close(&self, view_id: &str) {
+        self.inner.views.close(view_id);
+    }
+
+    /// The cached file of a plugin's asset under `assets/`; an empty
+    /// `sha256` takes the hash its views were given, or learns it.
+    pub async fn plugin_asset_file(
+        &self,
+        key: &str,
+        plugin_id: &str,
+        path: &str,
+        sha256: &str,
+    ) -> Result<String, CoreError> {
+        self.inner
+            .views
+            .asset_file(key, plugin_id, path, sha256)
+            .await
+    }
+
+    /// A file holding the image an `image` block's source names (its
+    /// source and `version`, as JSON). An `attachment` is refused: it comes
+    /// from `attachment_bytes`, through the encrypted cache.
+    pub async fn plugin_image_file(
+        &self,
+        key: &str,
+        plugin_id: &str,
+        source_json: &str,
+    ) -> Result<String, CoreError> {
+        self.inner
+            .views
+            .image_file(key, plugin_id, source_json)
+            .await
+    }
+
+    /// Uploads the file a view's picker (block `node_id`) chose, for that
+    /// view, and answers the picker with its `upload` event, or with
+    /// `upload_error` and the reason. Fails only for a view that isn't open.
+    pub async fn view_upload(
+        &self,
+        view_id: &str,
+        node_id: u64,
+        path: String,
+    ) -> Result<(), CoreError> {
+        let (key, server_view) = self
+            .inner
+            .views
+            .place_of(view_id)
+            .ok_or_else(|| invalid_input("that view isn't open"))?;
+        let uploaded = match server_view {
+            Some(server_view) => {
+                crate::attachments::view_upload::upload(self, &key, server_view, path).await
+            }
+            None => Err(CoreError::NotConnected),
+        };
+        let input = match uploaded {
+            Ok((name, size)) => serde_json::json!({
+                "kind": "event", "node": node_id, "event": "upload",
+                "data": { "name": name, "size": size },
+            }),
+            Err(error) => {
+                tracing::info!(view = %view_id, ?error, "a view's upload failed");
+                serde_json::json!({
+                    "kind": "event", "node": node_id, "event": "upload_error",
+                    "data": { "message": error.to_string() },
+                })
+            }
+        };
+        self.inner.views.input(view_id, &input.to_string());
+        Ok(())
     }
 
     pub fn identity_info(&self) -> Option<IdentityInfo> {
@@ -458,6 +691,7 @@ impl Client {
     /// Disconnects and forgets the server and its pinned certificate.
     pub async fn remove_server(&self, key: &str) -> Result<(), CoreError> {
         self.inner.private.before_remove(key).await;
+        self.inner.views.close_server(key);
         let connection = self.lock_connections().remove(key);
         if let Some(connection) = connection {
             stop(connection).await;
@@ -1002,6 +1236,30 @@ impl Client {
             name,
             topic,
             parent_id,
+            plugin_id: None,
+            type_key: None,
+        });
+        expect_channel(self.request(key, request).await?)
+    }
+
+    /// A channel of the type `type_key` a plugin running on the server
+    /// registered (§14.2).
+    pub async fn create_plugin_channel(
+        &self,
+        key: &str,
+        plugin_id: String,
+        type_key: String,
+        name: String,
+        topic: Option<String>,
+        parent_id: Option<i64>,
+    ) -> Result<Channel, CoreError> {
+        let request = Request::CreateChannel(proto::CreateChannel {
+            kind: proto::ChannelKind::Plugin as i32,
+            name,
+            topic,
+            parent_id,
+            plugin_id: Some(plugin_id),
+            type_key: Some(type_key),
         });
         expect_channel(self.request(key, request).await?)
     }
@@ -1181,6 +1439,243 @@ impl Client {
             .await?
         {
             Response::Bans(list) => Ok(list.bans.into_iter().map(convert::ban).collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn upload_plugin_package(
+        &self,
+        key: &str,
+        bytes: Vec<u8>,
+    ) -> Result<PluginReview, CoreError> {
+        let media = MediaHttp::new(
+            Arc::clone(&self.inner.routes),
+            Arc::clone(&self.inner.media_tokens),
+        );
+        let timeout_duration =
+            std::time::Duration::from_secs(30 + (bytes.len() as u64) / (256 * 1024));
+        let response = media
+            .request_with_timeout(
+                self,
+                key,
+                "POST",
+                "/plugins/packages",
+                &bytes,
+                256 * 1024,
+                timeout_duration,
+            )
+            .await?;
+        let decoded = proto::Response::decode(response.body.as_slice())
+            .map_err(|error| CoreError::Connection {
+                message: error.to_string(),
+            })?
+            .result;
+        match decoded {
+            Some(Response::PluginReview(review)) => Ok(convert::plugin_review(*review)),
+            Some(Response::Error(error)) => Err(convert::error(error)),
+            Some(other) => Err(unexpected(&other)),
+            None => Err(CoreError::Connection {
+                message: format!("the server answered {}", response.status),
+            }),
+        }
+    }
+
+    pub async fn fetch_plugins(&self, key: &str) -> Result<Vec<Plugin>, CoreError> {
+        match self
+            .request(key, Request::FetchPlugins(proto::FetchPlugins {}))
+            .await?
+        {
+            Response::Plugins(list) => Ok(list.plugins.into_iter().map(convert::plugin).collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn fetch_plugin_reviews(&self, key: &str) -> Result<Vec<PluginReview>, CoreError> {
+        match self
+            .request(
+                key,
+                Request::FetchPluginReviews(proto::FetchPluginReviews {}),
+            )
+            .await?
+        {
+            Response::PluginReviews(list) => Ok(list
+                .reviews
+                .into_iter()
+                .map(convert::plugin_review)
+                .collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn confirm_plugin_review(
+        &self,
+        key: &str,
+        review_id: String,
+        granted: Vec<String>,
+        config: Vec<PluginConfigValue>,
+        accept_license: bool,
+    ) -> Result<Plugin, CoreError> {
+        let request = Request::ConfirmPluginReview(proto::ConfirmPluginReview {
+            review_id,
+            granted,
+            config: config
+                .into_iter()
+                .map(|c| proto::PluginConfigValue {
+                    key: c.key,
+                    value: c.value,
+                    has_value: c.has_value,
+                })
+                .collect(),
+            accept_license,
+        });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn discard_plugin_review(
+        &self,
+        key: &str,
+        review_id: String,
+    ) -> Result<(), CoreError> {
+        let request = Request::DiscardPluginReview(proto::DiscardPluginReview { review_id });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn set_plugin_permissions(
+        &self,
+        key: &str,
+        plugin_id: String,
+        granted: Vec<String>,
+    ) -> Result<Plugin, CoreError> {
+        let request =
+            Request::SetPluginPermissions(proto::SetPluginPermissions { plugin_id, granted });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn set_plugin_config(
+        &self,
+        key: &str,
+        plugin_id: String,
+        config: Vec<PluginConfigValue>,
+    ) -> Result<Plugin, CoreError> {
+        let request = Request::SetPluginConfig(proto::SetPluginConfig {
+            plugin_id,
+            config: config
+                .into_iter()
+                .map(|c| proto::PluginConfigValue {
+                    key: c.key,
+                    value: c.value,
+                    has_value: c.has_value,
+                })
+                .collect(),
+        });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn set_plugin_running(
+        &self,
+        key: &str,
+        plugin_id: String,
+        running: bool,
+    ) -> Result<Plugin, CoreError> {
+        let request = Request::SetPluginRunning(proto::SetPluginRunning { plugin_id, running });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn restart_plugin(&self, key: &str, plugin_id: String) -> Result<Plugin, CoreError> {
+        let request = Request::RestartPlugin(proto::RestartPlugin { plugin_id });
+        match self.request(key, request).await? {
+            Response::Plugin(plugin) => Ok(convert::plugin(plugin)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn uninstall_plugin(
+        &self,
+        key: &str,
+        plugin_id: String,
+        delete_data: bool,
+    ) -> Result<(), CoreError> {
+        let request = Request::UninstallPlugin(proto::UninstallPlugin {
+            plugin_id,
+            delete_data,
+        });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn fetch_plugin_log(
+        &self,
+        key: &str,
+        plugin_id: String,
+        before: Option<u64>,
+        limit: u32,
+    ) -> Result<Vec<PluginLogLine>, CoreError> {
+        let request = Request::FetchPluginLog(proto::FetchPluginLog {
+            plugin_id,
+            before,
+            limit,
+        });
+        match self.request(key, request).await? {
+            Response::PluginLog(log) => Ok(log
+                .lines
+                .into_iter()
+                .map(convert::plugin_log_line)
+                .collect()),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn watch_plugin_log(
+        &self,
+        key: &str,
+        plugin_id: String,
+        watch: bool,
+    ) -> Result<(), CoreError> {
+        let request = Request::WatchPluginLog(proto::WatchPluginLog { plugin_id, watch });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn create_plugin_dev_token(
+        &self,
+        key: &str,
+        plugin_id: String,
+        days: u32,
+    ) -> Result<CreatedPluginDevToken, CoreError> {
+        let request =
+            Request::CreatePluginDevToken(proto::CreatePluginDevToken { plugin_id, days });
+        match self.request(key, request).await? {
+            Response::CreatedPluginDevToken(token) => Ok(convert::created_plugin_dev_token(token)),
+            other => Err(unexpected(&other)),
+        }
+    }
+
+    pub async fn revoke_plugin_dev_token(&self, key: &str, token_id: i64) -> Result<(), CoreError> {
+        let request = Request::RevokePluginDevToken(proto::RevokePluginDevToken { token_id });
+        expect_ack(self.request(key, request).await?)
+    }
+
+    pub async fn fetch_plugin_dev_tokens(
+        &self,
+        key: &str,
+    ) -> Result<Vec<PluginDevToken>, CoreError> {
+        let request = Request::FetchPluginDevTokens(proto::FetchPluginDevTokens {});
+        match self.request(key, request).await? {
+            Response::PluginDevTokens(list) => Ok(list
+                .tokens
+                .into_iter()
+                .map(convert::plugin_dev_token)
+                .collect()),
             other => Err(unexpected(&other)),
         }
     }
@@ -1954,6 +2449,16 @@ impl Client {
         match &event.payload {
             CoreEventPayload::Ready(snapshot) => {
                 let self_id = snapshot.self_user.id;
+                let member = snapshot.members.iter().find(|m| m.user.id == self_id);
+                let viewer = match member {
+                    Some(member) => viewer_of(member),
+                    None => crate::views::Viewer {
+                        id: self_id.to_string(),
+                        name: snapshot.self_user.display_name.clone(),
+                        roles: Vec::new(),
+                    },
+                };
+                self.inner.views.set_viewer(key, viewer);
                 let rejoin = {
                     let mut voice = self.lock_voice();
                     voice.self_ids.insert(key.clone(), self_id);
@@ -2009,6 +2514,14 @@ impl Client {
                 }
                 self.sync_media();
             }
+            CoreEventPayload::MemberUpdate(member)
+                if self.lock_voice().self_ids.get(key) == Some(&member.user.id) =>
+            {
+                self.inner.views.set_viewer(key, viewer_of(member));
+            }
+            // A plugin started, stopped or changed: its assets may have too.
+            CoreEventPayload::PluginChannelTypesUpdate(_)
+            | CoreEventPayload::PluginActivitiesUpdate(_) => self.inner.views.forget_assets(key),
             CoreEventPayload::StreamDelete { stream_key, .. } => {
                 if let Some(media) = self.inner.media.get() {
                     media.video().screen_ended_by_server(stream_key);
@@ -2178,6 +2691,7 @@ impl Client {
             clocks: Arc::clone(&self.inner.clocks),
             uploads: Arc::clone(&self.inner.uploads),
             private: self.inner.private.clone(),
+            views: self.inner.views.clone(),
         }
     }
 
@@ -2206,11 +2720,19 @@ impl Client {
     }
 
     fn credentials(&self) -> Option<Credentials> {
-        self.inner
+        let mut credentials = self
+            .inner
             .credentials
             .read()
             .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+            .clone()?;
+        credentials.features = self
+            .inner
+            .features
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        Some(credentials)
     }
 
     fn lock_store(&self) -> MutexGuard<'_, Store> {
@@ -2268,6 +2790,19 @@ fn parse_address(input: &str) -> Result<ServerAddress, CoreError> {
 fn invalid_input(error: impl std::fmt::Display) -> CoreError {
     CoreError::InvalidInput {
         message: error.to_string(),
+    }
+}
+
+/// Who this device is on a server, for its plugin views: ids as decimal
+/// strings, the name members see.
+fn viewer_of(member: &Member) -> crate::views::Viewer {
+    crate::views::Viewer {
+        id: member.user.id.to_string(),
+        name: member
+            .nickname
+            .clone()
+            .unwrap_or_else(|| member.user.display_name.clone()),
+        roles: member.role_ids.iter().map(i64::to_string).collect(),
     }
 }
 

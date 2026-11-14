@@ -66,6 +66,22 @@ impl MediaHttp {
         body: &[u8],
         limit: usize,
     ) -> Result<HttpResponse, CoreError> {
+        self.request_with_timeout(client, key, method, path, body, limit, REQUEST_TIMEOUT)
+            .await
+    }
+
+    /// Reads at most `limit` bytes of the answer's body with a custom timeout.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn request_with_timeout(
+        &self,
+        client: &Client,
+        key: &str,
+        method: &str,
+        path: &str,
+        body: &[u8],
+        limit: usize,
+        timeout_duration: Duration,
+    ) -> Result<HttpResponse, CoreError> {
         let Route { address, pin } = self
             .routes
             .lock()
@@ -76,11 +92,20 @@ impl MediaHttp {
         let mut renewed = false;
         loop {
             let token = media_token(&self.tokens, key).ok_or(CoreError::NotConnected)?;
-            let response = request(&address, pin, method, path, &token, body, limit)
-                .await
-                .map_err(|error| CoreError::Connection {
-                    message: error.to_string(),
-                })?;
+            let response = request_with_timeout(
+                &address,
+                pin,
+                method,
+                path,
+                &token,
+                body,
+                limit,
+                timeout_duration,
+            )
+            .await
+            .map_err(|error| CoreError::Connection {
+                message: error.to_string(),
+            })?;
             if response.status != 401 || renewed {
                 return Ok(response);
             }
@@ -120,10 +145,9 @@ pub(crate) async fn renew_media_token(
     Ok(())
 }
 
-/// One request to the server at `address`, whose certificate must match
-/// `pin`, or, without one, be vouched for by an authority. `bearer` goes in the Authorization header; at most `limit` bytes
-/// of body are read.
-pub async fn request(
+/// One request with a custom timeout.
+#[allow(clippy::too_many_arguments)]
+pub async fn request_with_timeout(
     address: &ServerAddress,
     pin: Option<Fingerprint>,
     method: &str,
@@ -131,9 +155,10 @@ pub async fn request(
     bearer: &str,
     body: &[u8],
     limit: usize,
+    timeout_duration: Duration,
 ) -> Result<HttpResponse, HttpError> {
     timeout(
-        REQUEST_TIMEOUT,
+        timeout_duration,
         send(address, pin, method, path, bearer, body, limit),
     )
     .await

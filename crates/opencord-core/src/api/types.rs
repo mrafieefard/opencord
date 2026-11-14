@@ -87,6 +87,7 @@ pub struct Role {
     /// The largest file its members may upload; `None` leaves it to their
     /// other roles.
     pub max_upload_bytes: Option<u64>,
+    pub plugin_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -105,6 +106,78 @@ pub enum ChannelKind {
     Text,
     Voice,
     Category,
+    /// A channel of a type a plugin registers (plugins design §14); only
+    /// apps that ask for `plugin_channels` hear of them.
+    Plugin,
+}
+
+/// Whether a plugin channel can be opened now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginChannelState {
+    Available,
+    /// Its plugin isn't running, or isn't installed.
+    PluginStopped,
+    /// Its plugin runs but no longer registers this type.
+    TypeGone,
+}
+
+/// A batch for the renderer of one plugin view: the core's id for the
+/// view and the batch as JSON (plugins milestone 2 plan, "The view wire
+/// format").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewOutput {
+    pub view_id: String,
+    pub json: String,
+}
+
+/// A channel type a running plugin registers (plugins design §14.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginChannelType {
+    pub plugin_id: String,
+    pub type_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
+}
+
+/// An activity a running plugin registered (design 2026-11-07 §15.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginActivity {
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub description: String,
+    /// A path under the plugin's `assets/`, or empty.
+    pub icon: String,
+    pub plugin_name: String,
+}
+
+/// One activity running in one call (§15.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivitySession {
+    pub id: i64,
+    /// The voice channel.
+    pub channel_id: i64,
+    pub plugin_id: String,
+    pub activity_key: String,
+    pub name: String,
+    pub icon: String,
+    pub plugin_name: String,
+    pub starter_id: i64,
+    pub started_at_ms: i64,
+    /// Who has it open, ascending.
+    pub viewer_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivityEndReason {
+    Ended,
+    Plugin,
+    CallEmpty,
+    PluginStopped,
+    Unavailable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,6 +209,11 @@ pub struct Channel {
     pub user_limit: u32,
     /// Voice channels only: whether it holds messages too.
     pub text_in_voice: bool,
+    /// Plugin channels only: the plugin and the type it registered.
+    pub plugin_id: Option<String>,
+    pub type_key: Option<String>,
+    /// Plugin channels only.
+    pub plugin_state: Option<PluginChannelState>,
 }
 
 /// Absent fields stay unchanged. An empty topic clears it; `parent_id` 0
@@ -167,8 +245,11 @@ pub struct Message {
     pub edited_at_ms: Option<i64>,
     /// Set on messages this client sent, to match pending ones.
     pub nonce: Option<String>,
-    /// A command's public result: the command run, by the author.
+    /// A command's public result: the command run.
     pub command: Option<String>,
+    /// Who ran it; the author unless a plugin answered.
+    pub command_user_id: Option<i64>,
+    pub command_state: CommandRunState,
     /// In the order they were attached.
     pub attachments: Vec<Attachment>,
 }
@@ -367,6 +448,12 @@ pub struct ReadySnapshot {
     pub upload_settings: UploadSettings,
     pub private_messages: bool,
     pub private_settings: PrivateSettings,
+    pub plugin_users: Vec<PluginUser>,
+    /// The channel types running plugins register; empty unless the app
+    /// asked for `plugin_channels`.
+    pub plugin_channel_types: Vec<PluginChannelType>,
+    pub plugin_activities: Vec<PluginActivity>,
+    pub activity_sessions: Vec<ActivitySession>,
 }
 
 /// What the owner chose for private messages on a server.
@@ -655,6 +742,30 @@ pub enum CoreEventPayload {
         total_bytes: u64,
         done: bool,
         error: Option<String>,
+    },
+    PluginUpdate(Plugin),
+    PluginRemove {
+        plugin_id: String,
+    },
+    PluginReviewUpdate(PluginReview),
+    PluginReviewRemove {
+        review_id: String,
+    },
+    PluginLogAppend {
+        plugin_id: String,
+        lines: Vec<PluginLogLine>,
+    },
+    PluginUsersUpdate(Vec<PluginUser>),
+    /// Every channel type running plugins register now, in place of the
+    /// earlier list.
+    PluginChannelTypesUpdate(Vec<PluginChannelType>),
+    PluginActivitiesUpdate(Vec<PluginActivity>),
+    ActivitySessionCreate(ActivitySession),
+    ActivitySessionUpdate(ActivitySession),
+    ActivitySessionDelete {
+        session_id: i64,
+        channel_id: i64,
+        reason: ActivityEndReason,
     },
 }
 
@@ -1016,6 +1127,8 @@ pub enum ErrorCode {
     DeviceListChanged,
     PrivateMessagesUnavailable,
     FriendsOnly,
+    PluginLimit,
+    PluginUnavailable,
     /// None of their devices has a chat key this device accepted (design
     /// 2026-11-01 §8.2). Never from a server.
     KeysNotAccepted,
@@ -1958,13 +2071,26 @@ pub struct CommandOutcome {
     pub ephemeral: bool,
 }
 
+/// Where a command's reply stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CommandRunState {
+    #[default]
+    Answered,
+    /// The plugin asked for more time; the reply will replace this.
+    Thinking,
+    /// It never came.
+    NoAnswer,
+}
+
 /// A reply only this device sees; never stored.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EphemeralMessage {
     pub channel_id: i64,
-    /// The nonce `command_execute` was given.
+    /// The nonce `command_execute` was given. A later one with the same
+    /// nonce replaces this.
     pub nonce: String,
     pub content: String,
+    pub state: CommandRunState,
 }
 
 /// Changes to a command on the Commands page; `None` stays.
@@ -1972,6 +2098,8 @@ pub struct EphemeralMessage {
 pub struct CommandSettingsChanges {
     /// Empty to change only `results_public`.
     pub name: String,
+    /// Empty for Opencord's commands, `plugin:<id>` for a plugin's.
+    pub source: String,
     pub enabled: Option<bool>,
     /// An empty list for every channel.
     pub channel_ids: Option<Vec<i64>>,
@@ -2310,4 +2438,143 @@ pub enum PrivateEvent {
         peer: String,
         spam: bool,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginState {
+    Starting,
+    Running,
+    Stopped,
+    Crashed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginSignature {
+    Unsigned,
+    Signed,
+    Dev,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GithubCheck {
+    Unspecified,
+    Verified,
+    Mismatch,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginConfigKind {
+    Text,
+    Secret,
+    Number,
+    Boolean,
+    Choice,
+    Role,
+    Channel,
+    User,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginConfigField {
+    pub key: String,
+    pub label: String,
+    pub kind: PluginConfigKind,
+    pub choices: Vec<String>,
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginConfigValue {
+    pub key: String,
+    pub value: String,
+    pub has_value: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginPermissionGrant {
+    pub name: String,
+    pub granted: bool,
+    pub grantable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginUser {
+    pub user_id: i64,
+    pub plugin_id: String,
+    pub name: String,
+    pub avatar_hash: String,
+    pub installed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Plugin {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub author: String,
+    pub description: String,
+    pub github: String,
+    pub license: String,
+    pub signature: PluginSignature,
+    pub key_fingerprint: String,
+    pub github_check: GithubCheck,
+    pub state: PluginState,
+    pub status_reason: String,
+    pub permissions: Vec<PluginPermissionGrant>,
+    pub domains: Vec<String>,
+    pub config_fields: Vec<PluginConfigField>,
+    pub config: Vec<PluginConfigValue>,
+    pub user_id: i64,
+    pub role_id: i64,
+    pub installed_at_ms: i64,
+    pub updated_at_ms: i64,
+    pub cpu_permille: u32,
+    pub memory_bytes: u64,
+    pub database_bytes: u64,
+    pub files_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginReview {
+    pub review_id: String,
+    pub plugin: Plugin,
+    pub installed: Option<Plugin>,
+    pub new_permissions: Vec<String>,
+    pub license_needs_acceptance: bool,
+    pub expires_at_ms: i64,
+    pub dev: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginLogLevel {
+    Info,
+    Warn,
+    Error,
+    Action,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginLogLine {
+    pub seq: u64,
+    pub at_ms: i64,
+    pub level: PluginLogLevel,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginDevToken {
+    pub id: i64,
+    pub plugin_id: String,
+    pub created_by: i64,
+    pub created_at_ms: i64,
+    pub expires_at_ms: i64,
+    pub last_used_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatedPluginDevToken {
+    pub token: PluginDevToken,
+    pub secret: String,
+    pub server_fingerprint: String,
 }

@@ -3,11 +3,13 @@ import type {
   ChannelAccess,
   ChannelRecord,
   ConnectionRecord,
+  EphemeralNoteRecord,
   MessageRecord,
   MobileEvent,
   MusicNowPlayingRecord,
   MusicSessionRecord,
   MusicSettingsRecord,
+  PluginUserRecord,
   ServerEntry,
   ServerSnapshot,
   UploadPhaseRecord,
@@ -44,6 +46,15 @@ export interface ServerState {
   voice: Record<string, VoiceStateRecord>;
   nowPlaying: Record<string, MusicNowPlayingRecord>;
   musicSettings: MusicSettingsRecord | null;
+  /** Plugin users by user id. */
+  pluginUsers?: Record<string, PluginUserRecord>;
+  /** Replies only this device sees, by channel; never stored. */
+  ephemeral?: Record<string, EphemeralNote[]>;
+}
+
+export interface EphemeralNote extends EphemeralNoteRecord {
+  /** What the server refused, or a failed request. */
+  error?: boolean;
 }
 
 export interface PickedFile {
@@ -183,6 +194,8 @@ export interface AppState {
   voiceSlot: { y: number; height: number } | null;
   /** The call the call sheet shows (features/voice/callPosition.ts), open or not. */
   call: { serverKey: string; channelId: string } | null;
+  /** The activity this device has open in its call (plugins M4 Task 15); at most one. */
+  openActivity: { serverKey: string; channelId: string; sessionId: string } | null;
   /** The voice page of a channel fills a phone's screen. */
   voicePageInFront: { serverKey: string; channelId: string } | null;
   /** Voice messages play at 1, 1.5 or 2 times. */
@@ -234,6 +247,16 @@ export type ChannelItem =
       nowPlaying: MusicNowPlayingRecord | null;
       count: number;
       limit: number;
+    }
+  | {
+      kind: 'plugin';
+      channel: ChannelRecord;
+      access: ChannelAccess;
+      /** The type's name, or the channel's own when the type isn't registered. */
+      typeName: string;
+      /** A path under the plugin's assets/, or empty. */
+      icon: string;
+      state: 'available' | 'plugin_stopped' | 'type_gone';
     };
 
 export interface ChannelSection {

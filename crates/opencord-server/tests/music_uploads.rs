@@ -91,6 +91,7 @@ async fn upload(
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await
     {
@@ -397,6 +398,7 @@ async fn what_is_not_a_song_is_refused() {
             width: None,
             height: None,
             duration_ms: None,
+            view_id: None,
         }))
         .await;
     assert_eq!(code(&error), proto::ErrorCode::InvalidArgument);
@@ -461,6 +463,7 @@ async fn a_queued_song_that_was_removed_is_skipped_with_a_notice() {
 
 fn command(channel_id: i64, name: &str, options: &[(&str, &str)]) -> Kind {
     Kind::ExecuteCommand(proto::ExecuteCommand {
+        source: String::new(),
         channel_id,
         name: name.to_owned(),
         options: options
@@ -491,6 +494,7 @@ async fn command_message(client: &mut TestClient) -> String {
 async fn play_suggestions(client: &mut TestClient, text: i64, value: &str) -> Vec<String> {
     match client
         .ok(Kind::AutocompleteCommand(proto::AutocompleteCommand {
+            source: String::new(),
             channel_id: text,
             name: "play".to_owned(),
             option: "query".to_owned(),

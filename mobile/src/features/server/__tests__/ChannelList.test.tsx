@@ -114,9 +114,11 @@ describe('ChannelList', () => {
     ]);
     await settle();
 
-    const { getByText } = await render(<ChannelList serverKey={NIGHT_OWLS} variant="full" onSelect={jest.fn()} />);
+    const { findByText } = await render(<ChannelList serverKey={NIGHT_OWLS} variant="full" onSelect={jest.fn()} />);
 
-    expect(getByText('Midnight City — M83')).toBeTruthy();
+    // The row is past the list's first ten (the plugin channels came
+    // before it): it draws in a later batch.
+    expect(await findByText('Midnight City — M83')).toBeTruthy();
   });
 
   it('channels the user can\'t view are left out', async () => {

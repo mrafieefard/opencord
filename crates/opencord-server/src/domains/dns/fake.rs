@@ -33,10 +33,12 @@ pub struct FakeDns {
 
 /// Tries for a port free on both UDP and TCP. Binding TCP first ensures
 /// Windows never picks a port in its reserved TCP port ranges (which
-/// answers with "access forbidden").
-const BIND_TRIES: usize = 100;
+/// answers with "access forbidden"). Failed TCP listeners are held so the
+/// OS does not repeatedly offer the same failing port on subsequent iterations.
+const BIND_TRIES: usize = 200;
 
 async fn bind_pair() -> (UdpSocket, TcpListener, SocketAddr) {
+    let mut held_tcps = Vec::new();
     for _ in 0..BIND_TRIES {
         let Ok(tcp) = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await else {
             continue;
@@ -45,6 +47,7 @@ async fn bind_pair() -> (UdpSocket, TcpListener, SocketAddr) {
         if let Ok(udp) = UdpSocket::bind(address).await {
             return (udp, tcp, address);
         }
+        held_tcps.push(tcp);
     }
     panic!("no port free on both UDP and TCP after {BIND_TRIES} tries");
 }

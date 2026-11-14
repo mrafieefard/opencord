@@ -2,8 +2,12 @@
 // function, with the same names and types. NativeCore is the real one;
 // FakeCore answers the same way for tests and screenshots.
 import type {
+  ActivitySessionRecord,
   AddServerResult,
   AttachmentVariant,
+  CommandChoiceRecord,
+  CommandOptionValueRecord,
+  CommandOutcomeRecord,
   DefaultSoundRecord,
   ExternalSoundRecord,
   IdentityInfo,
@@ -22,6 +26,7 @@ import type {
   ServerEntry,
   UserRecord,
   VoiceStateRecord,
+  ViewOutputRecord,
 } from '@opencord/core-native';
 
 export type * from '@opencord/core-native';
@@ -62,6 +67,23 @@ export interface CoreApi {
   messageDelete(serverKey: string, messageId: string): Promise<void>;
   typingStart(serverKey: string, channelId: string): Promise<void>;
   attachmentFile(serverKey: string, attachmentId: string, variant: AttachmentVariant): Promise<string>;
+
+  commandExecute(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    options: CommandOptionValueRecord[],
+    nonce: string,
+  ): Promise<CommandOutcomeRecord>;
+  commandAutocomplete(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    option: string,
+    value: string,
+  ): Promise<CommandChoiceRecord[]>;
 
   voiceJoin(serverKey: string, channelId: string): Promise<VoiceStateRecord>;
   voiceLeave(): Promise<void>;
@@ -119,4 +141,19 @@ export interface CoreApi {
   voiceSeek(positionMs: number): void;
   voiceSetSpeed(speed: number): void;
   voiceStop(): void;
+
+  // Plugin views (plugins M4): batches for the plugin areas, pulled as
+  // events are; inputs back.
+  setPluginFeatures(features: string[]): void;
+  viewOutputsAttach(): bigint;
+  nextViewOutputs(generation: bigint, max: number): Promise<ViewOutputRecord[]>;
+  viewOpen(serverKey: string, channelId: string, contextJson: string): Promise<string>;
+  viewOpenActivity(serverKey: string, sessionId: string, channelId: string, activityKey: string, contextJson: string): Promise<string>;
+  viewInput(viewId: string, json: string): void;
+  viewClose(viewId: string): void;
+  pluginAssetFile(serverKey: string, pluginId: string, path: string): Promise<string>;
+  pluginImageFile(serverKey: string, pluginId: string, sourceJson: string): Promise<string>;
+  viewUpload(viewId: string, nodeId: bigint, path: string): Promise<void>;
+  activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string): Promise<ActivitySessionRecord>;
+  activityEnd(serverKey: string, sessionId: string): Promise<void>;
 }

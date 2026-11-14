@@ -21,6 +21,16 @@ pub const BATCH_MAX: u32 = 1024;
 
 #[derive(Debug, Clone, PartialEq, uniffi::Enum)]
 pub enum MobileEvent {
+    /// The commands this user can use changed.
+    CommandsUpdated {
+        server_key: String,
+        commands: CommandListRecord,
+    },
+    /// A reply only this device sees.
+    EphemeralReceived {
+        server_key: String,
+        note: EphemeralNoteRecord,
+    },
     Connection {
         server_key: String,
         state: ConnectionRecord,
@@ -184,6 +194,36 @@ pub enum MobileEvent {
         title: String,
         body: String,
     },
+    PluginUsersUpdated {
+        server_key: String,
+        plugin_users: Vec<PluginUserRecord>,
+    },
+    /// The channel types the server's running plugins register now.
+    PluginChannelTypesUpdated {
+        server_key: String,
+        types: Vec<PluginChannelTypeRecord>,
+    },
+    /// The activities the server's running plugins register now.
+    PluginActivitiesUpdated {
+        server_key: String,
+        activities: Vec<PluginActivityRecord>,
+    },
+    ActivitySessionCreated {
+        server_key: String,
+        session: ActivitySessionRecord,
+    },
+    /// Who has it open changed.
+    ActivitySessionUpdated {
+        server_key: String,
+        session: ActivitySessionRecord,
+    },
+    ActivitySessionDeleted {
+        server_key: String,
+        session_id: String,
+        /// The call it ran in.
+        channel_id: String,
+        reason: ActivityEndReason,
+    },
 }
 
 enum Incoming {
@@ -337,9 +377,45 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         CoreEventPayload::ChannelCreate(channel) | CoreEventPayload::ChannelUpdate(channel) => {
             MobileEvent::ChannelUpserted {
                 server_key,
-                channel: convert::channel(channel),
+                channel: convert::channel(channel)?,
             }
         }
+        CoreEventPayload::PluginChannelTypesUpdate(types) => {
+            MobileEvent::PluginChannelTypesUpdated {
+                server_key,
+                types: types
+                    .into_iter()
+                    .map(convert::plugin_channel_type)
+                    .collect(),
+            }
+        }
+        CoreEventPayload::PluginActivitiesUpdate(activities) => {
+            MobileEvent::PluginActivitiesUpdated {
+                server_key,
+                activities: activities
+                    .into_iter()
+                    .map(convert::plugin_activity)
+                    .collect(),
+            }
+        }
+        CoreEventPayload::ActivitySessionCreate(session) => MobileEvent::ActivitySessionCreated {
+            server_key,
+            session: convert::activity_session(session),
+        },
+        CoreEventPayload::ActivitySessionUpdate(session) => MobileEvent::ActivitySessionUpdated {
+            server_key,
+            session: convert::activity_session(session),
+        },
+        CoreEventPayload::ActivitySessionDelete {
+            session_id,
+            channel_id,
+            reason,
+        } => MobileEvent::ActivitySessionDeleted {
+            server_key,
+            session_id: id(session_id),
+            channel_id: id(channel_id),
+            reason: convert::activity_end_reason(reason),
+        },
         CoreEventPayload::ChannelDelete { channel_id } => MobileEvent::ChannelDeleted {
             server_key,
             channel_id: id(channel_id),
@@ -455,6 +531,18 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             server_key,
             max_seconds: settings.voice_message_max_seconds,
         },
+        CoreEventPayload::CommandsUpdate(list) => MobileEvent::CommandsUpdated {
+            server_key,
+            commands: convert::command_list(list),
+        },
+        CoreEventPayload::EphemeralMessage(message) => MobileEvent::EphemeralReceived {
+            server_key,
+            note: convert::ephemeral_note(message),
+        },
+        CoreEventPayload::PluginUsersUpdate(users) => MobileEvent::PluginUsersUpdated {
+            server_key,
+            plugin_users: users.into_iter().map(convert::plugin_user).collect(),
+        },
         CoreEventPayload::RoleCreate(_)
         | CoreEventPayload::RoleUpdate(_)
         | CoreEventPayload::RoleDelete { .. }
@@ -469,13 +557,16 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
         | CoreEventPayload::LavalinkNodeRemoved { .. }
         | CoreEventPayload::LavalinkNodeEvent(_)
         | CoreEventPayload::LavalinkTestProgress(_)
-        | CoreEventPayload::CommandsUpdate(_)
-        | CoreEventPayload::EphemeralMessage(_)
         | CoreEventPayload::PrivateSettingsUpdate(_)
         | CoreEventPayload::StorageUpdate(_)
         | CoreEventPayload::VoiceRejoinFailed { .. }
         | CoreEventPayload::StagedUploadProgress { .. }
-        | CoreEventPayload::DownloadProgress { .. } => return None,
+        | CoreEventPayload::DownloadProgress { .. }
+        | CoreEventPayload::PluginUpdate(_)
+        | CoreEventPayload::PluginRemove { .. }
+        | CoreEventPayload::PluginReviewUpdate(_)
+        | CoreEventPayload::PluginReviewRemove { .. }
+        | CoreEventPayload::PluginLogAppend { .. } => return None,
     })
 }
 
@@ -586,6 +677,8 @@ mod tests {
                 edited_at_ms: None,
                 nonce: None,
                 command: None,
+                command_user_id: None,
+                command_state: core::CommandRunState::Answered,
                 attachments: Vec::new(),
             }),
         }
@@ -595,6 +688,141 @@ mod tests {
         match event {
             MobileEvent::MessageCreated { message, .. } => &message.id,
             other => panic!("expected a message, got {other:?}"),
+        }
+    }
+
+    fn session(viewers: Vec<i64>) -> core::ActivitySession {
+        core::ActivitySession {
+            id: 900,
+            channel_id: 20,
+            plugin_id: "paint".to_owned(),
+            activity_key: "paint".to_owned(),
+            name: "Paint together".to_owned(),
+            icon: "assets/icon.png".to_owned(),
+            plugin_name: "Shared Paint".to_owned(),
+            starter_id: 7,
+            started_at_ms: 1_700_000_000_000,
+            viewer_ids: viewers,
+        }
+    }
+
+    fn incoming(payload: CoreEventPayload) -> MobileEvent {
+        core_event(CoreEvent {
+            server_key: "s".to_owned(),
+            payload,
+        })
+        .expect("the event reaches JavaScript")
+    }
+
+    // Fails if one of the plugin events is dropped again, or a field is lost
+    // or changed on the way (ids as strings, the reason as the core's).
+    #[test]
+    fn the_plugin_events_reach_javascript() {
+        let types = incoming(CoreEventPayload::PluginChannelTypesUpdate(vec![
+            core::PluginChannelType {
+                plugin_id: "tickets".to_owned(),
+                type_key: "tickets".to_owned(),
+                name: "Tickets".to_owned(),
+                description: "Open and track support tickets".to_owned(),
+                icon: "assets/ticket.png".to_owned(),
+                plugin_name: "Tickets".to_owned(),
+            },
+        ]));
+        assert_eq!(
+            types,
+            MobileEvent::PluginChannelTypesUpdated {
+                server_key: "s".to_owned(),
+                types: vec![PluginChannelTypeRecord {
+                    plugin_id: "tickets".to_owned(),
+                    type_key: "tickets".to_owned(),
+                    name: "Tickets".to_owned(),
+                    description: "Open and track support tickets".to_owned(),
+                    icon: "assets/ticket.png".to_owned(),
+                    plugin_name: "Tickets".to_owned(),
+                }],
+            }
+        );
+
+        let activities = incoming(CoreEventPayload::PluginActivitiesUpdate(vec![
+            core::PluginActivity {
+                plugin_id: "paint".to_owned(),
+                activity_key: "paint".to_owned(),
+                name: "Paint together".to_owned(),
+                description: "Draw with everyone in the call".to_owned(),
+                icon: "assets/icon.png".to_owned(),
+                plugin_name: "Shared Paint".to_owned(),
+            },
+        ]));
+        assert_eq!(
+            activities,
+            MobileEvent::PluginActivitiesUpdated {
+                server_key: "s".to_owned(),
+                activities: vec![PluginActivityRecord {
+                    plugin_id: "paint".to_owned(),
+                    activity_key: "paint".to_owned(),
+                    name: "Paint together".to_owned(),
+                    description: "Draw with everyone in the call".to_owned(),
+                    icon: "assets/icon.png".to_owned(),
+                    plugin_name: "Shared Paint".to_owned(),
+                }],
+            }
+        );
+
+        let expected = ActivitySessionRecord {
+            id: "900".to_owned(),
+            channel_id: "20".to_owned(),
+            plugin_id: "paint".to_owned(),
+            activity_key: "paint".to_owned(),
+            name: "Paint together".to_owned(),
+            icon: "assets/icon.png".to_owned(),
+            plugin_name: "Shared Paint".to_owned(),
+            starter_id: "7".to_owned(),
+            started_at_ms: 1_700_000_000_000,
+            viewer_ids: vec!["7".to_owned(), "8".to_owned()],
+        };
+        assert_eq!(
+            incoming(CoreEventPayload::ActivitySessionCreate(session(vec![7, 8]))),
+            MobileEvent::ActivitySessionCreated {
+                server_key: "s".to_owned(),
+                session: expected.clone(),
+            }
+        );
+        assert_eq!(
+            incoming(CoreEventPayload::ActivitySessionUpdate(session(vec![7, 8]))),
+            MobileEvent::ActivitySessionUpdated {
+                server_key: "s".to_owned(),
+                session: expected,
+            }
+        );
+        for (core_reason, reason) in [
+            (core::ActivityEndReason::Ended, ActivityEndReason::Ended),
+            (core::ActivityEndReason::Plugin, ActivityEndReason::Plugin),
+            (
+                core::ActivityEndReason::CallEmpty,
+                ActivityEndReason::CallEmpty,
+            ),
+            (
+                core::ActivityEndReason::PluginStopped,
+                ActivityEndReason::PluginStopped,
+            ),
+            (
+                core::ActivityEndReason::Unavailable,
+                ActivityEndReason::Unavailable,
+            ),
+        ] {
+            assert_eq!(
+                incoming(CoreEventPayload::ActivitySessionDelete {
+                    session_id: 900,
+                    channel_id: 20,
+                    reason: core_reason,
+                }),
+                MobileEvent::ActivitySessionDeleted {
+                    server_key: "s".to_owned(),
+                    session_id: "900".to_owned(),
+                    channel_id: "20".to_owned(),
+                    reason,
+                }
+            );
         }
     }
 
@@ -629,6 +857,7 @@ mod tests {
                     hoist: false,
                     mentionable: false,
                     max_upload_bytes: None,
+                    plugin_id: None,
                 }),
             })
             .unwrap();

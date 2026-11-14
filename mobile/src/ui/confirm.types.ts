@@ -5,4 +5,6 @@ export interface ConfirmOptions {
   confirmTitle: string;
   destructive?: boolean;
   onConfirm: () => void;
+  /** Cancel, or the dialog dismissed without an answer. */
+  onCancel?: () => void;
 }

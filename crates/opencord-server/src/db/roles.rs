@@ -10,6 +10,8 @@ pub struct RoleRow {
     pub hoist: bool,
     pub mentionable: bool,
     pub max_upload_bytes: Option<i64>,
+    /// Set for a plugin's managed role; `update` never changes it.
+    pub plugin_id: Option<String>,
 }
 
 pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<RoleRow>, sqlx::Error> {
@@ -17,7 +19,7 @@ pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<RoleRow>, sqlx::Err
         RoleRow,
         r#"SELECT id, name, color, position, permissions,
                   hoist AS "hoist: bool", mentionable AS "mentionable: bool",
-                  max_upload_bytes
+                  max_upload_bytes, plugin_id
            FROM roles"#
     )
     .fetch_all(conn)
@@ -26,8 +28,9 @@ pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<RoleRow>, sqlx::Err
 
 pub async fn insert(conn: &mut SqliteConnection, role: &RoleRow) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "INSERT INTO roles (id, name, color, position, permissions, hoist, mentionable, max_upload_bytes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        "INSERT INTO roles (id, name, color, position, permissions, hoist, mentionable,
+                            max_upload_bytes, plugin_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         role.id,
         role.name,
         role.color,
@@ -35,7 +38,8 @@ pub async fn insert(conn: &mut SqliteConnection, role: &RoleRow) -> Result<(), s
         role.permissions,
         role.hoist,
         role.mentionable,
-        role.max_upload_bytes
+        role.max_upload_bytes,
+        role.plugin_id
     )
     .execute(conn)
     .await?;

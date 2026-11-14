@@ -1,6 +1,7 @@
 // The core's events applied to the state, purely (design §6). Ready and the
 // held events around it are store.ts's; everything else is here.
 import {
+  CommandRunStateRecord,
   ConnectionRecord,
   MobileEvent,
   PlaybackItemRecord,
@@ -9,6 +10,7 @@ import {
   type ChannelAccess,
   type MessageRecord,
   type ServerEntry,
+  type ServerSnapshot,
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
@@ -18,6 +20,7 @@ import {
   type AppState,
   type ChannelActivity,
   type ChannelMessages,
+  type EphemeralNote,
   type ServerState,
 } from './types';
 
@@ -54,7 +57,30 @@ export function newServer(entry: ServerEntry): ServerState {
     voice: {},
     nowPlaying: {},
     musicSettings: null,
+    pluginUsers: {},
+    ephemeral: {},
   };
+}
+
+/** Notes kept per channel. */
+const NOTES_KEPT = 20;
+
+/** Adds a note; one with the same nonce is replaced (thinking, then the reply). */
+export function withNote(current: ServerState, note: EphemeralNote): ServerState {
+  const kept = (current.ephemeral?.[note.channelId] ?? []).filter((each) => each.nonce !== note.nonce || note.nonce === '');
+  return { ...current, ephemeral: { ...current.ephemeral, [note.channelId]: [...kept, note].slice(-NOTES_KEPT) } };
+}
+
+/** A reply can't arrive over a connection that went away. */
+function withoutThinking(current: ServerState): ServerState {
+  if (!current.ephemeral) return current;
+  const ephemeral = Object.fromEntries(
+    Object.entries(current.ephemeral).map(([channel, notes]) => [
+      channel,
+      notes.filter((note) => note.state !== CommandRunStateRecord.Thinking),
+    ]),
+  );
+  return { ...current, ephemeral };
 }
 
 function server(state: AppState, serverKey: string): ServerState | undefined {
@@ -202,6 +228,11 @@ function accessChanged(state: AppState, serverKey: string, access: ChannelAccess
   );
 }
 
+/** [patch] applied to the server's snapshot, when it has one. */
+function withSnapshot(state: AppState, serverKey: string, patch: (snapshot: ServerSnapshot) => ServerSnapshot): AppState {
+  return withServer(state, serverKey, (current) => (current.snapshot ? { ...current, snapshot: patch(current.snapshot) } : current));
+}
+
 /** Applies events that aren't Ready, in order. */
 export function applyEvents(state: AppState, events: MobileEvent[], nowMs: number): AppState {
   let next = state;
@@ -212,9 +243,22 @@ export function applyEvents(state: AppState, events: MobileEvent[], nowMs: numbe
 function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppState {
   switch (event.tag) {
     case MobileEvent_Tags.Connection:
-      return withServer(state, event.inner.serverKey, (current) => ({ ...current, connection: event.inner.state }));
+      return withServer(state, event.inner.serverKey, (current) => ({
+        ...(ConnectionRecord.Connected.instanceOf(event.inner.state) ? withoutThinking(current) : current),
+        connection: event.inner.state,
+      }));
+    case MobileEvent_Tags.CommandsUpdated:
+      return withServer(state, event.inner.serverKey, (current) =>
+        current.snapshot ? { ...current, snapshot: { ...current.snapshot, commands: event.inner.commands } } : current,
+      );
+    case MobileEvent_Tags.EphemeralReceived:
+      return withServer(state, event.inner.serverKey, (current) => withNote(current, event.inner.note));
     case MobileEvent_Tags.Ready:
-      return withServer(state, event.inner.snapshot.serverKey, (current) => ({ ...current, snapshot: event.inner.snapshot }));
+      return withServer(state, event.inner.snapshot.serverKey, (current) => ({
+        ...current,
+        snapshot: event.inner.snapshot,
+        pluginUsers: Object.fromEntries((event.inner.snapshot.pluginUsers ?? []).map((u) => [u.userId, u])),
+      }));
     case MobileEvent_Tags.MessageCreated:
       return messageCreated(state, event.inner.serverKey, event.inner.message);
     case MobileEvent_Tags.MessageUpdated:
@@ -383,6 +427,31 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.Notice:
       // Shown, not kept: store.ts turns these into toasts.
       return state;
+    case MobileEvent_Tags.PluginChannelTypesUpdated:
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginChannelTypes: event.inner.types }));
+    case MobileEvent_Tags.PluginActivitiesUpdated:
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginActivities: event.inner.activities }));
+    case MobileEvent_Tags.ActivitySessionCreated:
+    case MobileEvent_Tags.ActivitySessionUpdated: {
+      const session = event.inner.session;
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({
+        ...snapshot,
+        activitySessions: [...snapshot.activitySessions.filter((s) => s.id !== session.id), session],
+      }));
+    }
+    case MobileEvent_Tags.ActivitySessionDeleted: {
+      const { sessionId } = event.inner;
+      return withSnapshot(state, event.inner.serverKey, (snapshot) => ({
+        ...snapshot,
+        activitySessions: snapshot.activitySessions.filter((s) => s.id !== sessionId),
+      }));
+    }
+    case MobileEvent_Tags.PluginUsersUpdated:
+      return withServer(state, event.inner.serverKey, (current) => ({
+        ...current,
+        snapshot: current.snapshot ? { ...current.snapshot, pluginUsers: event.inner.pluginUsers } : null,
+        pluginUsers: Object.fromEntries(event.inner.pluginUsers.map((u) => [u.userId, u])),
+      }));
   }
 }
 

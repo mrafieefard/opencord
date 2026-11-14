@@ -6,7 +6,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/composer_state.dart';
 import 'package:opencord/features/chat/message_item.dart';
-import 'package:opencord/features/chat/suggestion_list.dart';
+import 'package:opencord/features/chat/popup/composer_popup.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/widgets/oc_icon_button.dart';
@@ -214,17 +214,17 @@ void main() {
     final general = await _open(tester, app, 'general');
 
     await _type(tester, 'hey @Pri');
-    expect(find.byType(SuggestionList), findsOneWidget);
+    expect(find.byType(ComposerPopup), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byType(SuggestionList),
+        of: find.byType(ComposerPopup),
         matching: find.text('Priya Shah'),
       ),
       findsOneWidget,
     );
     await _press(tester, LogicalKeyboardKey.enter);
     expect(_text(tester), 'hey @Priya Shah ');
-    expect(find.byType(SuggestionList), findsNothing);
+    expect(find.byType(ComposerPopup), findsNothing);
 
     await _type(tester, '${_text(tester)}thanks');
     await _press(tester, LogicalKeyboardKey.enter);
@@ -243,9 +243,9 @@ void main() {
     expect(_text(tester), 'party 🎉 ');
 
     await _type(tester, 'more :fir');
-    expect(find.byType(SuggestionList), findsOneWidget);
+    expect(find.byType(ComposerPopup), findsOneWidget);
     await _press(tester, LogicalKeyboardKey.escape);
-    expect(find.byType(SuggestionList), findsNothing);
+    expect(find.byType(ComposerPopup), findsNothing);
     expect(_text(tester), 'more :fir');
     await app.dispose(tester);
   });
@@ -422,11 +422,11 @@ void main() {
     await _open(tester, app, 'general');
 
     await _type(tester, '```py\n@Pri');
-    expect(find.byType(SuggestionList), findsOneWidget);
+    expect(find.byType(ComposerPopup), findsOneWidget);
 
     await _press(tester, LogicalKeyboardKey.enter);
     expect(_text(tester), '```py\n@Priya Shah ');
-    expect(find.byType(SuggestionList), findsNothing);
+    expect(find.byType(ComposerPopup), findsNothing);
     await app.dispose(tester);
   });
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:clock/clock.dart';
@@ -42,6 +43,10 @@ const _replies = [
   'I had the same thought this morning.',
 ];
 
+/// A mock plugin view script taking input JSON and returning batch JSON.
+typedef MockViewScript = String? Function(String inputJson);
+typedef MockViewFactory = MockViewScript Function(String viewId);
+
 /// The repository of plan §11: three servers with realistic content and a
 /// little simulated life, plus debug triggers for edge states. Everything
 /// lives in memory.
@@ -63,6 +68,7 @@ class MockRepository implements OpencordRepository {
       emit: _emit,
       simulateLife: simulateLife,
     );
+    _initMockViews();
   }
 
   static final _seededIdentity = LocalIdentity(
@@ -78,9 +84,13 @@ class MockRepository implements OpencordRepository {
   final bool simulateLife;
 
   late MockWorld _world;
+  MockWorld get world => _world;
   late final MockPrivateWorld _privateWorld;
 
   MockPrivateWorld get privateWorld => _privateWorld;
+
+  RepoException? createChannelError;
+  final List<String> closedViews = [];
 
   void emit(RepoEvent event) => _emit(event);
   RepoException? _privateUnavailable;
@@ -118,6 +128,86 @@ class MockRepository implements OpencordRepository {
   final _activeSends = <String, bool>{};
   final _activeDownloads = <int, bool>{};
   Uint8List? _clipboardImage;
+  int _nextViewId = 0;
+  final _viewOutputsController = StreamController<ViewOutput>.broadcast();
+  final _activeViews = <String>{};
+  final _unclaimedOutputs = <String, List<ViewOutput>>{};
+  final _mockViewFactories = <String, MockViewFactory>{};
+  final _activeMockViews = <String, MockViewScript>{};
+
+  /// The last seq each open view sent.
+  final _viewSeqs = <String, int>{};
+
+  /// The session each open activity view shows, by view id.
+  final _activityViews = <String, ({String server, int session})>{};
+
+  void _initMockViews() {
+    _mockViewFactories['counter'] = _defaultCounterMockView;
+    _mockViewFactories['support-tickets'] = _defaultCounterMockView;
+  }
+
+  static MockViewScript _defaultCounterMockView(String viewId) {
+    var count = 0;
+    var seq = 1;
+    return (inputJson) {
+      if (inputJson.contains('"kind":"init"') ||
+          inputJson.contains('"kind":"context"') ||
+          inputJson == '{}') {
+        return jsonEncode({
+          'view': viewId,
+          'seq': seq,
+          'ops': [
+            {
+              'op': 'create',
+              'id': 2,
+              'block': 'text',
+              'props': {'text': 'Count: $count'},
+              'events': <String>[],
+              'children': <int>[],
+            },
+            {
+              'op': 'create',
+              'id': 3,
+              'block': 'button',
+              'props': {'text': 'Count'},
+              'events': ['press'],
+              'children': <int>[],
+            },
+            {
+              'op': 'create',
+              'id': 1,
+              'block': 'column',
+              'props': <String, Object?>{},
+              'events': <String>[],
+              'children': [2, 3],
+            },
+            {'op': 'roots', 'main': 1, 'modals': <Object?>[]},
+          ],
+        });
+      }
+      if (!inputJson.contains('"event":"press"')) {
+        return null;
+      }
+      count++;
+      seq++;
+      return jsonEncode({
+        'view': viewId,
+        'seq': seq,
+        'ops': [
+          {
+            'op': 'props',
+            'id': 2,
+            'set': {'text': 'Count: $count'},
+            'unset': <String>[],
+          },
+        ],
+      });
+    };
+  }
+
+  void registerMockView(String pluginId, MockViewFactory factory) {
+    _mockViewFactories[pluginId] = factory;
+  }
 
   /// Everything by default; Phase 1's set to see the app as it will be
   /// on the Rust core.
@@ -161,6 +251,9 @@ class MockRepository implements OpencordRepository {
   Future<void> _latency([int base = 120]) =>
       Future<void>.delayed(Duration(milliseconds: base + _random.nextInt(180)));
 
+  /// A server's state, for tests that change it directly.
+  MockServer mockServer(String key) => _server(key);
+
   MockServer _server(String key) =>
       _world.servers.where((server) => server.key == key).firstOrNull ??
       (throw const RepoException(
@@ -186,6 +279,12 @@ class MockRepository implements OpencordRepository {
     _musicTick?.cancel();
     _speaking?.cancel();
     _levels?.cancel();
+    _viewOutputsController.close();
+    _activeViews.clear();
+    _unclaimedOutputs.clear();
+    _activeMockViews.clear();
+    _viewSeqs.clear();
+    _activityViews.clear();
     _events.close();
   }
 
@@ -852,6 +951,7 @@ class MockRepository implements OpencordRepository {
     bool private = false,
   }) async {
     final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
     _require(server, Permissions.manageChannels);
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -2336,6 +2436,10 @@ class MockRepository implements OpencordRepository {
   /// Commands the mock ran, by name, for tests.
   final List<String> commandsRun = [];
 
+  /// Each run's source and each autocomplete's, for tests.
+  final List<String> commandSources = [];
+  final List<String> autocompleteSources = [];
+
   @override
   Future<CommandOutcome> executeCommand(
     String serverKey,
@@ -2343,14 +2447,21 @@ class MockRepository implements OpencordRepository {
     String name,
     Map<String, String> options, {
     required String nonce,
+    String source = '',
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.sendMessages, channelId);
-    final spec = server.availableCommands.find(name);
+    final available = server.availableCommands;
+    final spec = available.find(name, source: source);
     if (spec == null) {
+      final twoPlugins =
+          source.isEmpty &&
+          available.commands.where((each) => each.matches(name)).length > 1;
       throw RepoException(
         RepoErrorKind.notFound,
-        '/$name isn\'t a command here',
+        twoPlugins
+            ? 'Two commands are called /$name. Pick one from the list.'
+            : '/$name isn\'t a command here',
       );
     }
     if (!spec.allowedIn(channelId)) {
@@ -2360,6 +2471,21 @@ class MockRepository implements OpencordRepository {
       );
     }
     commandsRun.add(spec.name);
+    commandSources.add(source);
+    if (spec.pluginId != null) {
+      _emit(
+        EphemeralMessageReceived(
+          serverKey,
+          EphemeralNote(
+            channelId: channelId,
+            nonce: nonce,
+            content: 'Done',
+            at: _clock(),
+          ),
+        ),
+      );
+      return (messageId: null, ephemeral: true);
+    }
     final voice = _voice;
     final reply = voice == null || voice.server != serverKey
         ? (false, 'Join a voice channel to use music commands')
@@ -2452,8 +2578,13 @@ class MockRepository implements OpencordRepository {
     int channelId,
     String name,
     String option,
-    String value,
-  ) async {
+    String value, {
+    String source = '',
+  }) async {
+    autocompleteSources.add(source);
+    if (source.isNotEmpty) {
+      return [CommandChoice(name: 'From plugin', value: value)];
+    }
     final server = _server(serverKey);
     final voice = _voice;
     if (name != 'play' ||
@@ -2488,6 +2619,7 @@ class MockRepository implements OpencordRepository {
   Future<CommandList> updateCommandSettings(
     String serverKey, {
     String name = '',
+    String source = '',
     bool? enabled,
     List<int>? channelIds,
     bool? resultsPublic,
@@ -2498,7 +2630,7 @@ class MockRepository implements OpencordRepository {
     server.commands = CommandList(
       commands: [
         for (final spec in server.commands.commands)
-          spec.name == name
+          spec.name == name && spec.source == source
               ? spec.copyWith(enabled: enabled, channelIds: channelIds)
               : spec,
       ],
@@ -3493,6 +3625,7 @@ class MockRepository implements OpencordRepository {
     );
     _emit(VoiceChanged(session.server, session.channel, List.of(participants)));
     _emit(SpeakingChanged(session.server, const {}));
+    _leftCall(server, session.channel, server.selfId);
   }
 
   @override
@@ -3569,6 +3702,7 @@ class MockRepository implements OpencordRepository {
     }
     _emit(VoiceChanged(serverKey, from, List.of(participants)));
     _emit(VoiceChanged(serverKey, channelId, List.of(destination)));
+    _leftCall(server, from, userId);
   }
 
   @override
@@ -3579,6 +3713,7 @@ class MockRepository implements OpencordRepository {
     if (userId == server.selfId) return _leaveVoiceNow();
     participants.removeAt(index);
     _emit(VoiceChanged(serverKey, channel, List.of(participants)));
+    _leftCall(server, channel, userId);
   }
 
   /// What the system's picker chooses, for tests.
@@ -3790,6 +3925,7 @@ class MockRepository implements OpencordRepository {
     _emit(VoiceChanged(session.server, channelId, List.of(to)));
     _emit(OwnVoiceChanged(session.server, channelId));
     _emit(VoiceConnectionChanged(session.server, channelId, _connected));
+    _leftCall(server, session.channel, server.selfId);
   }
 
   /// As another of the user's devices would: takes the call over.
@@ -5290,6 +5426,578 @@ class MockRepository implements OpencordRepository {
   @override
   Future<void> rejectOwnDevice(String deviceId) =>
       _privateWorld.rejectOwnDevice(deviceId);
+
+  @override
+  Future<PluginReview> uploadPluginPackage(
+    String serverKey,
+    Uint8List bytes,
+  ) async {
+    final server = _server(serverKey);
+    final id = 'plugin-${server.plugins.length + 1}';
+    final plugin = Plugin(
+      id: id,
+      name: 'Uploaded Plugin',
+      version: '0.1.0',
+      author: 'Author',
+      description: 'Uploaded plugin package',
+      userId: 9900 + server.plugins.length,
+      roleId: 90 + server.plugins.length,
+      installedAt: _clock(),
+      updatedAt: _clock(),
+      signature: PluginSignature.unsigned,
+    );
+    final review = PluginReview(
+      reviewId: 'rev-${server.pluginReviews.length + 1}',
+      plugin: plugin,
+      expiresAt: _clock().add(const Duration(hours: 1)),
+    );
+    server.pluginReviews[review.reviewId] = review;
+    _emit(PluginReviewUpdated(serverKey, review));
+    return review;
+  }
+
+  @override
+  Future<List<Plugin>> fetchPlugins(String serverKey) async {
+    final server = _server(serverKey);
+    return server.plugins.values.toList();
+  }
+
+  @override
+  Future<List<PluginReview>> fetchPluginReviews(String serverKey) async {
+    final server = _server(serverKey);
+    return server.pluginReviews.values.toList();
+  }
+
+  @override
+  Future<Plugin> confirmPluginReview(
+    String serverKey,
+    String reviewId,
+    List<String> granted,
+    List<PluginConfigValue> config,
+    bool acceptLicense,
+  ) async {
+    final server = _server(serverKey);
+    final review = server.pluginReviews.remove(reviewId);
+    if (review == null) {
+      throw RepoException(RepoErrorKind.notFound, 'not found: $reviewId');
+    }
+    final plugin = review.plugin.copyWith(
+      state: PluginState.running,
+      config: config,
+    );
+    server.plugins[plugin.id] = plugin;
+    server.pluginUsers[plugin.userId] = PluginUser(
+      userId: plugin.userId,
+      pluginId: plugin.id,
+      name: plugin.name,
+    );
+    _emit(PluginReviewRemoved(serverKey, reviewId));
+    _emit(PluginUpdated(serverKey, plugin));
+    _emit(PluginUsersUpdated(serverKey, server.pluginUsers.values.toList()));
+    return plugin;
+  }
+
+  @override
+  Future<void> discardPluginReview(String serverKey, String reviewId) async {
+    final server = _server(serverKey);
+    if (server.pluginReviews.remove(reviewId) != null) {
+      _emit(PluginReviewRemoved(serverKey, reviewId));
+    }
+  }
+
+  @override
+  Future<Plugin> setPluginPermissions(
+    String serverKey,
+    String pluginId,
+    List<String> granted,
+  ) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
+    }
+    final updated = plugin.copyWith(
+      permissions: [
+        for (final p in plugin.permissions)
+          PluginPermissionGrant(
+            name: p.name,
+            granted: granted.contains(p.name),
+            grantable: p.grantable,
+          ),
+      ],
+    );
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<Plugin> setPluginConfig(
+    String serverKey,
+    String pluginId,
+    List<PluginConfigValue> config,
+  ) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
+    }
+    final updated = plugin.copyWith(config: config);
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<Plugin> setPluginRunning(
+    String serverKey,
+    String pluginId,
+    bool running,
+  ) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
+    }
+    final updated = plugin.copyWith(
+      state: running ? PluginState.running : PluginState.stopped,
+    );
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<Plugin> restartPlugin(String serverKey, String pluginId) async {
+    final server = _server(serverKey);
+    final plugin = server.plugins[pluginId];
+    if (plugin == null) {
+      throw RepoException(
+        RepoErrorKind.notFound,
+        'plugin not found: $pluginId',
+      );
+    }
+    final updated = plugin.copyWith(state: PluginState.running);
+    server.plugins[pluginId] = updated;
+    _emit(PluginUpdated(serverKey, updated));
+    return updated;
+  }
+
+  @override
+  Future<void> uninstallPlugin(
+    String serverKey,
+    String pluginId, {
+    required bool deleteData,
+  }) async {
+    final server = _server(serverKey);
+    final removed = server.plugins.remove(pluginId);
+    if (removed != null) {
+      server.pluginUsers.remove(removed.userId);
+      _emit(PluginRemoved(serverKey, pluginId));
+      _emit(PluginUsersUpdated(serverKey, server.pluginUsers.values.toList()));
+    }
+  }
+
+  @override
+  Future<List<PluginLogLine>> fetchPluginLog(
+    String serverKey,
+    String pluginId, {
+    int? before,
+    int limit = 200,
+  }) async {
+    final server = _server(serverKey);
+    final logs = server.pluginLogs[pluginId] ?? const [];
+    return logs.take(limit).toList();
+  }
+
+  @override
+  Future<void> watchPluginLog(
+    String serverKey,
+    String pluginId, {
+    required bool watch,
+  }) async {}
+
+  @override
+  Future<CreatedPluginDevToken> createPluginDevToken(
+    String serverKey,
+    String pluginId, {
+    int days = 7,
+  }) async {
+    final server = _server(serverKey);
+    final token = PluginDevToken(
+      id: server.pluginDevTokens.length + 1,
+      pluginId: pluginId,
+      createdBy: server.selfId,
+      createdAt: _clock(),
+      expiresAt: _clock().add(Duration(days: days)),
+    );
+    server.pluginDevTokens.add(token);
+    return CreatedPluginDevToken(
+      token: token,
+      secret: 'ocdev_mocksecret1234567890',
+      serverFingerprint: server.fingerprint,
+    );
+  }
+
+  @override
+  Future<void> revokePluginDevToken(String serverKey, int tokenId) async {
+    final server = _server(serverKey);
+    server.pluginDevTokens.removeWhere((t) => t.id == tokenId);
+  }
+
+  @override
+  Future<List<PluginDevToken>> fetchPluginDevTokens(String serverKey) async {
+    final server = _server(serverKey);
+    return server.pluginDevTokens.toList();
+  }
+
+  // Plugin views and custom channels -----------------------------------------
+
+  @override
+  Stream<ViewOutput> get viewOutputs => _viewOutputsController.stream;
+
+  @override
+  Future<String> openView(
+    String serverKey,
+    int channelId,
+    String contextJson,
+  ) async {
+    final server = _server(serverKey);
+    final channel = server.channels[channelId];
+    return _openMockView(channel?.pluginId ?? 'counter');
+  }
+
+  /// Starts [pluginId]'s mock script for a new view. Its first batch goes
+  /// out in a microtask, once the caller holds the id and could listen.
+  String _openMockView(String pluginId) {
+    final viewId = 'mock_view_${++_nextViewId}';
+    final factory = _mockViewFactories[pluginId] ?? _defaultCounterMockView;
+    final script = factory(viewId);
+    _activeMockViews[viewId] = script;
+
+    final initialBatch = script('{"kind":"init"}');
+    if (initialBatch != null) {
+      _noteSeq(viewId, initialBatch);
+      _unclaimedOutputs
+          .putIfAbsent(viewId, () => [])
+          .add(ViewOutput(viewId: viewId, json: initialBatch));
+    }
+
+    _activeViews.add(viewId);
+    final unconsumed = _unclaimedOutputs.remove(viewId);
+    if (unconsumed != null && unconsumed.isNotEmpty) {
+      scheduleMicrotask(() {
+        if (_activeViews.contains(viewId) && !_viewOutputsController.isClosed) {
+          for (final output in unconsumed) {
+            _viewOutputsController.add(output);
+          }
+        }
+      });
+    }
+    return viewId;
+  }
+
+  @override
+  void viewInput(String viewId, String json) {
+    final script = _activeMockViews[viewId];
+    if (script != null) {
+      final batch = script(json);
+      if (batch != null && !_viewOutputsController.isClosed) {
+        _noteSeq(viewId, batch);
+        _viewOutputsController.add(ViewOutput(viewId: viewId, json: batch));
+      }
+    }
+  }
+
+  @override
+  Future<void> closeView(String viewId) async {
+    closedViews.add(viewId);
+    _activeViews.remove(viewId);
+    _unclaimedOutputs.remove(viewId);
+    _activeMockViews.remove(viewId);
+    _viewSeqs.remove(viewId);
+    if (_activityViews.remove(viewId) case final place?) {
+      final server = _world.servers
+          .where((server) => server.key == place.server)
+          .firstOrNull;
+      if (server != null) {
+        _setViewer(server, place.session, viewing: false);
+      }
+    }
+  }
+
+  /// Remembers the seq of a batch [viewId] sent, so a `closed` batch can
+  /// come after it.
+  void _noteSeq(String viewId, String batch) {
+    try {
+      if (jsonDecode(batch) case {'seq': final int seq}) {
+        _viewSeqs[viewId] = seq;
+      }
+    } on FormatException {
+      // A script that sends a broken batch on purpose, for the renderer's
+      // error state: the renderer refuses it, so no seq to come after.
+    }
+  }
+
+  /// As the core does when the server closes a view: one last batch with
+  /// the `closed` op, then nothing more from its script. The app still
+  /// calls [closeView] when it lets the view go.
+  void _closeViewWith(String viewId, String reason) {
+    _activityViews.remove(viewId);
+    if (_activeMockViews.remove(viewId) == null) return;
+    final seq = (_viewSeqs.remove(viewId) ?? 0) + 1;
+    if (_viewOutputsController.isClosed) return;
+    _viewOutputsController.add(
+      ViewOutput(
+        viewId: viewId,
+        json: jsonEncode({
+          'view': viewId,
+          'seq': seq,
+          'ops': [
+            {'op': 'closed', 'reason': reason},
+          ],
+        }),
+      ),
+    );
+  }
+
+  // Activities (plugins M3) --------------------------------------------------
+
+  @override
+  Future<ActivitySession> startActivity(
+    String serverKey,
+    int channelId,
+    String pluginId,
+    String activityKey,
+  ) async {
+    final server = _server(serverKey);
+    if (_voice != (server: serverKey, channel: channelId)) {
+      throw const RepoException(
+        RepoErrorKind.invalidArgument,
+        'join the call to start an activity',
+      );
+    }
+    _require(server, Permissions.startActivities, channelId);
+    final registered =
+        server.pluginActivities
+            .where(
+              (known) =>
+                  known.pluginId == pluginId &&
+                  known.activityKey == activityKey,
+            )
+            .firstOrNull ??
+        (throw const RepoException(
+          RepoErrorKind.pluginUnavailable,
+          'this activity is unavailable',
+        ));
+    final inThisCall = [
+      for (final other in server.activitySessions.values)
+        if (other.channelId == channelId) other,
+    ];
+    final running = inThisCall
+        .where(
+          (other) =>
+              other.pluginId == pluginId && other.activityKey == activityKey,
+        )
+        .firstOrNull;
+    if (running != null) return running;
+    if (inThisCall.length >= activitySessionsPerCall) {
+      throw const RepoException(
+        RepoErrorKind.pluginLimit,
+        'this call already has $activitySessionsPerCall activities',
+      );
+    }
+    final started = ActivitySession(
+      id: _world.ids.at(_clock()),
+      channelId: channelId,
+      pluginId: pluginId,
+      activityKey: activityKey,
+      name: registered.name,
+      icon: registered.icon,
+      pluginName: registered.pluginName,
+      starterId: server.selfId,
+      startedAt: _clock(),
+    );
+    server.activitySessions[started.id] = started;
+    _emit(ActivitySessionStarted(serverKey, started));
+    return started;
+  }
+
+  @override
+  Future<void> endActivity(String serverKey, int sessionId) async {
+    final server = _server(serverKey);
+    final session = server.activitySessions[sessionId];
+    if (session == null ||
+        !server.selfChannelPermissions.containsKey(session.channelId)) {
+      throw const RepoException(
+        RepoErrorKind.notFound,
+        'activity session not found',
+      );
+    }
+    final manages = server.selfChannelPermissions[session.channelId]!.has(
+      Permissions.manageChannels,
+    );
+    if (session.starterId != server.selfId && !manages) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'only its starter or someone who manages the channel ends an activity',
+      );
+    }
+    _endActivitySession(server, sessionId, ActivityEndReason.ended);
+  }
+
+  @override
+  Future<String> openActivityView(
+    String serverKey,
+    ActivitySession session,
+    String contextJson,
+  ) async {
+    final server = _server(serverKey);
+    final running =
+        server.activitySessions[session.id] ??
+        (throw const RepoException(
+          RepoErrorKind.notFound,
+          'activity session not found',
+        ));
+    if (_voice != (server: serverKey, channel: running.channelId)) {
+      throw const RepoException(
+        RepoErrorKind.forbidden,
+        'join the call to open this activity',
+      );
+    }
+    final viewId = _openMockView(running.pluginId);
+    _activityViews[viewId] = (server: serverKey, session: running.id);
+    _setViewer(server, running.id, viewing: true);
+    return viewId;
+  }
+
+  /// Adds the current user to a session's viewers, or takes them off, and
+  /// tells everyone when that changed it.
+  void _setViewer(MockServer server, int sessionId, {required bool viewing}) {
+    final session = server.activitySessions[sessionId];
+    if (session == null) return;
+    final viewers = {...session.viewerIds};
+    final changed = viewing
+        ? viewers.add(server.selfId)
+        : viewers.remove(server.selfId);
+    if (!changed) return;
+    final updated = session.copyWith(
+      viewerIds: List.unmodifiable(viewers.toList()..sort()),
+    );
+    server.activitySessions[sessionId] = updated;
+    _emit(ActivitySessionChanged(server.key, updated));
+  }
+
+  /// Ends a session: its views here close with `activity_ended`, and
+  /// everyone hears why it ended.
+  void _endActivitySession(
+    MockServer server,
+    int sessionId,
+    ActivityEndReason reason,
+  ) {
+    final session = server.activitySessions.remove(sessionId);
+    if (session == null) return;
+    for (final MapEntry(key: viewId, value: place) in [
+      ..._activityViews.entries,
+    ]) {
+      if (place.server == server.key && place.session == sessionId) {
+        _closeViewWith(viewId, 'activity_ended');
+      }
+    }
+    _emit(
+      ActivitySessionEnded(server.key, sessionId, session.channelId, reason),
+    );
+  }
+
+  /// Someone left [channelId]'s call: the current user's activity views
+  /// there close with `left_call`, and a call left empty ends its
+  /// sessions, as the server does.
+  void _leftCall(MockServer server, int channelId, int userId) {
+    if (userId == server.selfId) {
+      for (final MapEntry(key: viewId, value: place) in [
+        ..._activityViews.entries,
+      ]) {
+        if (place.server == server.key &&
+            server.activitySessions[place.session]?.channelId == channelId) {
+          _closeViewWith(viewId, 'left_call');
+          _setViewer(server, place.session, viewing: false);
+        }
+      }
+    }
+    if (server.voice[channelId]?.isEmpty ?? true) {
+      for (final sessionId in [
+        for (final session in server.activitySessions.values)
+          if (session.channelId == channelId) session.id,
+      ]) {
+        _endActivitySession(server, sessionId, ActivityEndReason.callEmpty);
+      }
+    }
+  }
+
+  String Function(String serverKey, String pluginId, String path)?
+  onPluginAssetFile;
+  final List<(String, int, String)> uploadedViews = [];
+
+  @override
+  Future<String> pluginAssetFile(
+    String serverKey,
+    String pluginId,
+    String path,
+    String sha256,
+  ) async =>
+      onPluginAssetFile?.call(serverKey, pluginId, path) ?? 'assets/$path';
+
+  @override
+  Future<String?> pluginImageFile(
+    String serverKey,
+    String pluginId,
+    Map<String, Object?> source,
+  ) async => null;
+
+  @override
+  Future<void> viewUpload(String viewId, int nodeId, String path) async {
+    uploadedViews.add((viewId, nodeId, path));
+  }
+
+  @override
+  Future<Channel> createPluginChannel(
+    String serverKey, {
+    required String pluginId,
+    required String typeKey,
+    required String name,
+    String? topic,
+    int? parentId,
+  }) async {
+    final server = _server(serverKey);
+    if (createChannelError != null) throw createChannelError!;
+    final id = _world.ids.at(_clock());
+    final position = server.channels.values
+        .where((c) => c.parentId == parentId && !c.isCategory)
+        .length;
+    final channel = Channel(
+      id: id,
+      kind: ChannelKind.plugin,
+      name: name,
+      topic: topic,
+      parentId: parentId,
+      position: position,
+      pluginId: pluginId,
+      typeKey: typeKey,
+      pluginState: PluginChannelState.available,
+    );
+    server.channels[id] = channel;
+    _emit(ChannelUpserted(serverKey, channel));
+    return channel;
+  }
 }
 
 /// [domain] with some fields changed.

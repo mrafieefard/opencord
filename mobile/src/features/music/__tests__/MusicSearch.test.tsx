@@ -43,6 +43,8 @@ function initSearchServer({
     useSoundboard: true,
     useExternalSounds: true,
     sendVoiceMessages: true,
+    startActivities: false,
+    manageChannel: false,
     ...accessOverrides,
   };
 

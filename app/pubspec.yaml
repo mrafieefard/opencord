@@ -33,6 +33,12 @@ dependencies:
 
   opencord_core:
     path: rust_builder
+  # Draws plugin views (plugins milestone 2); the phone's Flutter module
+  # uses it too, from milestone 4.
+  opencord_blocks:
+    path: packages/opencord_blocks
+  opencord_plugin_host:
+    path: packages/opencord_plugin_host
   flutter_rust_bridge: 2.13.0
   freezed_annotation: ^3.1.0
   flutter_riverpod: ^3.4.3
