@@ -1,23 +1,23 @@
 package dev.opencord.pluginarea
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import kotlinx.coroutines.launch
 
 class PluginAreaModule : Module() {
-  // Areas live on the main thread. The synchronous calls post there in the
-  // order JavaScript made them, behind any createArea already posted.
-  private val main = Handler(Looper.getMainLooper())
-
+  // Areas live on the main thread. The synchronous calls go through the
+  // same queue as the Queues.MAIN async ones, so all keep the order
+  // JavaScript made them in.
   private fun onMain(work: () -> Unit) {
-    main.post(work)
+    appContext.mainQueue.launch { work() }
   }
+
+  private var ownEvents: AreaEvents? = null
 
   private val context: Context
     get() = appContext.reactContext ?: throw Exceptions.ReactContextLost()
@@ -28,11 +28,14 @@ class PluginAreaModule : Module() {
     Events("input", "status", "hostCall")
 
     OnCreate {
-      Areas.events = { name, body -> sendEvent(name, body) }
+      val events: AreaEvents = { name, body -> sendEvent(name, body) }
+      ownEvents = events
+      Areas.events = events
     }
 
     OnDestroy {
-      Areas.events = null
+      // A reloaded JavaScript's module may already have set its own.
+      if (Areas.events === ownEvents) Areas.events = null
     }
 
     Function("warmUp") { onMain { Areas.warmUp(context) } }
