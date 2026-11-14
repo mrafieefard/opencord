@@ -12,11 +12,13 @@ import { watchVoiceService } from '@/state/actions/voice';
 import { watchVoiceNoteAudio } from '@/state/actions/voiceMessages';
 import { reloadAfterReady } from '@/state/actions/chat';
 import { onEvents, setReadyHook, setToaster } from '@/state/store';
+import { watchCallWarmth } from '@/features/plugins/warmUp';
 
 let loop: EventLoop | null = null;
 let appStateSubscription: { remove(): void } | null = null;
 let unwatchVoice: (() => void) | null = null;
 let unwatchVoiceNotes: (() => void) | null = null;
+let unwatchCallWarmth: (() => void) | null = null;
 
 export function startApp(): void {
   setToaster((text) => toast(text));
@@ -31,6 +33,8 @@ export function startApp(): void {
   loop = startEventLoop(getCore(), onEvents);
   unwatchVoice?.();
   unwatchVoice = watchVoiceService();
+  unwatchCallWarmth?.();
+  unwatchCallWarmth = watchCallWarmth();
   unwatchVoiceNotes?.();
   unwatchVoiceNotes = watchVoiceNoteAudio();
   appStateSubscription?.remove();
