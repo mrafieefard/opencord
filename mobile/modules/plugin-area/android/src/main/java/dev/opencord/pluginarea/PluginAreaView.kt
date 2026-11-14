@@ -44,7 +44,7 @@ class PluginAreaView(context: Context, appContext: AppContext) : ExpoView(contex
     detach()
     area.view?.detach()
     flutterView.attachToFlutterEngine(area.engine)
-    area.engine.lifecycleChannel.appIsResumed()
+    // Resumes the engine (Areas.tellLifecycle).
     area.view = this
     attached = area
   }

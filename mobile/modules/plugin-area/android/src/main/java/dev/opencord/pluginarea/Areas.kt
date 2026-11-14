@@ -6,6 +6,15 @@ import io.flutter.embedding.engine.FlutterEngineGroup
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
+enum class EngineState { RESUMED, PAUSED }
+
+/**
+ * What an area's engine is told: it runs (ticks, animates, draws) only while
+ * a view shows it and the app is in the foreground.
+ */
+fun engineState(hasView: Boolean, inBackground: Boolean): EngineState =
+  if (hasView && !inBackground) EngineState.RESUMED else EngineState.PAUSED
+
 /** Where an area's inputs, status and host calls go: the module's events. */
 typealias AreaEvents = (name: String, body: Map<String, Any?>) -> Unit
 
@@ -22,6 +31,26 @@ class Area(val engine: FlutterEngine, private val events: () -> AreaEvents?) {
 
   /** The view drawing it now, if any. */
   var view: PluginAreaView? = null
+    set(value) {
+      field = value
+      tellLifecycle()
+    }
+
+  private var told: EngineState? = null
+
+  /** Tells the engine whether to run, when that changed. */
+  fun tellLifecycle() {
+    val state = engineState(view != null, Areas.inBackground)
+    if (state == told) return
+    told = state
+    when (state) {
+      EngineState.RESUMED -> engine.lifecycleChannel.appIsResumed()
+      EngineState.PAUSED -> {
+        engine.lifecycleChannel.appIsInactive()
+        engine.lifecycleChannel.appIsPaused()
+      }
+    }
+  }
 
   init {
     channel.setMethodCallHandler { call, result ->
@@ -79,7 +108,6 @@ class Area(val engine: FlutterEngine, private val events: () -> AreaEvents?) {
 
   fun destroy() {
     view?.detach()
-    view = null
     readyWaiters.toList().forEach { it(IllegalStateException("destroyed")) }
     readyWaiters.clear()
     channel.setMethodCallHandler(null)
@@ -102,6 +130,14 @@ object Areas {
   private val areas = mutableMapOf<String, Area>()
   var events: AreaEvents? = null
 
+  /** The app's activity is in the background: every engine pauses. */
+  var inBackground = false
+    set(value) {
+      if (field == value) return
+      field = value
+      areas.values.forEach { it.tellLifecycle() }
+    }
+
   private fun newArea(context: Context): Area {
     val app = context.applicationContext
     val engineGroup = group ?: FlutterEngineGroup(app).also { group = it }
@@ -123,6 +159,8 @@ object Areas {
     area.id = id
     area.pipe.setup(setupJson)
     areas[id] = area
+    // Paused until a view shows it.
+    area.tellLifecycle()
     return area
   }
 

@@ -33,6 +33,10 @@ class PluginAreaModule : Module() {
       Areas.events = events
     }
 
+    OnActivityEntersBackground { Areas.inBackground = true }
+
+    OnActivityEntersForeground { Areas.inBackground = false }
+
     OnDestroy {
       // A reloaded JavaScript's module may already have set its own.
       if (Areas.events === ownEvents) Areas.events = null
