@@ -98,8 +98,9 @@ class AreaChannel {
   var _nextCall = 0;
   String? _lastStatus;
 
-  /// Answers the system back: true when the area closed something with it.
-  bool Function()? onBack;
+  /// Answers the system back: true when the area closed something with it,
+  /// or the plugin went back itself.
+  Future<bool> Function()? onBack;
 
   Stream<String> get batches => _batches.stream;
   ValueListenable<AreaSetup?> get setup => _setup;
@@ -135,10 +136,12 @@ class AreaChannel {
       }),
     );
     final answer = wait == null ? reply.future : reply.future.timeout(wait);
-    return answer.whenComplete(() => _waiting.remove(id)).catchError(
-      (Object _) => throw const HostCallError('timeout'),
-      test: (error) => error is TimeoutException,
-    );
+    return answer
+        .whenComplete(() => _waiting.remove(id))
+        .catchError(
+          (Object _) => throw const HostCallError('timeout'),
+          test: (error) => error is TimeoutException,
+        );
   }
 
   Future<Object?> _handle(MethodCall call) async {
@@ -163,7 +166,7 @@ class AreaChannel {
           reply.complete(decoded['ok']);
         }
       case 'back':
-        return onBack?.call() ?? false;
+        return await onBack?.call() ?? false;
     }
     return null;
   }

@@ -119,6 +119,26 @@ impl Seen {
         .collect()
     }
 
+    /// Every `back_handler` op, in order.
+    pub(super) fn back_handlers(&self) -> Vec<bool> {
+        let ops = self.ops();
+        ops.filter_map(|op| match op {
+            Patch::BackHandler { on } => Some(*on),
+            _ => None,
+        })
+        .collect()
+    }
+
+    /// Every `back` op's id and answer, in order.
+    pub(super) fn backs(&self) -> Vec<(u64, bool)> {
+        let ops = self.ops();
+        ops.filter_map(|op| match op {
+            Patch::Back { id, handled } => Some((*id, *handled)),
+            _ => None,
+        })
+        .collect()
+    }
+
     /// Every `open_link` op's address, in order.
     pub(super) fn links(&self) -> Vec<String> {
         let ops = self.ops();

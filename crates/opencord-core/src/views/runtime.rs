@@ -35,6 +35,7 @@ use tokio::sync::mpsc;
 
 use super::api_app::{self, LISTEN_KEY, ON_KEY, Phase, Shared};
 use super::api_ui;
+use super::back;
 use super::call::{self, Call};
 use super::context::{self, PLATFORM};
 use super::draw::{Drawing, Failure, Scene};
@@ -132,6 +133,10 @@ enum Input {
     },
     ModalDismiss {
         name: String,
+    },
+    /// The phone's back with no modal open; answered by a `back` op.
+    Back {
+        id: u64,
     },
     Frame {
         dt: f64,
@@ -441,6 +446,8 @@ impl View {
             Input::Call { members, speaking } => self.set_call(&members, &speaking),
             Input::Lifecycle { event } => self.lifecycle(event),
             input if !self.stopped => self.script_input(input),
+            // No Lua runs: the phone mustn't wait for an answer.
+            Input::Back { id } => back::answer(&self.shared, id, false),
             _ => {}
         }
     }
@@ -467,6 +474,7 @@ impl View {
                 }
             }
             Input::ModalDismiss { name } => self.dismiss(name),
+            Input::Back { id } => self.back(id),
             Input::Frame { dt, seq } => self.frame(dt, seq),
             Input::SoundEnd { id } => self.sound_end(id),
             Input::Key {
@@ -784,6 +792,7 @@ impl View {
         }
         ops.extend(self.shared.take_effects());
         ops.extend(self.shared.frames.change());
+        ops.extend(self.shared.back.change());
         self.save_storage();
         if !ops.is_empty() {
             self.seq += 1;
@@ -844,6 +853,41 @@ impl View {
                 tracing::warn!(view = %self.view_id, %error, "a view's modal dismiss couldn't be read");
             }
         }
+    }
+
+    /// Runs `app.on_back`'s handler and answers back `id` with whether it
+    /// returned true; not handled when there's none or it fails.
+    fn back(&mut self, id: u64) {
+        let handler = match &self.live {
+            Some(live) => back::handler(&live.vm.lua),
+            None => Ok(None),
+        };
+        let handler = match handler {
+            Ok(Some(handler)) => handler,
+            Ok(None) => return back::answer(&self.shared, id, false),
+            Err(error) => {
+                tracing::warn!(view = %self.view_id, %error, "a view's back handler couldn't be read");
+                return back::answer(&self.shared, id, false);
+            }
+        };
+        let Some(live) = &self.live else { return };
+        // Over its budget the call raises inside Lua, so this answers on
+        // every path but one: a stopped or reloaded view drops a handler
+        // waiting on the host (`app.confirm`), and the phone's timeout
+        // answers instead.
+        let shared = self.shared.clone();
+        let call = async move {
+            let result = handler.call_async::<Value>(()).await;
+            back::answer(&shared, id, matches!(result, Ok(Value::Boolean(true))));
+            result.map(|_| ())
+        };
+        let budgeted = Budgeted::new(live.vm.budget().clone(), HandlerKind::Plain.limit(), call);
+        self.running.push(handlers::handler(
+            "on_back".to_owned(),
+            HandlerKind::Plain,
+            self.shared.clone(),
+            budgeted,
+        ));
     }
 
     /// Stops the view: the `error` op goes with the next batch, and no Lua

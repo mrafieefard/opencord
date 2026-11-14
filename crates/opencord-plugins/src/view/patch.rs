@@ -80,6 +80,17 @@ pub enum Patch {
     Frames {
         on: bool,
     },
+    /// Whether the plugin set `app.on_back`: the phone then asks it before
+    /// back leaves the plugin.
+    BackHandler {
+        on: bool,
+    },
+    /// The answer to a `back` input: true when `app.on_back`'s handler
+    /// returned true (the plugin went back itself, detail → list).
+    Back {
+        id: u64,
+        handled: bool,
+    },
     /// Play a sound from the plugin's assets.
     Sound {
         id: u64,
@@ -179,6 +190,11 @@ mod tests {
                 default: None,
             },
             Patch::Frames { on: true },
+            Patch::BackHandler { on: true },
+            Patch::Back {
+                id: 2,
+                handled: false,
+            },
             Patch::Sound {
                 id: 4,
                 asset: "assets/ding.ogg".into(),
@@ -217,6 +233,8 @@ mod tests {
                     ] },
                     { "op": "dialog", "id": 3, "kind": "prompt", "text": "Name?" },
                     { "op": "frames", "on": true },
+                    { "op": "back_handler", "on": true },
+                    { "op": "back", "id": 2, "handled": false },
                     { "op": "sound", "id": 4, "asset": "assets/ding.ogg", "volume": 0.5 },
                     { "op": "copy", "text": "hi" },
                     { "op": "open_link", "url": "https://example.com" },

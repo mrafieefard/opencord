@@ -19,6 +19,10 @@ class BlocksController extends ChangeNotifier {
   /// oldest goes (the view is gone, and so is its point).
   static const maxWaitingEffects = 100;
 
+  /// How long [askBack] waits for the plugin before back goes on as not
+  /// handled: a stuck plugin never traps the viewer.
+  static const backTimeout = Duration(milliseconds: 500);
+
   final _nodes = <int, ValueNotifier<BlockNode?>>{};
   final _inputs = StreamController<String>();
   final _effects = <BlocksEffect>[];
@@ -28,6 +32,9 @@ class BlocksController extends ChangeNotifier {
   var _seq = 0;
   BlocksRoots? _roots;
   var _framesOn = false;
+  var _backHandler = false;
+  var _backIds = 0;
+  ({int id, Completer<bool> answer, Timer timeout})? _backWaiting;
   BlocksError? _error;
   var _tooOld = false;
   String? _closed;
@@ -53,6 +60,9 @@ class BlocksController extends ChangeNotifier {
   BlocksRoots? get roots => _roots;
   List<BlocksDialog> get dialogs => List.unmodifiable(_dialogs);
   bool get framesOn => _framesOn;
+
+  /// Whether the plugin set `app.on_back`.
+  bool get backHandler => _backHandler;
   BlocksError? get error => _error;
   bool get tooOld => _tooOld;
 
@@ -99,6 +109,40 @@ class BlocksController extends ChangeNotifier {
   void event(int node, String event, [Map<String, Object?> data = const {}]) {
     if (!(this.node(node)?.handles(event) ?? false)) return;
     send({'kind': 'event', 'node': node, 'event': event, 'data': data});
+  }
+
+  /// The phone's back once no overlay is open: asks the plugin's
+  /// `app.on_back` and completes with whether it went back itself. False at
+  /// once with no handler or a stopped view, and after [backTimeout] with no
+  /// answer. An ask while one waits shares it.
+  Future<bool> askBack() {
+    final waiting = _backWaiting;
+    if (waiting != null) return waiting.answer.future;
+    if (!_backHandler ||
+        _disposed ||
+        _error != null ||
+        _closed != null ||
+        _tooOld) {
+      return Future.value(false);
+    }
+    final id = ++_backIds;
+    final answer = Completer<bool>();
+    _backWaiting = (
+      id: id,
+      answer: answer,
+      timeout: Timer(backTimeout, () => _answerBack(id, false)),
+    );
+    send({'kind': 'back', 'id': id});
+    return answer.future;
+  }
+
+  /// Completes the waiting back `id`; another id (a late answer) is ignored.
+  void _answerBack(int id, bool handled) {
+    final waiting = _backWaiting;
+    if (waiting == null || waiting.id != id) return;
+    _backWaiting = null;
+    waiting.timeout.cancel();
+    waiting.answer.complete(handled);
   }
 
   /// Answers a quick dialog: `true`/`false` for confirm, the text or null for
@@ -165,6 +209,8 @@ class BlocksController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    final waiting = _backWaiting;
+    if (waiting != null) _answerBack(waiting.id, false);
     // The node notifiers aren't disposed: widgets for them may still be
     // unsubscribing in the frame that removes them. Nothing else holds them.
     for (final timer in _exitSafetyTimers.values) {
@@ -197,6 +243,9 @@ class BlocksController extends ChangeNotifier {
     if (error != null) _error = error;
     _dialogs.clear();
     _framesOn = false;
+    _backHandler = false;
+    final waiting = _backWaiting;
+    if (waiting != null) _answerBack(waiting.id, false);
   }
 
   ValueNotifier<BlockNode?> _slot(int id) =>
@@ -482,6 +531,8 @@ _Op _op(Map<String, Object?> op, int index) {
       ),
     ),
     'frames' => _Frames(_bool(op['on'], at('on'))),
+    'back_handler' => _BackHandler(_bool(op['on'], at('on'))),
+    'back' => _Back(id(), _bool(op['handled'], at('handled'))),
     'sound' => _Effect(
       SoundEffect(
         id(),
@@ -694,6 +745,24 @@ final class _Frames extends _Op {
 
   @override
   void apply(BlocksController controller) => controller._framesOn = on;
+}
+
+final class _BackHandler extends _Op {
+  const _BackHandler(this.on);
+  final bool on;
+
+  @override
+  void apply(BlocksController controller) => controller._backHandler = on;
+}
+
+final class _Back extends _Op {
+  const _Back(this.id, this.handled);
+  final int id;
+  final bool handled;
+
+  @override
+  void apply(BlocksController controller) =>
+      controller._answerBack(id, handled);
 }
 
 final class _Effect extends _Op {

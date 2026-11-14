@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'dart:io';
@@ -5,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencord_blocks/opencord_blocks.dart' show BlocksController;
 import 'package:opencord_plugin_area/src/area.dart';
 import 'package:opencord_plugin_area/src/channel.dart';
 
@@ -43,7 +45,8 @@ class _Native {
     await tester.pump();
   }
 
-  Future<void> setup({String theme = 'dark'}) => send('setup', {'json': setupJson(theme: theme)});
+  Future<void> setup({String theme = 'dark'}) =>
+      send('setup', {'json': setupJson(theme: theme)});
 
   /// Native code asks Dart what back does.
   Future<bool> back() async {
@@ -57,6 +60,22 @@ class _Native {
     return answer == true;
   }
 
+  /// [back] for an answer that waits on the plugin: completes when Dart
+  /// answers, without pumping, so the test pumps meanwhile.
+  Future<bool> startBack() {
+    final answer = Completer<bool>();
+    unawaited(
+      tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+        AreaChannel.name,
+        _codec.encodeMethodCall(const MethodCall('back')),
+        (data) => answer.complete(
+          data != null && _codec.decodeEnvelope(data) == true,
+        ),
+      ),
+    );
+    return answer.future;
+  }
+
   Future<void> batch(String json) => send('batch', {'json': json});
 
   List<String> named(String method) => [
@@ -65,7 +84,8 @@ class _Native {
   ];
 
   List<Map<String, Object?>> statuses() => [
-    for (final json in named('status')) jsonDecode(json) as Map<String, Object?>,
+    for (final json in named('status'))
+      jsonDecode(json) as Map<String, Object?>,
   ];
 
   List<Map<String, Object?>> inputs(String kind) => [
@@ -120,7 +140,12 @@ void main() {
     await tester.tap(find.text('Claim'));
     await tester.pump();
     expect(native.inputs('event'), [
-      {'kind': 'event', 'node': 3, 'event': 'press', 'data': <String, Object?>{}},
+      {
+        'kind': 'event',
+        'node': 3,
+        'event': 'press',
+        'data': <String, Object?>{},
+      },
     ]);
     // The renderer's own context input, sent once it has a size.
     expect(native.inputs('context'), hasLength(1));
@@ -142,13 +167,18 @@ void main() {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
-    await native.batch(batch(2, [{'op': 'closed', 'reason': 'plugin_stopped'}]));
+    await native.batch(
+      batch(2, [
+        {'op': 'closed', 'reason': 'plugin_stopped'},
+      ]),
+    );
     await tester.pump();
     expect(native.statuses().last, {
       'state': 'closed',
       'reason': 'plugin_stopped',
       'detail': '',
       'overlays': 0,
+      'back': false,
     });
   });
 
@@ -159,7 +189,11 @@ void main() {
     await native.batch(_hello);
     await native.batch(
       batch(2, [
-        {'op': 'error', 'message': 'This plugin hit an error', 'details': 'boom at line 3'},
+        {
+          'op': 'error',
+          'message': 'This plugin hit an error',
+          'details': 'boom at line 3',
+        },
       ]),
     );
     await tester.pump();
@@ -177,7 +211,12 @@ void main() {
     expect(native.calls.where((c) => c.method == 'ready'), hasLength(1));
   });
 
-  Map<String, Object?> modal(String name, {bool sheet = false, bool dismissible = true, int id = 20}) => {
+  Map<String, Object?> modal(
+    String name, {
+    bool sheet = false,
+    bool dismissible = true,
+    int id = 20,
+  }) => {
     'id': id,
     'name': name,
     'size': 'medium',
@@ -186,13 +225,27 @@ void main() {
     'dismissible': dismissible,
   };
 
-  String withModals(int seq, List<Map<String, Object?>> modals, {bool nodes = true}) => batch(seq, [
+  String withModals(
+    int seq,
+    List<Map<String, Object?>> modals, {
+    bool nodes = true,
+  }) => batch(seq, [
     // Named modal roots as the core sends them: the `modal` block itself.
     if (nodes) ...[
       create(21, 'text', props: {'text': 'In the sheet'}),
-      create(20, 'modal', props: {'size': 'medium', 'title': 'Filters'}, children: [21]),
+      create(
+        20,
+        'modal',
+        props: {'size': 'medium', 'title': 'Filters'},
+        children: [21],
+      ),
       create(31, 'text', props: {'text': 'In the modal'}),
-      create(30, 'modal', props: {'size': 'medium', 'title': 'Edit'}, children: [31]),
+      create(
+        30,
+        'modal',
+        props: {'size': 'medium', 'title': 'Edit'},
+        children: [31],
+      ),
     ],
     {'op': 'roots', 'main': 1, 'modals': modals},
   ]);
@@ -203,14 +256,24 @@ void main() {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
-    await native.batch(withModals(2, [modal('filters', sheet: true), modal('edit', id: 30)]));
+    await native.batch(
+      withModals(2, [modal('filters', sheet: true), modal('edit', id: 30)]),
+    );
     await tester.pump();
     expect(await native.back(), isTrue);
-    expect(native.inputs('modal_dismiss').last, {'kind': 'modal_dismiss', 'name': 'edit'});
+    expect(native.inputs('modal_dismiss').last, {
+      'kind': 'modal_dismiss',
+      'name': 'edit',
+    });
     // The core closes it: the roots come back without it.
-    await native.batch(withModals(3, [modal('filters', sheet: true)], nodes: false));
+    await native.batch(
+      withModals(3, [modal('filters', sheet: true)], nodes: false),
+    );
     expect(await native.back(), isTrue);
-    expect(native.inputs('modal_dismiss').last, {'kind': 'modal_dismiss', 'name': 'filters'});
+    expect(native.inputs('modal_dismiss').last, {
+      'kind': 'modal_dismiss',
+      'name': 'filters',
+    });
     await native.batch(withModals(4, [], nodes: false));
     expect(await native.back(), isFalse);
     expect(native.inputs('modal_dismiss'), hasLength(2));
@@ -218,11 +281,15 @@ void main() {
 
   // Fails if back dismisses a modal the plugin made undismissable, or leaves
   // the screen from under it (§12.5: back leaves only when no modal is open).
-  testWidgets('a modal that isn\'t dismissible keeps the screen', (tester) async {
+  testWidgets('a modal that isn\'t dismissible keeps the screen', (
+    tester,
+  ) async {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
-    await native.batch(withModals(2, [modal('locked', dismissible: false, id: 30)]));
+    await native.batch(
+      withModals(2, [modal('locked', dismissible: false, id: 30)]),
+    );
     expect(await native.back(), isTrue);
     expect(native.inputs('modal_dismiss'), isEmpty);
     expect(find.text('In the modal'), findsOneWidget);
@@ -234,9 +301,11 @@ void main() {
     await native.setup();
     await native.batch(_hello);
     await native.batch(withModals(2, [modal('edit', id: 30)]));
-    await native.batch(batch(3, [
-      {'op': 'dialog', 'id': 7, 'kind': 'confirm', 'text': 'Delete it?'},
-    ]));
+    await native.batch(
+      batch(3, [
+        {'op': 'dialog', 'id': 7, 'kind': 'confirm', 'text': 'Delete it?'},
+      ]),
+    );
     expect(await native.back(), isTrue);
     expect(native.inputs('dialog'), [
       {'kind': 'dialog', 'id': 7, 'result': false},
@@ -250,10 +319,14 @@ void main() {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
-    await native.batch(withModals(2, [modal('filters', sheet: true), modal('edit', id: 30)]));
-    await native.batch(batch(3, [
-      {'op': 'dialog', 'id': 7, 'kind': 'confirm', 'text': 'Delete it?'},
-    ]));
+    await native.batch(
+      withModals(2, [modal('filters', sheet: true), modal('edit', id: 30)]),
+    );
+    await native.batch(
+      batch(3, [
+        {'op': 'dialog', 'id': 7, 'kind': 'confirm', 'text': 'Delete it?'},
+      ]),
+    );
     await tester.pump();
     expect(native.statuses().last['overlays'], 3);
   });
@@ -261,15 +334,34 @@ void main() {
   // An in-tree `ui.modal({open = true})` or `ui.sheet` added under the main
   // root, as the core sends it: the block with `open` and the plugin's
   // `dismiss`, then a `children` op on the parent.
-  String withInTree(int seq, {required String block, bool dismissible = true}) => batch(seq, [
+  String withInTree(
+    int seq, {
+    required String block,
+    bool dismissible = true,
+  }) => batch(seq, [
     create(41, 'text', props: {'text': 'Half-filled form'}),
-    create(40, block, props: {'open': true, 'dismissible': dismissible, 'title': 'Form'}, events: ['dismiss'], children: [41]),
-    {'op': 'children', 'id': 1, 'children': [2, 3, 40]},
+    create(
+      40,
+      block,
+      props: {'open': true, 'dismissible': dismissible, 'title': 'Form'},
+      events: ['dismiss'],
+      children: [41],
+    ),
+    {
+      'op': 'children',
+      'id': 1,
+      'children': [2, 3, 40],
+    },
   ]);
 
   // The plugin closes it: `open` goes false.
   String closeInTree(int seq) => batch(seq, [
-    {'op': 'props', 'id': 40, 'set': {'open': false}, 'unset': <String>[]},
+    {
+      'op': 'props',
+      'id': 40,
+      'set': {'open': false},
+      'unset': <String>[],
+    },
   ]);
 
   // Fails if back on an open in-tree modal or sheet leaves the screen (the
@@ -283,7 +375,12 @@ void main() {
       await tester.pump();
       expect(native.statuses().last['overlays'], 1);
       expect(await native.back(), isTrue);
-      expect(native.inputs('event').last, {'kind': 'event', 'node': 40, 'event': 'dismiss', 'data': <String, Object?>{}});
+      expect(native.inputs('event').last, {
+        'kind': 'event',
+        'node': 40,
+        'event': 'dismiss',
+        'data': <String, Object?>{},
+      });
       // The plugin closes it: back then leaves.
       await native.batch(closeInTree(3));
       await tester.pump();
@@ -294,18 +391,26 @@ void main() {
 
   // Fails if back dismisses an in-tree modal the plugin made undismissable,
   // or leaves the screen from under it.
-  testWidgets('an in-tree modal that isn\'t dismissible keeps the screen', (tester) async {
+  testWidgets('an in-tree modal that isn\'t dismissible keeps the screen', (
+    tester,
+  ) async {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
     await native.batch(withInTree(2, block: 'modal', dismissible: false));
     await tester.pump();
-    expect(await native.back(), isTrue, reason: 'the screen stays under an open modal');
+    expect(
+      await native.back(),
+      isTrue,
+      reason: 'the screen stays under an open modal',
+    );
     expect(native.inputs('event'), isEmpty);
   });
 
   // Fails if back closes an in-tree modal under a named one.
-  testWidgets('a named modal is above the main tree\'s in-tree modal', (tester) async {
+  testWidgets('a named modal is above the main tree\'s in-tree modal', (
+    tester,
+  ) async {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
@@ -313,13 +418,71 @@ void main() {
     await native.batch(withModals(3, [modal('edit', id: 30)]));
     await tester.pump();
     expect(await native.back(), isTrue);
-    expect(native.inputs('modal_dismiss').last, {'kind': 'modal_dismiss', 'name': 'edit'});
+    expect(native.inputs('modal_dismiss').last, {
+      'kind': 'modal_dismiss',
+      'name': 'edit',
+    });
     expect(native.inputs('event'), isEmpty);
+  });
+
+  String withOnBack(int seq) => batch(seq, [
+    {'op': 'back_handler', 'on': true},
+  ]);
+
+  // Fails if back with no overlay open doesn't ask the plugin's
+  // `app.on_back`, or its answer isn't what back answers (detail → list).
+  testWidgets('back asks the plugin once no overlay is open', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withOnBack(2));
+    await tester.pump();
+    expect(native.statuses().last['back'], isTrue);
+    final answer = native.startBack();
+    await tester.pump();
+    final asked = native.inputs('back');
+    expect(asked, hasLength(1));
+    await native.batch(
+      batch(3, [
+        {'op': 'back', 'id': asked.single['id'], 'handled': true},
+      ]),
+    );
+    expect(await answer, isTrue);
+  });
+
+  // Fails if back asks the plugin while one of its overlays is open (the
+  // overlay closes first, §12.5).
+  testWidgets('an open overlay closes before the plugin is asked', (
+    tester,
+  ) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withOnBack(2));
+    await native.batch(withModals(3, [modal('edit', id: 30)]));
+    await tester.pump();
+    expect(await native.back(), isTrue);
+    expect(native.inputs('modal_dismiss'), hasLength(1));
+    expect(native.inputs('back'), isEmpty);
+  });
+
+  // Fails if a plugin that never answers traps the viewer on its screen.
+  testWidgets('a plugin that doesn\'t answer lets back leave', (tester) async {
+    final native = await _start(tester);
+    await native.setup();
+    await native.batch(_hello);
+    await native.batch(withOnBack(2));
+    await tester.pump();
+    final answer = native.startBack();
+    await tester.pump(BlocksController.backTimeout);
+    expect(await answer, isFalse);
   });
 
   // Fails if a theme change rebuilds the view as new (a second context
   // input, state lost) or doesn't recolour it.
-  testWidgets('a new setup recolours without a new context input', (tester) async {
+  testWidgets('a new setup recolours without a new context input', (
+    tester,
+  ) async {
     final native = await _start(tester);
     await native.setup();
     await native.batch(_hello);
@@ -329,7 +492,11 @@ void main() {
     await tester.pump();
     await tester.pump();
     final contexts = native.inputs('context');
-    expect(contexts.length, before + 1, reason: 'the theme is part of the context');
+    expect(
+      contexts.length,
+      before + 1,
+      reason: 'the theme is part of the context',
+    );
     expect(contexts.last['theme'], 'light');
     expect(find.text('Hello from the plugin'), findsOneWidget);
   });
@@ -363,7 +530,9 @@ void main() {
     await native.batch(_hello);
     await native.batch(withModals(2, [modal('edit', id: 30)]));
     await tester.pumpAndSettle();
-    final card = tester.getRect(find.byKey(const ValueKey<String>('modal_card_edit')));
+    final card = tester.getRect(
+      find.byKey(const ValueKey<String>('modal_card_edit')),
+    );
     expect(card.width, 390);
     expect(card.bottom, 760);
   });
@@ -379,9 +548,13 @@ void main() {
         final native = await _start(tester);
         await native.setup(theme: theme);
         for (final step in [1, 2]) {
-          final recorded = jsonDecode(
-            File('../src/core/fake/fixtures/tickets-$step.json').readAsStringSync(),
-          ) as Map<String, Object?>;
+          final recorded =
+              jsonDecode(
+                    File(
+                      '../src/core/fake/fixtures/tickets-$step.json',
+                    ).readAsStringSync(),
+                  )
+                  as Map<String, Object?>;
           for (final batch in recorded['batches']! as List<Object?>) {
             await native.batch(jsonEncode(batch));
           }
@@ -395,4 +568,3 @@ void main() {
     }
   }
 }
-

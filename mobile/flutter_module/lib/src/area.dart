@@ -40,19 +40,25 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
   /// confirm with no), or dismisses a named or in-tree modal or sheet when
   /// it's dismissible, as Esc does on the desktop. An open overlay that
   /// isn't dismissible keeps back too: it leaves the plugin only when none
-  /// is open. False then, and React Native does its own back.
-  bool _back() {
+  /// is open. With none, the plugin's `app.on_back` is asked (detail →
+  /// list); false when it didn't go back, and React Native does its own.
+  Future<bool> _back() async {
     final overlays = overlaysOf(_controller);
-    if (overlays.isEmpty) return false;
+    if (overlays.isEmpty) return _controller.askBack();
     switch (overlays.last) {
       case DialogOverlay(:final dialog):
-        _controller.answerDialog(dialog.id, dialog.kind == 'confirm' ? false : null);
+        _controller.answerDialog(
+          dialog.id,
+          dialog.kind == 'confirm' ? false : null,
+        );
       case NamedOverlay(:final modal):
         if (modal.dismissible) {
           _controller.send({'kind': 'modal_dismiss', 'name': modal.name});
         }
       case InTreeOverlay(:final node):
-        if (node.props['dismissible'] != false) _controller.event(node.id, 'dismiss');
+        if (node.props['dismissible'] != false) {
+          _controller.event(node.id, 'dismiss');
+        }
     }
     return true;
   }
@@ -92,7 +98,10 @@ class _PluginAreaAppState extends State<PluginAreaApp> {
     if (setup == null) return const SizedBox.shrink();
     final theme = blocksThemeOf(setup);
     // One host per area, so its caches last; a new setup only re-themes it.
-    final host = (_host ??= PhoneBlocksHost(channel: widget.channel, theme: theme))..theme = theme;
+    final host = (_host ??= PhoneBlocksHost(
+      channel: widget.channel,
+      theme: theme,
+    ))..theme = theme;
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       color: const Color(0x00000000),

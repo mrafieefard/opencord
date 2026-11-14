@@ -12,6 +12,7 @@ class AreaStatus {
     this.reason = '',
     this.detail = '',
     this.overlays = 0,
+    this.back = false,
   });
 
   /// `loading`, `running`, `error`, `too_old` or `closed`.
@@ -26,11 +27,15 @@ class AreaStatus {
   /// Open modals, sheets (named and in-tree) and dialogs.
   final int overlays;
 
+  /// The plugin set `app.on_back`, so back with no overlay open asks it.
+  final bool back;
+
   Map<String, Object?> toJson() => {
     'state': state,
     'reason': reason,
     'detail': detail,
     'overlays': overlays,
+    'back': back,
   };
 }
 
@@ -47,5 +52,6 @@ AreaStatus statusOf(BlocksController controller) {
   return AreaStatus(
     state: 'running',
     overlays: overlaysOf(controller).length,
+    back: controller.backHandler,
   );
 }

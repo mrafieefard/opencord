@@ -18,6 +18,7 @@ use opencord_plugins::lua_api::{function, raise};
 use opencord_plugins::package::is_asset_path;
 use opencord_plugins::view::Patch;
 
+use super::back::Back;
 use super::call::is_id;
 use super::dialogs::Waits;
 use super::frames::Frames;
@@ -30,9 +31,7 @@ use super::{ViewSink, cut};
 pub(super) const ON_KEY: &str = "opencord.view.on";
 pub(super) const LISTEN_KEY: &str = "opencord.view.listen";
 
-/// Registry keys of what `app.on_back` was given, and of the table of
-/// `on_end` functions by sound id.
-const BACK_KEY: &str = "opencord.view.back";
+/// Registry key of the table of `on_end` functions by sound id.
 const SOUNDS_KEY: &str = "opencord.view.sounds";
 
 /// What `app.listen` takes (Claude's call 3).
@@ -82,6 +81,7 @@ pub(super) struct Shared {
     pub(super) waits: Waits,
     pub(super) timers: Timers,
     pub(super) frames: Frames,
+    pub(super) back: Back,
     pub(super) storage: Arc<Store>,
     sounds: Sounds,
 }
@@ -108,6 +108,7 @@ impl Shared {
             waits: Waits::default(),
             timers: Timers::default(),
             frames: Frames::default(),
+            back: Back::default(),
             storage: storage::open(storage_dir),
             sounds: Sounds::default(),
         }
@@ -117,6 +118,7 @@ impl Shared {
     pub(super) fn forget_vm(&self) {
         self.timers.clear();
         self.frames.forget();
+        self.back.forget();
         self.sounds.waiting.store(0, Ordering::Relaxed);
     }
 
@@ -319,6 +321,7 @@ pub(super) fn install(lua: &Lua, shared: &Arc<Shared>) -> mlua::Result<Table> {
     super::dialogs::install(lua, &app, shared)?;
     super::timers::install(lua, &app, shared)?;
     super::frames::install(lua, &app, shared)?;
+    super::back::install(lua, &app, shared)?;
     storage::install(lua, &app, shared)?;
     install_effects(lua, &app, shared)?;
     app.set_readonly(true);
@@ -326,14 +329,9 @@ pub(super) fn install(lua: &Lua, shared: &Arc<Shared>) -> mlua::Result<Table> {
     Ok(app)
 }
 
-/// Sets `app.on_back` and the calls that only send the renderer an op.
+/// Sets the calls that only send the renderer an op.
 fn install_effects(lua: &Lua, app: &Table, shared: &Arc<Shared>) -> mlua::Result<()> {
     lua.set_named_registry_value(SOUNDS_KEY, lua.create_table()?)?;
-    // Nothing calls it until the phone's back gesture (M4).
-    let on_back = function(lua, |lua, handler: Value| match handler {
-        Value::Function(handler) => lua.set_named_registry_value(BACK_KEY, handler),
-        _ => Err(raise("INVALID_ARGUMENT: app.on_back takes a function")),
-    })?;
     let linker = shared.clone();
     let open_link = function(lua, move |_, url: Value| {
         let url = link(&url)?;
@@ -363,7 +361,6 @@ fn install_effects(lua: &Lua, app: &Table, shared: &Arc<Shared>) -> mlua::Result
         }
         Ok(())
     })?;
-    app.raw_set("on_back", on_back)?;
     app.raw_set("open_link", open_link)?;
     app.raw_set("open_channel", open_channel)?;
     app.raw_set("play_sound", play_sound)
