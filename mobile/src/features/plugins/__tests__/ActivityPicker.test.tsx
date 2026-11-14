@@ -109,6 +109,18 @@ describe('the activity picker', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // Fails if a second tap while the start is on its way closes the sheet
+  // again: the second `router.back()` would leave the server screen too.
+  it('a double tap starts and closes once', async () => {
+    const core = await ready();
+    const onClose = await picker();
+    await fireEvent.press(screen.getByText('Paint together'));
+    await fireEvent.press(screen.getByText('Paint together'));
+    await settle();
+    expect(core.calls.filter((call) => call.method === 'activityStart')).toHaveLength(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   // Fails if the started session isn't the one opened (Task 15).
   it('starting opens what came back', async () => {
     const core = await ready();
