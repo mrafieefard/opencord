@@ -24,7 +24,20 @@ class PluginAreaView: ExpoView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    controller?.view.frame = bounds
+    if let flutter = controller { place(flutter.view) }
+  }
+
+  /// Sizes Flutter's view to whole device pixels. React Native lays out in
+  /// floats, so an area meant to be 676.667 points tall at 3x is
+  /// 676.66668701171875 points: 2030.00006 pixels. Flutter takes that as the
+  /// view's exact size, draws a 2030-pixel frame and then discards it, since
+  /// the engine checks the frame against the view's size with no tolerance
+  /// (`Shell::ShouldDiscardLayerTree`): every frame is dropped and the area
+  /// stays empty. Rounded to whole pixels, points times scale is exact again.
+  private func place(_ view: UIView) {
+    let scale = window?.windowScene?.screen.scale ?? traitCollection.displayScale
+    let pixels = { (points: CGFloat) in (points * scale).rounded() / scale }
+    view.frame = CGRect(x: 0, y: 0, width: pixels(bounds.width), height: pixels(bounds.height))
   }
 
   private func attach() {
@@ -35,8 +48,10 @@ class PluginAreaView: ExpoView {
     let flutter = FlutterViewController(engine: area.engine, nibName: nil, bundle: nil)
     flutter.isViewOpaque = false
     flutter.view.backgroundColor = .clear
+    // Only `place` sizes it, so UIKit adds no fractional resizes in between.
+    flutter.view.autoresizingMask = []
     parent.addChild(flutter)
-    flutter.view.frame = bounds
+    place(flutter.view)
     addSubview(flutter.view)
     flutter.didMove(toParent: parent)
     controller = flutter

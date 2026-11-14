@@ -117,6 +117,7 @@ final class Area {
     backs.removeAll()
     pendingBacks.forEach { $0(false) }
     channel.setMethodCallHandler(nil)
+    Areas.destroying(engine)
     engine.destroyContext()
   }
 }
@@ -127,6 +128,9 @@ struct AreaGone: Error {}
 /// `warmUp`, and the areas by id. Main thread only.
 enum Areas {
   private static var group: FlutterEngineGroup?
+  /// The group's first engine, which it spawns every later one from. Held
+  /// until destroyed, so it stays first in the group until then.
+  private static var root: FlutterEngine?
   private static var spare: Area?
   private static var areas: [String: Area] = [:]
   static var events: AreaEvents?
@@ -137,7 +141,19 @@ enum Areas {
     let engineGroup = group ?? FlutterEngineGroup(name: "plugin-areas", project: nil)
     group = engineGroup
     let engine = engineGroup.makeEngine(withEntrypoint: nil, libraryURI: nil)
+    if root == nil { root = engine }
     return Area(engine: engine) { events }
+  }
+
+  /// A group spawns from its oldest engine still in memory, and on iOS a
+  /// destroyed engine stays in the group until it is deallocated: spawning
+  /// from it then aborts ("Spawning from an engine without a shell"). So when
+  /// the root goes, so does its group, and the next area starts a new one.
+  /// Engines spawned from the old group keep working.
+  static func destroying(_ engine: FlutterEngine) {
+    guard engine === root else { return }
+    group = nil
+    root = nil
   }
 
   static func warmUp() {
