@@ -233,7 +233,7 @@ It is shown only while a prepared update is waiting. It is the approved design C
 - **Place:** its own float (`OcFloat`) under the server rail in the left column, 8 px below it. The rail gives up the room. The rail is always shown on desktop, so the square always has a place.
 - **Size:** 62 × 62 with 16 px corners, like the other floats.
 - **The tile inside:** 46 × 46 with 14 px corners. It is filled with the theme's `elevated` colour in dark (`#1F1F23`) or `hover` in light (`#F2F2F4`), plus a wash of the gradient at 16 % opacity. On hover the tile takes `selected` (`#27272C` dark, `#E7E7EA` light) and the wash goes to 24 %.
-- **The icon:** Material Symbols Rounded `download` at 26 px, weight 500, filled with a 150° gradient from `#3D85F7` to `#8B5CF6`. These colours are the same in both themes. `download` and `check` must be added to the list in `tool/build_icons.dart`, which then regenerates `OcIcons`.
+- **The icon:** Material Symbols Rounded `download` at 26 px, weight 500, filled with a 150° gradient from `#3D85F7` to `#8B5CF6`. These colours are the same in both themes. `OcIcons.download` and `OcIcons.check` already exist.
 - **Arrival:** the rail shrinks and the square rises in on `.snappy`. The arrow drops in once on `.smooth`. Nothing pulses or loops afterwards.
 - **Hover:**
   - the arrow drops 2 px on `.snappy`;
