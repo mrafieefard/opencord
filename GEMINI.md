@@ -288,6 +288,7 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
   - one bullet per part, saying what it does;
   - **Tests**.
 - **Describe the code, not the plan.** For each sentence, open the code it describes, and copy labels, counts and messages from there. The plan says what was asked for; only the code says what was built.
+  - **Describe what this build shows,** not what it will show once later plans land. Rows, pages, commands or tabs behind a registry or a flag are listed from the registering calls (`grep -rn 'registerServerPage('`), not from the permission table or the design's sketch; a gate that allows a row nobody registered shows nothing.
 - **Numbers and behavior count too:** a wrong quality setting, a wrong count or a wrong "X doesn't happen" is as bad as a wrong name. Checksums, versions and hashes are copied from the file, never typed from memory.
 - **Name only things that exist.** Copy every message, request, event, function and file name, and every number, from the code or the diff. This covers the decisions entry, the progress ledger, your report and the pull request's description, which also lists every commit outside the plan's scope.
 - **Search before you finish.** Grep for each name you wrote (`grep -rn`). If a name isn't found, it doesn't go in. A route also matches the router's line character for character. Each time you edit a document (the pull request's description too), check all of it, not only the part you changed.
@@ -315,6 +316,8 @@ Every milestone ends with a decisions entry in `docs/decisions.md`.
 - **A claim names something you ran.** A test in the ledger is one you grepped for. A mutation in the ledger names the exact edit (file, line, old → new) and pastes the line of the test that failed; a different edit that happens to fail the test doesn't count, and if you didn't run it, don't claim it. A test count is copied from the run's `test result:` line, not from an earlier entry. A fix a review places in one function goes there, or the ledger says where it went instead and why. A comment or a pull request body never names a guard the code doesn't have.
 - **Every command in the ledger has its result beside it** (`→ 103 passed; 0 failed`).
 - **A required step you skipped leads the report** (screenshots, a check, a by-hand step), with why. The ledger alone doesn't count.
+  - **A step counts as run only in the setting the plan names.** A live check "against a local server, with the desktop in the same server" isn't run by unit tests, the fake world or earlier screenshots: it's a skipped step, and the pull request lists it under what wasn't run. A docs column whose legend says what it means ("emulator: run against a local server") gets that word only when that is what happened.
+  - **The stage-end commands the plan lists are run as written.** `.github/check.sh` is the whole script; a subset (`.github/check.sh mobile`) is a deviation, named with why.
 - **Every problem names its test and pastes its error line.** A claim without them is left out.
 - **Re-run a flaky test alone,** one test per command, and paste the result:
 
