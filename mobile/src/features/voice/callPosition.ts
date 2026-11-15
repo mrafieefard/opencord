@@ -78,6 +78,19 @@ export function useVoicePillRoom(): number {
   return chrome.floatingVoice && inVoice ? BAR_HEIGHT + PILL_GAP : 0;
 }
 
+/**
+ * What a list under the tab bar leaves free at its end so its last rows
+ * can scroll out from under it: the tab bar's room (the bottom of its
+ * screen's safe area, which takes the bar in) and, in voice, the floating
+ * voice pill's. For a list iOS doesn't inset for the bar itself: one that
+ * isn't its screen's own scroll view (a server's channel list), which then
+ * turns iOS's adjusting off.
+ */
+export function useListEndRoom(): number {
+  const bottom = useSafeAreaInsets().bottom;
+  return bottom + useVoicePillRoom();
+}
+
 export const CALL_SPRING: WithSpringConfig = { damping: 28, stiffness: 280, mass: 0.9 };
 
 /** How far below the top of the screen the open sheet stops. */
