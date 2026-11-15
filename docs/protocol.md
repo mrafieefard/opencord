@@ -183,7 +183,7 @@ Each `Request` gets exactly one `Response`, which is either an `error` or the pa
 | `SendViewEvent { view_id, name, data_json }` | `ack` | One's own open view; 30/s and 128 KiB/s per view; data <= 64 KiB |
 | `ReportViewError { view_id, text }` | `ack` | One's own open view; 1 per view per 10 s; at most 2,000 characters |
 | `StartActivity { channel_id, plugin_id, activity_key }` | `activity_session` | In voice channel and holds `START_ACTIVITIES`; session lists `"activities"`. At most 4 in a call |
-| `EndActivity { session_id }` | `ack` | The starter, or `MANAGE_CHANNELS` in session's channel |
+| `EndActivity { session_id }` | `ack` | The starter, `MANAGE_CHANNELS` in session's channel, or the only member with it open |
 | `ExecuteCommand { channel_id, name, options, nonce, source }` | `command_result` | `SEND_MESSAGES` in channel and command permissions |
 | `AutocompleteCommand { channel_id, name, option, value }` | `command_choices` | `SEND_MESSAGES` in channel; 5 per second |
 | `FetchCommandSettings {}` | `command_settings` | Base `MANAGE_SERVER` |

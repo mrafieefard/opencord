@@ -286,5 +286,36 @@ void main() {
       await tester.pumpAndSettle();
       await app.dispose(tester);
     });
+
+    // Someone else started it (Mira) and the member can't manage the
+    // channel, but no one else has it open: its last viewer may end it.
+    testWidgets('the last one with it open', (tester) async {
+      final app = await _onStage(tester);
+      final call = callOf(app);
+      final server = app.repository.mockServer(activityServer);
+      const mira = 1002;
+      final session = ActivitySession(
+        id: 778,
+        channelId: call.channel,
+        pluginId: 'paint',
+        activityKey: 'paint',
+        name: 'Paint together',
+        pluginName: 'Paint',
+        starterId: mira,
+        startedAt: DateTime.utc(2026, 11, 12),
+        viewerIds: [server.selfId],
+      );
+      server.activitySessions[session.id] = session;
+      app.repository.emit(ActivitySessionStarted(activityServer, session));
+      await _settle(tester);
+      await _withoutPermission(tester, app, Permissions.manageChannels);
+      await _settle(tester);
+
+      await _menu(tester, session.id);
+      expect(find.text('End activity'), findsOneWidget);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      await app.dispose(tester);
+    });
   });
 }

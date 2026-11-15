@@ -102,9 +102,11 @@ pub async fn end(ctx: &Ctx<'_>, request: proto::EndActivity) -> Result<Response,
         let manages = guild
             .channel_permissions(ctx.user_id, session.channel_id)
             .contains(Permissions::MANAGE_CHANNELS);
-        if session.starter_id != ctx.user_id && !manages {
+        // Its last viewer may end it too: no one else has it open.
+        let last_viewer = state.plugins.views.viewers_of(session.id) == [ctx.user_id];
+        if session.starter_id != ctx.user_id && !manages && !last_viewer {
             return Err(ApiError::forbidden(
-                "only its starter or someone who manages the channel ends an activity",
+                "only its starter, someone who manages the channel or the last one with it open ends an activity",
             ));
         }
         session

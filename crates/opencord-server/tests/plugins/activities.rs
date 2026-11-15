@@ -749,8 +749,9 @@ async fn an_unknown_or_stopped_activity_is_unavailable() {
 #[tokio::test]
 async fn only_the_starter_or_a_channel_manager_ends_it() {
     // A starts both (the starter's road: ends "paint"). B is in the call,
-    // neither starter nor manager (FORBIDDEN, and hears each delete). The
-    // owner manages channels and didn't start "chess" (ends it).
+    // neither starter nor manager, and hasn't it open (FORBIDDEN, and hears
+    // each delete). The owner manages channels and didn't start "chess"
+    // (ends it). The last one with it open is the_last_one_with_it_open_ends_it.
     let mut world = World::new().await;
     let (mut a, _, _) = world.member(2, &FEATURES).await;
     let (mut b, _, _) = world.member(3, &FEATURES).await;
@@ -785,6 +786,35 @@ async fn only_the_starter_or_a_channel_manager_ends_it() {
         let line = format!("end {} {} ended", session.id, session.activity_key);
         assert_eq!(world.settled_count(&line).await, 1, "{line}");
     }
+}
+
+#[tokio::test]
+async fn the_last_one_with_it_open_ends_it() {
+    // A starts "paint" and opens it; B opens it too. B, neither starter nor
+    // manager, may not end it while A has it open as well (FORBIDDEN). Once
+    // A closes its view, B is the only one with it open, and ends it.
+    let world = World::new().await;
+    let (mut a, _, _) = world.member(2, &FEATURES).await;
+    let (mut b, _, _) = world.member(3, &FEATURES).await;
+    let voice = world.voice;
+    a.ok(join(voice)).await;
+    b.ok(join(voice)).await;
+    let paint = started(&mut a, voice, "paint").await;
+    let a_view = open_view(&mut a, paint.id).await;
+    open_view(&mut b, paint.id).await;
+
+    assert_eq!(
+        refused(&mut b, end(paint.id)).await,
+        proto::ErrorCode::Forbidden
+    );
+    paced(&mut a, close_view(a_view)).await;
+    let Response::Ack(_) = paced(&mut b, end(paint.id)).await else {
+        panic!("the last one with it open couldn't end it");
+    };
+    assert_eq!(
+        reason(&deleted(&mut a, paint.id).await),
+        proto::ActivityEndReason::Ended
+    );
 }
 
 /// [`SESSIONS_SOURCE`], and a `message_create` handler that holds the VM
