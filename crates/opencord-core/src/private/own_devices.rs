@@ -36,7 +36,8 @@ pub(super) async fn observe(
     let chat_key = open.chat_key_public();
     let now = now_ms();
     let mut changed = false;
-    let mut tx = open.store().pool().begin().await?;
+    // It reads known devices, then writes: take the write lock up front.
+    let mut tx = open.store().pool().begin_with("BEGIN IMMEDIATE").await?;
     for device in mine {
         if device.chat_key == chat_key {
             changed |= sqlx::query("DELETE FROM own_devices WHERE device_id = $1")

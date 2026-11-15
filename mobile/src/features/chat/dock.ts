@@ -18,6 +18,8 @@ export interface ChatDock {
   fieldGrowth?: SharedValue<number>;
   /** The same, for what floats above it (Jump to latest, the typing line). */
   height: number;
+  /** The chat's height under its header, once laid out. */
+  bodyHeight?: number;
   /** How far the dock has stepped aside for the sidebar: 0 in place, 1 away (AWAY_DROP lower). */
   away?: SharedValue<number>;
 }

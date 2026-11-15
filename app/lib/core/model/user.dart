@@ -76,6 +76,7 @@ class Role {
     this.hoist = false,
     this.mentionable = false,
     this.maxUploadBytes,
+    this.pluginId,
   });
 
   final int id;
@@ -94,6 +95,7 @@ class Role {
 
   /// Maximum file size members of this role may upload.
   final int? maxUploadBytes;
+  final String? pluginId;
 
   Role copyWith({
     String? name,
@@ -102,6 +104,7 @@ class Role {
     bool? hoist,
     bool? mentionable,
     int? Function()? maxUploadBytes,
+    String? Function()? pluginId,
   }) => Role(
     id: id,
     name: name ?? this.name,
@@ -113,5 +116,6 @@ class Role {
     maxUploadBytes: maxUploadBytes == null
         ? this.maxUploadBytes
         : maxUploadBytes(),
+    pluginId: pluginId == null ? this.pluginId : pluginId(),
   );
 }

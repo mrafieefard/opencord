@@ -90,6 +90,7 @@ class MemberActions {
     return [
       for (final role in data.rolesDescending)
         if (role.id != data.info.everyoneRoleId &&
+            role.pluginId == null &&
             context.outranksRole(role.position))
           role,
     ];

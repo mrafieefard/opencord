@@ -126,11 +126,12 @@ jest.mock('@expo/ui/swift-ui', () => {
     RNHostView: ({ children }: { children: React.ReactNode }) => children,
     Group: ({ children }: { children: React.ReactNode }) => React.createElement(View, null, children),
     // Named by its label, or by accessibilityLabel when it draws its own content.
-    Button: function Button({ label, role, onPress, modifiers, children }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean; _label?: string }[]; children?: React.ReactNode }) {
+    Button: function Button({ label, role, onPress, modifiers, testID, children }: { label?: string; role?: string; onPress?: () => void; modifiers?: { _disabled?: boolean; _label?: string }[]; testID?: string; children?: React.ReactNode }) {
       const inMenu = React.useContext(InMenu);
       return React.createElement(
         Pressable,
         {
+          testID,
           accessibilityRole: inMenu ? 'menuitem' : 'button',
           accessibilityLabel: modifiers?.find((m) => m && m._label)?._label ?? label,
           accessibilityHint: role === 'destructive' ? 'destructive' : undefined,
@@ -141,6 +142,15 @@ jest.mock('@expo/ui/swift-ui', () => {
       );
     },
     HStack: ({ children }: { children?: React.ReactNode }) => React.createElement(View, null, children),
+    Spacer: () => null,
+    // A menu button: named by its label (or accessibilityLabel), its items
+    // beside it as menu items.
+    Menu: ({ label, modifiers, testID, children }: { label?: React.ReactNode; modifiers?: { _label?: string }[]; testID?: string; children?: React.ReactNode }) =>
+      React.createElement(
+        View,
+        { testID, accessibilityRole: 'button', accessibilityLabel: modifiers?.find((m) => m && m._label)?._label ?? (typeof label === 'string' ? label : undefined) },
+        React.createElement(InMenu.Provider, { value: true }, children),
+      ),
     Image: () => null,
     ProgressView: () => React.createElement(View, { accessibilityRole: 'progressbar' }),
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => React.createElement(Text, props, children),
@@ -199,6 +209,10 @@ jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   font: () => ({}),
   foregroundStyle: () => ({}),
   frame: () => ({}),
+  padding: () => ({}),
+  glassEffect: () => ({}),
+  background: () => ({}),
+  shapes: { capsule: () => ({}) },
   pickerStyle: () => ({ _style: 'segmented' }),
   tag: (idx: number) => ({ _tag: idx }),
   accessibilityLabel: (lbl: string) => ({ _label: lbl }),
@@ -297,7 +311,7 @@ jest.mock('expo-glass-effect', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
-    GlassView: ({ children, style, testID }: { children?: React.ReactNode; style?: unknown; testID?: string }) =>
-      React.createElement(View, { style, testID }, children),
+    GlassView: ({ children, style, testID, pointerEvents }: { children?: React.ReactNode; style?: unknown; testID?: string; pointerEvents?: string }) =>
+      React.createElement(View, { style, testID, pointerEvents }, children),
   };
 });

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE plugins SET version = $1, folder = $2, manifest = $3, signature = $4,\n                            public_key = $5, github_check = $6, running = $7,\n                            crashed_reason = $8, license_accepted_by = $9, updated_at = $10\n         WHERE id = $11",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "b12d3f004140e4caf5d8e3b26c370128c06e26438d60be3d53076d425c2c12a9"
+}

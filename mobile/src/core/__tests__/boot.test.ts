@@ -7,6 +7,7 @@ const deps = (identity: Awaited<ReturnType<BootDeps['loadIdentity']>>): BootDeps
   dataDir: () => '/data',
   cacheDir: () => '/cache',
   loadIdentity: async () => identity,
+  pluginRenderer: false,
 });
 
 describe('starting the core', () => {
@@ -31,5 +32,23 @@ describe('starting the core', () => {
       state: 'failed',
       message: "Couldn't save on this phone. It may be out of space.",
     });
+  });
+
+  // Fails if the phone lists a plugin feature it can't draw (a server would
+  // send plugin channels and activities nothing shows), or sets the
+  // features after the saved servers start connecting.
+  it('features follow the renderer', async () => {
+    const secret = new Uint8Array(32).fill(3).buffer;
+    for (const [pluginRenderer, features] of [
+      [false, ['plugin_users']],
+      [true, ['plugin_users', 'plugin_channels', 'activities']],
+    ] as const) {
+      const core = new FakeCore({ scenario: 'empty' });
+      await bootCore(core, { ...deps({ secret, name: 'Ava' }), pluginRenderer });
+      const methods = core.calls.map((call) => call.method);
+      expect(core.calls.find((call) => call.method === 'setPluginFeatures')?.args).toEqual([features]);
+      expect(methods.indexOf('setPluginFeatures')).toBeGreaterThan(methods.indexOf('coreInit'));
+      expect(methods.indexOf('setPluginFeatures')).toBeLessThan(methods.indexOf('identityLoad'));
+    }
   });
 });

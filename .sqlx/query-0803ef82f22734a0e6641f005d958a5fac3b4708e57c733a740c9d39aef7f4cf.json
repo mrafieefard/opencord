@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT path, size, public AS \"public: bool\", updated_at\n           FROM plugin_files\n           WHERE plugin_id = $1\n           ORDER BY path",
+  "describe": {
+    "columns": [
+      {
+        "name": "path",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "public: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_files",
+            "name": "public"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_files",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0803ef82f22734a0e6641f005d958a5fac3b4708e57c733a740c9d39aef7f4cf"
+}

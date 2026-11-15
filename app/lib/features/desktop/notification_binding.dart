@@ -54,7 +54,7 @@ final notificationBindingProvider = Provider<void>((ref) {
       presence: presence,
     );
     if (kind == NotifyAs.none) return;
-    final author = data.members[message.authorId]?.displayName ?? 'Someone';
+    final author = data.authorOf(message.authorId).name;
     final channel = data.channels[message.channelId];
     final where = channel == null
         ? data.info.name
@@ -62,7 +62,7 @@ final notificationBindingProvider = Provider<void>((ref) {
               '${data.info.name}';
     final text = copyableText(
       messageSummary(message),
-      user: (id) => data.members[id]?.displayName,
+      user: (id) => data.authorOf(id).name,
       channel: (id) => data.channels[id]?.name,
     );
     unawaited(

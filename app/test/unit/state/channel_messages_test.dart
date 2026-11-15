@@ -21,6 +21,7 @@ const ChannelRef _open = (server: _server, channel: _general);
 const ChannelRef _other = (server: _server, channel: _random);
 
 core.Message _message(int id, {int channel = _general}) => core.Message(
+  commandState: core.CommandRunState.answered,
   id: id,
   channelId: channel,
   authorId: 2,
@@ -86,6 +87,10 @@ final _readyPayload = core.CoreEventPayload.ready(
     addresses: const core.ServerAddresses(domains: []),
     commands: const core.CommandList(commands: [], resultsPublic: true),
     uploadSettings: coreUploadSettings,
+    pluginUsers: const [],
+    pluginChannelTypes: const [],
+    pluginActivities: const [],
+    activitySessions: const [],
   ),
 );
 

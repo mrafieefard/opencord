@@ -5,13 +5,14 @@ import type { ChannelRecord, MusicNowPlayingRecord } from '@opencord/core-native
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useVoicePillRoom } from '@/features/voice/callPosition';
+import { useListEndRoom } from '@/features/voice/callPosition';
 import { useChannelSections } from '@/state/selectors';
 import type { ChannelItem, VoiceMember } from '@/state/types';
 import { useTheme } from '@/ui';
 
 import { CategoryHeader } from './CategoryHeader';
 import { ChannelRow } from './ChannelRow';
+import { PluginChannelRow } from './PluginChannelRow';
 import { NowPlayingRow } from './NowPlayingRow';
 import { VoiceChannelRow } from './VoiceChannelRow';
 import { VoiceMemberRow } from './VoiceMemberRow';
@@ -27,12 +28,14 @@ type ListItem =
   | { type: 'category'; id: string; name: string }
   | { type: 'text'; id: string; item: Extract<ChannelItem, { kind: 'text' }> }
   | { type: 'voice'; id: string; item: Extract<ChannelItem, { kind: 'voice' }> }
+  | { type: 'plugin'; id: string; item: Extract<ChannelItem, { kind: 'plugin' }> }
   | { type: 'member'; id: string; member: VoiceMember }
   | { type: 'nowPlaying'; id: string; nowPlaying: MusicNowPlayingRecord };
 
 export function ChannelList({ serverKey, variant, selectedId, onSelect }: ChannelListProps) {
   const { colors } = useTheme();
-  const pillRoom = useVoicePillRoom();
+  // Its last rows scroll out from under the tab bar and the voice pill.
+  const endRoom = useListEndRoom();
   const sections = useChannelSections(serverKey);
   const highlighted = variant === 'sidebar' ? selectedId : undefined;
 
@@ -53,6 +56,8 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
             id: `text-${item.channel.id}`,
             item,
           });
+        } else if (item.kind === 'plugin') {
+          result.push({ type: 'plugin', id: `plugin-${item.channel.id}`, item });
         } else if (item.kind === 'voice') {
           result.push({
             type: 'voice',
@@ -104,6 +109,15 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
               onSelect={onSelect}
             />
           );
+        case 'plugin':
+          return (
+            <PluginChannelRow
+              serverKey={serverKey}
+              item={item.item}
+              selected={item.item.channel.id === highlighted}
+              onSelect={onSelect}
+            />
+          );
         case 'member':
           return <VoiceMemberRow serverKey={serverKey} member={item.member} />;
         case 'nowPlaying':
@@ -120,7 +134,10 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
         renderItem={renderItem}
         getItemType={(item) => item.type}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: pillRoom }}
+        contentContainerStyle={{ paddingBottom: endRoom }}
+        // The room above is the bar's: iOS doesn't add it for a list that
+        // isn't its screen's own, and mustn't add it twice if it does.
+        contentInsetAdjustmentBehavior="never"
       />
     </View>
   );

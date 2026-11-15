@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, token_hash, created_by, expires_at\n         FROM plugin_dev_tokens WHERE plugin_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_dev_tokens",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "token_hash",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "plugin_dev_tokens",
+            "name": "token_hash"
+          }
+        }
+      },
+      {
+        "name": "created_by",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_dev_tokens",
+            "name": "created_by"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_dev_tokens",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7eacab9252e56d3a68de3669175650eb3af2766dfa4e2789a05d7fdf2c8ae269"
+}

@@ -75,6 +75,8 @@ describe('Uploads', () => {
       useSoundboard: true,
       useExternalSounds: true,
       sendVoiceMessages: true,
+      startActivities: false,
+      manageChannel: false,
     };
     useAppStore.setState({
       servers: {

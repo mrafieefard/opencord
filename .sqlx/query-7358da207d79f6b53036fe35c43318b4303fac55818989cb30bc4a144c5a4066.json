@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT public AS \"public!: bool\" FROM plugin_files WHERE plugin_id = $1 AND path = $2",
+  "describe": {
+    "columns": [
+      {
+        "name": "public!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_files",
+            "name": "public"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7358da207d79f6b53036fe35c43318b4303fac55818989cb30bc4a144c5a4066"
+}

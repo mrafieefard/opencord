@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
+use opencord_common::channel::ChannelKind;
 use opencord_proto::v1 as proto;
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
@@ -21,6 +22,12 @@ pub const REPLAY_MAX_AGE: Duration = Duration::from_secs(60);
 pub const RESUME_WINDOW: Duration = Duration::from_secs(60);
 /// Larger than the replay buffer, so a full replay always fits.
 pub const OUTBOUND_CAPACITY: usize = 2_048;
+/// The `Identify.features` name of apps that show plugin channels (design
+/// 2026-11-07 §14).
+pub const PLUGIN_CHANNELS: &str = "plugin_channels";
+/// The `Identify.features` name of apps that show activities in calls
+/// (design 2026-11-07 §15).
+pub const ACTIVITIES: &str = "activities";
 
 /// WebSocket close codes; see docs/protocol.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +123,8 @@ pub struct Session {
     inner: Mutex<Inner>,
     /// The private messages device this session registered, if any.
     private_device: Mutex<Option<[u8; 16]>>,
+    /// The plugin features the app supports (`Identify.features`).
+    features: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -160,7 +169,26 @@ impl Session {
                 ended: false,
             }),
             private_device: Mutex::new(None),
+            features: Vec::new(),
         }
+    }
+
+    /// The plugin features the app said it supports when it identified.
+    #[must_use]
+    pub fn with_features(self, features: Vec<String>) -> Self {
+        Self { features, ..self }
+    }
+
+    /// Whether the app supports this plugin feature: `"plugin_users"`,
+    /// [`PLUGIN_CHANNELS`] or [`ACTIVITIES`].
+    pub fn has_feature(&self, name: &str) -> bool {
+        self.features.iter().any(|feature| feature == name)
+    }
+
+    /// Whether this session is told about the channel at all: an app that
+    /// doesn't list [`PLUGIN_CHANNELS`] never hears of a plugin channel.
+    pub fn sees_kind(&self, kind: ChannelKind) -> bool {
+        kind != ChannelKind::Plugin || self.has_feature(PLUGIN_CHANNELS)
     }
 
     /// The private messages device this session registered, if any.
@@ -580,6 +608,17 @@ mod tests {
             session.resume(TOKEN, 0, client(2, 16).connection, Instant::now()),
             Err(ResumeError::Unknown)
         );
+    }
+
+    #[test]
+    fn a_session_knows_the_features_its_app_listed() {
+        let plain = Session::new("a".into(), 7, TOKEN, client(1, 16).connection);
+        let listed = Session::new("b".into(), 7, TOKEN, client(2, 16).connection)
+            .with_features(vec!["plugin_users".to_owned()]);
+
+        assert!(!plain.has_feature("plugin_users"));
+        assert!(listed.has_feature("plugin_users"));
+        assert!(!listed.has_feature("plugin_channels"));
     }
 
     #[test]

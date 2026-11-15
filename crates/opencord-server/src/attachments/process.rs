@@ -154,6 +154,7 @@ async fn run_inner(
         }),
         Audience::User(row.uploader_id),
     );
+    super::view_uploads::finished(state, &row);
     Ok(())
 }
 

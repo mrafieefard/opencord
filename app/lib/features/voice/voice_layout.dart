@@ -2,23 +2,44 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/plugins.dart';
 
-/// A tile in the voice view: someone, or the screen they share.
-typedef VoiceTileId = ({int userId, bool screen});
+/// A tile in the voice view: someone, the screen they share, or an activity
+/// session running in the call (plugins M3, §15.2). A person's and a
+/// screen's have `session: null`; an activity's has `userId: 0`,
+/// `screen: false` and its session's id.
+typedef VoiceTileId = ({int userId, bool screen, int? session});
+
+/// The tile of someone ([screen] false) or of the screen they share.
+VoiceTileId personTile(int userId, {bool screen = false}) =>
+    (userId: userId, screen: screen, session: null);
+
+/// The tile of the activity session [sessionId].
+VoiceTileId sessionTile(int sessionId) =>
+    (userId: 0, screen: false, session: sessionId);
 
 /// One tile per participant, and each screenshare right after the person
 /// sharing it (§4.10). With [videoOnly] (Phase 2 §12, "Hide non-video
-/// participants"), only cameras and screenshares.
+/// participants"), only cameras and screenshares. The call's activity
+/// [sessions] come after all of them, oldest first, and stay with
+/// [videoOnly].
 List<VoiceTileId> voiceTiles(
   List<VoiceParticipant> participants, {
   bool videoOnly = false,
+  Iterable<ActivitySession> sessions = const [],
 }) => [
   for (final participant in participants) ...[
-    if (!videoOnly || participant.camera)
-      (userId: participant.userId, screen: false),
-    if (participant.screensharing) (userId: participant.userId, screen: true),
+    if (!videoOnly || participant.camera) personTile(participant.userId),
+    if (participant.screensharing) personTile(participant.userId, screen: true),
   ],
+  for (final session in [...sessions]..sort(_oldestFirst))
+    sessionTile(session.id),
 ];
+
+int _oldestFirst(ActivitySession a, ActivitySession b) {
+  final byStart = a.startedAt.compareTo(b.startedAt);
+  return byStart != 0 ? byStart : a.id.compareTo(b.id);
+}
 
 /// Grid columns for [count] tiles (§4.10): 1 → 1, up to 4 → 2, up to 9 → 3,
 /// more → 4.

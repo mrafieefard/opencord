@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id FROM attachments\n         WHERE (state = 'uploading' AND updated_at < $1)\n            OR (state = 'ready' AND updated_at < $1)\n            OR (state = 'failed' AND updated_at < $2)\n            OR (state = 'ready' AND channel_id = 0 AND updated_at < $3)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachments",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0a79f7800eba40218b354cd3661b72503cef42b90594878a57b289a4109c53ca"
+}

@@ -12,6 +12,10 @@ pub struct ChannelRow {
     pub bitrate: i64,
     pub user_limit: i64,
     pub text_in_voice: bool,
+    /// Plugin channels only, both set (design 2026-11-07 §14.2); never
+    /// changed after the channel is made.
+    pub plugin_id: Option<String>,
+    pub type_key: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,7 +30,8 @@ pub struct OverwriteRow {
 pub async fn list(conn: &mut SqliteConnection) -> Result<Vec<ChannelRow>, sqlx::Error> {
     sqlx::query_as!(
         ChannelRow,
-        "SELECT id, kind, name, topic, parent_id, position, bitrate, user_limit, text_in_voice
+        "SELECT id, kind, name, topic, parent_id, position, bitrate, user_limit, text_in_voice,
+                plugin_id, type_key
          FROM channels"
     )
     .fetch_all(conn)
@@ -51,8 +56,8 @@ pub async fn insert(
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO channels (id, kind, name, topic, parent_id, position, created_at,
-                               bitrate, user_limit, text_in_voice)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                               bitrate, user_limit, text_in_voice, plugin_id, type_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         channel.id,
         channel.kind,
         channel.name,
@@ -62,7 +67,9 @@ pub async fn insert(
         created_at,
         channel.bitrate,
         channel.user_limit,
-        channel.text_in_voice
+        channel.text_in_voice,
+        channel.plugin_id,
+        channel.type_key
     )
     .execute(conn)
     .await?;

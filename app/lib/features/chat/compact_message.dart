@@ -12,6 +12,7 @@ import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_motion.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
+import 'package:opencord/ui/widgets/badges.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
 /// A message (§8.1), laid out as Discord's: the first
@@ -28,6 +29,7 @@ class CompactMessage extends StatelessWidget {
     required this.links,
     this.avatar,
     this.role,
+    this.isPlugin = false,
     this.reply,
     this.mentionsMe = false,
     this.highlighted = false,
@@ -45,6 +47,7 @@ class CompactMessage extends StatelessWidget {
   final String serverKey;
   final bool first;
   final String author;
+  final bool isPlugin;
 
   /// The author's avatar, shown on the first message of a group.
   final Widget? avatar;
@@ -164,6 +167,7 @@ class CompactMessage extends StatelessWidget {
                       _Header(
                         author: author,
                         role: role,
+                        isPlugin: isPlugin,
                         time: time,
                         onAuthorTap: onAuthorTap,
                       ),
@@ -226,12 +230,14 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.author,
     required this.role,
+    this.isPlugin = false,
     required this.time,
     this.onAuthorTap,
   });
 
   final String author;
   final String? role;
+  final bool isPlugin;
   final Widget time;
   final VoidCallback? onAuthorTap;
 
@@ -264,6 +270,10 @@ class _Header extends StatelessWidget {
               null => name(false),
             },
           ),
+          if (isPlugin) ...[
+            const SizedBox(width: OcSpace.s6),
+            const PluginBadge(),
+          ],
           if (role case final role?) ...[
             const SizedBox(width: OcSpace.s6),
             Container(

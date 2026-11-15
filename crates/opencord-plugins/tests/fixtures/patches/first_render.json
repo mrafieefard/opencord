@@ -1,0 +1,17 @@
+{
+  "before": null,
+  "after": {
+    "block": "column",
+    "props": { "gap": 8 },
+    "events": [],
+    "children": [
+      { "block": "text", "key": "title", "props": { "text": "Tickets" }, "events": [], "children": [] },
+      { "block": "button", "props": { "text": "New" }, "events": ["press"], "children": [] }
+    ]
+  },
+  "ops": [
+    { "op": "create", "id": 2, "block": "text", "key": "title", "props": { "text": "Tickets" }, "events": [], "children": [] },
+    { "op": "create", "id": 3, "block": "button", "props": { "text": "New" }, "events": ["press"], "children": [] },
+    { "op": "create", "id": 1, "block": "column", "props": { "gap": 8 }, "events": [], "children": [2, 3] }
+  ]
+}

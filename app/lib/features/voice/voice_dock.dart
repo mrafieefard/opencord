@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/settings/voice_view_prefs.dart';
+import 'package:opencord/features/plugins/activity_picker.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/shell_keys.dart';
 import 'package:opencord/features/soundboard/soundboard_picker.dart';
@@ -302,6 +304,24 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
     final voice = ref.watch(voiceSessionProvider);
     final capabilities = ref.watch(repositoryProvider).capabilities;
     final visible = _activity?.visible ?? true;
+    // The Activities button (§15.2): this server has a registered activity
+    // and the member may start one in the call's channel.
+    final callServer = voice.serverKey;
+    final callChannel = voice.channelId;
+    final activities =
+        capabilities.activities &&
+        callServer != null &&
+        callChannel != null &&
+        ref.watch(
+          serverProvider(callServer).select(
+            (server) =>
+                (server.data?.pluginActivities.isNotEmpty ?? false) &&
+                (server.data
+                        ?.permissionsIn(callChannel)
+                        .has(Permissions.startActivities) ??
+                    false),
+          ),
+        );
 
     return IgnorePointer(
       ignoring: !visible,
@@ -437,6 +457,35 @@ class _VoiceDockState extends ConsumerState<VoiceDock>
                                       : box.localToGlobal(Offset.zero) &
                                             box.size;
                                   await showSoundboardPicker(
+                                    context,
+                                    anchor: rect,
+                                  );
+                                } finally {
+                                  activity?.release();
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                        if (activities) ...[
+                          const SizedBox(width: 10),
+                          Builder(
+                            builder: (btnContext) => _DockRoundButton(
+                              icon: OcIcons.extension,
+                              tooltip: 'Activities',
+                              active: false,
+                              onPressed: () async {
+                                final activity = _activity;
+                                activity?.hold();
+                                try {
+                                  final box =
+                                      btnContext.findRenderObject()
+                                          as RenderBox?;
+                                  final rect = box == null || !box.attached
+                                      ? Rect.zero
+                                      : box.localToGlobal(Offset.zero) &
+                                            box.size;
+                                  await showActivityPicker(
                                     context,
                                     anchor: rect,
                                   );

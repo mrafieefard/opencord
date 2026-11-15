@@ -7,7 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/features/music/music_artwork.dart';
+import 'package:opencord/features/chat/popup/composer_popup.dart';
+import 'package:opencord/features/chat/popup/popup_rows.dart';
+import 'package:opencord/features/chat/popup/source_icon.dart';
+import 'package:opencord/features/chat/suggestions.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
@@ -58,6 +61,9 @@ class CommandInput extends ConsumerStatefulWidget {
     required this.channelId,
     required this.spec,
     required this.onClose,
+    required this.popupLink,
+    required this.popupWidth,
+    required this.popupMaxHeight,
   });
 
   final String serverKey;
@@ -66,6 +72,12 @@ class CommandInput extends ConsumerStatefulWidget {
 
   /// Back to the plain composer.
   final VoidCallback onClose;
+
+  /// Where the popup of an option's choices hangs: the same spot as the
+  /// `/` list.
+  final LayerLink popupLink;
+  final double Function() popupWidth;
+  final double Function() popupMaxHeight;
 
   @override
   ConsumerState<CommandInput> createState() => _CommandInputState();
@@ -87,7 +99,11 @@ class _CommandInputState extends ConsumerState<CommandInput> {
   /// A suggestion picked for an option: its value is sent, its name shown.
   final _picked = <String, CommandChoice>{};
   final _popup = OverlayPortalController();
-  final _anchor = LayerLink();
+  final _popupKey = GlobalKey<ComposerPopupState>();
+
+  /// The field that last had the focus: a click on the composer returns
+  /// there, so Backspace always reaches the command.
+  FocusNode? _lastFocus;
   Timer? _debounce;
   String? _suggesting;
   var _choices = const <CommandChoice>[];
@@ -104,12 +120,23 @@ class _CommandInputState extends ConsumerState<CommandInput> {
     for (final MapEntry(key: name, value: controller) in _fields.entries) {
       controller.addListener(() => _typed(name, controller.text));
     }
+    for (final node in [_chipFocus, ..._focus.values]) {
+      node.addListener(() {
+        if (node.hasFocus) _lastFocus = node;
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final first = widget.spec.options.firstOrNull;
-      (first == null ? _chipFocus : _focus[first.name]!).requestFocus();
+      _firstField.requestFocus();
     });
   }
+
+  FocusNode get _firstField {
+    final first = widget.spec.options.firstOrNull;
+    return first == null ? _chipFocus : _focus[first.name]!;
+  }
+
+  void _refocus() => (_lastFocus ?? _firstField).requestFocus();
 
   @override
   void deactivate() {
@@ -169,6 +196,7 @@ class _CommandInputState extends ConsumerState<CommandInput> {
             widget.spec.name,
             name,
             text,
+            source: widget.spec.source,
           );
     } on RepoException {
       found = const [];
@@ -274,6 +302,7 @@ class _CommandInputState extends ConsumerState<CommandInput> {
             widget.spec.name,
             options,
             nonce: nonce,
+            source: widget.spec.source,
           );
       _close();
     } on RepoException catch (error) {
@@ -341,7 +370,8 @@ class _CommandInputState extends ConsumerState<CommandInput> {
         (key == LogicalKeyboardKey.arrowDown ||
             key == LogicalKeyboardKey.arrowUp)) {
       final step = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
-      setState(() => _selected = (_selected + step) % _choices.length);
+      setState(() => _selected = stepRow(_selected, step, _choices.length));
+      _popupKey.currentState?.scrollToRow(_selected);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.enter ||
@@ -374,6 +404,81 @@ class _CommandInputState extends ConsumerState<CommandInput> {
     return KeyEventResult.ignored;
   }
 
+  Widget _chip(BuildContext context) {
+    final colors = context.oc;
+    final spec = widget.spec;
+    final data = ref.read(serverProvider(widget.serverKey)).data;
+    return Focus(
+      focusNode: _chipFocus,
+      child: GestureDetector(
+        onTap: _chipFocus.requestFocus,
+        child: Tooltip(
+          message: spec.description,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: OcSpace.s8,
+              vertical: 3,
+            ),
+            decoration: BoxDecoration(
+              color: colors.accent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (spec.pluginId != null && data != null) ...[
+                  CommandSourceIcon(
+                    serverKey: widget.serverKey,
+                    source: sourceOfCommand(spec, data),
+                    size: 16,
+                    radius: 5,
+                    color: colors.accent,
+                    background: colors.onAccent,
+                  ),
+                  const SizedBox(width: 5),
+                ],
+                Text(
+                  '/${spec.name}',
+                  style: OcText.bodyStrong.copyWith(color: colors.onAccent),
+                ),
+                if (_running) ...[
+                  const SizedBox(width: OcSpace.s6),
+                  OcSpinner(size: 12, color: colors.onAccent),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _choicesPopup(BuildContext context) => Positioned(
+    left: 0,
+    top: 0,
+    child: CompositedTransformFollower(
+      link: widget.popupLink,
+      showWhenUnlinked: false,
+      targetAnchor: Alignment.topLeft,
+      followerAnchor: Alignment.bottomLeft,
+      offset: const Offset(0, -PopupMetrics.gap),
+      child: ComposerPopup(
+        key: _popupKey,
+        serverKey: widget.serverKey,
+        width: widget.popupWidth(),
+        maxHeight: widget.popupMaxHeight(),
+        rows: [for (final choice in _choices) ChoiceSuggestion(choice)],
+        title: _suggesting ?? '',
+        rowHeight: PopupMetrics.tallRow,
+        selected: _selected,
+        onHover: (index) => setState(() => _selected = index),
+        onPick: (row) {
+          if (row is ChoiceSuggestion) _pickChoice(row.choice);
+        },
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
@@ -385,82 +490,36 @@ class _CommandInputState extends ConsumerState<CommandInput> {
         onPointerDown: (_) {
           if (_allSelected) setState(() => _allSelected = false);
         },
-        child: CompositedTransformTarget(
-          link: _anchor,
-          child: OverlayPortal(
-            controller: _popup,
-            overlayChildBuilder: (context) => Positioned(
-              left: 0,
-              top: 0,
-              child: CompositedTransformFollower(
-                link: _anchor,
-                showWhenUnlinked: false,
-                targetAnchor: Alignment.topLeft,
-                followerAnchor: Alignment.bottomLeft,
-                offset: const Offset(0, -OcSpace.s6),
-                child: _ChoiceList(
-                  serverKey: widget.serverKey,
-                  choices: _choices,
-                  selected: _selected,
-                  onHover: (index) => setState(() => _selected = index),
-                  onPick: _pickChoice,
+        child: OverlayPortal(
+          controller: _popup,
+          overlayChildBuilder: _choicesPopup,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _refocus,
+            child: Padding(
+              padding: _inset,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: _allSelected ? colors.selected : null,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-            ),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 40),
-              padding: const EdgeInsets.symmetric(
-                horizontal: OcSpace.s8,
-                vertical: OcSpace.s6,
-              ),
-              decoration: BoxDecoration(
-                color: _allSelected ? colors.selected : colors.surface,
-                border: Border.all(color: colors.border),
-                borderRadius: BorderRadius.circular(OcRadius.composer),
-              ),
-              child: Wrap(
-                spacing: OcSpace.s8,
-                runSpacing: OcSpace.s6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Focus(
-                    focusNode: _chipFocus,
-                    child: Tooltip(
-                      message: spec.description,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: OcSpace.s8,
-                          vertical: 3,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    spacing: OcSpace.s8,
+                    runSpacing: OcSpace.s6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _chip(context),
+                      for (final option in spec.options) _field(option),
+                      if (spec.options.isEmpty)
+                        Text(
+                          spec.description,
+                          style: OcText.small.copyWith(color: colors.textMuted),
                         ),
-                        decoration: BoxDecoration(
-                          color: colors.accent,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '/${spec.name}',
-                              style: OcText.bodyStrong.copyWith(
-                                color: colors.onAccent,
-                              ),
-                            ),
-                            if (_running) ...[
-                              const SizedBox(width: OcSpace.s6),
-                              OcSpinner(size: 12, color: colors.onAccent),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
-                  for (final option in spec.options) _field(option),
-                  if (spec.options.isEmpty)
-                    Text(
-                      spec.description,
-                      style: OcText.small.copyWith(color: colors.textMuted),
-                    ),
-                ],
+                ),
               ),
             ),
           ),
@@ -468,6 +527,12 @@ class _CommandInputState extends ConsumerState<CommandInput> {
       ),
     );
   }
+
+  /// Keeps the float at its resting height for one line of fields.
+  static const _inset = EdgeInsets.symmetric(
+    horizontal: OcSpace.s8,
+    vertical: 16.5,
+  );
 
   Widget _field(CommandOptionSpec option) {
     final colors = context.oc;
@@ -531,8 +596,11 @@ class _CommandInputState extends ConsumerState<CommandInput> {
                   cursorColor: colors.text,
                   decoration: InputDecoration(
                     isDense: true,
+                    filled: false,
                     counterText: '',
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     hintText: option.description,
                     hintStyle: OcText.body.copyWith(color: colors.textMuted),
                     contentPadding: const EdgeInsets.symmetric(vertical: 4),
@@ -595,90 +663,6 @@ class _ChoicePill extends StatelessWidget {
           style: OcText.small.copyWith(
             color: selected ? colors.text : colors.textSecondary,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// `/play`'s suggestions: at most 5, with small artwork (§19.6).
-class _ChoiceList extends StatelessWidget {
-  const _ChoiceList({
-    required this.serverKey,
-    required this.choices,
-    required this.selected,
-    required this.onHover,
-    required this.onPick,
-  });
-
-  final String serverKey;
-  final List<CommandChoice> choices;
-  final int selected;
-  final ValueChanged<int> onHover;
-  final ValueChanged<CommandChoice> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.oc;
-    return Material(
-      color: colors.elevated,
-      borderRadius: BorderRadius.circular(OcRadius.menu),
-      child: Container(
-        width: 420,
-        padding: const EdgeInsets.all(OcSpace.s4),
-        decoration: BoxDecoration(
-          border: Border.all(color: colors.border),
-          borderRadius: BorderRadius.circular(OcRadius.menu),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final (index, choice) in choices.indexed)
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                onEnter: (_) => onHover(index),
-                child: GestureDetector(
-                  onTap: () => onPick(choice),
-                  child: Semantics(
-                    button: true,
-                    selected: index == selected,
-                    label: choice.name,
-                    child: Container(
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: OcSpace.s8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: index == selected ? colors.selected : null,
-                        borderRadius: BorderRadius.circular(OcRadius.menu - 2),
-                      ),
-                      child: Row(
-                        children: [
-                          if (choice.artworkId.isNotEmpty ||
-                              choice.name.contains(' · ')) ...[
-                            MusicArtwork(
-                              serverKey: serverKey,
-                              artworkId: choice.artworkId,
-                              size: 28,
-                              radius: 4,
-                            ),
-                            const SizedBox(width: OcSpace.s8),
-                          ],
-                          Expanded(
-                            child: Text(
-                              choice.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: OcText.body.copyWith(color: colors.text),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
         ),
       ),
     );

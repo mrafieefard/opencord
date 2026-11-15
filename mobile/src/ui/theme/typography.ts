@@ -12,6 +12,7 @@ export type TextVariant =
   | 'subhead'
   | 'footnote'
   | 'caption'
+  | 'badge'
   | 'mono';
 
 export const fonts = {
@@ -34,6 +35,7 @@ export const typography: Record<TextVariant, TextStyle> = {
   subhead: { fontFamily: fonts.semiBold, fontSize: 14, lineHeight: 19 },
   footnote: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
   caption: { fontFamily: fonts.semiBold, fontSize: 12, lineHeight: 16, letterSpacing: 0.4, textTransform: 'uppercase' },
+  badge: { fontFamily: fonts.semiBold, fontSize: 10, lineHeight: 13 },
   mono: { fontFamily: fonts.mono, fontSize: 14, lineHeight: 20 },
 };
 

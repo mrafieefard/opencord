@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: MPL-2.0
+
+//! Plugin config API (plan Task 20, design 2026-11-07 §10.3).
+
+use std::sync::Arc;
+
+use mlua::{Lua, Value};
+
+use super::{PluginEnv, function, string_arg};
+use crate::plugins::ConfigValue;
+
+pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
+    let config_table = lua.create_table()?;
+
+    let env_get = env.clone();
+    config_table.raw_set(
+        "get",
+        function(lua, move |lua, key_val: Value| {
+            let key = string_arg(key_val, "key")?;
+            let values = env_get
+                .config_values
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Some(val) = values.get(&key) else {
+                return Ok(Value::Nil);
+            };
+            match val {
+                ConfigValue::Number(n) => Ok(Value::Number(*n)),
+                ConfigValue::Boolean(b) => Ok(Value::Boolean(*b)),
+                ConfigValue::Text(s)
+                | ConfigValue::Secret(s)
+                | ConfigValue::Role(s)
+                | ConfigValue::Channel(s)
+                | ConfigValue::User(s) => Ok(Value::String(lua.create_string(s)?)),
+            }
+        })?,
+    )?;
+
+    lua.globals().raw_set("config", config_table)?;
+    Ok(())
+}

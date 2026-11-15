@@ -23,8 +23,14 @@ if ! emulator -list-avds | grep -qx "$avd"; then
 fi
 
 # One emulator at a time: stop the other one first (adb emu kill).
+# With no display (a server over SSH), the emulator runs without a window
+# and draws in software; adb screenshots still work.
+window=()
+if [[ -z ${DISPLAY:-} && -z ${WAYLAND_DISPLAY:-} ]]; then
+    window=(-no-window -gpu swiftshader_indirect)
+fi
 if [[ $(adb devices | grep -c 'emulator-.*device$') -eq 0 ]]; then
-    nohup emulator -avd "$avd" -no-snapshot-save -allow-host-audio > "/tmp/emulator-$avd.log" 2>&1 &
+    nohup emulator -avd "$avd" -no-snapshot-save -allow-host-audio "${window[@]}" > "/tmp/emulator-$avd.log" 2>&1 &
 fi
 adb wait-for-device
 until [[ $(adb shell getprop sys.boot_completed 2> /dev/null | tr -d '\r') == 1 ]]; do

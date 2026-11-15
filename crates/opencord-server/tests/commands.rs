@@ -14,6 +14,7 @@ use proto::response::Result as Response;
 
 fn run(channel_id: i64, name: &str, options: &[(&str, &str)]) -> Kind {
     Kind::ExecuteCommand(proto::ExecuteCommand {
+        source: String::new(),
         channel_id,
         name: name.to_owned(),
         options: options
@@ -269,6 +270,7 @@ async fn the_commands_page_turns_commands_off_and_keeps_them_to_channels() {
     let page = commands(
         owner
             .ok(Kind::UpdateCommandSettings(proto::UpdateCommandSettings {
+                source: String::new(),
                 name: "clear".to_owned(),
                 enabled: Some(false),
                 channel_ids: None,
@@ -295,6 +297,7 @@ async fn the_commands_page_turns_commands_off_and_keeps_them_to_channels() {
     // Only in the voice channel's chat.
     owner
         .ok(Kind::UpdateCommandSettings(proto::UpdateCommandSettings {
+            source: String::new(),
             name: "shuffle".to_owned(),
             enabled: None,
             channel_ids: Some(proto::CommandChannels { ids: vec![voice] }),
@@ -307,6 +310,7 @@ async fn the_commands_page_turns_commands_off_and_keeps_them_to_channels() {
     // Results only to the user: nothing stored.
     owner
         .ok(Kind::UpdateCommandSettings(proto::UpdateCommandSettings {
+            source: String::new(),
             name: String::new(),
             enabled: None,
             channel_ids: None,
@@ -349,6 +353,7 @@ async fn play_suggestions_are_results_that_play_exactly_that_track() {
     let text = general_text(&ready);
     let suggest = |value: &str| {
         Kind::AutocompleteCommand(proto::AutocompleteCommand {
+            source: String::new(),
             channel_id: text,
             name: "play".to_owned(),
             option: "query".to_owned(),

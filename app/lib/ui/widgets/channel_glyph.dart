@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:opencord/core/model/channel_kind.dart';
@@ -10,6 +12,7 @@ IconData channelIcon(ChannelKind kind) => switch (kind) {
   ChannelKind.announcement => OcIcons.campaign,
   ChannelKind.voice => OcIcons.volumeUp,
   ChannelKind.category => OcIcons.expandMore,
+  ChannelKind.plugin => OcIcons.extension,
 };
 
 /// The rounded square in front of a channel row (§4.2), inverted when the
@@ -22,6 +25,8 @@ class ChannelGlyph extends StatelessWidget {
     this.selected = false,
     this.locked = false,
     this.ringColor,
+    this.iconFile,
+    this.unavailable = false,
   });
 
   final ChannelKind kind;
@@ -32,9 +37,33 @@ class ChannelGlyph extends StatelessWidget {
   /// The color behind the glyph, used to cut the lock badge out of it.
   final Color? ringColor;
 
+  /// Optional local file path for custom plugin channel icon.
+  final String? iconFile;
+
+  /// Greyed out when unavailable.
+  final bool unavailable;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    final iconColor = unavailable
+        ? colors.textMuted
+        : selected
+        ? colors.onAccent
+        : colors.textSecondary;
+    Widget iconWidget;
+    if (iconFile != null && iconFile!.isNotEmpty) {
+      iconWidget = Image.file(
+        File(iconFile!),
+        width: size * 0.5,
+        height: size * 0.5,
+        color: unavailable ? colors.textMuted : null,
+        errorBuilder: (_, _, _) =>
+            Icon(channelIcon(kind), size: size * 0.5, color: iconColor),
+      );
+    } else {
+      iconWidget = Icon(channelIcon(kind), size: size * 0.5, color: iconColor);
+    }
     final glyph = Container(
       width: size,
       height: size,
@@ -42,11 +71,7 @@ class ChannelGlyph extends StatelessWidget {
         color: selected ? colors.accent : colors.selected,
         borderRadius: BorderRadius.circular(size * OcRadius.channelGlyph / 40),
       ),
-      child: Icon(
-        channelIcon(kind),
-        size: size * 0.5,
-        color: selected ? colors.onAccent : colors.textSecondary,
-      ),
+      child: iconWidget,
     );
     if (!locked) return glyph;
     return SizedBox.square(

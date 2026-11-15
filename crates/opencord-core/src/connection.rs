@@ -49,6 +49,8 @@ const COMMAND_CAPACITY: usize = 256;
 pub(crate) struct Credentials {
     pub identity: Identity,
     pub display_name: String,
+    /// `Identify.features`.
+    pub features: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -274,6 +276,7 @@ pub(crate) async fn identify(
         protocol_version: opencord_common::PROTOCOL_VERSION,
         host,
         host_signature,
+        features: credentials.features.clone(),
     };
     let socket = &mut opened.socket;
     send_payload(socket, 0, Payload::Identify(identify)).await?;
@@ -391,6 +394,7 @@ pub(crate) struct Context {
     /// Sends waiting for their uploads' verdicts.
     pub uploads: Arc<Uploads>,
     pub private: PrivateService,
+    pub views: crate::views::client::Views,
 }
 
 /// Each server's clock against this device's, by server key.
@@ -606,12 +610,15 @@ impl Task {
             replayed,
         } = established;
         self.session = Some(session);
+        let fresh = ready.is_some();
         if let Some(ready) = ready {
             self.on_ready(ready);
         }
         for (seq, event) in replayed {
             self.on_event(seq, event);
         }
+        // Open plugin views hear it's back, or open again on a new session.
+        self.context.views.on_session(&self.context.key, fresh);
 
         let mut pending: HashMap<u64, Pending> = HashMap::new();
         let mut heartbeat = interval_at(Instant::now() + heartbeat_interval, heartbeat_interval);
@@ -718,6 +725,7 @@ impl Task {
         for reply in pending.into_values().filter_map(|waiting| waiting.reply) {
             let _ = reply.send(Err(CoreError::NotConnected));
         }
+        self.context.views.on_lost(&self.context.key);
         ended
     }
 
@@ -981,6 +989,19 @@ impl Task {
                     .on_typing(&self.context.key, typing.user_id);
                 None
             }
+            // For the plugin views, not for the app.
+            proto::event::Kind::ViewMessage(message) => {
+                self.context.views.on_message(&self.context.key, message);
+                None
+            }
+            proto::event::Kind::ViewClosed(closed) => {
+                self.context.views.on_closed(&self.context.key, closed);
+                None
+            }
+            proto::event::Kind::ViewScriptsUpdate(update) => {
+                self.context.views.on_scripts(&self.context.key, update);
+                None
+            }
 
             kind => convert::event(kind, session_id),
         };
@@ -1024,6 +1045,12 @@ impl Task {
     fn on_response(&mut self, waiting: Pending, result: Option<proto::response::Result>) {
         let kept = match &result {
             Some(proto::response::Result::MusicSession(session)) => self.music.keep(session),
+            // Before the answer reaches whoever asked, so what the server
+            // sends that view next is kept for it.
+            Some(proto::response::Result::ViewOpened(opened)) => {
+                self.context.views.expect(&self.context.key, opened.view_id);
+                false
+            }
             _ => false,
         };
         match (waiting.reply, result) {

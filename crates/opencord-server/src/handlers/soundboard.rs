@@ -42,22 +42,24 @@ pub async fn play(
             ));
         }
         let mut voice = ctx.state.voice();
-        let state = voice
-            .get(ctx.user_id)
-            .filter(|state| state.channel_id == request.channel_id)
-            .cloned()
-            .ok_or_else(|| ApiError::voice_not_connected("you are"))?;
-        let moderation = voice.moderation(ctx.user_id);
-        if state.self_deaf || moderation.deaf {
-            return Err(ApiError::forbidden("sounds can't be played while deafened"));
-        }
-        if moderation.mute {
-            return Err(ApiError::forbidden(
-                "sounds can't be played while server muted",
-            ));
-        }
-        if suppressed(&guild, ctx.user_id, request.channel_id) {
-            return Err(ApiError::forbidden("you can't speak in this channel"));
+        if ctx.plugin_id.is_none() {
+            let state = voice
+                .get(ctx.user_id)
+                .filter(|state| state.channel_id == request.channel_id)
+                .cloned()
+                .ok_or_else(|| ApiError::voice_not_connected("you are"))?;
+            let moderation = voice.moderation(ctx.user_id);
+            if state.self_deaf || moderation.deaf {
+                return Err(ApiError::forbidden("sounds can't be played while deafened"));
+            }
+            if moderation.mute {
+                return Err(ApiError::forbidden(
+                    "sounds can't be played while server muted",
+                ));
+            }
+            if suppressed(&guild, ctx.user_id, request.channel_id) {
+                return Err(ApiError::forbidden("you can't speak in this channel"));
+            }
         }
         require_channel(
             &guild,
@@ -65,6 +67,9 @@ pub async fn play(
             request.channel_id,
             Permissions::USE_SOUNDBOARD,
         )?;
+        if ctx.plugin_id.is_some() && !matches!(sound_ref, SoundRef::Server(_)) {
+            return Err(ApiError::forbidden("plugins may play server sounds only"));
+        }
         let (name, emoji, volume, duration_ms) = match sound_ref {
             SoundRef::Server(hash) => {
                 let sound = guild

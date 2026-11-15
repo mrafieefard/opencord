@@ -264,7 +264,8 @@ class _ChannelList extends ConsumerWidget {
       return [
         segment([
           for (final channel in shown)
-            if (channel.kind.isTextLike) channel,
+            if (channel.kind.isTextLike || channel.kind == ChannelKind.plugin)
+              channel,
         ], draggable: draggable),
         segment([
           for (final channel in shown)

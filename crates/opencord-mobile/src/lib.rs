@@ -20,6 +20,7 @@ mod files;
 mod ids;
 mod mobile;
 mod types;
+mod views;
 
 pub use error::MobileError;
 pub use events::MobileEvent;

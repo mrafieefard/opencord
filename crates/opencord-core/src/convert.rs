@@ -3,13 +3,17 @@
 use opencord_proto::v1 as proto;
 
 use crate::api::types::{
-    Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress,
-    CoreError, CoreEventPayload, EphemeralMessage, ErrorCode, Invite, Member, Message,
-    OverwriteTargetKind, PermissionOverwrite, Presence, PresenceStatus, PrivateSettings,
-    ReadySnapshot, Role, S3Config, ScreenShareResolution, ScreenStream, ServerAddresses,
-    ServerInfo, SoundEffect, SoundboardSound, StorageBackend, StorageInfo, StorageKind,
-    StorageMove, StorageTestResult, StorageTestStep, StreamSourceKind, UploadSettings, User,
-    VoiceSettings, VoiceSettingsChanges, VoiceState,
+    ActivityEndReason, ActivitySession, Attachment, AttachmentKind, Ban, Channel, ChannelKind,
+    ChannelPermissions, CommandRunState, ConnectAddress, CoreError, CoreEventPayload,
+    CreatedPluginDevToken, EphemeralMessage, ErrorCode, GithubCheck, Invite, Member, Message,
+    OverwriteTargetKind, PermissionOverwrite, Plugin, PluginActivity, PluginChannelState,
+    PluginChannelType, PluginConfigField, PluginConfigKind, PluginConfigValue, PluginDevToken,
+    PluginLogLevel, PluginLogLine, PluginPermissionGrant, PluginReview, PluginSignature,
+    PluginState, PluginUser, Presence, PresenceStatus, PrivateSettings, ReadySnapshot, Role,
+    S3Config, ScreenShareResolution, ScreenStream, ServerAddresses, ServerInfo, SoundEffect,
+    SoundboardSound, StorageBackend, StorageInfo, StorageKind, StorageMove, StorageTestResult,
+    StorageTestStep, StreamSourceKind, UploadSettings, User, VoiceSettings, VoiceSettingsChanges,
+    VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -51,6 +55,7 @@ pub fn role(role: proto::Role) -> Role {
         hoist: role.hoist,
         mentionable: role.mentionable,
         max_upload_bytes: role.max_upload_bytes,
+        plugin_id: role.plugin_id,
     }
 }
 
@@ -58,6 +63,7 @@ pub fn channel_kind(kind: i32) -> ChannelKind {
     match proto::ChannelKind::try_from(kind) {
         Ok(proto::ChannelKind::Voice) => ChannelKind::Voice,
         Ok(proto::ChannelKind::Category) => ChannelKind::Category,
+        Ok(proto::ChannelKind::Plugin) => ChannelKind::Plugin,
         _ => ChannelKind::Text,
     }
 }
@@ -67,6 +73,64 @@ pub fn channel_kind_to_proto(kind: ChannelKind) -> proto::ChannelKind {
         ChannelKind::Text => proto::ChannelKind::Text,
         ChannelKind::Voice => proto::ChannelKind::Voice,
         ChannelKind::Category => proto::ChannelKind::Category,
+        ChannelKind::Plugin => proto::ChannelKind::Plugin,
+    }
+}
+
+/// A plugin channel's state; one the server didn't name can't be opened.
+pub fn plugin_channel_state(state: i32) -> PluginChannelState {
+    match proto::PluginChannelState::try_from(state) {
+        Ok(proto::PluginChannelState::Available) => PluginChannelState::Available,
+        Ok(proto::PluginChannelState::TypeGone) => PluginChannelState::TypeGone,
+        _ => PluginChannelState::PluginStopped,
+    }
+}
+
+pub fn plugin_channel_type(kind: proto::PluginChannelType) -> PluginChannelType {
+    PluginChannelType {
+        plugin_id: kind.plugin_id,
+        type_key: kind.type_key,
+        name: kind.name,
+        description: kind.description,
+        icon: kind.icon,
+        plugin_name: kind.plugin_name,
+    }
+}
+
+pub fn plugin_activity(a: proto::PluginActivity) -> PluginActivity {
+    PluginActivity {
+        plugin_id: a.plugin_id,
+        activity_key: a.activity_key,
+        name: a.name,
+        description: a.description,
+        icon: a.icon,
+        plugin_name: a.plugin_name,
+    }
+}
+
+pub fn activity_session(s: proto::ActivitySession) -> ActivitySession {
+    ActivitySession {
+        id: s.id,
+        channel_id: s.channel_id,
+        plugin_id: s.plugin_id,
+        activity_key: s.activity_key,
+        name: s.name,
+        icon: s.icon,
+        plugin_name: s.plugin_name,
+        starter_id: s.starter_id,
+        started_at_ms: s.started_at_ms,
+        viewer_ids: s.viewer_ids,
+    }
+}
+
+pub fn activity_end_reason(reason: i32) -> ActivityEndReason {
+    match proto::ActivityEndReason::try_from(reason) {
+        Ok(proto::ActivityEndReason::Ended) => ActivityEndReason::Ended,
+        Ok(proto::ActivityEndReason::Plugin) => ActivityEndReason::Plugin,
+        Ok(proto::ActivityEndReason::CallEmpty) => ActivityEndReason::CallEmpty,
+        Ok(proto::ActivityEndReason::PluginStopped) => ActivityEndReason::PluginStopped,
+        Ok(proto::ActivityEndReason::Unavailable) => ActivityEndReason::Unavailable,
+        _ => ActivityEndReason::Ended,
     }
 }
 
@@ -90,9 +154,14 @@ pub fn overwrite(overwrite: proto::PermissionOverwrite) -> PermissionOverwrite {
 }
 
 pub fn channel(channel: proto::Channel) -> Channel {
+    let kind = channel_kind(channel.kind);
+    let plugin = kind == ChannelKind::Plugin;
     Channel {
         id: channel.id,
-        kind: channel_kind(channel.kind),
+        kind,
+        plugin_id: channel.plugin_id.filter(|_| plugin),
+        type_key: channel.type_key.filter(|_| plugin),
+        plugin_state: plugin.then(|| plugin_channel_state(channel.plugin_state)),
         name: channel.name,
         topic: channel.topic,
         parent_id: channel.parent_id,
@@ -216,8 +285,21 @@ pub fn message(message: proto::Message) -> Message {
         created_at_ms: message.created_at_ms,
         edited_at_ms: message.edited_at_ms,
         nonce: message.nonce,
+        command_user_id: message.interaction.as_ref().map(|i| i.user_id),
+        command_state: message
+            .interaction
+            .as_ref()
+            .map_or(CommandRunState::Answered, |i| run_state(i.state)),
         command: message.interaction.map(|interaction| interaction.command),
         attachments: message.attachments.into_iter().map(attachment).collect(),
+    }
+}
+
+fn run_state(state: i32) -> CommandRunState {
+    match proto::CommandState::try_from(state) {
+        Ok(proto::CommandState::Thinking) => CommandRunState::Thinking,
+        Ok(proto::CommandState::NoAnswer) => CommandRunState::NoAnswer,
+        Ok(proto::CommandState::Answered) | Err(_) => CommandRunState::Answered,
     }
 }
 
@@ -445,6 +527,22 @@ pub fn ready(ready: proto::Ready) -> ReadySnapshot {
         upload_settings: upload_settings(ready.upload_settings.unwrap_or_default()),
         private_messages: ready.private_messages_v2,
         private_settings: private_settings(ready.private_settings.unwrap_or_default()),
+        plugin_users: ready.plugin_users.into_iter().map(plugin_user).collect(),
+        plugin_channel_types: ready
+            .plugin_channel_types
+            .into_iter()
+            .map(plugin_channel_type)
+            .collect(),
+        plugin_activities: ready
+            .plugin_activities
+            .into_iter()
+            .map(plugin_activity)
+            .collect(),
+        activity_sessions: ready
+            .activity_sessions
+            .into_iter()
+            .map(activity_session)
+            .collect(),
     }
 }
 
@@ -594,6 +692,7 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
             channel_id: message.channel_id,
             nonce: message.nonce,
             content: message.content,
+            state: run_state(message.state),
         }),
         Kind::UploadSettingsUpdate(update) => {
             CoreEventPayload::UploadSettingsUpdate(upload_settings(update.settings?))
@@ -602,6 +701,28 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
             CoreEventPayload::PrivateSettingsUpdate(private_settings(update.settings?))
         }
         Kind::StorageUpdate(update) => CoreEventPayload::StorageUpdate(storage(update.storage?)),
+        Kind::PluginUpdate(event) => {
+            CoreEventPayload::PluginUpdate(plugin(event.plugin?))
+        }
+        Kind::PluginRemove(event) => CoreEventPayload::PluginRemove {
+            plugin_id: event.plugin_id,
+        },
+        Kind::PluginReviewUpdate(event) => {
+            CoreEventPayload::PluginReviewUpdate(plugin_review(event.review?))
+        }
+        Kind::PluginReviewRemove(event) => CoreEventPayload::PluginReviewRemove {
+            review_id: event.review_id,
+        },
+        Kind::PluginLogAppend(event) => CoreEventPayload::PluginLogAppend {
+            plugin_id: event.plugin_id,
+            lines: event.lines.into_iter().map(plugin_log_line).collect(),
+        },
+        Kind::PluginUsersUpdate(event) => CoreEventPayload::PluginUsersUpdate(
+            event.users.into_iter().map(plugin_user).collect(),
+        ),
+        Kind::PluginChannelTypesUpdate(event) => CoreEventPayload::PluginChannelTypesUpdate(
+            event.types.into_iter().map(plugin_channel_type).collect(),
+        ),
         // With the server's clock: `music::event`.
         Kind::MusicSnapshot(_)
         | Kind::MusicUpdate(_)
@@ -612,7 +733,26 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
         | Kind::UploadReady(_)
         | Kind::UploadFailed(_)
         | Kind::PendingEvent(_)
-        | Kind::PrivateTypingStart(_) => return None,
+        | Kind::PrivateTypingStart(_)
+        // For the views open on that server: `connection.rs` hands them to
+        // `Views`.
+        | Kind::ViewMessage(_)
+        | Kind::ViewClosed(_)
+        | Kind::ViewScriptsUpdate(_) => return None,
+        Kind::PluginActivitiesUpdate(ev) => CoreEventPayload::PluginActivitiesUpdate(
+            ev.activities.into_iter().map(plugin_activity).collect(),
+        ),
+        Kind::ActivitySessionCreate(ev) => {
+            CoreEventPayload::ActivitySessionCreate(activity_session(ev.session?))
+        }
+        Kind::ActivitySessionUpdate(ev) => {
+            CoreEventPayload::ActivitySessionUpdate(activity_session(ev.session?))
+        }
+        Kind::ActivitySessionDelete(ev) => CoreEventPayload::ActivitySessionDelete {
+            session_id: ev.session_id,
+            channel_id: ev.channel_id,
+            reason: activity_end_reason(ev.reason),
+        },
     })
 }
 
@@ -671,6 +811,8 @@ pub fn error_code(code: i32) -> ErrorCode {
         Ok(proto::ErrorCode::DeviceListChanged) => ErrorCode::DeviceListChanged,
         Ok(proto::ErrorCode::PrivateMessagesUnavailable) => ErrorCode::PrivateMessagesUnavailable,
         Ok(proto::ErrorCode::FriendsOnly) => ErrorCode::FriendsOnly,
+        Ok(proto::ErrorCode::PluginLimit) => ErrorCode::PluginLimit,
+        Ok(proto::ErrorCode::PluginUnavailable) => ErrorCode::PluginUnavailable,
 
         _ => ErrorCode::Unknown,
     }
@@ -683,6 +825,168 @@ pub fn error(error: proto::Error) -> CoreError {
         retry_after_ms: error
             .retry_after_ms
             .map(|ms| u32::try_from(ms).unwrap_or(u32::MAX)),
+    }
+}
+
+pub fn plugin_state(state: i32) -> PluginState {
+    match proto::PluginState::try_from(state) {
+        Ok(proto::PluginState::Starting) => PluginState::Starting,
+        Ok(proto::PluginState::Running) => PluginState::Running,
+        Ok(proto::PluginState::Stopped) => PluginState::Stopped,
+        Ok(proto::PluginState::Crashed) => PluginState::Crashed,
+        _ => PluginState::Starting,
+    }
+}
+
+pub fn plugin_signature(sig: i32) -> PluginSignature {
+    match proto::PluginSignature::try_from(sig) {
+        Ok(proto::PluginSignature::Signed) => PluginSignature::Signed,
+        Ok(proto::PluginSignature::Dev) => PluginSignature::Dev,
+        _ => PluginSignature::Unsigned,
+    }
+}
+
+pub fn github_check(check: i32) -> GithubCheck {
+    match proto::GithubCheck::try_from(check) {
+        Ok(proto::GithubCheck::Verified) => GithubCheck::Verified,
+        Ok(proto::GithubCheck::Mismatch) => GithubCheck::Mismatch,
+        Ok(proto::GithubCheck::Failed) => GithubCheck::Failed,
+        _ => GithubCheck::Unspecified,
+    }
+}
+
+pub fn plugin_config_kind(kind: i32) -> PluginConfigKind {
+    match proto::PluginConfigKind::try_from(kind) {
+        Ok(proto::PluginConfigKind::Secret) => PluginConfigKind::Secret,
+        Ok(proto::PluginConfigKind::Number) => PluginConfigKind::Number,
+        Ok(proto::PluginConfigKind::Boolean) => PluginConfigKind::Boolean,
+        Ok(proto::PluginConfigKind::Choice) => PluginConfigKind::Choice,
+        Ok(proto::PluginConfigKind::Role) => PluginConfigKind::Role,
+        Ok(proto::PluginConfigKind::Channel) => PluginConfigKind::Channel,
+        Ok(proto::PluginConfigKind::User) => PluginConfigKind::User,
+        _ => PluginConfigKind::Text,
+    }
+}
+
+pub fn plugin_log_level(level: i32) -> PluginLogLevel {
+    match proto::PluginLogLevel::try_from(level) {
+        Ok(proto::PluginLogLevel::Warn) => PluginLogLevel::Warn,
+        Ok(proto::PluginLogLevel::Error) => PluginLogLevel::Error,
+        Ok(proto::PluginLogLevel::Action) => PluginLogLevel::Action,
+        _ => PluginLogLevel::Info,
+    }
+}
+
+pub fn plugin_config_field(f: proto::PluginConfigField) -> PluginConfigField {
+    PluginConfigField {
+        key: f.key,
+        label: f.label,
+        kind: plugin_config_kind(f.kind),
+        choices: f.choices,
+        required: f.required,
+    }
+}
+
+pub fn plugin_config_value(v: proto::PluginConfigValue) -> PluginConfigValue {
+    PluginConfigValue {
+        key: v.key,
+        value: v.value,
+        has_value: v.has_value,
+    }
+}
+
+pub fn plugin_permission_grant(g: proto::PluginPermissionGrant) -> PluginPermissionGrant {
+    PluginPermissionGrant {
+        name: g.name,
+        granted: g.granted,
+        grantable: g.grantable,
+    }
+}
+
+pub fn plugin_user(u: proto::PluginUser) -> PluginUser {
+    PluginUser {
+        user_id: u.user_id,
+        plugin_id: u.plugin_id,
+        name: u.name,
+        avatar_hash: u.avatar_hash,
+        installed: u.installed,
+    }
+}
+
+pub fn plugin(p: proto::Plugin) -> Plugin {
+    Plugin {
+        id: p.id,
+        name: p.name,
+        version: p.version,
+        author: p.author,
+        description: p.description,
+        github: p.github,
+        license: p.license,
+        signature: plugin_signature(p.signature),
+        key_fingerprint: p.key_fingerprint,
+        github_check: github_check(p.github_check),
+        state: plugin_state(p.state),
+        status_reason: p.status_reason,
+        permissions: p
+            .permissions
+            .into_iter()
+            .map(plugin_permission_grant)
+            .collect(),
+        domains: p.domains,
+        config_fields: p
+            .config_fields
+            .into_iter()
+            .map(plugin_config_field)
+            .collect(),
+        config: p.config.into_iter().map(plugin_config_value).collect(),
+        user_id: p.user_id,
+        role_id: p.role_id,
+        installed_at_ms: p.installed_at_ms,
+        updated_at_ms: p.updated_at_ms,
+        cpu_permille: p.cpu_permille,
+        memory_bytes: p.memory_bytes,
+        database_bytes: p.database_bytes,
+        files_bytes: p.files_bytes,
+    }
+}
+
+pub fn plugin_review(r: proto::PluginReview) -> PluginReview {
+    PluginReview {
+        review_id: r.review_id,
+        plugin: plugin(r.plugin.unwrap_or_default()),
+        installed: r.installed.map(plugin),
+        new_permissions: r.new_permissions,
+        license_needs_acceptance: r.license_needs_acceptance,
+        expires_at_ms: r.expires_at_ms,
+        dev: r.dev,
+    }
+}
+
+pub fn plugin_log_line(l: proto::PluginLogLine) -> PluginLogLine {
+    PluginLogLine {
+        seq: l.seq,
+        at_ms: l.at_ms,
+        level: plugin_log_level(l.level),
+        text: l.text,
+    }
+}
+
+pub fn plugin_dev_token(t: proto::PluginDevToken) -> PluginDevToken {
+    PluginDevToken {
+        id: t.id,
+        plugin_id: t.plugin_id,
+        created_by: t.created_by,
+        created_at_ms: t.created_at_ms,
+        expires_at_ms: t.expires_at_ms,
+        last_used_at_ms: t.last_used_at_ms,
+    }
+}
+
+pub fn created_plugin_dev_token(c: proto::CreatedPluginDevToken) -> CreatedPluginDevToken {
+    CreatedPluginDevToken {
+        token: plugin_dev_token(c.token.unwrap_or_default()),
+        secret: c.secret,
+        server_fingerprint: c.server_fingerprint,
     }
 }
 
@@ -857,5 +1161,164 @@ mod tests {
                 resolution
             );
         }
+    }
+
+    #[test]
+    fn activities_and_sessions_convert() {
+        // Fails if ready snapshot omits or mis-converts plugin_activities or activity_sessions,
+        // if any of the four events fails to convert, or if ActivityEndReason is wrongly mapped.
+        let proto_activity = proto::PluginActivity {
+            plugin_id: "plug_1".to_owned(),
+            activity_key: "paint".to_owned(),
+            name: "Paint Together".to_owned(),
+            description: "Draw on canvas".to_owned(),
+            icon: "assets/paint.png".to_owned(),
+            plugin_name: "Painter".to_owned(),
+        };
+        let expected_activity = crate::api::types::PluginActivity {
+            plugin_id: "plug_1".to_owned(),
+            activity_key: "paint".to_owned(),
+            name: "Paint Together".to_owned(),
+            description: "Draw on canvas".to_owned(),
+            icon: "assets/paint.png".to_owned(),
+            plugin_name: "Painter".to_owned(),
+        };
+
+        let proto_session = proto::ActivitySession {
+            id: 101,
+            channel_id: 202,
+            plugin_id: "plug_1".to_owned(),
+            activity_key: "paint".to_owned(),
+            name: "Paint Together".to_owned(),
+            icon: "assets/paint.png".to_owned(),
+            plugin_name: "Painter".to_owned(),
+            starter_id: 303,
+            started_at_ms: 404,
+            viewer_ids: vec![505, 606],
+        };
+        let expected_session = crate::api::types::ActivitySession {
+            id: 101,
+            channel_id: 202,
+            plugin_id: "plug_1".to_owned(),
+            activity_key: "paint".to_owned(),
+            name: "Paint Together".to_owned(),
+            icon: "assets/paint.png".to_owned(),
+            plugin_name: "Painter".to_owned(),
+            starter_id: 303,
+            started_at_ms: 404,
+            viewer_ids: vec![505, 606],
+        };
+
+        // Ready converts both
+        let ready = proto::Ready {
+            plugin_activities: vec![proto_activity.clone()],
+            activity_sessions: vec![proto_session.clone()],
+            ..Default::default()
+        };
+        let snapshot = super::ready(ready);
+        assert_eq!(snapshot.plugin_activities, vec![expected_activity.clone()]);
+        assert_eq!(snapshot.activity_sessions, vec![expected_session.clone()]);
+
+        // Event: PluginActivitiesUpdate
+        let ev1 = super::event(
+            proto::event::Kind::PluginActivitiesUpdate(proto::PluginActivitiesUpdate {
+                activities: vec![proto_activity],
+            }),
+            "session",
+        );
+        assert_eq!(
+            ev1,
+            Some(CoreEventPayload::PluginActivitiesUpdate(vec![
+                expected_activity
+            ]))
+        );
+
+        // Event: ActivitySessionCreate
+        let ev2 = super::event(
+            proto::event::Kind::ActivitySessionCreate(proto::ActivitySessionCreate {
+                session: Some(proto_session.clone()),
+            }),
+            "session",
+        );
+        assert_eq!(
+            ev2,
+            Some(CoreEventPayload::ActivitySessionCreate(
+                expected_session.clone()
+            ))
+        );
+        let ev2_none = super::event(
+            proto::event::Kind::ActivitySessionCreate(proto::ActivitySessionCreate {
+                session: None,
+            }),
+            "session",
+        );
+        assert_eq!(ev2_none, None);
+
+        // Event: ActivitySessionUpdate
+        let ev3 = super::event(
+            proto::event::Kind::ActivitySessionUpdate(proto::ActivitySessionUpdate {
+                session: Some(proto_session),
+            }),
+            "session",
+        );
+        assert_eq!(
+            ev3,
+            Some(CoreEventPayload::ActivitySessionUpdate(expected_session))
+        );
+        let ev3_none = super::event(
+            proto::event::Kind::ActivitySessionUpdate(proto::ActivitySessionUpdate {
+                session: None,
+            }),
+            "session",
+        );
+        assert_eq!(ev3_none, None);
+
+        // Event: ActivitySessionDelete
+        let ev4 = super::event(
+            proto::event::Kind::ActivitySessionDelete(proto::ActivitySessionDelete {
+                session_id: 101,
+                channel_id: 202,
+                reason: proto::ActivityEndReason::Plugin as i32,
+            }),
+            "session",
+        );
+        assert_eq!(
+            ev4,
+            Some(CoreEventPayload::ActivitySessionDelete {
+                session_id: 101,
+                channel_id: 202,
+                reason: crate::api::types::ActivityEndReason::Plugin,
+            })
+        );
+
+        // ActivityEndReason mappings name-for-name and fallback
+        assert_eq!(
+            super::activity_end_reason(proto::ActivityEndReason::Ended as i32),
+            crate::api::types::ActivityEndReason::Ended
+        );
+        assert_eq!(
+            super::activity_end_reason(proto::ActivityEndReason::Plugin as i32),
+            crate::api::types::ActivityEndReason::Plugin
+        );
+        assert_eq!(
+            super::activity_end_reason(proto::ActivityEndReason::CallEmpty as i32),
+            crate::api::types::ActivityEndReason::CallEmpty
+        );
+        assert_eq!(
+            super::activity_end_reason(proto::ActivityEndReason::PluginStopped as i32),
+            crate::api::types::ActivityEndReason::PluginStopped
+        );
+        assert_eq!(
+            super::activity_end_reason(proto::ActivityEndReason::Unavailable as i32),
+            crate::api::types::ActivityEndReason::Unavailable
+        );
+        assert_eq!(
+            super::activity_end_reason(proto::ActivityEndReason::Unspecified as i32),
+            crate::api::types::ActivityEndReason::Ended
+        );
+        assert_eq!(
+            super::activity_end_reason(999),
+            crate::api::types::ActivityEndReason::Ended
+        );
     }
 }

@@ -14,6 +14,63 @@ Opencord for Android and iOS lives in `mobile/`. It is a React Native app (Expo 
   - `app/`: the routes;
   - the screens' folders.
 
+## Plugins on the phone
+
+A plugin channel's screen and an activity are drawn by the same renderer the desktop uses (`app/packages/opencord_blocks`), running in Flutter engines inside the React Native app. Each area is one engine, from `createArea` to `destroyArea`, whatever view shows it. At most two are alive: a plugin channel and an activity.
+
+```
+core (crates/opencord-mobile: view_open, view_input, next_view_outputs)
+  │  batches pulled by generation, inputs pushed
+  ▼
+JavaScript (mobile/src/features/plugins: viewPump.ts, viewSession.ts, PluginArea.tsx,
+            hostCalls.ts + phoneHost.ts, activityHolder.ts)
+  │  the JSON strings untouched
+  ▼
+native module (mobile/modules/plugin-area: PluginAreaModule.kt/.swift, Areas, AreaPipe,
+               PluginAreaView): an engine group, a spare engine, one MethodChannel per area
+  │  dev.opencord/plugin_area: setup, batch, hostReply, back ↔ ready, input, status, hostCall
+  ▼
+Dart (mobile/flutter_module: area.dart, channel.dart, phone_host.dart, overlays.dart)
+  └─ BlocksView from opencord_blocks, at a 44-point touch size
+```
+
+- **What JavaScript does:** opens a view on the renderer's first context input; pumps batches to the area that owns them, holding early ones until the view's id is known; answers host calls (images, fonts, users, pickers, uploads, the link question, copy, opening channels, sounds) with the phone's own controls; tells the plugin `pause` and `resume`.
+- **Back:** Android's back asks the area first, while its screen is in front (a sheet pushed over it takes its own back). It closes the plugin's top dialog, modal or sheet, then asks the plugin's `app.on_back`, and leaves the screen only when neither went back. iOS's swipe-back is off while either could: a shown area holds it (`swipeBack.ts`) and the server screen turns its stack gesture off.
+- **Drags:** on a phone, the sidebar's swipe is off while a plugin channel is in front; the header's sidebar button opens it.
+- **A plugin channel has the whole screen:** no tab bar and no voice bar under it, in a call or not; the way back to the call is the sidebar.
+- **Activities have their own page** (`ActivityPage`, route `server/[serverKey]/activity/[sessionId]`), shown over the call: the plugin's screen under a header with its name, the call's channel, a way back to the call and its menu (Close, End activity). The call shows a running activity as a tile, and the control bar's Activities button is on, as Mute is, while one runs: pressed then, it offers Open activity (one entry per activity when several run), Change activity (the picker) and Close activity (it ends for everyone, for its starter or who manages the channel). The tile, Open, or starting one from the picker opens its page. Going back keeps the activity open, paused; Close, its end or leaving the call closes it, and the page goes too.
+- **The engine is warmed** while a server with plugins is open or this device is in a call, and dropped 60 seconds after.
+
+### Building the Flutter module
+
+`mobile/scripts/build-flutter.sh android|ios [--release]` builds `mobile/flutter_module`:
+- **Android:** AARs into `flutter_module/build/host/outputs/repo`. Debug is x86_64 only, for the emulator; release is arm64 and x86_64. The config plugin `mobile/plugins/withPluginArea.ts` adds that repository and Flutter's to the Gradle build.
+- **iOS:** unsigned frameworks into `mobile/modules/plugin-area/ios/Frameworks` (the app that embeds them is signed when it's built).
+
+CI's Phone jobs install Flutter and run it before building the app. `PLUGIN_GATES=1` compiles in Stage A's measurements (`flutter_module/lib/src/gates.dart`).
+
+The APK holds only arm64 and x86_64, the processor types the core is built for, and its native libraries are compressed (`useLegacyPackaging`): the Flutter engine adds about 9 MB to the download instead of 18.
+
+### Hand checks for real phones
+
+None of these has been run on a real phone, and **none on an iPhone**. "Emulator" means it was run on the Android emulator against a local server (the plugins M4 ledger, Task 16).
+
+| Check | Android | iPhone |
+|---|---|---|
+| Open a plugin channel; open its modal; close it with its button and with back | emulator | not run |
+| Type in a plugin's text field with the keyboard up: the whole sheet stays above it | emulator | not run |
+| The iPhone's swipe-back with a plugin's modal open | — | not run |
+| Rotate with a plugin screen open: it redraws and keeps its state | emulator | not run |
+| Switch the theme, then the font size, with a plugin screen open | not run (Android restarts the app on a font change) | not run |
+| A plugin's image, user, rich text, file picker and upload, link, copy and sound | emulator | not run |
+| Start an activity in a call; draw; put the call away and bring it back: the drawing is there | emulator | not run |
+| End an activity: `This activity ended`, then the grid | emulator | not run |
+| Two phones in one call: the other sees the tile and every stroke; the other ends it | not run | not run |
+| A plugin turned off and on: the open channel says it's unavailable, then opens | not run | not run |
+| The tablet: the channel list beside a plugin screen; an activity at tablet width | not run | not run |
+| A call from another app arrives while an activity is open | not run | not run |
+| The app killed in the background, reopened on a plugin channel | not run | not run |
+
 ## Using the app
 
 ### Installing it
@@ -44,7 +101,7 @@ The first screen offers **Create an identity**, which asks only what people shou
 ### Voice
 
 - **Join** from a voice channel's page. Mute, deafen, the soundboard and leave are at its foot.
-- **While in voice**, a bar shows the channel (and what music plays) above the tab bar, and floats above the field in a chat. Tap it, or pull it up, to open the call; pull the call down to put it away.
+- **While in voice**, a bar shows the channel (and what music plays) above the tab bar, and floats above the field in a chat. Tap it, or pull it up, to open the call, which fills the screen; pull the call down to put it away. While an activity runs, the call's Activities button is on and opens a menu to open, change or close it.
 - **Tap a person** to set how loud they are for you, or to mute them for you alone.
 - **Voice keeps going** with the screen off or another app in front. Android shows a notification while it does.
 - **The soundboard** plays a sound for everyone in the channel. Long-press one to **Preview** it for yourself, or to make it a favourite.

@@ -263,6 +263,8 @@ class NavigationHistory extends Notifier<HistoryState> {
         final serverState = ref.read(serverProvider(server));
         final channels = serverState.data?.channels;
         if (channels != null && !channels.containsKey(channel)) return false;
+        final ch = channels?[channel];
+        if (ch != null && cannotOpenReason(ch) != null) return false;
         return true;
     }
   }

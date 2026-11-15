@@ -1,5 +1,6 @@
-// A voice channel's pane (spec §8.6): its header, then who is in it.
-// Connected: tiles, link banner, control bar.
+// A voice channel's pane (spec §8.6): its header, then who is in it and the
+// activities running in it. Connected: tiles, link banner, control bar. An
+// activity opens on its own page (showActivity), not in here.
 // Not connected: tiles, Join voice button (or disabled reason).
 import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { type Href, router } from 'expo-router';
@@ -11,9 +12,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
 import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader';
+import { showActivitiesButton } from '@/features/plugins/ActivityPicker';
+import { ActivityTile } from '@/features/plugins/ActivityTile';
+import { activityActions, runActivityAction } from '@/features/plugins/activityActions';
+import { useOpenActivity } from '@/features/plugins/activityHolder';
+import { showActivity } from '@/features/plugins/showActivity';
 import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
-import { useChannelInfo, useMusicSettings, useMyVoice, useVoiceMembers } from '@/state/selectors';
-import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/ui';
+import { activitySessions, useChannelInfo, useMusicSettings, useMyVoice, useServer, useVoiceMembers } from '@/state/selectors';
+import { Button, EmptyState, IconButton, PaneHeader, space, useTheme, type MenuAction } from '@/ui';
 
 import { chrome } from '@/features/servers/chrome';
 
@@ -53,6 +59,12 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const musicSettings = useMusicSettings(serverKey);
   const myVoice = useMyVoice();
   const members = useVoiceMembers(serverKey, channelId);
+  const server = useServer(serverKey);
+  const sessions = activitySessions(server, channelId);
+  // The activity the Activities menu is about: the one open on this device,
+  // else the newest running in the call.
+  const open = useOpenActivity();
+  const current = sessions.find((session) => open?.serverKey === serverKey && session.id === open.sessionId) ?? sessions.at(-1);
 
   const here = myVoice?.serverKey === serverKey && myVoice.channelId === channelId ? myVoice : null;
   const showMusic = !!(musicSettings?.supported && musicSettings.enabled);
@@ -79,6 +91,28 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
     () => openSheet(`/server/${serverKey}/soundboard/${channelId}`),
     [openSheet, serverKey, channelId],
   );
+  const openActivities = useCallback(
+    () => openSheet(`/server/${serverKey}/activities/${channelId}`),
+    [openSheet, serverKey, channelId],
+  );
+  const canOpenActivities = showActivitiesButton(server, channelId);
+  const activityMenu: MenuAction[] = current
+    ? [
+        ...(sessions.length > 1
+          ? sessions.map((session) => ({ id: `open:${session.id}`, title: `Open ${session.name}` }))
+          : [{ id: `open:${current.id}`, title: 'Open activity' }]),
+        ...(canOpenActivities ? [{ id: 'change', title: 'Change activity' }] : []),
+        // Closing ends it for everyone: for its starter or who manages the channel.
+        ...(activityActions(server, current, false).some((action) => action.id === 'end')
+          ? [{ id: 'close', title: 'Close activity', destructive: true }]
+          : []),
+      ]
+    : [];
+  const onActivityAction = (id: string) => {
+    if (id.startsWith('open:')) showActivity(serverKey, channelId, id.slice('open:'.length));
+    else if (id === 'change') openActivities();
+    else if (id === 'close' && current) runActivityAction(serverKey, current, 'end');
+  };
   const openMember = useCallback((userId: string) => openSheet(`/server/${serverKey}/member/${userId}`), [openSheet, serverKey]);
   // In the call, the grid scrolls only when not everyone fits; a pull down
   // at its top (or anywhere, when it doesn't scroll) takes the call down.
@@ -100,7 +134,9 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
     if (width > 0 && height > 0) setRoom({ width, height });
   }, []);
 
-  const grid = tileGrid(sorted.length, room.width - PADDING * 2, room.height - PADDING * 2, GAP);
+  // Activities follow the people, oldest first, and are counted with them.
+  const count = sorted.length + sessions.length;
+  const grid = tileGrid(count, room.width - PADDING * 2, room.height - PADDING * 2, GAP);
   const userLimit = info?.channel.userLimit ?? 0;
   const reason =
     info?.access.connect === false
@@ -145,7 +181,7 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
       // At its top a pull takes the call down instead of stretching the grid.
       bounces={!asCall}
     >
-      {sorted.length === 0 ? (
+      {count === 0 ? (
         <EmptyState title="No one's here yet" />
       ) : (
         <View style={styles.tiles}>
@@ -155,10 +191,19 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
               serverKey={serverKey}
               channelId={channelId}
               member={member}
-              width={index === sorted.length - 1 ? grid.lastWidth : grid.tileWidth}
+              width={index === count - 1 ? grid.lastWidth : grid.tileWidth}
               height={grid.tileHeight}
               avatar={grid.avatar}
               onPress={() => openMember(member.userId)}
+            />
+          ))}
+          {sessions.map((session, index) => (
+            <ActivityTile
+              key={session.id}
+              serverKey={serverKey}
+              session={session}
+              width={sorted.length + index === count - 1 ? grid.lastWidth : grid.tileWidth}
+              height={grid.tileHeight}
             />
           ))}
         </View>
@@ -190,6 +235,10 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
             onToggleMute={() => setMuted(!here.muted)}
             onToggleDeafen={() => setDeafened(!here.deafened)}
             onOpenSoundboard={openSoundboard}
+            onOpenActivities={canOpenActivities ? openActivities : undefined}
+            activityActive={current !== undefined}
+            activityMenu={activityMenu}
+            onActivityAction={onActivityAction}
             onLeave={leave}
           />
         </View>

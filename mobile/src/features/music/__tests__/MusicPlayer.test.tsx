@@ -92,6 +92,8 @@ function initMusicServer({
     useSoundboard: true,
     useExternalSounds: true,
     sendVoiceMessages: true,
+    startActivities: false,
+    manageChannel: false,
     ...accessOverrides,
   };
 

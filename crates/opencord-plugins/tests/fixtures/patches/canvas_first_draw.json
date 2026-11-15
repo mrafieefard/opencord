@@ -1,0 +1,27 @@
+{
+  "before": null,
+  "after": {
+    "block": "canvas",
+    "props": {
+      "ink": { "color": "accent", "width": 2 },
+      "items": [
+        { "id": "p", "kind": "rect", "x": 1 },
+        { "id": "q", "kind": "line", "x": 2 }
+      ]
+    },
+    "events": ["pointer_down"],
+    "children": []
+  },
+  "ops": [
+    { "op": "create", "id": 1, "block": "canvas", "props": { "ink": { "color": "accent", "width": 2 } }, "events": ["pointer_down"], "children": [] },
+    {
+      "op": "draw",
+      "id": 1,
+      "set": [
+        { "id": "p", "kind": "rect", "x": 1 },
+        { "id": "q", "kind": "line", "x": 2 }
+      ],
+      "remove": []
+    }
+  ]
+}

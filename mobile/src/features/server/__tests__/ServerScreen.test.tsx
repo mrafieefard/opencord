@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
@@ -6,6 +6,8 @@ import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
 import { CHANNELS, NIGHT_OWLS, RUST_CLUB, snapshot } from '@/core/fake/world';
 import { onEvents, useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
+
+import { holdSwipeBack } from '@/features/plugins/swipeBack';
 
 import { ServerScreen } from '../ServerScreen';
 
@@ -81,6 +83,19 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Servers'));
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  // Fails if the iOS edge swipe can leave while a plugin on screen could
+  // take back (a tablet keeps its swipe on otherwise).
+  it('the swipe back is off while a plugin holds it', async () => {
+    windowWidth(1024);
+    await renderServer();
+    expect(lastGestureEnabled()).toBe(true);
+    const owner = Symbol('plugin');
+    await act(async () => void holdSwipeBack(owner, true));
+    expect(lastGestureEnabled()).toBe(false);
+    await act(async () => void holdSwipeBack(owner, false));
+    expect(lastGestureEnabled()).toBe(true);
   });
 
   it('the tab bar steps aside only while a text channel fills the screen', async () => {

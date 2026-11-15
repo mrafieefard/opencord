@@ -99,13 +99,28 @@ pub(crate) fn member(member: core::Member) -> MemberRecord {
     }
 }
 
-pub(crate) fn channel(channel: core::Channel) -> ChannelRecord {
-    ChannelRecord {
+/// Every channel the phone can show; `Option` for kinds it may not know
+/// yet.
+pub(crate) fn channel(channel: core::Channel) -> Option<ChannelRecord> {
+    let plugin = match (channel.plugin_id, channel.type_key) {
+        (Some(plugin_id), Some(type_key)) => Some(PluginChannelRecord {
+            plugin_id,
+            type_key,
+            state: plugin_channel_state(
+                channel
+                    .plugin_state
+                    .unwrap_or(core::PluginChannelState::PluginStopped),
+            ),
+        }),
+        _ => None,
+    };
+    Some(ChannelRecord {
         id: id(channel.id),
         kind: match channel.kind {
             core::ChannelKind::Text => ChannelKind::Text,
             core::ChannelKind::Voice => ChannelKind::Voice,
             core::ChannelKind::Category => ChannelKind::Category,
+            core::ChannelKind::Plugin => ChannelKind::Plugin,
         },
         name: channel.name,
         topic: channel.topic,
@@ -113,6 +128,62 @@ pub(crate) fn channel(channel: core::Channel) -> ChannelRecord {
         position: channel.position,
         user_limit: channel.user_limit,
         text_in_voice: channel.text_in_voice,
+        plugin,
+    })
+}
+
+fn plugin_channel_state(state: core::PluginChannelState) -> PluginChannelState {
+    match state {
+        core::PluginChannelState::Available => PluginChannelState::Available,
+        core::PluginChannelState::PluginStopped => PluginChannelState::PluginStopped,
+        core::PluginChannelState::TypeGone => PluginChannelState::TypeGone,
+    }
+}
+
+pub(crate) fn plugin_channel_type(kind: core::PluginChannelType) -> PluginChannelTypeRecord {
+    PluginChannelTypeRecord {
+        plugin_id: kind.plugin_id,
+        type_key: kind.type_key,
+        name: kind.name,
+        description: kind.description,
+        icon: kind.icon,
+        plugin_name: kind.plugin_name,
+    }
+}
+
+pub(crate) fn plugin_activity(activity: core::PluginActivity) -> PluginActivityRecord {
+    PluginActivityRecord {
+        plugin_id: activity.plugin_id,
+        activity_key: activity.activity_key,
+        name: activity.name,
+        description: activity.description,
+        icon: activity.icon,
+        plugin_name: activity.plugin_name,
+    }
+}
+
+pub(crate) fn activity_session(session: core::ActivitySession) -> ActivitySessionRecord {
+    ActivitySessionRecord {
+        id: id(session.id),
+        channel_id: id(session.channel_id),
+        plugin_id: session.plugin_id,
+        activity_key: session.activity_key,
+        name: session.name,
+        icon: session.icon,
+        plugin_name: session.plugin_name,
+        starter_id: id(session.starter_id),
+        started_at_ms: session.started_at_ms,
+        viewer_ids: session.viewer_ids.into_iter().map(id).collect(),
+    }
+}
+
+pub(crate) fn activity_end_reason(reason: core::ActivityEndReason) -> ActivityEndReason {
+    match reason {
+        core::ActivityEndReason::Ended => ActivityEndReason::Ended,
+        core::ActivityEndReason::Plugin => ActivityEndReason::Plugin,
+        core::ActivityEndReason::CallEmpty => ActivityEndReason::CallEmpty,
+        core::ActivityEndReason::PluginStopped => ActivityEndReason::PluginStopped,
+        core::ActivityEndReason::Unavailable => ActivityEndReason::Unavailable,
     }
 }
 
@@ -142,6 +213,8 @@ pub(crate) fn access(channel_id: i64, bits: i64) -> ChannelAccess {
         use_soundboard: has(Permissions::USE_SOUNDBOARD),
         use_external_sounds: has(Permissions::USE_EXTERNAL_SOUNDS),
         send_voice_messages: has(Permissions::SEND_VOICE_MESSAGES),
+        start_activities: has(Permissions::START_ACTIVITIES),
+        manage_channel: has(Permissions::MANAGE_CHANNELS),
     }
 }
 
@@ -160,7 +233,7 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
         description: ready.server.description,
         owner_id: opt_id(ready.server.owner_id),
         icon_hash: ready.server.icon_hash,
-        channels: ready.channels.into_iter().map(channel).collect(),
+        channels: ready.channels.into_iter().filter_map(channel).collect(),
         access: access_list(ready.channel_permissions),
         members: ready.members.into_iter().map(member).collect(),
         voice_states: ready.voice_states.into_iter().map(voice_state).collect(),
@@ -172,6 +245,123 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
             .map(soundboard_sound)
             .collect(),
         voice_message_max_seconds: ready.upload_settings.voice_message_max_seconds,
+        plugin_users: ready.plugin_users.into_iter().map(plugin_user).collect(),
+        commands: command_list(ready.commands),
+        plugin_channel_types: ready
+            .plugin_channel_types
+            .into_iter()
+            .map(plugin_channel_type)
+            .collect(),
+        plugin_activities: ready
+            .plugin_activities
+            .into_iter()
+            .map(plugin_activity)
+            .collect(),
+        activity_sessions: ready
+            .activity_sessions
+            .into_iter()
+            .map(activity_session)
+            .collect(),
+    }
+}
+
+pub(crate) fn command_run_state(state: core::CommandRunState) -> CommandRunStateRecord {
+    match state {
+        core::CommandRunState::Answered => CommandRunStateRecord::Answered,
+        core::CommandRunState::Thinking => CommandRunStateRecord::Thinking,
+        core::CommandRunState::NoAnswer => CommandRunStateRecord::NoAnswer,
+    }
+}
+
+pub(crate) fn command_choice(choice: core::CommandChoice) -> CommandChoiceRecord {
+    CommandChoiceRecord {
+        name: choice.name,
+        value: choice.value,
+        artwork_id: choice.artwork_id,
+    }
+}
+
+fn command_option(option: core::CommandOptionSpec) -> CommandOptionRecord {
+    CommandOptionRecord {
+        name: option.name,
+        description: option.description,
+        kind: match option.kind {
+            core::CommandOptionKind::Text => CommandOptionKindRecord::Text,
+            core::CommandOptionKind::Integer => CommandOptionKindRecord::Integer,
+            core::CommandOptionKind::Boolean => CommandOptionKindRecord::Boolean,
+            core::CommandOptionKind::Choice => CommandOptionKindRecord::Choice,
+            core::CommandOptionKind::User => CommandOptionKindRecord::User,
+            core::CommandOptionKind::Channel => CommandOptionKindRecord::Channel,
+        },
+        required: option.required,
+        autocomplete: option.autocomplete,
+        choices: option.choices.into_iter().map(command_choice).collect(),
+        min: number(option.min),
+        max: number(option.max),
+    }
+}
+
+/// The music permissions a command needs, named as in `ChannelAccess`.
+fn command_needs(bits: i64) -> Vec<String> {
+    let bits = Permissions::from_bits_truncate(bits as u64);
+    [
+        (Permissions::MUSIC_ADD, "musicAdd"),
+        (Permissions::MUSIC_CONTROL, "musicControl"),
+        (Permissions::MUSIC_MANAGE_QUEUE, "musicManageQueue"),
+        (Permissions::MUSIC_MANAGE, "musicManage"),
+    ]
+    .into_iter()
+    .filter(|(permission, _)| bits.contains(*permission))
+    .map(|(_, name)| name.to_owned())
+    .collect()
+}
+
+fn command(spec: core::CommandSpec) -> CommandRecord {
+    let source = if spec.feature.starts_with("plugin:") {
+        spec.feature.clone()
+    } else {
+        String::new()
+    };
+    CommandRecord {
+        needs: command_needs(spec.permissions),
+        name: spec.name,
+        description: spec.description,
+        options: spec.options.into_iter().map(command_option).collect(),
+        feature: spec.feature,
+        source,
+        permission_summary: spec.permission_summary,
+        aliases: spec.aliases,
+        enabled: spec.enabled,
+        channel_ids: spec.channel_ids.into_iter().map(id).collect(),
+    }
+}
+
+pub(crate) fn command_list(list: core::CommandList) -> CommandListRecord {
+    CommandListRecord {
+        commands: list.commands.into_iter().map(command).collect(),
+        results_public: list.results_public,
+    }
+}
+
+pub(crate) fn ephemeral_note(message: core::EphemeralMessage) -> EphemeralNoteRecord {
+    EphemeralNoteRecord {
+        channel_id: id(message.channel_id),
+        nonce: message.nonce,
+        content: message.content,
+        state: command_run_state(message.state),
+    }
+}
+
+pub(crate) fn plugin_user(u: core::PluginUser) -> PluginUserRecord {
+    PluginUserRecord {
+        user_id: id(u.user_id),
+        plugin_id: u.plugin_id,
+        name: u.name,
+        avatar_hash: if u.avatar_hash.is_empty() {
+            None
+        } else {
+            Some(u.avatar_hash)
+        },
     }
 }
 
@@ -292,7 +482,11 @@ pub(crate) fn message(message: core::Message) -> MessageRecord {
         created_at_ms: number(message.created_at_ms),
         edited_at_ms: message.edited_at_ms.map(number),
         nonce: message.nonce,
-        command: message.command,
+        interaction: message.command.map(|command| MessageInteractionRecord {
+            user_id: id(message.command_user_id.unwrap_or(message.author_id)),
+            command,
+            state: command_run_state(message.command_state),
+        }),
         attachments: message.attachments.into_iter().map(attachment).collect(),
     }
 }
@@ -513,6 +707,82 @@ pub(crate) fn search_results(results: core::MusicSearchResults) -> MusicSearchRe
 mod tests {
     use super::*;
 
+    fn plugin_channel(state: core::PluginChannelState) -> core::Channel {
+        core::Channel {
+            id: 40,
+            kind: core::ChannelKind::Plugin,
+            name: "help-desk".to_owned(),
+            topic: None,
+            parent_id: Some(3),
+            position: 2,
+            overwrites: Vec::new(),
+            bitrate: 0,
+            user_limit: 0,
+            text_in_voice: false,
+            plugin_id: Some("tickets".to_owned()),
+            type_key: Some("tickets".to_owned()),
+            plugin_state: Some(state),
+        }
+    }
+
+    // Fails if a plugin channel is dropped again, or loses its plugin, type
+    // or state on the way to JavaScript.
+    #[test]
+    fn a_plugin_channel_is_kept_with_its_state() {
+        for (core_state, state) in [
+            (
+                core::PluginChannelState::Available,
+                PluginChannelState::Available,
+            ),
+            (
+                core::PluginChannelState::PluginStopped,
+                PluginChannelState::PluginStopped,
+            ),
+            (
+                core::PluginChannelState::TypeGone,
+                PluginChannelState::TypeGone,
+            ),
+        ] {
+            let record = channel(plugin_channel(core_state)).expect("a plugin channel is kept");
+            assert_eq!(record.kind, ChannelKind::Plugin);
+            assert_eq!(record.id, "40");
+            assert_eq!(record.parent_id.as_deref(), Some("3"));
+            assert_eq!(
+                record.plugin,
+                Some(PluginChannelRecord {
+                    plugin_id: "tickets".to_owned(),
+                    type_key: "tickets".to_owned(),
+                    state,
+                })
+            );
+        }
+    }
+
+    // Fails if an ordinary channel gains plugin fields.
+    #[test]
+    fn a_text_channel_has_no_plugin() {
+        let mut text = plugin_channel(core::PluginChannelState::Available);
+        text.kind = core::ChannelKind::Text;
+        text.plugin_id = None;
+        text.type_key = None;
+        text.plugin_state = None;
+        assert_eq!(channel(text).unwrap().plugin, None);
+    }
+
+    // Fails if starting activities or managing the channel doesn't follow
+    // its bit (the Activities button and End activity on the phone).
+    #[test]
+    fn access_names_start_activities_and_manage_channel() {
+        let none = access(1, bits(Permissions::VIEW_CHANNEL));
+        assert!(!none.start_activities && !none.manage_channel);
+        let start = access(1, bits(Permissions::START_ACTIVITIES));
+        assert!(start.start_activities && !start.manage_channel);
+        let manage = access(1, bits(Permissions::MANAGE_CHANNELS));
+        assert!(manage.manage_channel && !manage.start_activities);
+        let admin = access(1, bits(Permissions::ADMINISTRATOR));
+        assert!(admin.start_activities && admin.manage_channel);
+    }
+
     fn bits(flags: Permissions) -> i64 {
         i64::from_ne_bytes(flags.bits().to_ne_bytes())
     }
@@ -662,6 +932,94 @@ mod tests {
         }
     }
 
+    fn spec(feature: &str, permissions: i64) -> core::CommandSpec {
+        core::CommandSpec {
+            name: "roll".to_owned(),
+            description: "d".to_owned(),
+            options: vec![core::CommandOptionSpec {
+                name: "sides".to_owned(),
+                description: "o".to_owned(),
+                kind: core::CommandOptionKind::Integer,
+                required: true,
+                autocomplete: true,
+                choices: vec![core::CommandChoice {
+                    name: "six".to_owned(),
+                    value: "6".to_owned(),
+                    artwork_id: String::new(),
+                }],
+                min: 2,
+                max: 100,
+            }],
+            feature: feature.to_owned(),
+            permission_summary: "Anyone".to_owned(),
+            aliases: vec!["r".to_owned()],
+            permissions,
+            enabled: true,
+            channel_ids: vec![7],
+        }
+    }
+
+    #[test]
+    fn a_commands_list_crosses_with_its_source_and_needs() {
+        let bits = (Permissions::MUSIC_CONTROL | Permissions::SEND_MESSAGES).bits() as i64;
+
+        let list = command_list(core::CommandList {
+            commands: vec![spec("plugin:dice", 0), spec("music", bits)],
+            results_public: false,
+        });
+
+        assert!(!list.results_public);
+        assert_eq!(list.commands[0].source, "plugin:dice");
+        assert_eq!(list.commands[0].needs, Vec::<String>::new());
+        assert_eq!(list.commands[1].source, "");
+        assert_eq!(list.commands[1].needs, ["musicControl"]);
+        assert_eq!(list.commands[0].channel_ids, ["7"]);
+        let option = &list.commands[0].options[0];
+        assert_eq!(option.kind, CommandOptionKindRecord::Integer);
+        assert_eq!((option.min, option.max), (2.0, 100.0));
+        assert_eq!(option.choices[0].value, "6");
+    }
+
+    #[test]
+    fn an_ephemeral_keeps_its_nonce_and_state() {
+        let note = ephemeral_note(core::EphemeralMessage {
+            channel_id: 9,
+            nonce: "n".to_owned(),
+            content: "thinking".to_owned(),
+            state: core::CommandRunState::Thinking,
+        });
+
+        assert_eq!(note.channel_id, "9");
+        assert_eq!(note.nonce, "n");
+        assert_eq!(note.state, CommandRunStateRecord::Thinking);
+    }
+
+    #[test]
+    fn a_commands_message_says_who_ran_it_and_its_state() {
+        let converted = message(core::Message {
+            id: 1,
+            channel_id: 2,
+            author_id: 3,
+            content: "x".to_owned(),
+            created_at_ms: 0,
+            edited_at_ms: None,
+            nonce: None,
+            command: Some("roll".to_owned()),
+            command_user_id: Some(4),
+            command_state: core::CommandRunState::NoAnswer,
+            attachments: Vec::new(),
+        });
+
+        assert_eq!(
+            converted.interaction,
+            Some(MessageInteractionRecord {
+                user_id: "4".to_owned(),
+                command: "roll".to_owned(),
+                state: CommandRunStateRecord::NoAnswer,
+            })
+        );
+    }
+
     #[test]
     fn numbers_and_ids_cross_as_planned() {
         let converted = message(core::Message {
@@ -673,6 +1031,8 @@ mod tests {
             edited_at_ms: None,
             nonce: Some("n".to_owned()),
             command: None,
+            command_user_id: None,
+            command_state: core::CommandRunState::Answered,
             attachments: vec![core::Attachment {
                 id: 5,
                 filename: "big.bin".to_owned(),

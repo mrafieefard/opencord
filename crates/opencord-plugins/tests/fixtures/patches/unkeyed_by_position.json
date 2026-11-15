@@ -1,0 +1,28 @@
+{
+  "before": {
+    "block": "column",
+    "props": {},
+    "events": [],
+    "children": [
+      { "block": "text", "props": { "text": "one" }, "events": [], "children": [] },
+      { "block": "text", "key": "k", "props": { "text": "K" }, "events": [], "children": [] },
+      { "block": "text", "props": { "text": "two" }, "events": [], "children": [] }
+    ]
+  },
+  "after": {
+    "block": "column",
+    "props": {},
+    "events": [],
+    "children": [
+      { "block": "text", "key": "k", "props": { "text": "K" }, "events": [], "children": [] },
+      { "block": "text", "props": { "text": "one!" }, "events": [], "children": [] },
+      { "block": "text", "props": { "text": "two" }, "events": [], "children": [] },
+      { "block": "text", "props": { "text": "three" }, "events": [], "children": [] }
+    ]
+  },
+  "ops": [
+    { "op": "create", "id": 5, "block": "text", "props": { "text": "three" }, "events": [], "children": [] },
+    { "op": "props", "id": 2, "set": { "text": "one!" }, "unset": [] },
+    { "op": "children", "id": 1, "children": [3, 2, 4, 5] }
+  ]
+}

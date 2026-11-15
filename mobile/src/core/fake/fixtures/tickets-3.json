@@ -1,0 +1,26 @@
+{
+  "batches": [
+    {
+      "ops": [
+        {
+          "id": 13,
+          "op": "props",
+          "set": {
+            "value": "Login"
+          },
+          "unset": []
+        }
+      ],
+      "seq": 3,
+      "view": "1"
+    }
+  ],
+  "input": {
+    "data": {
+      "value": "Login"
+    },
+    "event": "change",
+    "kind": "event",
+    "node": 13
+  }
+}

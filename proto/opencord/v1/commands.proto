@@ -3,6 +3,8 @@ syntax = "proto3";
 
 package opencord.v1;
 
+import "opencord/v1/models.proto";
+
 // Chat commands (Phase 3 plan §17): built into the server, not bots. The
 // server parses and checks everything; clients use the specs only to
 // build the input.
@@ -79,6 +81,10 @@ message ExecuteCommand {
   repeated CommandOptionValue options = 3;
   // Matched by the EphemeralMessage of an "only you" reply.
   string nonce = 4;
+  // Whose command: "" for Opencord's, "plugin:<id>" for a plugin's. Older
+  // apps leave it empty; the server then picks Opencord's, or the only
+  // plugin with that name.
+  string source = 5;
 }
 
 message CommandResult {
@@ -94,6 +100,8 @@ message AutocompleteCommand {
   string name = 2;
   string option = 3;
   string value = 4;
+  // As in ExecuteCommand.
+  string source = 5;
 }
 
 message CommandChoices {
@@ -111,6 +119,8 @@ message UpdateCommandSettings {
   // Where it may be used; an empty list for every channel.
   optional CommandChannels channel_ids = 3;
   optional bool results_public = 4;
+  // As in ExecuteCommand.
+  string source = 5;
 }
 
 message CommandChannels {
@@ -127,4 +137,6 @@ message EphemeralMessage {
   int64 channel_id = 1;
   string nonce = 2;
   string content = 3;
+  // A later one with the same nonce replaces it: thinking, then the reply.
+  CommandState state = 4;
 }

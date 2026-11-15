@@ -90,11 +90,31 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/activities/[channelId]"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
+            name="server/[serverKey]/activity/[sessionId]"
+            options={{
+              // Over the call (iOS draws modals above it): the activity's own page.
+              presentation: 'fullScreenModal',
+              contentStyle: { backgroundColor: colors.chat },
+            }}
+          />
+          <Stack.Screen
             name="viewer"
             options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
           />
         </Stack.Protected>
         <Stack.Screen name="dev/gallery" />
+        <Stack.Screen name="dev/plugin-area" />
       </Stack>
       {ready && <CallSheet />}
       <ToastHost />

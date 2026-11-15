@@ -13,6 +13,7 @@ import 'package:opencord/features/chat/chat_header.dart';
 import 'package:opencord/features/chat/composer.dart';
 import 'package:opencord/features/chat/message_list.dart';
 import 'package:opencord/features/chat/pinned_bar.dart';
+import 'package:opencord/features/plugins/plugin_area.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/features/shell/no_servers.dart';
 import 'package:opencord/features/shell/side_slot.dart';
@@ -176,6 +177,13 @@ class _ChatAreaState extends ConsumerState<ChatArea> {
                           key: ValueKey(('voice', open)),
                           channel: open,
                         ),
+                )
+              else if (open != null && channel!.kind == ChannelKind.plugin)
+                Expanded(
+                  child: PluginArea(
+                    key: ValueKey(('plugin', open)),
+                    place: ChannelPlace(open.server, open.channel),
+                  ),
                 )
               else
                 const Expanded(child: SizedBox()),

@@ -961,6 +961,8 @@ async fn twenty_channels_play_together_under_load() {
                 name: format!("Voice {i}"),
                 topic: None,
                 parent_id: None,
+                plugin_id: None,
+                type_key: None,
             }))
             .await
         {

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT license_accepted_by FROM plugins WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "license_accepted_by",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugins",
+            "name": "license_accepted_by"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "f81c9cfced8c5ad9518aae52dfcc4d63a5074fc236d99ceb752e80304553ceb6"
+}

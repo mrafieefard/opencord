@@ -10,6 +10,7 @@ import 'package:opencord/features/settings/server/commands_page.dart';
 import 'package:opencord/features/settings/server/music/music_page.dart';
 import 'package:opencord/features/settings/server/network/network_page.dart';
 import 'package:opencord/features/settings/server/overview_page.dart';
+import 'package:opencord/features/settings/server/plugins/plugins_page.dart';
 import 'package:opencord/features/settings/server/roles_page.dart';
 import 'package:opencord/features/settings/server/soundboard_page.dart';
 import 'package:opencord/features/settings/server/private_messages_page.dart';
@@ -83,6 +84,14 @@ List<SettingsPage> serverSettingsPages(
       icon: OcIcons.shieldPerson,
       group: 'Server',
       builder: (_) => ServerRolesPage(serverKey: serverKey),
+    ),
+  if (data.can(Permissions.managePlugins))
+    SettingsPage(
+      id: 'plugins',
+      label: 'Plugins',
+      icon: OcIcons.extension,
+      group: 'Server',
+      builder: (_) => ServerPluginsPage(serverKey: serverKey),
     ),
   // How the server is hosted, apart from the community's settings: its
   // domains and network (the owner's alone, Phase 3 plan §3), music, and

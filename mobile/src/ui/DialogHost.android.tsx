@@ -39,14 +39,14 @@ function Dialog({ options }: { options: ConfirmOptions }) {
   }));
 
   const accept = () => {
-    closeConfirm();
+    closeConfirm(true);
     options.onConfirm();
   };
 
   return (
-    <Modal transparent visible statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={closeConfirm}>
+    <Modal transparent visible statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={() => closeConfirm()}>
       <GestureHandlerRootView style={styles.center}>
-        <Touchable onPress={closeConfirm} style={StyleSheet.absoluteFill} accessibilityLabel="Close">
+        <Touchable onPress={() => closeConfirm()} style={StyleSheet.absoluteFill} accessibilityLabel="Close">
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }, scrimStyle]} />
         </Touchable>
         <Animated.View
@@ -64,7 +64,7 @@ function Dialog({ options }: { options: ConfirmOptions }) {
           </View>
           <View style={styles.actions}>
             <View style={styles.action}>
-              <Button title="Cancel" variant="plain" onPress={closeConfirm} />
+              <Button title="Cancel" variant="plain" onPress={() => closeConfirm()} />
             </View>
             <View style={styles.action}>
               <Button

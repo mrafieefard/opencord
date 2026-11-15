@@ -148,6 +148,10 @@ Future<void> openAppLink(
         showOcToast(context, 'That channel is gone, or hidden from you.');
         return;
       }
+      final ch = channels?[channel];
+      if (ch != null && !canOpen(context, ch)) {
+        return;
+      }
       final chat = ref.read(chatControllerProvider);
       final open =
           ref.read(currentServerProvider) == server &&

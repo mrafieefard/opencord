@@ -7,10 +7,10 @@ import { useTheme } from './theme/useTheme';
 
 export type { GlassSurfaceProps } from './GlassSurface.types';
 
-export function GlassSurface({ style, interactive = false, testID, children, ref }: GlassSurfaceProps) {
+export function GlassSurface({ style, interactive = false, testID, pointerEvents, children, ref }: GlassSurfaceProps) {
   const { scheme } = useTheme();
   return (
-    <GlassView ref={ref} glassEffectStyle="regular" isInteractive={interactive} colorScheme={scheme} style={style} testID={testID}>
+    <GlassView ref={ref} glassEffectStyle="regular" isInteractive={interactive} colorScheme={scheme} style={style} testID={testID} pointerEvents={pointerEvents}>
       {children}
     </GlassView>
   );

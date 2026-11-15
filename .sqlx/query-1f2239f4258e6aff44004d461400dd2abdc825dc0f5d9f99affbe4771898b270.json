@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT EXISTS(\n            SELECT 1 FROM domain_certificates\n            UNION ALL\n            SELECT 1 FROM acme_accounts\n            UNION ALL\n            SELECT 1 FROM dns_providers\n            UNION ALL\n            SELECT 1 FROM lavalink_nodes\n            UNION ALL\n            SELECT 1 FROM attachments\n            UNION ALL\n            SELECT 1 FROM storage_backends WHERE secret_enc IS NOT NULL\n            UNION ALL\n            SELECT 1 FROM server_meta WHERE key = 'tunnel.token'\n            UNION ALL\n            SELECT 1 FROM plugin_config WHERE sealed = 1\n        ) AS \"has_rows: bool\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "has_rows: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1f2239f4258e6aff44004d461400dd2abdc825dc0f5d9f99affbe4771898b270"
+}

@@ -642,12 +642,14 @@ Future<CommandOutcome> commandExecute({
   required String serverKey,
   required PlatformInt64 channelId,
   required String name,
+  required String source,
   required List<CommandOptionValue> options,
   required String nonce,
 }) => RustLib.instance.api.crateApiClientCommandExecute(
   serverKey: serverKey,
   channelId: channelId,
   name: name,
+  source: source,
   options: options,
   nonce: nonce,
 );
@@ -657,12 +659,14 @@ Future<List<CommandChoice>> commandAutocomplete({
   required String serverKey,
   required PlatformInt64 channelId,
   required String name,
+  required String source,
   required String option,
   required String value,
 }) => RustLib.instance.api.crateApiClientCommandAutocomplete(
   serverKey: serverKey,
   channelId: channelId,
   name: name,
+  source: source,
   option: option,
   value: value,
 );

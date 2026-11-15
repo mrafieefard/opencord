@@ -23,7 +23,7 @@ String _preview(WidgetRef ref, ChannelRef channel, Message message) {
   final data = ref.read(serverProvider(channel.server)).data;
   return previewText(
     messageSummary(message),
-    user: (id) => data?.members[id]?.displayName,
+    user: (id) => data?.authorOf(id).name,
     channel: (id) => data?.channels[id]?.name,
   );
 }
@@ -181,8 +181,8 @@ class PinnedList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.oc;
     final pins = ref.watch(pinsProvider(channel));
-    final members = ref.watch(
-      serverProvider(channel.server).select((state) => state.data?.members),
+    final serverData = ref.watch(
+      serverProvider(channel.server).select((state) => state.data),
     );
     final canUnpin = _canUnpin(ref, channel);
     return SizedBox(
@@ -226,7 +226,7 @@ class PinnedList extends ConsumerWidget {
                     Hoverable(
                       onTap: () => onJumpTo(pin.id),
                       semanticLabel:
-                          'Pinned message from ${members?[pin.authorId]?.displayName ?? 'someone'}',
+                          'Pinned message from ${serverData?.authorOf(pin.authorId).name ?? 'someone'}',
                       builder: (context, state) => AnimatedContainer(
                         duration: OcMotion.of(context).hover,
                         padding: const EdgeInsets.all(OcSpace.s8),
@@ -242,7 +242,7 @@ class PinnedList extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${members?[pin.authorId]?.displayName ?? 'Unknown user'} · ${rowTime(pin.createdAt, ref.read(clockProvider)())}',
+                                    '${serverData?.authorOf(pin.authorId).name ?? 'Unknown user'} · ${rowTime(pin.createdAt, ref.read(clockProvider)())}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: OcText.small.copyWith(

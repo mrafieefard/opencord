@@ -1,0 +1,25 @@
+{
+  "before": {
+    "block": "column",
+    "props": {},
+    "events": [],
+    "children": [
+      { "block": "text", "key": "a", "props": { "text": "A" }, "events": [], "children": [] },
+      { "block": "text", "key": "c", "props": { "text": "C" }, "events": [], "children": [] }
+    ]
+  },
+  "after": {
+    "block": "column",
+    "props": {},
+    "events": [],
+    "children": [
+      { "block": "text", "key": "a", "props": { "text": "A" }, "events": [], "children": [] },
+      { "block": "text", "key": "b", "props": { "text": "B" }, "events": [], "children": [] },
+      { "block": "text", "key": "c", "props": { "text": "C" }, "events": [], "children": [] }
+    ]
+  },
+  "ops": [
+    { "op": "create", "id": 4, "block": "text", "key": "b", "props": { "text": "B" }, "events": [], "children": [] },
+    { "op": "children", "id": 1, "children": [2, 4, 3] }
+  ]
+}

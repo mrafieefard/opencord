@@ -9,6 +9,7 @@ import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
 import 'package:opencord/core/rust/identity_store.dart';
 import 'package:opencord/features/voice/voice_focus.dart';
+import 'package:opencord/features/voice/voice_layout.dart';
 import 'package:opencord/ui/widgets/oc_button.dart';
 
 import 'support/e2e.dart';
@@ -78,7 +79,7 @@ void main() {
             .read(
               voiceFocusProvider((server: server, channel: channel)).notifier,
             )
-            .toggle((userId: stream.userId, screen: true));
+            .toggle(personTile(stream.userId, screen: true));
         await waitUntil(
           tester,
           () => container.read(videoFeedsProvider).screens.isNotEmpty,

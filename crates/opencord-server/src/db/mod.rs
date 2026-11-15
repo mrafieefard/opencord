@@ -21,6 +21,7 @@ pub mod members;
 pub mod messages;
 pub mod meta;
 pub mod music;
+pub mod plugins;
 pub mod private;
 pub mod roles;
 pub mod sounds;
@@ -84,6 +85,8 @@ pub async fn holds_sealed_data(pool: &SqlitePool) -> Result<bool, sqlx::Error> {
             SELECT 1 FROM storage_backends WHERE secret_enc IS NOT NULL
             UNION ALL
             SELECT 1 FROM server_meta WHERE key = 'tunnel.token'
+            UNION ALL
+            SELECT 1 FROM plugin_config WHERE sealed = 1
         ) AS "has_rows: bool"
         "#
     )
@@ -290,7 +293,8 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(permissions, 3 | 1024 | 16384);
+        // Later migrations add bits too: 0017 gives @everyone START_ACTIVITIES.
+        assert_eq!(permissions, 3 | 1024 | 16384 | (1 << 33));
         assert_eq!(max_upload_bytes, Some(52428800));
 
         sqlx::query(

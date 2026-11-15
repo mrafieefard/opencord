@@ -10,3 +10,4 @@ pub(crate) mod song;
 pub(crate) mod staged;
 pub(crate) mod transfer;
 pub(crate) mod upload;
+pub(crate) mod view_upload;

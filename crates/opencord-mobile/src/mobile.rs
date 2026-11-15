@@ -12,6 +12,8 @@ use tokio::runtime::{Handle, Runtime};
 
 use crate::MobileError;
 use crate::events::{EventPump, MobileEvent};
+use crate::types::ViewOutputRecord;
+use crate::views::ViewPump;
 
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 static MOBILE: OnceLock<Mobile> = OnceLock::new();
@@ -19,6 +21,7 @@ static MOBILE: OnceLock<Mobile> = OnceLock::new();
 pub struct Mobile {
     client: Client,
     events: EventPump,
+    views: ViewPump,
     cache_dir: PathBuf,
     runtime: Handle,
 }
@@ -33,10 +36,13 @@ impl Mobile {
         open_devices: bool,
     ) -> Result<Self, MobileError> {
         let (client, core_events) = Client::new(data_dir, runtime.clone())?;
+        // Plugins see the phone as a phone (§11.4).
+        client.set_view_platform(opencord_core::views::ViewPlatform::Phone);
         let media_events = client.enable_media(MediaOptions { open_devices });
         Ok(Self {
             client,
             events: EventPump::new(core_events, media_events),
+            views: ViewPump::default(),
             cache_dir: cache_dir.to_owned(),
             runtime,
         })
@@ -56,6 +62,41 @@ impl Mobile {
 
     pub async fn next_events(&self, generation: u64, max: u32) -> Vec<MobileEvent> {
         self.events.next(generation, max).await
+    }
+
+    /// Starts a new generation of the plugin view stream; a
+    /// `next_view_outputs` waiting under an older one returns empty at once.
+    /// Views the earlier generation left open (a JavaScript reload) are
+    /// closed first: nothing is left to draw them.
+    pub fn view_outputs_attach(&self) -> u64 {
+        let (generation, left) = self.views.attach(self.client.view_outputs());
+        for view_id in left {
+            tracing::info!(view = %view_id, "closing a view an earlier start left open");
+            self.client.view_close(&view_id);
+        }
+        generation
+    }
+
+    pub async fn next_view_outputs(&self, generation: u64, max: u32) -> Vec<ViewOutputRecord> {
+        self.views.next(generation, max).await
+    }
+
+    /// A view this JavaScript start opened, to close if it reloads.
+    pub fn note_view_opened(&self, view_id: &str) {
+        self.views.opened(view_id);
+    }
+
+    pub fn note_view_closed(&self, view_id: &str) {
+        self.views.closed(view_id);
+    }
+
+    /// The views opened and not closed since the last attach, ascending.
+    pub fn open_view_ids(&self) -> Vec<String> {
+        self.views.open_ids()
+    }
+
+    pub fn set_plugin_features(&self, features: Vec<String>) -> Result<(), MobileError> {
+        Ok(self.client.set_plugin_features(features)?)
     }
 
     /// Runs `work` on the core's runtime, where its connections live.

@@ -1,5 +1,6 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 import { Alert } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import {
   ConnectionRecord,
@@ -8,7 +9,8 @@ import {
 } from '@opencord/core-native';
 
 import { CHANNELS, NIGHT_OWLS, SELF_ID, snapshot } from '@/core/fake/world';
-import { onEvents } from '@/state/store';
+import { BAR_HEIGHT, PILL_GAP, useListEndRoom } from '@/features/voice/callPosition';
+import { onEvents, useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
 import { ChannelList } from '../ChannelList';
@@ -24,6 +26,20 @@ describe('ChannelList', () => {
   beforeEach(() => {
     freshStore();
     jest.clearAllMocks();
+  });
+
+  // Fails if a list's last rows can't scroll out from under the tab bar,
+  // or (in voice, iOS) the floating call bar above it: iOS doesn't inset a
+  // list that isn't its screen's own for the bar, so the list leaves both.
+  it('a list under the tab bar leaves room for it, and the call bar in voice', async () => {
+    // A tab's safe area takes the tab bar in: 83 at its foot, as an iPhone's.
+    const metrics = { frame: { x: 0, y: 0, width: 402, height: 874 }, insets: { top: 62, left: 0, right: 0, bottom: 83 } };
+    const room = await renderHook(() => useListEndRoom(), {
+      wrapper: ({ children }) => <SafeAreaProvider initialMetrics={metrics}>{children}</SafeAreaProvider>,
+    });
+    expect(room.result.current).toBe(83);
+    await act(async () => useAppStore.setState({ myVoice: { serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, muted: false, deafened: false } as never }));
+    expect(room.result.current).toBe(83 + BAR_HEIGHT + PILL_GAP);
   });
 
   it('channels without a category come first, then each category by position', async () => {
@@ -114,9 +130,11 @@ describe('ChannelList', () => {
     ]);
     await settle();
 
-    const { getByText } = await render(<ChannelList serverKey={NIGHT_OWLS} variant="full" onSelect={jest.fn()} />);
+    const { findByText } = await render(<ChannelList serverKey={NIGHT_OWLS} variant="full" onSelect={jest.fn()} />);
 
-    expect(getByText('Midnight City — M83')).toBeTruthy();
+    // The row is past the list's first ten (the plugin channels came
+    // before it): it draws in a later batch.
+    expect(await findByText('Midnight City — M83')).toBeTruthy();
   });
 
   it('channels the user can\'t view are left out', async () => {

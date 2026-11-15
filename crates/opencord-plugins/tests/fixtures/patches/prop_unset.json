@@ -1,0 +1,17 @@
+{
+  "before": {
+    "block": "button",
+    "props": { "text": "Go", "variant": "primary", "disabled": true },
+    "events": ["press"],
+    "children": []
+  },
+  "after": {
+    "block": "button",
+    "props": { "text": "Go" },
+    "events": ["press"],
+    "children": []
+  },
+  "ops": [
+    { "op": "props", "id": 1, "set": {}, "unset": ["disabled", "variant"] }
+  ]
+}

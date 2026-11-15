@@ -7,6 +7,7 @@ import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
+import "opencord/v1/plugins.proto";
 import "opencord/v1/private.proto";
 
 // Events about a channel are only sent to sessions that can view it.
@@ -96,6 +97,22 @@ message Event {
     PrivateTypingStart private_typing_start = 121;
     // To everyone.
     PrivateSettingsUpdate private_settings_update = 122;
+
+    // Plugins (design 2026-11-07).
+    PluginUpdate plugin_update = 130;
+    PluginRemove plugin_remove = 131;
+    PluginReviewUpdate plugin_review_update = 132;
+    PluginReviewRemove plugin_review_remove = 133;
+    PluginLogAppend plugin_log_append = 134;
+    PluginUsersUpdate plugin_users_update = 135;
+    ViewMessage view_message = 136;
+    ViewClosed view_closed = 137;
+    ViewScriptsUpdate view_scripts_update = 138;
+    PluginChannelTypesUpdate plugin_channel_types_update = 139;
+    PluginActivitiesUpdate plugin_activities_update = 140;
+    ActivitySessionCreate activity_session_create = 141;
+    ActivitySessionUpdate activity_session_update = 142;
+    ActivitySessionDelete activity_session_delete = 143;
   }
 }
 

@@ -1,0 +1,31 @@
+[package]
+name = "opencord-plugin-cli"
+description = "Development tool for Opencord plugins."
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[[bin]]
+name = "opencord-plugin"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true, features = ["derive", "env"] }
+data-encoding.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+opencord-common.workspace = true
+opencord-plugins.workspace = true
+opencord-proto.workspace = true
+prost.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["full"] }
+webpki-roots.workspace = true
+
+[dev-dependencies]
+opencord-server = { workspace = true, features = ["testing"] }
+tempfile.workspace = true

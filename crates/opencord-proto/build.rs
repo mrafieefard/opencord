@@ -1,5 +1,5 @@
 const PROTO_ROOT: &str = "../../proto";
-const PROTO_FILES: [&str; 10] = [
+const PROTO_FILES: [&str; 11] = [
     "opencord/v1/commands.proto",
     "opencord/v1/gateway.proto",
     "opencord/v1/models.proto",
@@ -10,6 +10,7 @@ const PROTO_FILES: [&str; 10] = [
     "opencord/v1/voice.proto",
     "opencord/v1/internal.proto",
     "opencord/v1/private.proto",
+    "opencord/v1/plugins.proto",
 ];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -30,6 +31,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .boxed(".opencord.v1.Event.kind.music_settings_update")
         .boxed(".opencord.v1.Response.result.music_session")
         .boxed(".opencord.v1.Response.result.music_settings")
+        // Plugins (design 2026-11-07).
+        .boxed(".opencord.v1.Event.kind.plugin_review_update")
+        .boxed(".opencord.v1.Response.result.plugin_review")
         .compile_fds(descriptors)?;
     Ok(())
 }

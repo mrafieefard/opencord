@@ -49,10 +49,10 @@ async fn read_picture(body: Body) -> Result<Vec<u8>, ApiError> {
     Ok(bytes.to_vec())
 }
 
-/// Stores the picture in [bytes] as a 256-pixel square PNG, kept as it is
-/// when it already is one; its hash.
-async fn store(state: &AppState, bytes: Vec<u8>) -> Result<String, ApiError> {
-    let png = tokio::task::spawn_blocking(move || {
+/// The picture in [bytes] as a 256-pixel square PNG, kept as it is when it
+/// already is one.
+pub(crate) async fn normalize(bytes: Vec<u8>) -> Result<Vec<u8>, ApiError> {
+    tokio::task::spawn_blocking(move || {
         if avatar::is_normalized(&bytes) {
             Ok(bytes)
         } else {
@@ -61,7 +61,13 @@ async fn store(state: &AppState, bytes: Vec<u8>) -> Result<String, ApiError> {
     })
     .await
     .map_err(|_| ApiError::internal())?
-    .map_err(|error| ApiError::invalid_argument(error.to_string()))?;
+    .map_err(|error| ApiError::invalid_argument(error.to_string()))
+}
+
+/// Stores the picture in [bytes] as a 256-pixel square PNG, kept as it is
+/// when it already is one; its hash.
+pub(crate) async fn store(state: &AppState, bytes: Vec<u8>) -> Result<String, ApiError> {
+    let png = normalize(bytes).await?;
     let hash = avatar::hash(&png);
     let path = picture_path(&state.config.server.data_dir, &hash);
     if tokio::fs::try_exists(&path).await.unwrap_or(false) {

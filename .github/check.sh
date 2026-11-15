@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 export SQLX_OFFLINE=true OPENCORD_SHARED_RUNNER=1
 
 # As in the workflow.
-SERVER_CRATES="-p opencord-server -p opencord-common -p opencord-proto"
+SERVER_CRATES="-p opencord-server -p opencord-common -p opencord-proto -p opencord-plugins -p opencord-plugin-cli"
 CLIENT_CRATES="-p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher -p opencord-mobile"
 which=${1:-all}
 
@@ -42,6 +42,12 @@ if [[ $which == all || $which == client ]]; then
     run "client tests" cargo test --locked --no-fail-fast $CLIENT_CRATES
     run "flutter analyze" bash -c 'cd app && flutter analyze'
     run "flutter test" bash -c 'cd app && flutter test'
+    run "blocks analyze" bash -c 'cd app/packages/opencord_blocks && flutter analyze'
+    run "blocks test" bash -c 'cd app/packages/opencord_blocks && flutter test'
+    run "plugin host analyze" bash -c 'cd app/packages/opencord_plugin_host && flutter analyze'
+    run "plugin host test" bash -c 'cd app/packages/opencord_plugin_host && flutter test'
+    run "flutter module analyze" bash -c 'cd mobile/flutter_module && flutter analyze'
+    run "flutter module test" bash -c 'cd mobile/flutter_module && flutter test'
 fi
 if [[ $which == all || $which == mobile ]]; then
     if [[ $which == mobile ]]; then

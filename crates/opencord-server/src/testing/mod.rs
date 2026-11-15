@@ -6,6 +6,10 @@
 //! [`TestCa::ca_pem`] check them as they would Let's Encrypt's.
 
 pub mod fake_lavalink;
+#[cfg(feature = "testing")]
+pub mod server;
+#[cfg(feature = "testing")]
+pub use server::*;
 
 use rcgen::{
     BasicConstraints, CertificateParams, CertifiedIssuer, DnType, IsCa, Issuer, KeyPair,

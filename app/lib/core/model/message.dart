@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:opencord/core/model/attachment.dart';
+import 'package:opencord/core/model/commands.dart';
 
 /// A small notice in the history instead of a bubble (§4.5).
 enum SystemEvent { memberJoined, channelCreated, messagePinned }
@@ -44,6 +45,8 @@ class Message {
     this.systemEvent,
     this.sendState = SendState.sent,
     this.command,
+    this.commandUserId,
+    this.commandState = CommandRunState.answered,
     this.attachments = const [],
     this.uploads = const [],
   });
@@ -66,8 +69,14 @@ class Message {
   final SystemEvent? systemEvent;
   final SendState sendState;
 
-  /// A command's public result (Phase 3 §17.3): the command [authorId] ran.
+  /// A command's public result (Phase 3 §17.3): the command run.
   final String? command;
+
+  /// Who ran [command]; [authorId] unless a plugin answered.
+  final int? commandUserId;
+
+  /// Where [command]'s reply stands.
+  final CommandRunState commandState;
 
   final List<Attachment> attachments;
   final List<PendingUpload> uploads;
@@ -84,6 +93,7 @@ class Message {
     bool? pinned,
     SendState? sendState,
     DateTime? createdAt,
+    CommandRunState? commandState,
     List<Attachment>? attachments,
     List<PendingUpload>? uploads,
   }) => Message(
@@ -100,6 +110,8 @@ class Message {
     systemEvent: systemEvent,
     sendState: sendState ?? this.sendState,
     command: command,
+    commandUserId: commandUserId,
+    commandState: commandState ?? this.commandState,
     attachments: attachments ?? this.attachments,
     uploads: uploads ?? this.uploads,
   );

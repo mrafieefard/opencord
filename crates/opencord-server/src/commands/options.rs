@@ -99,7 +99,7 @@ impl Options {
     }
 }
 
-fn yes_or_no(value: &str) -> Option<bool> {
+pub(crate) fn yes_or_no(value: &str) -> Option<bool> {
     match value.to_ascii_lowercase().as_str() {
         "yes" | "true" | "1" | "on" => Some(true),
         "no" | "false" | "0" | "off" => Some(false),

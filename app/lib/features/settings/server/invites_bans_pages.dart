@@ -122,8 +122,8 @@ class _ServerInvitesPageState
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
-    final members = ref.watch(
-      serverProvider(widget.serverKey).select((s) => s.data?.members),
+    final serverData = ref.watch(
+      serverProvider(widget.serverKey).select((s) => s.data),
     );
     final now = ref.read(clockProvider)();
     return Column(
@@ -235,7 +235,10 @@ class _ServerInvitesPageState
                     Expanded(
                       flex: 4,
                       child: Text(
-                        members?[invite.createdBy]?.displayName ?? 'Someone',
+                        invite.createdBy == null
+                            ? 'Someone'
+                            : (serverData?.authorOf(invite.createdBy!).name ??
+                                  'Someone'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: OcText.body.copyWith(color: colors.text),

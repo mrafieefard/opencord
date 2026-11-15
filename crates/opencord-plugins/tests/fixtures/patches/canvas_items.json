@@ -1,0 +1,41 @@
+{
+  "before": {
+    "block": "canvas",
+    "props": {
+      "ink": { "color": "accent", "width": 2 },
+      "items": [
+        { "id": "p", "kind": "rect", "x": 1 },
+        { "id": "q", "kind": "line", "x": 2 },
+        { "id": "r", "kind": "text", "x": 3 }
+      ]
+    },
+    "events": ["stroke"],
+    "children": []
+  },
+  "after": {
+    "block": "canvas",
+    "props": {
+      "ink": { "color": "accent", "width": 3 },
+      "items": [
+        { "id": "r", "kind": "text", "x": 3 },
+        { "id": "p", "kind": "rect", "x": 5 },
+        { "id": "s", "kind": "ellipse", "x": 4 }
+      ]
+    },
+    "events": ["stroke"],
+    "children": []
+  },
+  "ops": [
+    { "op": "props", "id": 1, "set": { "ink": { "color": "accent", "width": 3 } }, "unset": [] },
+    {
+      "op": "draw",
+      "id": 1,
+      "set": [
+        { "id": "p", "kind": "rect", "x": 5 },
+        { "id": "s", "kind": "ellipse", "x": 4 }
+      ],
+      "remove": ["q"],
+      "order": ["r", "p", "s"]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+name: opencord_plugin_area
+description: "Draws a plugin's view inside the phone app (plugins M4): the desktop's renderer in a Flutter view React Native hosts."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  opencord_blocks:
+    path: ../../app/packages/opencord_blocks
+  opencord_plugin_host:
+    path: ../../app/packages/opencord_plugin_host
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  # The weights app/pubspec.yaml declares, from the shared package's copies,
+  # so text measures as on the desktop.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: packages/opencord_plugin_host/fonts/Inter-Regular.ttf
+        - asset: packages/opencord_plugin_host/fonts/Inter-Italic.ttf
+          style: italic
+        - asset: packages/opencord_plugin_host/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: packages/opencord_plugin_host/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: packages/opencord_plugin_host/fonts/Inter-SemiBoldItalic.ttf
+          weight: 600
+          style: italic
+        - asset: packages/opencord_plugin_host/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: JetBrainsMono
+      fonts:
+        - asset: packages/opencord_plugin_host/fonts/JetBrainsMono-Regular.ttf
+    - family: MaterialSymbolsRounded
+      fonts:
+        - asset: packages/opencord_plugin_host/fonts/MaterialSymbolsRounded.ttf
+
+  module:
+    androidX: true
+    androidPackage: dev.opencord.opencord_plugin_area
+    iosBundleIdentifier: dev.opencord.opencordPluginArea

@@ -1,11 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:opencord/core/model/channel.dart';
+import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
-import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/features/shell/navigation.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -83,6 +85,7 @@ class CreateChannelDialog extends ConsumerStatefulWidget {
 class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
   final _name = TextEditingController();
   late var _kind = widget.kind;
+  PluginChannelType? _selectedPluginType;
   var _private = false;
   var _busy = false;
   String? _error;
@@ -109,7 +112,15 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
   void _choose(ChannelKind kind) {
     setState(() {
       _kind = kind;
+      _selectedPluginType = null;
       if (kind.isTextLike) _name.text = kebabName(_name.text);
+    });
+  }
+
+  void _choosePluginType(PluginChannelType type) {
+    setState(() {
+      _kind = ChannelKind.plugin;
+      _selectedPluginType = type;
     });
   }
 
@@ -121,17 +132,27 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
       _error = null;
     });
     try {
-      final channel = await ref
-          .read(repositoryProvider)
-          .createChannel(
-            widget.serverKey,
-            kind: _kind,
-            name: name,
-            parentId: widget.parentId,
-            private: _private,
-          );
+      final channel = _kind == ChannelKind.plugin && _selectedPluginType != null
+          ? await ref
+                .read(repositoryProvider)
+                .createPluginChannel(
+                  widget.serverKey,
+                  pluginId: _selectedPluginType!.pluginId,
+                  typeKey: _selectedPluginType!.typeKey,
+                  name: name,
+                  parentId: widget.parentId,
+                )
+          : await ref
+                .read(repositoryProvider)
+                .createChannel(
+                  widget.serverKey,
+                  kind: _kind,
+                  name: name,
+                  parentId: widget.parentId,
+                  private: _private,
+                );
       if (!mounted) return;
-      if (channel.kind.isTextLike) {
+      if (channel.kind.isTextLike || channel.kind == ChannelKind.plugin) {
         ref
             .read(navigationProvider.notifier)
             .openChannel(widget.serverKey, channel.id);
@@ -160,6 +181,14 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
         .read(repositoryProvider)
         .capabilities
         .announcementChannels;
+    final serverData = ref.watch(
+      serverProvider(widget.serverKey).select((s) => s.data),
+    );
+    final canManageChannels =
+        serverData?.can(Permissions.manageChannels) ?? false;
+    final pluginTypes = canManageChannels
+        ? (serverData?.pluginChannelTypes ?? const <PluginChannelType>[])
+        : const <PluginChannelType>[];
     final kinds = [
       (ChannelKind.text, OcIcons.tag, 'Text', 'Messages, links and code'),
       (ChannelKind.voice, OcIcons.volumeUp, 'Voice', 'Talk, share your screen'),
@@ -195,8 +224,20 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
               icon: icon,
               title: title,
               description: description,
-              selected: _kind == kind,
+              selected: _kind == kind && _selectedPluginType == null,
               onTap: () => _choose(kind),
+            ),
+            const SizedBox(height: OcSpace.s6),
+          ],
+          for (final type in pluginTypes) ...[
+            _PluginKindCard(
+              serverKey: widget.serverKey,
+              type: type,
+              selected:
+                  _kind == ChannelKind.plugin &&
+                  _selectedPluginType?.pluginId == type.pluginId &&
+                  _selectedPluginType?.typeKey == type.typeKey,
+              onTap: () => _choosePluginType(type),
             ),
             const SizedBox(height: OcSpace.s6),
           ],
@@ -210,6 +251,7 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
             prefixIcon: switch (_kind) {
               ChannelKind.voice => OcIcons.volumeUp,
               ChannelKind.announcement => OcIcons.campaign,
+              ChannelKind.plugin => OcIcons.extension,
               _ => OcIcons.tag,
             },
             semanticLabel: 'Channel name',
@@ -220,12 +262,13 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
             onSubmitted: (_) => _create(),
           ),
           // Private means overwrites, which need Manage roles.
-          if (ref.watch(
-                serverProvider(
-                  widget.serverKey,
-                ).select((s) => s.data?.can(Permissions.manageRoles)),
-              ) ??
-              false) ...[
+          if (_selectedPluginType == null &&
+              (ref.watch(
+                    serverProvider(
+                      widget.serverKey,
+                    ).select((s) => s.data?.can(Permissions.manageRoles)),
+                  ) ??
+                  false)) ...[
             const SizedBox(height: OcSpace.s16),
             Row(
               children: [
@@ -266,14 +309,16 @@ class _CreateChannelDialogState extends ConsumerState<CreateChannelDialog> {
 /// (§4.11).
 class _KindCard extends StatelessWidget {
   const _KindCard({
-    required this.icon,
+    this.icon,
+    this.iconFile,
     required this.title,
     required this.description,
     required this.selected,
     required this.onTap,
   });
 
-  final IconData icon;
+  final IconData? icon;
+  final String? iconFile;
   final String title;
   final String description;
   final bool selected;
@@ -282,6 +327,25 @@ class _KindCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
+    Widget iconWidget;
+    if (iconFile != null && iconFile!.isNotEmpty) {
+      iconWidget = Image.file(
+        File(iconFile!),
+        width: OcSize.iconButton,
+        height: OcSize.iconButton,
+        errorBuilder: (_, _, _) => Icon(
+          icon ?? OcIcons.extension,
+          size: OcSize.iconButton,
+          color: colors.text,
+        ),
+      );
+    } else {
+      iconWidget = Icon(
+        icon ?? OcIcons.extension,
+        size: OcSize.iconButton,
+        color: colors.text,
+      );
+    }
     return Hoverable(
       onTap: onTap,
       semanticLabel: '$title channel: $description',
@@ -303,7 +367,7 @@ class _KindCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: OcSize.iconButton, color: colors.text),
+            iconWidget,
             const SizedBox(width: OcSpace.s12),
             Expanded(
               child: Column(
@@ -323,6 +387,45 @@ class _KindCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PluginKindCard extends ConsumerWidget {
+  const _PluginKindCard({
+    required this.serverKey,
+    required this.type,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String serverKey;
+  final PluginChannelType type;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final iconFile = type.icon.isNotEmpty
+        ? ref
+              .watch(
+                pluginAssetFileProvider(
+                  PluginAssetRef(
+                    serverKey: serverKey,
+                    pluginId: type.pluginId,
+                    path: type.icon,
+                  ),
+                ),
+              )
+              .value
+        : null;
+    return _KindCard(
+      icon: OcIcons.extension,
+      iconFile: iconFile,
+      title: type.name,
+      description: type.pluginName,
+      selected: selected,
+      onTap: onTap,
     );
   }
 }

@@ -290,7 +290,7 @@ class MusicQueueRow extends ConsumerWidget {
     final requester = ref.watch(
       serverProvider(
         channel.server,
-      ).select((state) => state.data?.members[item.requesterId]?.displayName),
+      ).select((state) => state.data?.authorOf(item.requesterId).name),
     );
     final track = item.track;
     final subtitle = track.artist;

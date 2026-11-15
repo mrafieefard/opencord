@@ -619,8 +619,7 @@ class _PermissionsState extends ConsumerState<_Permissions>
     ];
     String nameOf(_Target target) => switch (target.kind) {
       OverwriteTargetKind.role => data.roles[target.id]?.name ?? 'Deleted role',
-      OverwriteTargetKind.member =>
-        data.members[target.id]?.displayName ?? 'Former member',
+      OverwriteTargetKind.member => data.authorOf(target.id).name,
     };
     final members =
         [

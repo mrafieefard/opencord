@@ -1,0 +1,5 @@
+# Gradle output from building the app.
+android/build/
+
+# The Flutter module's frameworks (mobile/scripts/build-flutter.sh ios).
+ios/Frameworks/

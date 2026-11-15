@@ -75,6 +75,7 @@ class OcTextField extends StatelessWidget {
     this.inputFormatters,
     this.semanticLabel,
     this.obscure = false,
+    this.keyboardType,
   });
 
   final TextEditingController? controller;
@@ -102,12 +103,14 @@ class OcTextField extends StatelessWidget {
 
   /// Hides what is typed, for passwords.
   final bool obscure;
+  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.oc;
     final field = TextField(
       controller: controller,
+      keyboardType: keyboardType,
       focusNode: focusNode,
       autofocus: autofocus,
       readOnly: readOnly,

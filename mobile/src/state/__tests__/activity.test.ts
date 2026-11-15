@@ -5,6 +5,7 @@ import { CHANNELS, NIGHT_OWLS, SELF_ID, snapshot } from '@/core/fake/world';
 import { setCore } from '@/core';
 import { freshStore, settle } from '@/test/store';
 
+import { readableChannels } from '../activity';
 import { markChannelRead, markServerRead } from '../actions/servers';
 import { setOpenChannel } from '../actions/ui';
 import { onEvents, readPositions, setToaster, useAppStore } from '../store';
@@ -22,6 +23,17 @@ async function others(core: FakeCore, after: string): Promise<MessageRecord[]> {
   const recent = await core.messagesFetch(NIGHT_OWLS, CHANNELS.general, undefined, 50);
   return recent.filter((message) => BigInt(message.id) > BigInt(after) && message.authorId !== SELF_ID);
 }
+
+describe('which channels have a chat', () => {
+  // Fails if plugin channels are asked for messages on every connect: they
+  // have no chat (wasted requests, a no-history warning each).
+  it('plugin channels have no chat to seed', () => {
+    const readable = readableChannels(snapshot(NIGHT_OWLS));
+    expect(readable).toContain(CHANNELS.general);
+    expect(readable).not.toContain(CHANNELS.helpDesk);
+    expect(readable).not.toContain(CHANNELS.oldBoard);
+  });
+});
 
 describe('unread counts, as the desktop counts them', () => {
   it("seeding counts others' messages since the saved position", async () => {

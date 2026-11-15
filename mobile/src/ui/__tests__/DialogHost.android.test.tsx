@@ -12,7 +12,7 @@ async function renderHost() {
   );
 }
 
-async function ask(onConfirm: () => void) {
+async function ask(onConfirm: () => void, onCancel?: () => void) {
   await act(async () => {
     confirm({
       title: 'Leave Night Owls?',
@@ -20,11 +20,27 @@ async function ask(onConfirm: () => void) {
       confirmTitle: 'Leave',
       destructive: true,
       onConfirm,
+      onCancel,
     });
   });
 }
 
 describe('the Android dialog', () => {
+  // Fails if Cancel doesn't tell the asker (a plugin's link question would
+  // never be answered), or confirming also says cancel.
+  it('Cancel answers onCancel; confirming does not', async () => {
+    const onConfirm = jest.fn();
+    const onCancel = jest.fn();
+    await renderHost();
+    await ask(onConfirm, onCancel);
+    await fireEvent.press(screen.getByLabelText('Cancel'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    await ask(onConfirm, onCancel);
+    await fireEvent.press(screen.getByLabelText('Leave'));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the question, and Cancel closes it without acting', async () => {
     const onConfirm = jest.fn();
     await renderHost();

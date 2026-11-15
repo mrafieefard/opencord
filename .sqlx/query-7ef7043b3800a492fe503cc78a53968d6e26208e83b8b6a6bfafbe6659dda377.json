@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT u.id AS \"user_id!\", u.plugin_id AS \"plugin_id!\", u.display_name,\n                  u.avatar_hash, r.id AS \"role_id?\"\n           FROM users u LEFT JOIN roles r ON r.plugin_id = u.plugin_id\n           WHERE u.plugin_id IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "plugin_id!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "display_name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "avatar_hash",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "avatar_hash"
+          }
+        }
+      },
+      {
+        "name": "role_id?",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "roles",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "7ef7043b3800a492fe503cc78a53968d6e26208e83b8b6a6bfafbe6659dda377"
+}

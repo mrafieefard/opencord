@@ -7,6 +7,7 @@ import "opencord/v1/commands.proto";
 import "opencord/v1/models.proto";
 import "opencord/v1/music.proto";
 import "opencord/v1/network.proto";
+import "opencord/v1/plugins.proto";
 import "opencord/v1/private.proto";
 
 message Request {
@@ -149,6 +150,28 @@ message Request {
     MusicFindLocal music_find_local = 200;
     RemoveLocalSong remove_local_song = 201;
     FetchLocalSongs fetch_local_songs = 202;
+
+    // Plugins (design 2026-11-07).
+    FetchPlugins fetch_plugins = 210;
+    FetchPluginReviews fetch_plugin_reviews = 211;
+    ConfirmPluginReview confirm_plugin_review = 212;
+    DiscardPluginReview discard_plugin_review = 213;
+    SetPluginPermissions set_plugin_permissions = 214;
+    SetPluginConfig set_plugin_config = 215;
+    SetPluginRunning set_plugin_running = 216;
+    RestartPlugin restart_plugin = 217;
+    UninstallPlugin uninstall_plugin = 218;
+    FetchPluginLog fetch_plugin_log = 219;
+    WatchPluginLog watch_plugin_log = 220;
+    CreatePluginDevToken create_plugin_dev_token = 221;
+    RevokePluginDevToken revoke_plugin_dev_token = 222;
+    FetchPluginDevTokens fetch_plugin_dev_tokens = 223;
+    OpenView open_view = 224;
+    CloseView close_view = 225;
+    SendViewEvent send_view_event = 226;
+    ReportViewError report_view_error = 227;
+    StartActivity start_activity = 228;
+    EndActivity end_activity = 229;
   }
 }
 
@@ -202,6 +225,17 @@ message Response {
     // Uploaded songs (design 2026-10-24).
     MusicLocalMatch music_local_match = 41;
     LocalSongs local_songs = 42;
+
+    // Plugins (design 2026-11-07).
+    Plugins plugins = 43;
+    Plugin plugin = 44;
+    PluginReview plugin_review = 45;
+    PluginReviews plugin_reviews = 46;
+    PluginLog plugin_log = 47;
+    PluginDevTokens plugin_dev_tokens = 48;
+    CreatedPluginDevToken created_plugin_dev_token = 49;
+    ViewOpened view_opened = 50;
+    ActivitySession activity_session = 51;
   }
 }
 
@@ -260,6 +294,8 @@ message CreateChannel {
   string name = 2;
   optional string topic = 3;
   optional int64 parent_id = 4;
+  optional string plugin_id = 5;
+  optional string type_key = 6;
 }
 
 // -> channel. Absent fields are left unchanged. An empty topic clears it,
@@ -548,6 +584,8 @@ message CreateUpload {
   optional uint32 width = 5;
   optional uint32 height = 6;
   optional uint32 duration_ms = 7;
+  // Instead of a channel: an upload for a plugin view's picker (§13.3).
+  optional int64 view_id = 8;
 }
 
 // -> ack. One's own upload that is not sent yet.

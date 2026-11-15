@@ -8,6 +8,7 @@ import 'package:opencord/core/model/message.dart';
 import 'package:opencord/core/model/misc.dart';
 import 'package:opencord/core/model/network.dart';
 import 'package:opencord/core/model/permissions.dart';
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/core/model/presence.dart';
 import 'package:opencord/core/model/server.dart';
 import 'package:opencord/core/model/sound.dart';
@@ -41,6 +42,10 @@ class ReadySnapshot {
     this.uploadSettings = UploadSettings.fallback,
     this.privateMessages = false,
     this.privateSettings = const ServerPrivateSettings(),
+    this.pluginUsers = const [],
+    this.pluginChannelTypes = const [],
+    this.pluginActivities = const [],
+    this.activitySessions = const {},
   });
 
   final User self;
@@ -82,4 +87,12 @@ class ReadySnapshot {
   final UploadSettings uploadSettings;
   final bool privateMessages;
   final ServerPrivateSettings privateSettings;
+  final List<PluginUser> pluginUsers;
+  final List<PluginChannelType> pluginChannelTypes;
+
+  /// The activities running plugins register (plugins M3).
+  final List<PluginActivity> pluginActivities;
+
+  /// The activity sessions in the voice channels this user can view, by id.
+  final Map<int, ActivitySession> activitySessions;
 }

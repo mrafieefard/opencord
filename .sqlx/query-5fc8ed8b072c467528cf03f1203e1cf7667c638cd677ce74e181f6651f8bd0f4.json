@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM plugin_leftovers WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5fc8ed8b072c467528cf03f1203e1cf7667c638cd677ce74e181f6651f8bd0f4"
+}

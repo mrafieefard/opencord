@@ -138,6 +138,7 @@ async fn create_server(
             hoist: false,
             mentionable: false,
             max_upload_bytes: Some(opencord_common::upload::EVERYONE_DEFAULT_BYTES as i64),
+            plugin_id: None,
         },
     )
     .await?;
@@ -156,6 +157,8 @@ async fn create_server(
             bitrate: i64::from(CHANNEL_BITRATE_DEFAULT),
             user_limit: 0,
             text_in_voice: true,
+            plugin_id: None,
+            type_key: None,
         };
         channels::insert(conn, &channel, now_ms).await?;
     }

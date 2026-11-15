@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE plugin_dev_tokens SET last_used_at = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "2c652d2e38720421cb6c45b80f9500e539208683bdbd2d2d6bcb2c637a73be57"
+}

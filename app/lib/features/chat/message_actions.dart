@@ -147,7 +147,7 @@ class MessageActions {
             selection ??
             copyableText(
               message.content,
-              user: (id) => data?.members[id]?.displayName,
+              user: (id) => data?.authorOf(id).name,
               channel: (id) => data?.channels[id]?.name,
             ),
       ),
@@ -207,10 +207,10 @@ class MessageActions {
     final confirmed = await showOcDialog<bool>(
       context: context,
       builder: (context) => _DeleteDialog(
-        author: data?.members[message.authorId]?.displayName ?? 'Unknown user',
+        author: data?.authorOf(message.authorId).name ?? 'Unknown user',
         text: previewText(
           messageSummary(message),
-          user: (id) => data?.members[id]?.displayName,
+          user: (id) => data?.authorOf(id).name,
           channel: (id) => data?.channels[id]?.name,
         ),
         own: _own(message),

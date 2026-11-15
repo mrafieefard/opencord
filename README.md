@@ -4,7 +4,7 @@
 
 Open-source, self-hostable voice, video and text chat. It pairs Discord-style UX (servers, channels, roles) with the TeamSpeak hosting model: anyone can run a server, the client connects to many servers at once, and your identity is a keypair on your device instead of a central account.
 
-> **Status:** early development. Text chat, voice, video, screen sharing, music and end-to-end encrypted private messages work. Releases are pre-releases on the beta and canary tracks ([docs/releasing.md](docs/releasing.md)).
+> **Status:** early development. Text chat, voice, video, screen sharing, music, end-to-end encrypted private messages and plugins/bots work. Releases are pre-releases on the beta and canary tracks ([docs/releasing.md](docs/releasing.md)).
 
 ## Screenshots
 
@@ -41,6 +41,8 @@ The phone screenshots are the app on its demo world (`EXPO_PUBLIC_FAKE_CORE=1`, 
 | `crates/opencord-core` | Client core in Rust (networking, protocol, identity), used by the app through flutter_rust_bridge |
 | `crates/opencord-media` | Client media engine: the voice transport, the audio engine and its voice processing, and global hotkeys |
 | `crates/opencord-voicebot` | Headless voice client for tests and for checking a server's voice |
+| `crates/opencord-plugins` | Plugin engine: Luau sandbox, resource limits, signing and packaging |
+| `crates/opencord-plugin-cli` | The `opencord-plugin` CLI tool for developing, packing and testing plugins |
 | `crates/opencord-proto` | Protobuf types generated from `proto/` |
 | `crates/opencord-common` | Code shared by the server and the client core |
 | `proto/` | Protocol definitions |
@@ -228,6 +230,6 @@ flutter_rust_bridge_codegen generate
 ## License
 
 - The server and anything not listed below: [AGPL-3.0-or-later](LICENSE).
-- The client app, client core, media engine, voicebot, shared crates and protocol definitions (`app/`, `crates/opencord-core`, `crates/opencord-media`, `crates/opencord-voicebot`, `crates/opencord-common`, `crates/opencord-proto`, `proto/`): MPL-2.0, see the `LICENSE` file in each of those directories.
+- The client app, client core, media engine, voicebot, plugin crates, shared crates and protocol definitions (`app/`, `crates/opencord-core`, `crates/opencord-media`, `crates/opencord-voicebot`, `crates/opencord-plugins`, `crates/opencord-plugin-cli`, `crates/opencord-common`, `crates/opencord-proto`, `proto/`): MPL-2.0, see the `LICENSE` file in each of those directories.
 
 The reasoning is in [docs/decisions.md](docs/decisions.md).

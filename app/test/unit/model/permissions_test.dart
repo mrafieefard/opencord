@@ -41,6 +41,13 @@ void main() {
     expect(Permissions.manageNicknames.bits, 1 << 13);
     expect(Permissions.connect.bits, 1 << 16);
     expect(Permissions.prioritySpeaker.bits, 1 << 23);
+    expect(Permissions.startActivities.bits, 1 << 33);
+    expect(Permissions.all.has(Permissions.startActivities), isTrue);
+    // @everyone on a new server may start activities, as in opencord-common.
+    expect(
+      Permissions.defaultEveryone.has(Permissions.startActivities),
+      isTrue,
+    );
     expect(Permissions.administrator.bits, 1 << 63);
     expect(Permissions.administrator.bits, isNegative);
   });

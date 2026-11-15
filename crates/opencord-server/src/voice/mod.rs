@@ -63,11 +63,37 @@ pub fn announce(state: &AppState, voice_state: proto::VoiceState, channels: &[i6
                 session.push_event(&event, now);
             }
         }
+        if let Some(kind) = &event.kind {
+            state
+                .plugins
+                .observe_in(&guild, kind, crate::plugins::events::Scope::AnyOf(channels));
+        }
         current.map(|channel_id| guild.channel_permissions(user_id, channel_id).bits())
     };
     for left in channels.iter().copied().filter(|c| Some(*c) != current) {
         disconnect_from_node(state, user_id, left);
         streams::left_channel(state, user_id, left);
+    }
+    // Every road out of a call passes here: leaving, a move, a disconnect,
+    // lost access (`reconcile`), a deleted channel, a dropped connection
+    // (`expire_detached`). The guard is dropped before sessions end.
+    let emptied: Vec<i64> = {
+        let voice = state.voice();
+        channels
+            .iter()
+            .copied()
+            .filter(|channel_id| voice.in_channel(*channel_id).next().is_none())
+            .collect()
+    };
+    // A call that goes on loses the user's views of its activities; an
+    // emptied call's end closes them, with the session.
+    for left in channels.iter().copied().filter(|c| Some(*c) != current) {
+        if !emptied.contains(&left) {
+            crate::plugins::views::left_call(state, user_id, left);
+        }
+    }
+    for channel_id in emptied {
+        crate::plugins::activities::call_emptied(state, channel_id);
     }
     if let (Some(channel_id), Some(permissions)) = (current, permissions) {
         state.voice_nodes.send(

@@ -115,6 +115,7 @@ void main() {
       final view = PlatformDispatcher.instance.view(id: viewId)!;
       return view.physicalSize / view.devicePixelRatio;
     }
+
     final normalSize = viewerSize();
 
     await container.read(mediaViewerProvider.notifier).enterPip(16 / 9);

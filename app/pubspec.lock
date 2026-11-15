@@ -636,10 +636,24 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "9.5.0"
+  opencord_blocks:
+    dependency: "direct main"
+    description:
+      path: "packages/opencord_blocks"
+      relative: true
+    source: path
+    version: "0.0.1"
   opencord_core:
     dependency: "direct main"
     description:
       path: rust_builder
+      relative: true
+    source: path
+    version: "0.0.1"
+  opencord_plugin_host:
+    dependency: "direct main"
+    description:
+      path: "packages/opencord_plugin_host"
       relative: true
     source: path
     version: "0.0.1"

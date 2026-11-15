@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencord/core/model/misc.dart';
+import 'package:opencord/core/model/plugins.dart';
 import 'package:opencord/features/voice/voice_layout.dart';
 
 void main() {
@@ -13,11 +14,54 @@ void main() {
     ]);
 
     expect(tiles, [
-      (userId: 1, screen: false),
-      (userId: 2, screen: false),
-      (userId: 2, screen: true),
-      (userId: 3, screen: false),
+      (userId: 1, screen: false, session: null),
+      (userId: 2, screen: false, session: null),
+      (userId: 2, screen: true, session: null),
+      (userId: 3, screen: false, session: null),
     ]);
+  });
+
+  // Plugins M3 §15.2: activities come after every person and screen,
+  // oldest first, and stay when only video is shown.
+  group('activity sessions', () {
+    ActivitySession session(int id, DateTime startedAt) => ActivitySession(
+      id: id,
+      channelId: 50,
+      pluginId: 'paint',
+      activityKey: 'paint$id',
+      name: 'Paint $id',
+      pluginName: 'Paint',
+      starterId: 1,
+      startedAt: startedAt,
+    );
+    // Given newest first, so an order taken from the list fails.
+    final sessions = [
+      session(9, DateTime.utc(2026, 11, 12, 10, 5)),
+      session(7, DateTime.utc(2026, 11, 12, 10)),
+    ];
+    const people = [
+      VoiceParticipant(userId: 1, screensharing: true),
+      VoiceParticipant(userId: 2, camera: true),
+    ];
+
+    test('after every person and screen, oldest first', () {
+      expect(voiceTiles(people, sessions: sessions), [
+        (userId: 1, screen: false, session: null),
+        (userId: 1, screen: true, session: null),
+        (userId: 2, screen: false, session: null),
+        (userId: 0, screen: false, session: 7),
+        (userId: 0, screen: false, session: 9),
+      ]);
+    });
+
+    test('they stay with only video shown', () {
+      expect(voiceTiles(people, videoOnly: true, sessions: sessions), [
+        (userId: 1, screen: true, session: null),
+        (userId: 2, screen: false, session: null),
+        (userId: 0, screen: false, session: 7),
+        (userId: 0, screen: false, session: 9),
+      ]);
+    });
   });
 
   test('columns grow with the number of tiles (§4.10)', () {

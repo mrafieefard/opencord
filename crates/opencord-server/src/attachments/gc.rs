@@ -59,6 +59,8 @@ pub async fn sweep(state: &AppState, now: i64) {
                 ?e,
                 "failed to delete expired attachment row"
             );
+        } else {
+            state.attachments.view_uploads().forget(id);
         }
         let temp_path = state.attachments.temp_path(id);
         tokio::fs::remove_file(&temp_path).await.ok();
