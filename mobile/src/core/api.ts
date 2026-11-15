@@ -27,7 +27,10 @@ import type {
   UserRecord,
   VoiceStateRecord,
   ViewOutputRecord,
+  PresenceStatus,
 } from '@opencord/core-native';
+
+export type PresenceStatusInput = PresenceStatus | 'Online' | 'Idle' | 'Dnd' | 'Offline';
 
 export type * from '@opencord/core-native';
 
@@ -51,6 +54,7 @@ export interface CoreApi {
   serverRetryNow(serverKey: string): Promise<void>;
   serverRemove(serverKey: string): Promise<void>;
   profileUpdate(serverKey: string, displayName: string): Promise<UserRecord>;
+  presenceUpdate(serverKey: string, status: PresenceStatusInput): Promise<void>;
   avatarFile(serverKey: string, hash: string): Promise<string>;
 
   messagesFetch(serverKey: string, channelId: string, before: string | undefined, limit: number): Promise<MessageRecord[]>;

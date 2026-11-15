@@ -1,6 +1,6 @@
 import { ActivityEndReason, ConnectionRecord, MobileEvent } from '@opencord/core-native';
 
-import { CHANNELS, NIGHT_OWLS, snapshot } from '@/core/fake/world';
+import { CHANNELS, NIGHT_OWLS, emptyServerAccess, snapshot } from '@/core/fake/world';
 import { freshStore, settle } from '@/test/store';
 
 import { activitySessions, buildChannelSections, canStartActivities, pluginActivities } from '../selectors';
@@ -115,6 +115,7 @@ describe('plugins in the phone’s state', () => {
         access: (server().snapshot?.access ?? []).map((entry) =>
           entry.channelId === CHANNELS.lounge ? { ...entry, startActivities: false } : entry,
         ),
+        serverAccess: emptyServerAccess(),
       }),
     ]);
     expect(canStartActivities(server(), CHANNELS.lounge)).toBe(false);

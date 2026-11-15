@@ -16,6 +16,7 @@ import {
   MusicPlacement,
   MusicPlayState,
   PlaybackItemRecord,
+  PresenceStatus,
   UploadPhaseRecord,
   VoiceLinkState,
   type ActivitySessionRecord,
@@ -40,7 +41,7 @@ import {
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
-import type { CoreApi } from '../api';
+import type { CoreApi, PresenceStatusInput } from '../api';
 import {
   CHANNELS,
   NIGHT_OWLS,
@@ -73,6 +74,22 @@ const ticketsSession: RecordedStep[] = [ticketsOpened, ticketsNew, ticketsTyped,
 
 /** What the fake answers for a plugin's asset or image. */
 const FAKE_PLUGIN_IMAGE = '/fake/cache/plugin-image.png';
+
+function toPresenceStatus(status: PresenceStatusInput): PresenceStatus {
+  if (typeof status === 'string') {
+    switch (status) {
+      case 'Online':
+        return PresenceStatus.Online;
+      case 'Idle':
+        return PresenceStatus.Idle;
+      case 'Dnd':
+        return PresenceStatus.Dnd;
+      case 'Offline':
+        return PresenceStatus.Offline;
+    }
+  }
+  return status;
+}
 
 export type Scenario = 'default' | 'empty';
 
@@ -335,6 +352,21 @@ export class FakeCore implements CoreApi {
     this.enter('profileUpdate', [serverKey, displayName]);
     this.requireConnected(serverKey);
     return { ...user(SELF_ID), displayName: checkName(displayName) };
+  }
+
+  async presenceUpdate(serverKey: string, status: PresenceStatusInput): Promise<void> {
+    this.enter('presenceUpdate', [serverKey, status]);
+    this.requireConnected(serverKey);
+    const resolved = toPresenceStatus(status);
+    this.emit(
+      new MobileEvent.PresenceChanged({
+        serverKey,
+        presence: {
+          userId: SELF_ID,
+          status: resolved,
+        },
+      }),
+    );
   }
 
   async avatarFile(serverKey: string, hash: string): Promise<string> {

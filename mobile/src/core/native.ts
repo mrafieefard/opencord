@@ -1,8 +1,25 @@
 // The real core: the generated bindings, as they are. They throw the
 // generated MobileError, which describeError reads.
 import * as native from '@opencord/core-native';
+import { PresenceStatus } from '@opencord/core-native';
 
-import type { CoreApi } from './api';
+import type { CoreApi, PresenceStatusInput } from './api';
+
+function toPresenceStatus(status: PresenceStatusInput): PresenceStatus {
+  if (typeof status === 'string') {
+    switch (status) {
+      case 'Online':
+        return PresenceStatus.Online;
+      case 'Idle':
+        return PresenceStatus.Idle;
+      case 'Dnd':
+        return PresenceStatus.Dnd;
+      case 'Offline':
+        return PresenceStatus.Offline;
+    }
+  }
+  return status;
+}
 
 export const NativeCore: CoreApi = {
   coreInit: (dataDir, cacheDir) => native.coreInit(dataDir, cacheDir),
@@ -24,6 +41,7 @@ export const NativeCore: CoreApi = {
   serverRetryNow: (key) => native.serverRetryNow(key),
   serverRemove: (key) => native.serverRemove(key),
   profileUpdate: (key, name) => native.profileUpdate(key, name),
+  presenceUpdate: (key, status) => native.presenceUpdate(key, toPresenceStatus(status)),
   avatarFile: (key, hash) => native.avatarFile(key, hash),
 
   messagesFetch: (key, channel, before, limit) => native.messagesFetch(key, channel, before, limit),

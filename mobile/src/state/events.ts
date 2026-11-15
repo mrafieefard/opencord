@@ -452,6 +452,10 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
         snapshot: current.snapshot ? { ...current.snapshot, pluginUsers: event.inner.pluginUsers } : null,
         pluginUsers: Object.fromEntries(event.inner.pluginUsers.map((u) => [u.userId, u])),
       }));
+    case MobileEvent_Tags.RoleUpserted:
+    case MobileEvent_Tags.RoleDeleted:
+    case MobileEvent_Tags.PresenceChanged:
+      return state;
   }
 }
 

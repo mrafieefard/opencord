@@ -2,13 +2,14 @@ import {
   MobileEvent,
   MusicAction,
   MusicPlayState,
+  PresenceStatus,
   UploadPhaseRecord,
   UploadPhaseRecord_Tags,
   VoiceLinkState,
 } from '@opencord/core-native';
 
 import { FakeCore } from '../fake/FakeCore';
-import { CHANNELS, NIGHT_OWLS } from '../fake/world';
+import { CHANNELS, NIGHT_OWLS, RUST_CLUB, SELF_ID, snapshot } from '../fake/world';
 
 async function drain(core: FakeCore): Promise<MobileEvent[]> {
   const generation = core.eventsAttach();
@@ -88,5 +89,48 @@ describe('FakeCore answers as the core does', () => {
     expect(state?.inner.state).toMatchObject({ thisDevice: true, channelId: CHANNELS.lounge });
     const links = events.filter(MobileEvent.VoiceLink.instanceOf).map((event) => event.inner.state.tag);
     expect(links.at(-1)).toBe(new VoiceLinkState.Connected().tag);
+  });
+
+  // Fails if presenceUpdate does not emit a PresenceChanged event for the caller's self user.
+  it('the fake sends presence changes as events', async () => {
+    const core = new FakeCore();
+    await core.presenceUpdate(NIGHT_OWLS, 'Idle');
+    const events = await drain(core);
+    const presence = events.find(MobileEvent.PresenceChanged.instanceOf);
+    expect(presence).toBeDefined();
+    expect(presence?.inner.serverKey).toBe(NIGHT_OWLS);
+    expect(presence?.inner.presence.userId).toBe(SELF_ID);
+    expect(presence?.inner.presence.status).toBe(PresenceStatus.Idle);
+  });
+
+  // Fails if the fake world does not provide roles/owner on the first server or leaks them to the second.
+  it('the fake world has roles and an owner on its first server only', () => {
+    const first = snapshot(NIGHT_OWLS);
+    expect(first.ownerId).toBe(SELF_ID);
+    expect(first.roles).toHaveLength(2);
+
+    const mods = first.roles.find((r) => r.name === 'Moderators');
+    expect(mods).toBeDefined();
+    expect(mods?.hoist).toBe(true);
+    expect(mods?.color).toBe(0x5865f2);
+    expect(mods?.access.kickMembers).toBe(true);
+    expect(mods?.access.manageMessages).toBe(true);
+    expect(mods?.access.administrator).toBe(false);
+
+    const owner = first.roles.find((r) => r.name === 'Owner');
+    expect(owner).toBeDefined();
+    expect(owner?.hoist).toBe(true);
+    expect(owner?.access.administrator).toBe(true);
+
+    expect(first.presences).toHaveLength(first.members.length);
+    const statuses = new Set(first.presences.map((p) => p.status));
+    expect(statuses.has(PresenceStatus.Online)).toBe(true);
+    expect(statuses.has(PresenceStatus.Idle)).toBe(true);
+    expect(statuses.has(PresenceStatus.Dnd)).toBe(true);
+    expect(statuses.has(PresenceStatus.Offline)).toBe(true);
+
+    const second = snapshot(RUST_CLUB);
+    expect(second.ownerId).not.toBe(SELF_ID);
+    expect(second.roles).toHaveLength(0);
   });
 });

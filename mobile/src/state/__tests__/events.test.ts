@@ -8,7 +8,7 @@ import {
   type MessageRecord,
 } from '@opencord/core-native';
 
-import { CHANNELS, NIGHT_OWLS, SELF_ID, fullAccess, session, snapshot } from '@/core/fake/world';
+import { CHANNELS, NIGHT_OWLS, SELF_ID, emptyServerAccess, fullAccess, session, snapshot } from '@/core/fake/world';
 import { freshStore } from '@/test/store';
 
 import { applyEvents, TYPING_MS } from '../events';
@@ -63,7 +63,11 @@ describe('applying events', () => {
   it("access changes replace the channel's flags", () => {
     const state = apply(
       ready(),
-      new MobileEvent.AccessChanged({ serverKey: NIGHT_OWLS, access: [{ ...fullAccess(CHANNELS.general), send: false }] }),
+      new MobileEvent.AccessChanged({
+        serverKey: NIGHT_OWLS,
+        access: [{ ...fullAccess(CHANNELS.general), send: false }],
+        serverAccess: emptyServerAccess(),
+      }),
     );
     expect(state.servers[NIGHT_OWLS]?.snapshot?.access).toEqual([{ ...fullAccess(CHANNELS.general), send: false }]);
   });
