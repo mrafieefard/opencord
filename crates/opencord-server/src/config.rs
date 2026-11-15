@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use opencord_common::limits::IDENTIFY_RATE;
+use opencord_plugins::limits::COMMAND_THINKING_TIME;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
@@ -173,6 +174,8 @@ pub struct PluginsSection {
     pub handler_ms: u32,
     pub database_mb: u32,
     pub files_mb: u32,
+    /// How long a deferred command has to reply.
+    pub thinking_secs: u32,
 }
 
 impl Default for PluginsSection {
@@ -185,6 +188,7 @@ impl Default for PluginsSection {
             handler_ms: 100,
             database_mb: 1024,
             files_mb: 5120,
+            thinking_secs: COMMAND_THINKING_TIME.as_secs() as u32,
         }
     }
 }

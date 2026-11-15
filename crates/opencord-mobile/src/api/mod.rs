@@ -2,6 +2,7 @@
 //! then `events_attach` and `identity_load`.
 
 pub mod chat;
+pub mod commands;
 pub mod files;
 pub mod identity;
 pub mod music;

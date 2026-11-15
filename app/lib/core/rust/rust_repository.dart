@@ -734,6 +734,7 @@ class RustRepository implements OpencordRepository {
             nonce: field0.nonce,
             content: field0.content,
             at: DateTime.now(),
+            state: commandRunStateFrom(field0.state),
           ),
         ),
       core.CoreEventPayload_MusicNotice(:final field0) => MusicNoticeReceived(
@@ -1558,9 +1559,10 @@ class RustRepository implements OpencordRepository {
     String name,
     Map<String, String> options, {
     required String nonce,
+    String source = '',
   }) async {
     final outcome = await _call(
-      () => _core.commandExecute(serverKey, channelId, name, [
+      () => _core.commandExecute(serverKey, channelId, name, source, [
         for (final MapEntry(:key, :value) in options.entries)
           core.CommandOptionValue(name: key, value: value),
       ], nonce),
@@ -1574,11 +1576,18 @@ class RustRepository implements OpencordRepository {
     int channelId,
     String name,
     String option,
-    String value,
-  ) async => [
+    String value, {
+    String source = '',
+  }) async => [
     for (final choice in await _call(
-      () =>
-          _core.commandAutocomplete(serverKey, channelId, name, option, value),
+      () => _core.commandAutocomplete(
+        serverKey,
+        channelId,
+        name,
+        source,
+        option,
+        value,
+      ),
     ))
       commandChoiceFrom(choice),
   ];
@@ -1591,6 +1600,7 @@ class RustRepository implements OpencordRepository {
   Future<CommandList> updateCommandSettings(
     String serverKey, {
     String name = '',
+    String source = '',
     bool? enabled,
     List<int>? channelIds,
     bool? resultsPublic,
@@ -1600,6 +1610,7 @@ class RustRepository implements OpencordRepository {
         serverKey,
         core.CommandSettingsChanges(
           name: name,
+          source: source,
           enabled: enabled,
           channelIds: channelIds == null
               ? null

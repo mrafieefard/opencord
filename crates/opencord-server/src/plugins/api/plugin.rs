@@ -12,6 +12,55 @@ use crate::plugins::runtime::PluginEnv;
 /// Where `opencord.on` keeps handlers: event name → array of functions.
 pub const HANDLERS: &str = "opencord.handlers";
 
+/// Every event `opencord.on` listens to (§10.4), the later milestones'
+/// included. Commands aren't here: each has its own function (§26.2).
+pub const KNOWN_EVENTS: &[&str] = &[
+    "start",
+    "stop",
+    "update",
+    "settings_change",
+    "permission_change",
+    "message_create",
+    "message_update",
+    "message_delete",
+    "typing_start",
+    "channel_create",
+    "channel_update",
+    "channel_delete",
+    "plugin_channel_create",
+    "plugin_channel_delete",
+    "role_create",
+    "role_update",
+    "role_delete",
+    "member_join",
+    "member_leave",
+    "member_update",
+    "member_unban",
+    "presence_update",
+    "invite_create",
+    "invite_revoke",
+    "server_update",
+    "voice_settings_update",
+    "upload_settings_update",
+    "voice_state_update",
+    "stream_create",
+    "stream_update",
+    "stream_delete",
+    "stream_viewers_update",
+    "soundboard_play",
+    "soundboard_sound_create",
+    "soundboard_sound_update",
+    "soundboard_sound_delete",
+    "music_now_playing",
+    "music_queue_update",
+    "music_notice",
+    "view_open",
+    "view_close",
+    "activity_start",
+    "activity_end",
+    "file_uploaded",
+];
+
 /// The longest event name `opencord.on` takes, in bytes.
 const EVENT_NAME_MAX: usize = 64;
 
@@ -42,6 +91,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
         "on",
         function(lua, move |lua, (event, handler): (Value, Value)| {
             let (event, handler) = event_and_handler(event, handler, "opencord.on")?;
+            if !KNOWN_EVENTS.contains(&event.as_str()) {
+                return Err(raise(format!("INVALID_ARGUMENT: no event called {event}")));
+            }
             let named = match list.raw_get::<Option<Table>>(event.as_str())? {
                 Some(named) => named,
                 None => {

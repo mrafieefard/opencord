@@ -18,6 +18,7 @@ export const icons = {
   send: { ios: 'arrow.up', android: 'arrow_upward' },
   photo: { ios: 'photo', android: 'image' },
   file: { ios: 'doc', android: 'description' },
+  commands: { ios: 'slash.circle', android: 'terminal' },
   attach: { ios: 'paperclip', android: 'attach_file' },
   copy: { ios: 'doc.on.doc', android: 'content_copy' },
   edit: { ios: 'pencil', android: 'edit' },

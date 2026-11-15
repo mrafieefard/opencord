@@ -6,6 +6,7 @@ import {
   AddServerResult,
   AttachmentKind,
   AttachmentVariant,
+  CommandRunStateRecord,
   ConnectionRecord,
   FailureKind,
   MobileError,
@@ -16,6 +17,9 @@ import {
   PlaybackItemRecord,
   UploadPhaseRecord,
   VoiceLinkState,
+  type CommandChoiceRecord,
+  type CommandOptionValueRecord,
+  type CommandOutcomeRecord,
   type DefaultSoundRecord,
   type VoiceDraftRecord,
   type ExternalSoundRecord,
@@ -386,6 +390,41 @@ export class FakeCore implements CoreApi {
   }
 
   // Chat ---------------------------------------------------------------
+
+  async commandExecute(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    options: CommandOptionValueRecord[],
+    nonce: string,
+  ): Promise<CommandOutcomeRecord> {
+    this.enter('commandExecute', [serverKey, channelId, name, source, options, nonce]);
+    this.requireConnected(serverKey);
+    this.emit(
+      new MobileEvent.EphemeralReceived({
+        serverKey,
+        note: { channelId, nonce, content: `Ran /${name}`, state: CommandRunStateRecord.Answered },
+      }),
+    );
+    return { messageId: undefined, ephemeral: true };
+  }
+
+  async commandAutocomplete(
+    serverKey: string,
+    channelId: string,
+    name: string,
+    source: string,
+    option: string,
+    value: string,
+  ): Promise<CommandChoiceRecord[]> {
+    this.enter('commandAutocomplete', [serverKey, channelId, name, source, option, value]);
+    this.requireConnected(serverKey);
+    return [
+      { name: `${value} one`, value: `${value}-1`, artworkId: '' },
+      { name: `${value} two`, value: `${value}-2`, artworkId: '' },
+    ];
+  }
 
   async messagesFetch(serverKey: string, channelId: string, before: string | undefined, limit: number): Promise<MessageRecord[]> {
     this.enter('messagesFetch', [serverKey, channelId, before, limit]);

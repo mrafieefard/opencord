@@ -32,6 +32,8 @@ use tokio::task::JoinSet;
 
 use super::api::plugin::handlers_for;
 use super::api::{self, raise};
+use super::command_calls;
+use super::cpu_share::{CpuShare, lower_this_threads_priority};
 use super::database::{self, PluginDb};
 use super::net::{NetGuard, PluginNet};
 use super::permissions::PluginPermission;
@@ -217,7 +219,7 @@ impl Spec {
     }
 }
 
-enum Report {
+pub(super) enum Report {
     Started(Result<(), String>),
     Failed { error: String, out_of_memory: bool },
 }
@@ -238,14 +240,14 @@ fn report(reports: &mpsc::UnboundedSender<Report>, sent: Report) {
 }
 
 /// A future whose Lua gets `limit` of running time over all its polls.
-struct Budgeted<F> {
+pub(super) struct Budgeted<F> {
     call: Pin<Box<F>>,
     budget: Budget,
     left: Duration,
 }
 
 impl<F> Budgeted<F> {
-    fn new(budget: Budget, limit: Duration, call: F) -> Self {
+    pub(super) fn new(budget: Budget, limit: Duration, call: F) -> Self {
         Budgeted {
             call: Box::pin(call),
             budget,
@@ -282,6 +284,7 @@ fn spawn_vm(
         .name(format!("plugin {}", spec.id))
         .stack_size(VM_STACK_BYTES)
         .spawn(move || {
+            lower_this_threads_priority();
             let runtime = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -335,6 +338,10 @@ fn spawn_vm(
                 if state.commands.remove_for_plugin(&env.plugin_id) {
                     crate::commands::announce(&state);
                 }
+                let plugin_id = env.plugin_id.clone();
+                env.server.spawn(async move {
+                    crate::commands::thinking::abandon(&state, &plugin_id).await;
+                });
             }
             // Handlers still waiting go with the runtime. The Rust halves of
             // their calls live in Lua userdata, holding the VM: a collection
@@ -374,7 +381,10 @@ async fn run_vm(
     }
     let mut running = JoinSet::new();
     let mut tick = tokio::time::interval(STATS_EVERY);
+    let mut share = CpuShare::default();
     loop {
+        share.record(Instant::now(), vm.budget().total_used());
+        let hold = share.pause_for();
         tokio::select! {
             biased;
             changed = commands.changed() => {
@@ -391,7 +401,13 @@ async fn run_vm(
                     Command::Kill => break,
                 }
             }
-            event = handle.queue.pop() => dispatch(vm, env, spec, event, &mut running, &reports),
+            event = handle.queue.pop(), if hold.is_zero() => {
+                dispatch(vm, env, spec, event, &mut running, &reports);
+                // Lets the handler run before the next event is taken, so
+                // a backlog can't all start before any of it is counted.
+                tokio::task::yield_now().await;
+            }
+            () = tokio::time::sleep(hold), if !hold.is_zero() => {}
             Some(_) = running.join_next(), if !running.is_empty() => {}
             _ = tick.tick() => stats.sample(vm, handle),
         }
@@ -421,7 +437,7 @@ async fn start_vm(vm: &Vm, env: &Arc<PluginEnv>, spec: &Spec) -> Result<(), Stri
         }
         let payload = serde_json::json!({});
         for handler in handlers_for(&vm.lua, "start")? {
-            let argument = event_table(&vm.lua, "start", &payload, None)?;
+            let argument = event_table(&vm.lua, &payload, None)?;
             handler.call_async::<()>(argument).await?;
         }
         Ok::<(), VmError>(())
@@ -528,123 +544,30 @@ fn module_name(name: Value) -> mlua::Result<String> {
 
 type ReplySlot = Arc<Mutex<Option<oneshot::Sender<serde_json::Value>>>>;
 
-/// The event's payload as a table, with `reply` when someone waits for one.
-fn event_table(
-    lua: &Lua,
-    event_name: &str,
-    payload: &serde_json::Value,
-    reply: Option<&ReplySlot>,
-) -> mlua::Result<Value> {
+/// `payload` as a Lua value, the way handlers see it.
+pub(super) fn payload_value(lua: &Lua, payload: &serde_json::Value) -> mlua::Result<Value> {
     let options = mlua::SerializeOptions::new()
         .serialize_none_to_null(false)
         .serialize_unit_to_null(false)
         .set_array_metatable(false);
-    let value = lua.to_value_with(payload, options)?;
+    lua.to_value_with(payload, options)
+}
+
+/// The event's payload as a table, with `reply` when someone waits for one.
+fn event_table(
+    lua: &Lua,
+    payload: &serde_json::Value,
+    reply: Option<&ReplySlot>,
+) -> mlua::Result<Value> {
+    let value = payload_value(lua, payload)?;
     if let (Value::Table(table), Some(reply)) = (&value, reply) {
         let reply = reply.clone();
-        if event_name == "command" {
-            let function = api::function(lua, move |_lua, args: Variadic<Value>| {
-                let mut iter = args.into_iter();
-                let first = iter.next();
-                let (content_val, opts_val) = match first {
-                    Some(Value::Table(ref t)) if t.contains_key("name")? => {
-                        (iter.next(), iter.next())
-                    }
-                    other => (other, iter.next()),
-                };
-                let content = match content_val {
-                    Some(val) => api::string_arg(val, "content")?,
-                    None => return Err(raise("INVALID_ARGUMENT: content must be a string")),
-                };
-                let only_you = match opts_val {
-                    Some(Value::Nil) | None => false,
-                    Some(Value::Table(opts)) => match opts.raw_get::<Value>("only_you")? {
-                        Value::Nil => false,
-                        Value::Boolean(b) => b,
-                        _ => return Err(raise("INVALID_ARGUMENT: only_you must be a boolean")),
-                    },
-                    _ => return Err(raise("INVALID_ARGUMENT: options must be a table")),
-                };
-                let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
-                let Some(sender) = sender else {
-                    return Err(raise("INVALID_ARGUMENT: already replied"));
-                };
-                if sender
-                    .send(serde_json::json!({
-                        "content": content,
-                        "only_you": only_you,
-                    }))
-                    .is_err()
-                {
-                    // The command handler timed out or disconnected before this reply arrived.
-                    tracing::debug!("command reply receiver dropped before response was sent");
-                }
-                Ok(())
-            })?;
-            table.raw_set("reply", function)?;
-        } else if event_name == "command_autocomplete" {
-            let function = api::function(lua, move |_lua, args: Variadic<Value>| {
-                let mut iter = args.into_iter();
-                let first = iter.next();
-                let choices_val = match first {
-                    Some(Value::Table(ref t)) if t.contains_key("name")? => iter.next(),
-                    other => other,
-                };
-                let choices_table = match choices_val {
-                    Some(Value::Table(t)) => t,
-                    _ => return Err(raise("INVALID_ARGUMENT: choices must be an array table")),
-                };
-                let mut choices = Vec::new();
-                for pair in choices_table.sequence_values::<Value>() {
-                    let val = pair?;
-                    let item = match val {
-                        Value::Table(item) => item,
-                        _ => return Err(raise("INVALID_ARGUMENT: choice must be a table")),
-                    };
-                    let name: String = item
-                        .get("name")
-                        .or_else(|_| item.get(1))
-                        .map_err(|_| raise("INVALID_ARGUMENT: choice name required"))?;
-                    let value: String = item
-                        .get("value")
-                        .or_else(|_| item.get(2))
-                        .map_err(|_| raise("INVALID_ARGUMENT: choice value required"))?;
-                    let name_len = name.chars().count();
-                    let value_len = value.chars().count();
-                    if !(1..=100).contains(&name_len) || !(1..=100).contains(&value_len) {
-                        return Err(raise(
-                            "INVALID_ARGUMENT: choice name and value must be 1 to 100 characters",
-                        ));
-                    }
-                    choices.push(serde_json::json!({ "name": name, "value": value }));
-                }
-                if choices.len() > 25 {
-                    return Err(raise("INVALID_ARGUMENT: at most 25 choices"));
-                }
-                let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
-                let Some(sender) = sender else {
-                    return Err(raise("INVALID_ARGUMENT: already replied"));
-                };
-                if sender
-                    .send(serde_json::json!({ "choices": choices }))
-                    .is_err()
-                {
-                    // Autocomplete caller disconnected or cancelled.
-                    tracing::debug!(
-                        "autocomplete choices receiver dropped before response was sent"
-                    );
-                }
-                Ok(())
-            })?;
-            table.raw_set("suggest", function)?;
-        } else {
-            let function = api::function(lua, move |lua, args: Variadic<Value>| {
-                let answer = to_json(lua, args)?;
-                let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
-                Ok(sender.is_some_and(|sender| sender.send(answer).is_ok()))
-            })?;
-            table.raw_set("reply", function)?;
-        }
+        let function = api::function(lua, move |lua, args: Variadic<Value>| {
+            let answer = to_json(lua, args)?;
+            let sender = reply.lock().unwrap_or_else(PoisonError::into_inner).take();
+            Ok(sender.is_some_and(|sender| sender.send(answer).is_ok()))
+        })?;
+        table.raw_set("reply", function)?;
     }
     Ok(value)
 }
@@ -715,10 +638,17 @@ fn dispatch(
     reports: &mpsc::UnboundedSender<Report>,
 ) {
     let limit = spec.limits.handler_time;
+    if event.name == "command" {
+        return command_calls::run_command(vm, env, limit, event, running, reports);
+    }
+    if event.name == "command_autocomplete" {
+        return command_calls::run_autocomplete(vm, env, limit, event, running, reports);
+    }
     let super::PluginEvent {
         name,
         payload,
         reply,
+        command: _,
     } = event;
 
     if name == "hook" {
@@ -853,7 +783,7 @@ fn dispatch(
     // Without handlers the reply sender drops here, and its waiter hears.
     let reply = reply.map(|sender| Arc::new(Mutex::new(Some(sender))));
     for handler in handlers {
-        let argument = match event_table(&vm.lua, &name, &payload, reply.as_ref()) {
+        let argument = match event_table(&vm.lua, &payload, reply.as_ref()) {
             Ok(argument) => argument,
             Err(error) => return failed(env, reports, &name, error, limit),
         };
@@ -872,7 +802,7 @@ fn dispatch(
 }
 
 /// Logs a failed handler with its traceback, and counts it.
-fn failed(
+pub(super) fn failed(
     env: &PluginEnv,
     reports: &mpsc::UnboundedSender<Report>,
     event: &str,
@@ -919,7 +849,7 @@ async fn stop_vm(
     let payload = serde_json::json!({});
     let mut calls = Vec::new();
     for handler in handlers {
-        match event_table(&vm.lua, "stop", &payload, None) {
+        match event_table(&vm.lua, &payload, None) {
             Ok(argument) => calls.push(Budgeted::new(
                 env.budget.clone(),
                 limit,

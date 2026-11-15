@@ -69,6 +69,8 @@ interface NativeModuleInterface {
     ubrn_ffi_opencord_mobile_rust_future_free_void(handle: bigint): void;
     ubrn_uniffi_opencord_mobile_fn_func_attachment_file(serverKey: Uint8Array, attachmentId: Uint8Array, variant: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_avatar_file(serverKey: Uint8Array, hash: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_command_autocomplete(serverKey: Uint8Array, channelId: Uint8Array, name: Uint8Array, source: Uint8Array, option: Uint8Array, value: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_command_execute(serverKey: Uint8Array, channelId: Uint8Array, name: Uint8Array, source: Uint8Array, options: Uint8Array, nonce: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_core_init(dataDir: Uint8Array, cacheDir: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_core_version(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_events_attach(uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -132,6 +134,8 @@ interface NativeModuleInterface {
     ubrn_ffi_opencord_mobile_uniffi_contract_version(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_attachment_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_avatar_file(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_command_autocomplete(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_command_execute(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_core_init(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_core_version(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_events_attach(): number;

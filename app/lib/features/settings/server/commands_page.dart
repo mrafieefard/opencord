@@ -6,6 +6,8 @@ import 'package:opencord/core/model/channel.dart';
 import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/providers/providers.dart';
 import 'package:opencord/core/repository/repository.dart';
+import 'package:opencord/features/chat/popup/popup_rows.dart';
+import 'package:opencord/features/chat/popup/source_icon.dart';
 import 'package:opencord/features/settings/settings_dialog.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
@@ -34,6 +36,7 @@ class CommandSettingsNotifier extends AsyncNotifier<CommandList> {
   /// Failures reach the caller.
   Future<void> change({
     String name = '',
+    String source = '',
     bool? enabled,
     List<int>? channelIds,
     bool? resultsPublic,
@@ -44,6 +47,7 @@ class CommandSettingsNotifier extends AsyncNotifier<CommandList> {
           .updateCommandSettings(
             serverKey,
             name: name,
+            source: source,
             enabled: enabled,
             channelIds: channelIds,
             resultsPublic: resultsPublic,
@@ -64,6 +68,11 @@ final commandSettingsProvider = AsyncNotifierProvider.autoDispose
 
 const _features = {'music': 'Music'};
 
+/// A command on this page: names repeat across sources.
+typedef _CommandKey = ({String source, String name});
+
+_CommandKey _keyOf(CommandSpec spec) => (source: spec.source, name: spec.name);
+
 /// Server settings → Commands (Phase 3 plan §17.4), for who manages the
 /// server: each command on or off and where it works, and where results
 /// go. Changes wait for the save bar.
@@ -79,16 +88,16 @@ class ServerCommandsPage extends ConsumerStatefulWidget {
 class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
     with SaveBarChanges {
   bool? _resultsPublic;
-  final _enabled = <String, bool>{};
-  final _channels = <String, List<int>>{};
+  final _enabled = <_CommandKey, bool>{};
+  final _channels = <_CommandKey, List<int>>{};
 
   /// As saved; kept here for the save bar (see [SaveBarChanges]).
   CommandList? _saved;
 
   String get serverKey => widget.serverKey;
 
-  CommandSpec? _savedSpec(String name) =>
-      _saved?.commands.where((spec) => spec.name == name).firstOrNull;
+  CommandSpec? _savedSpec(_CommandKey key) =>
+      _saved?.commands.where((spec) => _keyOf(spec) == key).firstOrNull;
 
   @override
   bool get unsavedChanges =>
@@ -101,24 +110,24 @@ class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
     changesEdited();
   }
 
-  void _setEnabled(String name, bool on) {
+  void _setEnabled(_CommandKey key, bool on) {
     setState(() {
-      if (_savedSpec(name)?.enabled == on) {
-        _enabled.remove(name);
+      if (_savedSpec(key)?.enabled == on) {
+        _enabled.remove(key);
       } else {
-        _enabled[name] = on;
+        _enabled[key] = on;
       }
     });
     changesEdited();
   }
 
-  void _setChannels(String name, List<int> ids) {
+  void _setChannels(_CommandKey key, List<int> ids) {
     setState(() {
-      final saved = _savedSpec(name)?.channelIds ?? const <int>[];
+      final saved = _savedSpec(key)?.channelIds ?? const <int>[];
       if (setEquals(saved.toSet(), ids.toSet())) {
-        _channels.remove(name);
+        _channels.remove(key);
       } else {
-        _channels[name] = ids;
+        _channels[key] = ids;
       }
     });
     changesEdited();
@@ -131,14 +140,15 @@ class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
       await settings.change(resultsPublic: public);
       _resultsPublic = null;
     }
-    for (final name in {..._enabled.keys, ..._channels.keys}) {
+    for (final key in {..._enabled.keys, ..._channels.keys}) {
       await settings.change(
-        name: name,
-        enabled: _enabled[name],
-        channelIds: _channels[name],
+        name: key.name,
+        source: key.source,
+        enabled: _enabled[key],
+        channelIds: _channels[key],
       );
-      _enabled.remove(name);
-      _channels.remove(name);
+      _enabled.remove(key);
+      _channels.remove(key);
     }
     if (mounted) setState(() {});
   }
@@ -177,10 +187,14 @@ class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
         );
       case AsyncData(:final value):
         _saved = value;
+        // Opencord's by feature, then one group per plugin.
         final byFeature = <String, List<CommandSpec>>{};
         for (final spec in value.commands) {
           byFeature.putIfAbsent(spec.feature, () => []).add(spec);
         }
+        final data = ref.watch(
+          serverProvider(serverKey).select((state) => state.data),
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -208,7 +222,8 @@ class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
                 in byFeature.entries) ...[
               const SizedBox(height: OcSpace.s24),
               SettingsSection(
-                title: _features[feature] ?? feature,
+                title: _groupTitle(feature, specs.first, data),
+                titleLeading: _groupIconFor(serverKey, specs.first, data),
                 footer: feature == 'music'
                     ? 'Music commands show only while music is set up. '
                           '/volume and /music are the app’s own and always '
@@ -219,10 +234,10 @@ class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
                     _CommandRow(
                       serverKey: serverKey,
                       spec: spec,
-                      enabled: _enabled[spec.name] ?? spec.enabled,
-                      channelIds: _channels[spec.name] ?? spec.channelIds,
-                      onEnabled: (on) => _setEnabled(spec.name, on),
-                      onChannels: (ids) => _setChannels(spec.name, ids),
+                      enabled: _enabled[_keyOf(spec)] ?? spec.enabled,
+                      channelIds: _channels[_keyOf(spec)] ?? spec.channelIds,
+                      onEnabled: (on) => _setEnabled(_keyOf(spec), on),
+                      onChannels: (ids) => _setChannels(_keyOf(spec), ids),
                     ),
                 ],
               ),
@@ -236,6 +251,23 @@ class _ServerCommandsPageState extends ConsumerState<ServerCommandsPage>
         );
     }
   }
+}
+
+String _groupTitle(String feature, CommandSpec spec, ServerData? data) {
+  if (spec.pluginId != null && data != null) {
+    return sourceOfCommand(spec, data).name;
+  }
+  return _features[feature] ?? feature;
+}
+
+Widget? _groupIconFor(String serverKey, CommandSpec spec, ServerData? data) {
+  if (spec.pluginId == null || data == null) return null;
+  return CommandSourceIcon(
+    serverKey: serverKey,
+    source: sourceOfCommand(spec, data),
+    size: 16,
+    radius: 5,
+  );
 }
 
 class _CommandRow extends ConsumerWidget {
@@ -319,7 +351,9 @@ class _CommandRow extends ConsumerWidget {
                   style: OcText.bodyStrong.copyWith(color: colors.text),
                 ),
                 Text(
-                  '${spec.description} · ${spec.permissionSummary}',
+                  spec.permissionSummary.isEmpty
+                      ? spec.description
+                      : '${spec.description} · ${spec.permissionSummary}',
                   style: OcText.small.copyWith(color: colors.textSecondary),
                 ),
                 const SizedBox(height: OcSpace.s4),

@@ -161,6 +161,9 @@ class MockRepository implements OpencordRepository {
   Future<void> _latency([int base = 120]) =>
       Future<void>.delayed(Duration(milliseconds: base + _random.nextInt(180)));
 
+  /// A server's state, for tests that change it directly.
+  MockServer mockServer(String key) => _server(key);
+
   MockServer _server(String key) =>
       _world.servers.where((server) => server.key == key).firstOrNull ??
       (throw const RepoException(
@@ -2336,6 +2339,10 @@ class MockRepository implements OpencordRepository {
   /// Commands the mock ran, by name, for tests.
   final List<String> commandsRun = [];
 
+  /// Each run's source and each autocomplete's, for tests.
+  final List<String> commandSources = [];
+  final List<String> autocompleteSources = [];
+
   @override
   Future<CommandOutcome> executeCommand(
     String serverKey,
@@ -2343,14 +2350,21 @@ class MockRepository implements OpencordRepository {
     String name,
     Map<String, String> options, {
     required String nonce,
+    String source = '',
   }) async {
     final server = _server(serverKey);
     _require(server, Permissions.sendMessages, channelId);
-    final spec = server.availableCommands.find(name);
+    final available = server.availableCommands;
+    final spec = available.find(name, source: source);
     if (spec == null) {
+      final twoPlugins =
+          source.isEmpty &&
+          available.commands.where((each) => each.matches(name)).length > 1;
       throw RepoException(
         RepoErrorKind.notFound,
-        '/$name isn\'t a command here',
+        twoPlugins
+            ? 'Two commands are called /$name. Pick one from the list.'
+            : '/$name isn\'t a command here',
       );
     }
     if (!spec.allowedIn(channelId)) {
@@ -2360,6 +2374,21 @@ class MockRepository implements OpencordRepository {
       );
     }
     commandsRun.add(spec.name);
+    commandSources.add(source);
+    if (spec.pluginId != null) {
+      _emit(
+        EphemeralMessageReceived(
+          serverKey,
+          EphemeralNote(
+            channelId: channelId,
+            nonce: nonce,
+            content: 'Done',
+            at: _clock(),
+          ),
+        ),
+      );
+      return (messageId: null, ephemeral: true);
+    }
     final voice = _voice;
     final reply = voice == null || voice.server != serverKey
         ? (false, 'Join a voice channel to use music commands')
@@ -2452,8 +2481,13 @@ class MockRepository implements OpencordRepository {
     int channelId,
     String name,
     String option,
-    String value,
-  ) async {
+    String value, {
+    String source = '',
+  }) async {
+    autocompleteSources.add(source);
+    if (source.isNotEmpty) {
+      return [CommandChoice(name: 'From plugin', value: value)];
+    }
     final server = _server(serverKey);
     final voice = _voice;
     if (name != 'play' ||
@@ -2488,6 +2522,7 @@ class MockRepository implements OpencordRepository {
   Future<CommandList> updateCommandSettings(
     String serverKey, {
     String name = '',
+    String source = '',
     bool? enabled,
     List<int>? channelIds,
     bool? resultsPublic,
@@ -2498,7 +2533,7 @@ class MockRepository implements OpencordRepository {
     server.commands = CommandList(
       commands: [
         for (final spec in server.commands.commands)
-          spec.name == name
+          spec.name == name && spec.source == source
               ? spec.copyWith(enabled: enabled, channelIds: channelIds)
               : spec,
       ],

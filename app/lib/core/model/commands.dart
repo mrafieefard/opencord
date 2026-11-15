@@ -8,6 +8,12 @@ import 'package:opencord/core/model/permissions.dart';
 
 enum CommandOptionKind { text, integer, boolean, choice, user, channel }
 
+/// Where a command's reply stands.
+enum CommandRunState { answered, thinking, noAnswer }
+
+/// A plugin command's [CommandSpec.feature] starts with this.
+const pluginSourcePrefix = 'plugin:';
+
 @immutable
 class CommandChoice {
   const CommandChoice({
@@ -123,6 +129,13 @@ class CommandSpec {
 
   bool matches(String name) => this.name == name || aliases.contains(name);
 
+  /// Whose command it is: empty for Opencord's, `plugin:<id>` for a plugin's.
+  String get source => feature.startsWith(pluginSourcePrefix) ? feature : '';
+
+  /// The plugin's id; null for Opencord's.
+  String? get pluginId =>
+      source.isEmpty ? null : source.substring(pluginSourcePrefix.length);
+
   bool allowedIn(int channelId) =>
       channelIds.isEmpty || channelIds.contains(channelId);
 
@@ -177,8 +190,17 @@ class CommandList {
   /// Results go to the channel, or only to who ran the command.
   final bool resultsPublic;
 
-  CommandSpec? find(String name) =>
-      commands.where((spec) => spec.matches(name)).firstOrNull;
+  /// With a [source], only that source's. Without one: Opencord's, then the
+  /// only plugin with the name; two plugins are never guessed between.
+  CommandSpec? find(String name, {String source = ''}) {
+    final named = commands.where((spec) => spec.matches(name));
+    if (source.isNotEmpty) {
+      return named.where((spec) => spec.source == source).firstOrNull;
+    }
+    final opencord = named.where((spec) => spec.source.isEmpty).firstOrNull;
+    if (opencord != null) return opencord;
+    return named.length == 1 ? named.first : null;
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -203,6 +225,7 @@ class EphemeralNote {
     required this.content,
     required this.at,
     this.error = false,
+    this.state = CommandRunState.answered,
   });
 
   final int channelId;
@@ -210,6 +233,7 @@ class EphemeralNote {
   final String content;
   final DateTime at;
   final bool error;
+  final CommandRunState state;
 }
 
 /// `/volume` and `/music` (§17.2): the app's own.

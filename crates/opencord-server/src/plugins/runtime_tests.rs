@@ -93,6 +93,7 @@ fn installed(id: &str, user_id: i64, scripts: &[&str], files: &[(&str, &str)]) -
         manifest,
         package,
         granted: HashSet::new(),
+        installed_at: 0,
     }
 }
 
@@ -111,6 +112,7 @@ fn event(name: &str) -> PluginEvent {
         name: name.to_owned(),
         payload: serde_json::json!({}),
         reply: None,
+        command: None,
     }
 }
 
@@ -222,18 +224,18 @@ async fn a_failing_handler_is_logged_with_its_traceback() {
     let plugin = one_script(
         "failing",
         "local function explode()\n    error('boom')\nend\n\
-         opencord.on('ping', function() explode() end)",
+         opencord.on('message_create', function() explode() end)",
     );
     state.plugins.start(&state, plugin).await.unwrap();
     let handle = state.plugins.get("failing").unwrap();
 
-    state.plugins.deliver("failing", event("ping"));
+    state.plugins.deliver("failing", event("message_create"));
 
-    let line = wait_for_log(&handle, "ping handler failed").await;
+    let line = wait_for_log(&handle, "message_create handler failed").await;
     assert_eq!(line.level, proto::PluginLogLevel::Error as i32);
     assert!(
         line.text
-            .starts_with("ping handler failed: server/main.luau:2: boom\n"),
+            .starts_with("message_create handler failed: server/main.luau:2: boom\n"),
         "{}",
         line.text
     );
@@ -247,17 +249,17 @@ async fn an_endless_handler_stops_at_its_budget() {
     let (state, _dir) = state().await;
     let plugin = one_script(
         "looping",
-        "opencord.on('ping', function() while true do end end)",
+        "opencord.on('message_create', function() while true do end end)",
     );
     state.plugins.start(&state, plugin).await.unwrap();
     let handle = state.plugins.get("looping").unwrap();
 
-    state.plugins.deliver("looping", event("ping"));
+    state.plugins.deliver("looping", event("message_create"));
 
-    let line = wait_for_log(&handle, "ping handler failed").await;
+    let line = wait_for_log(&handle, "message_create handler failed").await;
     assert_eq!(
         line.text,
-        "ping handler failed: the handler ran longer than 50 ms"
+        "message_create handler failed: the handler ran longer than 50 ms"
     );
 }
 
@@ -275,7 +277,7 @@ async fn a_plugin_that_keeps_failing_is_turned_off() {
         &["server/main.luau"],
         &[(
             "server/main.luau",
-            "opencord.on('ping', function() error('always') end)",
+            "opencord.on('message_create', function() error('always') end)",
         )],
     );
     sqlx::query(
@@ -301,12 +303,12 @@ async fn a_plugin_that_keeps_failing_is_turned_off() {
             "still {:?}",
             handle.state()
         );
-        plugins.deliver("crashy", event("ping"));
+        plugins.deliver("crashy", event("message_create"));
         tokio::time::sleep(Duration::from_millis(2)).await;
     }
 
     let reason = "turned off after failing 5 times in an hour: \
-                  ping handler failed: server/main.luau:1: always";
+                  message_create handler failed: server/main.luau:1: always";
     assert_eq!(handle.status_reason().as_deref(), Some(reason));
     let secs = Duration::from_secs;
     assert_eq!(clock.sleeps(), [secs(1), secs(2), secs(4), secs(8)]);
@@ -348,14 +350,18 @@ async fn out_of_memory_restarts_the_plugin() {
     let plugin = one_script(
         "hungry",
         "opencord.on('start', function() log.info('started') end)\n\
-         opencord.on('ping', function() local s = string.rep('x', 64 * 1024 * 1024) end)",
+         opencord.on('message_create', function() local s = string.rep('x', 64 * 1024 * 1024) end)",
     );
     plugins.start(&state, plugin).await.unwrap();
     let handle = plugins.get("hungry").unwrap();
 
-    plugins.deliver("hungry", event("ping"));
+    plugins.deliver("hungry", event("message_create"));
 
-    wait_for_log(&handle, "ping handler failed: the plugin ran out of memory").await;
+    wait_for_log(
+        &handle,
+        "message_create handler failed: the plugin ran out of memory",
+    )
+    .await;
     let began = Instant::now();
     // The restart logs "started" again, then the supervisor marks it
     // running.
@@ -470,8 +476,8 @@ async fn argument_errors_are_plain_strings() {
             function() config.get(123) end,
             function() plugins.emit(123, "data") end,
             function() plugins.on(123, "ev", function() end) end,
-            function() commands.register({ name = "foo", description = "desc", options = "bad" }) end,
-            function() commands.register({ name = "foo", description = "desc", options = { { name = "opt", description = "d", kind = "text", required = "bad" } } }) end,
+            function() commands.register({ name = "foo", description = "desc", options = "bad" }, function() end) end,
+            function() commands.register({ name = "foo", description = "desc", options = { { name = "opt", description = "d", kind = "text", required = "bad" } } }, function() end) end,
         }
         for _, f in ipairs(calls) do
             local ok, err = pcall(f)
@@ -502,12 +508,12 @@ async fn stop_delivers_stop_and_cancels_waits() {
     let (state, _dir) = state().await;
     let plugin = one_script(
         "waiting",
-        "opencord.on('ping', function() log.info('waiting') wait(10) log.info('woke') end)\n\
+        "opencord.on('message_create', function() log.info('waiting') wait(10) log.info('woke') end)\n\
          opencord.on('stop', function() log.info('stopping') end)",
     );
     state.plugins.start(&state, plugin).await.unwrap();
     let handle = state.plugins.get("waiting").unwrap();
-    state.plugins.deliver("waiting", event("ping"));
+    state.plugins.deliver("waiting", event("message_create"));
     wait_for_log(&handle, "waiting").await;
 
     let began = Instant::now();
@@ -521,7 +527,7 @@ async fn stop_delivers_stop_and_cancels_waits() {
     assert_eq!(handle.state(), proto::PluginState::Stopped);
 
     // A stopped plugin takes no events.
-    state.plugins.deliver("waiting", event("ping"));
+    state.plugins.deliver("waiting", event("message_create"));
     tokio::time::sleep(Duration::from_millis(100)).await;
     let waits = logged(&handle)
         .iter()
@@ -535,7 +541,7 @@ async fn a_reply_goes_back_once() {
     let (state, _dir) = state().await;
     let plugin = one_script(
         "replying",
-        "opencord.on('ask', function(event) log.info(event.question, event.reply('yes', { n = 1 }), event.reply('no')) end)",
+        "opencord.on('message_create', function(event) log.info(event.question, event.reply('yes', { n = 1 }), event.reply('no')) end)",
     );
     state.plugins.start(&state, plugin).await.unwrap();
     let (sender, answer) = tokio::sync::oneshot::channel();
@@ -543,9 +549,10 @@ async fn a_reply_goes_back_once() {
     state.plugins.deliver(
         "replying",
         PluginEvent {
-            name: "ask".to_owned(),
+            name: "message_create".to_owned(),
             payload: serde_json::json!({ "question": "ok?" }),
             reply: Some(sender),
+            command: None,
         },
     );
 

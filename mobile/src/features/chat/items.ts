@@ -1,7 +1,7 @@
 import type { MessageRecord } from '@opencord/core-native';
 
 import { compareIds } from '@/state/types';
-import type { PendingSend } from '@/state/types';
+import type { EphemeralNote, PendingSend } from '@/state/types';
 
 export type GroupPosition = 'single' | 'first' | 'middle' | 'last';
 
@@ -28,7 +28,13 @@ export interface MessageBubbleItem {
   mentionsMe: boolean;
 }
 
-export type ChatItem = DaySeparatorItem | NewMessagesDividerItem | MessageBubbleItem;
+export interface EphemeralItem {
+  type: 'ephemeral';
+  id: string;
+  note: EphemeralNote;
+}
+
+export type ChatItem = DaySeparatorItem | NewMessagesDividerItem | MessageBubbleItem | EphemeralItem;
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -39,6 +45,8 @@ function dayKey(date: Date): string {
 export interface BuildChatItemsOpts {
   selfId: string;
   firstUnreadId?: string;
+  /** Replies only this device sees, after everything else. */
+  ephemeral?: readonly EphemeralNote[];
   nowMs?: number;
   locale?: string;
 }
@@ -150,5 +158,9 @@ export function buildChatItems(
   }
 
   flushGroup();
+  (opts.ephemeral ?? []).forEach((note, index) => {
+    // By nonce: a reply takes its thinking line's place in the list.
+    result.push({ type: 'ephemeral', id: `ephemeral-${note.nonce || `note-${index}`}`, note });
+  });
   return result;
 }

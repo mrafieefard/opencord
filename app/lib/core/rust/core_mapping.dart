@@ -41,6 +41,8 @@ Message messageFrom(core.Message message) => Message(
   },
   nonce: message.nonce,
   command: message.command,
+  commandUserId: message.commandUserId,
+  commandState: commandRunStateFrom(message.commandState),
   attachments: [for (final a in message.attachments) attachmentFrom(a)],
 );
 

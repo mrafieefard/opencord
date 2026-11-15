@@ -154,7 +154,8 @@ class ChatRowView extends StatelessWidget {
       ),
       CommandRow(:final message) => CommandResultLine(
         message: message,
-        author: lookups.name(message.authorId),
+        author: lookups.name(message.commandUserId ?? message.authorId),
+        plugin: lookups.name(message.authorId),
         links: actions.links,
       ),
       EphemeralRow(:final note) => EphemeralLine(

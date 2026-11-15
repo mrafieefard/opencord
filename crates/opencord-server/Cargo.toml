@@ -63,6 +63,9 @@ tempfile = { workspace = true, optional = true }
 [features]
 testing = ["dep:tempfile"]
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.190"
+
 [dev-dependencies]
 opencord-server = { path = ".", features = ["testing"] }
 tempfile.workspace = true

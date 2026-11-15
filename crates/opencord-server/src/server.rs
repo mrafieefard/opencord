@@ -128,6 +128,11 @@ pub async fn start(config: Config) -> anyhow::Result<ServerHandle> {
     }
     music::start(&state).await?;
     state.commands.load(&mut *state.db.acquire().await?).await?;
+    // Whatever was thinking when the server stopped will never answer.
+    let swept = crate::db::messages::sweep_thinking(&mut *state.db.acquire().await?).await?;
+    if swept > 0 {
+        tracing::info!(swept, "commands left thinking became no answer");
+    }
     crate::lavalink::start(&state).await?;
     crate::attachments::start(&state).await?;
     // Reviews live in memory, so their files can't outlive a restart.

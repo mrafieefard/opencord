@@ -759,11 +759,25 @@ pub async fn uninstall(
     } else {
         remove_versions(&dir).await;
     }
+    forget_command_settings(state, &id).await?;
     tracing::info!(plugin = %id, delete_data = request.delete_data, "a plugin was uninstalled");
     state.broadcast(
         proto::event::Kind::PluginRemove(proto::PluginRemove { plugin_id: id }),
         Audience::Holding(Permissions::MANAGE_PLUGINS),
     );
+    Ok(())
+}
+
+/// An uninstalled plugin's commands are off the Commands page for good, so
+/// what was set for them goes too. Stopping a plugin keeps it.
+async fn forget_command_settings(state: &Arc<AppState>, id: &str) -> Result<(), ApiError> {
+    let _writes = state.write_lock().await;
+    let settings = state.commands.settings();
+    let left = crate::commands::remove_settings_for_plugin(settings.clone(), id);
+    if left != settings {
+        let mut conn = state.db.acquire().await?;
+        state.commands.save(&mut conn, left).await?;
+    }
     Ok(())
 }
 
@@ -927,6 +941,7 @@ pub async fn set_config(
             name: "settings_change".to_owned(),
             payload: serde_json::json!({ "changed": changed }),
             reply: None,
+            command: None,
         },
     );
     super::announce(state, &id).await;

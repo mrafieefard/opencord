@@ -286,8 +286,9 @@ fn to_proto(row: MessageRow, attachments: Vec<proto::Attachment>) -> proto::Mess
         interaction: row
             .interaction_command
             .map(|command| proto::MessageInteraction {
-                user_id: row.author_id,
+                user_id: row.interaction_user_id.unwrap_or(row.author_id),
                 command,
+                state: row.command_state as i32,
             }),
         attachments,
     }

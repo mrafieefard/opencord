@@ -93,6 +93,7 @@ mod tests {
             name,
             payload: serde_json::Value::Null,
             reply: None,
+            command: None,
         }
     }
 

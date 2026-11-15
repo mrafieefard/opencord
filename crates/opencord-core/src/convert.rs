@@ -3,15 +3,15 @@
 use opencord_proto::v1 as proto;
 
 use crate::api::types::{
-    Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, ConnectAddress,
-    CoreError, CoreEventPayload, CreatedPluginDevToken, EphemeralMessage, ErrorCode, GithubCheck,
-    Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite, Plugin, PluginConfigField,
-    PluginConfigKind, PluginConfigValue, PluginDevToken, PluginLogLevel, PluginLogLine,
-    PluginPermissionGrant, PluginReview, PluginSignature, PluginState, PluginUser, Presence,
-    PresenceStatus, PrivateSettings, ReadySnapshot, Role, S3Config, ScreenShareResolution,
-    ScreenStream, ServerAddresses, ServerInfo, SoundEffect, SoundboardSound, StorageBackend,
-    StorageInfo, StorageKind, StorageMove, StorageTestResult, StorageTestStep, StreamSourceKind,
-    UploadSettings, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
+    Attachment, AttachmentKind, Ban, Channel, ChannelKind, ChannelPermissions, CommandRunState,
+    ConnectAddress, CoreError, CoreEventPayload, CreatedPluginDevToken, EphemeralMessage,
+    ErrorCode, GithubCheck, Invite, Member, Message, OverwriteTargetKind, PermissionOverwrite,
+    Plugin, PluginConfigField, PluginConfigKind, PluginConfigValue, PluginDevToken, PluginLogLevel,
+    PluginLogLine, PluginPermissionGrant, PluginReview, PluginSignature, PluginState, PluginUser,
+    Presence, PresenceStatus, PrivateSettings, ReadySnapshot, Role, S3Config,
+    ScreenShareResolution, ScreenStream, ServerAddresses, ServerInfo, SoundEffect, SoundboardSound,
+    StorageBackend, StorageInfo, StorageKind, StorageMove, StorageTestResult, StorageTestStep,
+    StreamSourceKind, UploadSettings, User, VoiceSettings, VoiceSettingsChanges, VoiceState,
 };
 use crate::identity::public_key_fingerprint;
 
@@ -219,8 +219,21 @@ pub fn message(message: proto::Message) -> Message {
         created_at_ms: message.created_at_ms,
         edited_at_ms: message.edited_at_ms,
         nonce: message.nonce,
+        command_user_id: message.interaction.as_ref().map(|i| i.user_id),
+        command_state: message
+            .interaction
+            .as_ref()
+            .map_or(CommandRunState::Answered, |i| run_state(i.state)),
         command: message.interaction.map(|interaction| interaction.command),
         attachments: message.attachments.into_iter().map(attachment).collect(),
+    }
+}
+
+fn run_state(state: i32) -> CommandRunState {
+    match proto::CommandState::try_from(state) {
+        Ok(proto::CommandState::Thinking) => CommandRunState::Thinking,
+        Ok(proto::CommandState::NoAnswer) => CommandRunState::NoAnswer,
+        Ok(proto::CommandState::Answered) | Err(_) => CommandRunState::Answered,
     }
 }
 
@@ -598,6 +611,7 @@ pub fn event(kind: proto::event::Kind, session_id: &str) -> Option<CoreEventPayl
             channel_id: message.channel_id,
             nonce: message.nonce,
             content: message.content,
+            state: run_state(message.state),
         }),
         Kind::UploadSettingsUpdate(update) => {
             CoreEventPayload::UploadSettingsUpdate(upload_settings(update.settings?))

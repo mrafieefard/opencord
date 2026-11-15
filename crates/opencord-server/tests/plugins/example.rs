@@ -63,6 +63,7 @@ async fn the_welcome_bot_works_end_to_end() {
 
     let roll_reply = member
         .ok(Kind::ExecuteCommand(proto::ExecuteCommand {
+            source: String::new(),
             channel_id: general_id,
             name: "roll".to_owned(),
             options: vec![proto::CommandOptionValue {

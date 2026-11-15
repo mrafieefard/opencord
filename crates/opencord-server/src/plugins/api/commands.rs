@@ -4,13 +4,40 @@
 
 use std::sync::Arc;
 
-use mlua::{Lua, Value};
+use mlua::{Function, Lua, Table, Value};
 use opencord_proto::v1 as proto;
 use proto::CommandOptionKind as Kind;
 
 use super::{function, raise, string_arg};
 use crate::plugins::permissions::PluginPermission;
 use crate::plugins::runtime::PluginEnv;
+
+/// Where a plugin's command functions are kept: command name →
+/// `{ run = fn, options = { [option] = fn } }`.
+pub const COMMANDS: &str = "opencord.commands";
+
+/// The function that runs the command called `name`.
+pub fn command_function(lua: &Lua, name: &str) -> mlua::Result<Option<Function>> {
+    let commands: Table = lua.named_registry_value(COMMANDS)?;
+    let Some(entry) = commands.raw_get::<Option<Table>>(name)? else {
+        return Ok(None);
+    };
+    entry.raw_get("run")
+}
+
+/// The function that suggests values for the command's option.
+pub fn autocomplete_function(
+    lua: &Lua,
+    name: &str,
+    option: &str,
+) -> mlua::Result<Option<Function>> {
+    let commands: Table = lua.named_registry_value(COMMANDS)?;
+    let Some(entry) = commands.raw_get::<Option<Table>>(name)? else {
+        return Ok(None);
+    };
+    let options: Table = entry.raw_get("options")?;
+    options.raw_get(option)
+}
 
 fn valid_name(name: &str) -> bool {
     !name.is_empty()
@@ -42,12 +69,20 @@ fn parse_kind(s: &str) -> Result<Kind, mlua::Error> {
 pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
     let table = lua.create_table()?;
 
-    // commands.register(spec)
+    let registry = lua.create_table()?;
+    lua.set_named_registry_value(COMMANDS, &registry)?;
+
+    // commands.register(spec, fn)
     let env_reg = env.clone();
+    let functions = registry.clone();
     table.raw_set(
         "register",
-        function(lua, move |_lua, spec_val: Value| {
+        function(lua, move |lua, (spec_val, run_val): (Value, Value)| {
             env_reg.require(PluginPermission::RegisterCommands)?;
+            let Value::Function(run) = run_val else {
+                return Err(raise("INVALID_ARGUMENT: a command needs a function"));
+            };
+            let option_functions = lua.create_table()?;
             let spec_table = match spec_val {
                 Value::Table(t) => t,
                 _ => return Err(raise("INVALID_ARGUMENT: spec must be a table")),
@@ -111,10 +146,13 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                         };
                         let autocomplete = match opt.raw_get::<Value>("autocomplete")? {
                             Value::Nil => false,
-                            Value::Boolean(b) => b,
+                            Value::Function(suggest) => {
+                                option_functions.raw_set(opt_name.as_str(), suggest)?;
+                                true
+                            }
                             _ => {
                                 return Err(raise(
-                                    "INVALID_ARGUMENT: option autocomplete must be a boolean",
+                                    "INVALID_ARGUMENT: option autocomplete must be a function",
                                 ));
                             }
                         };
@@ -204,19 +242,9 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 _ => return Err(raise("INVALID_ARGUMENT: options must be a table")),
             }
 
-            // Check collision
-            if crate::commands::find(&name).is_some() {
-                return Err(raise(format!("INVALID_ARGUMENT: /{name} is already taken")));
-            }
-
             env_reg.check_rate_limit()?;
 
             let state = env_reg.state()?;
-            if let Some(other) = state.commands.find_plugin(&name)
-                && other.plugin_id != env_reg.plugin_id
-            {
-                return Err(raise(format!("INVALID_ARGUMENT: /{name} is already taken")));
-            }
 
             let spec = proto::CommandSpec {
                 name: name.clone(),
@@ -234,6 +262,10 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .commands
                 .register_plugin(&env_reg.plugin_id, spec)
                 .map_err(PluginEnv::api_error)?;
+            let entry = lua.create_table()?;
+            entry.raw_set("run", run)?;
+            entry.raw_set("options", option_functions)?;
+            functions.raw_set(name.as_str(), entry)?;
             crate::commands::announce(&state);
             env_reg
                 .log
@@ -257,6 +289,7 @@ pub fn install(lua: &Lua, env: &Arc<PluginEnv>) -> mlua::Result<()> {
                 .commands
                 .unregister_plugin(&env_unreg.plugin_id, &name)
             {
+                registry.raw_set(name.as_str(), Value::Nil)?;
                 crate::commands::announce(&state);
                 env_unreg.log.push(
                     proto::PluginLogLevel::Action,

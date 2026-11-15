@@ -1,6 +1,7 @@
 // The core's events applied to the state, purely (design §6). Ready and the
 // held events around it are store.ts's; everything else is here.
 import {
+  CommandRunStateRecord,
   ConnectionRecord,
   MobileEvent,
   PlaybackItemRecord,
@@ -18,6 +19,7 @@ import {
   type AppState,
   type ChannelActivity,
   type ChannelMessages,
+  type EphemeralNote,
   type ServerState,
 } from './types';
 
@@ -55,7 +57,29 @@ export function newServer(entry: ServerEntry): ServerState {
     nowPlaying: {},
     musicSettings: null,
     pluginUsers: {},
+    ephemeral: {},
   };
+}
+
+/** Notes kept per channel. */
+const NOTES_KEPT = 20;
+
+/** Adds a note; one with the same nonce is replaced (thinking, then the reply). */
+export function withNote(current: ServerState, note: EphemeralNote): ServerState {
+  const kept = (current.ephemeral?.[note.channelId] ?? []).filter((each) => each.nonce !== note.nonce || note.nonce === '');
+  return { ...current, ephemeral: { ...current.ephemeral, [note.channelId]: [...kept, note].slice(-NOTES_KEPT) } };
+}
+
+/** A reply can't arrive over a connection that went away. */
+function withoutThinking(current: ServerState): ServerState {
+  if (!current.ephemeral) return current;
+  const ephemeral = Object.fromEntries(
+    Object.entries(current.ephemeral).map(([channel, notes]) => [
+      channel,
+      notes.filter((note) => note.state !== CommandRunStateRecord.Thinking),
+    ]),
+  );
+  return { ...current, ephemeral };
 }
 
 function server(state: AppState, serverKey: string): ServerState | undefined {
@@ -213,7 +237,16 @@ export function applyEvents(state: AppState, events: MobileEvent[], nowMs: numbe
 function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppState {
   switch (event.tag) {
     case MobileEvent_Tags.Connection:
-      return withServer(state, event.inner.serverKey, (current) => ({ ...current, connection: event.inner.state }));
+      return withServer(state, event.inner.serverKey, (current) => ({
+        ...(ConnectionRecord.Connected.instanceOf(event.inner.state) ? withoutThinking(current) : current),
+        connection: event.inner.state,
+      }));
+    case MobileEvent_Tags.CommandsUpdated:
+      return withServer(state, event.inner.serverKey, (current) =>
+        current.snapshot ? { ...current, snapshot: { ...current.snapshot, commands: event.inner.commands } } : current,
+      );
+    case MobileEvent_Tags.EphemeralReceived:
+      return withServer(state, event.inner.serverKey, (current) => withNote(current, event.inner.note));
     case MobileEvent_Tags.Ready:
       return withServer(state, event.inner.snapshot.serverKey, (current) => ({
         ...current,

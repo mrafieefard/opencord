@@ -4,24 +4,94 @@ import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/message.dart';
 import 'package:opencord/features/chat/bubble.dart';
 import 'package:opencord/features/chat/markdown_view.dart';
+import 'package:opencord/features/chat/thinking_dots.dart';
 import 'package:opencord/ui/theme/oc_colors.dart';
 import 'package:opencord/ui/theme/oc_icons.dart';
 import 'package:opencord/ui/theme/oc_metrics.dart';
 import 'package:opencord/ui/theme/oc_text.dart';
 import 'package:opencord/ui/widgets/hoverable.dart';
 
-/// A command's public result (Phase 3 plan §17.3): "**Kai** used `/play` · Added *Song* — Artist to the queue".
+/// A command's public result (Phase 3 plan §17.3): one line, "**Kai** used
+/// `/play` · Added *Song* to the queue". While a plugin thinks the reply is
+/// "**Tickets** is thinking…", and "Tickets didn't answer" if it never came.
 class CommandResultLine extends StatelessWidget {
   const CommandResultLine({
     super.key,
     required this.message,
     required this.author,
+    required this.plugin,
     required this.links,
   });
 
   final Message message;
+
+  /// Who ran it.
   final String author;
+
+  /// Who answers: the plugin, or whoever ran an Opencord command.
+  final String plugin;
   final MarkdownContext links;
+
+  List<InlineSpan> _lead(OcColors colors) => [
+    TextSpan(
+      text: author,
+      style: OcText.bodyStrong.copyWith(color: colors.text),
+    ),
+    TextSpan(
+      text: ' used ',
+      style: OcText.body.copyWith(color: colors.textMuted),
+    ),
+    TextSpan(
+      text: '/${message.command}',
+      style: OcText.mono.copyWith(
+        color: colors.text,
+        backgroundColor: colors.hover,
+      ),
+    ),
+    TextSpan(
+      text: ' · ',
+      style: OcText.body.copyWith(color: colors.textMuted),
+    ),
+  ];
+
+  Widget _thinking(OcColors colors) => Text.rich(
+    TextSpan(
+      children: [
+        ..._lead(colors),
+        TextSpan(
+          text: plugin,
+          style: OcText.bodyStrong.copyWith(color: colors.text),
+        ),
+        TextSpan(
+          text: ' is thinking…',
+          style: OcText.body.copyWith(color: colors.textMuted),
+        ),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: ThinkingDots(color: colors.textMuted),
+        ),
+      ],
+    ),
+  );
+
+  Widget _noAnswer(OcColors colors) => Text.rich(
+    TextSpan(
+      children: [
+        ..._lead(colors),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: const EdgeInsets.only(right: OcSpace.s4),
+            child: Icon(OcIcons.schedule, size: 14, color: colors.textMuted),
+          ),
+        ),
+        TextSpan(
+          text: message.content,
+          style: OcText.body.copyWith(color: colors.textMuted),
+        ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -43,32 +113,16 @@ class CommandResultLine extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: MarkdownView(
-              blocks: parsedContent(message.content),
-              links: links,
-              color: colors.textSecondary,
-              lead: [
-                TextSpan(
-                  text: author,
-                  style: OcText.bodyStrong.copyWith(color: colors.text),
-                ),
-                TextSpan(
-                  text: ' used ',
-                  style: OcText.body.copyWith(color: colors.textMuted),
-                ),
-                TextSpan(
-                  text: '/${message.command}',
-                  style: OcText.mono.copyWith(
-                    color: colors.text,
-                    backgroundColor: colors.hover,
-                  ),
-                ),
-                TextSpan(
-                  text: ' · ',
-                  style: OcText.body.copyWith(color: colors.textMuted),
-                ),
-              ],
-            ),
+            child: switch (message.commandState) {
+              CommandRunState.thinking => _thinking(colors),
+              CommandRunState.noAnswer => _noAnswer(colors),
+              CommandRunState.answered => MarkdownView(
+                blocks: parsedContent(message.content),
+                links: links,
+                color: colors.textSecondary,
+                lead: _lead(colors),
+              ),
+            },
           ),
         ],
       ),
@@ -106,11 +160,36 @@ class EphemeralLine extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MarkdownView(
-            blocks: parsedContent(note.content),
-            links: links,
-            color: note.error ? colors.text : colors.textSecondary,
-          ),
+          switch (note.state) {
+            CommandRunState.thinking => Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    note.content,
+                    style: OcText.body.copyWith(color: colors.textMuted),
+                  ),
+                ),
+                ThinkingDots(color: colors.textMuted),
+              ],
+            ),
+            CommandRunState.noAnswer => Row(
+              children: [
+                Icon(OcIcons.schedule, size: 14, color: colors.textMuted),
+                const SizedBox(width: OcSpace.s4),
+                Flexible(
+                  child: Text(
+                    note.content,
+                    style: OcText.body.copyWith(color: colors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+            CommandRunState.answered => MarkdownView(
+              blocks: parsedContent(note.content),
+              links: links,
+              color: note.error ? colors.text : colors.textSecondary,
+            ),
+          },
           const SizedBox(height: OcSpace.s4),
           Row(
             children: [

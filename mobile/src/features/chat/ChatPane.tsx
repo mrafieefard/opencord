@@ -42,7 +42,8 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
     setHeight(next);
   };
   const away = useSharedValue(covered ? 1 : 0);
-  const dock = useMemo(() => ({ padding, height, fieldGrowth, away }), [padding, height, fieldGrowth, away]);
+  const [bodyHeight, setBodyHeight] = useState<number | undefined>();
+  const dock = useMemo(() => ({ padding, height, bodyHeight, fieldGrowth, away }), [padding, height, bodyHeight, fieldGrowth, away]);
   useEffect(() => {
     away.set(withTiming(covered ? 1 : 0, { duration: AWAY_MS }));
   }, [covered, away]);
@@ -65,7 +66,7 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
         left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
       />
       <ChatDockContext.Provider value={dock}>
-        <View style={styles.body}>
+        <View style={styles.body} onLayout={(event) => setBodyHeight(Math.round(event.nativeEvent.layout.height))}>
           <MessageList serverKey={serverKey} channelId={channelId} onSelectChannel={onSelectChannel} />
           {/* The dock rides the keyboard: it stands on its bottom margin, so it
               rises by the keyboard's height less that margin, and the list

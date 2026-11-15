@@ -1,7 +1,7 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, type ChannelAccess, type MessageRecord } from '@opencord/core-native';
-import { fireEvent, render } from '@testing-library/react-native';
-import { Alert, Text } from 'react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { Alert, Text, TextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { getCore } from '@/core';
@@ -10,13 +10,14 @@ import { startEditingMessage } from '@/state/actions/chat';
 import { useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
-import { Composer } from '../Composer';
+import { attachMenuActions, Composer } from '../Composer';
 import { MessageMenu } from '../MessageMenu';
 
-async function initNightOwls(accessOverrides?: Partial<ChannelAccess>) {
+async function initNightOwls(accessOverrides?: Partial<ChannelAccess>, noCommands = false) {
   freshStore();
   await settle();
   const snap = snapshot(NIGHT_OWLS);
+  if (noCommands) snap.commands = { commands: [], resultsPublic: true };
   if (accessOverrides) {
     snap.access = snap.access.map((a) =>
       a.channelId === CHANNELS.general ? { ...a, ...accessOverrides } : a,
@@ -298,5 +299,172 @@ describe('Composer and message actions', () => {
       expect.any(String),
       expect.arrayContaining([expect.objectContaining({ path: '/cache/photo.jpg', filename: 'photo.jpg' })]),
     );
+  });
+
+  describe('commands', () => {
+    const composer = () =>
+      render(
+        <GestureHandlerRootView>
+          <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+        </GestureHandlerRootView>,
+      );
+
+    const actionIds = (canAttach: boolean, hasCommands: boolean) =>
+      attachMenuActions(canAttach, hasCommands).map((action) => action.id);
+
+    it('attach_shows_photo_file_and_commands', async () => {
+      expect(actionIds(true, true)).toEqual(['photo', 'file', 'commands']);
+      expect((await composer()).getByTestId('composer-attach')).toBeTruthy();
+    });
+
+    it('no_attach_permission_leaves_only_commands', async () => {
+      await initNightOwls({ attach: false });
+
+      expect(actionIds(false, true)).toEqual(['commands']);
+      expect((await composer()).getByTestId('composer-attach')).toBeTruthy();
+    });
+
+    it('no_commands_leaves_out_the_entry', () => {
+      expect(actionIds(true, false)).toEqual(['photo', 'file']);
+    });
+
+    it('nothing_usable_hides_the_button', async () => {
+      await initNightOwls({ attach: false }, true);
+
+      expect((await composer()).queryByTestId('composer-attach')).toBeNull();
+    });
+
+    it('editing_hides_the_button', async () => {
+      const view = await composer();
+      await act(async () => {
+        startEditingMessage(NIGHT_OWLS, CHANNELS.general, 'm1', 'text');
+      });
+
+      expect(view.queryByTestId('composer-attach')).toBeNull();
+    });
+
+    it('commands_puts_a_slash_and_opens_the_list', async () => {
+      const view = await composer();
+
+      await fireEvent(view.getByTestId('composer-attach'), 'onAction', 'commands');
+
+      expect(view.getByPlaceholderText('Message #general').props.value).toBe('/');
+      expect(view.getByTestId('command-list')).toBeTruthy();
+    });
+
+    it('typing_a_slash_opens_and_deleting_it_closes', async () => {
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      await fireEvent.changeText(input, '/');
+      expect(view.getByTestId('command-list')).toBeTruthy();
+
+      await fireEvent.changeText(input, '');
+      expect(view.queryByTestId('command-list')).toBeNull();
+    });
+
+    it('typing_filters_the_list_and_says_when_nothing_matches', async () => {
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      await fireEvent.changeText(input, '/xyz');
+
+      expect(view.getByText('No commands match /xyz')).toBeTruthy();
+    });
+
+    const pickCommand = async (view: Awaited<ReturnType<typeof composer>>, name: string) => {
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), `/${name}`);
+      await fireEvent.press(view.getByLabelText(`/${name}`));
+    };
+
+    it('tapping_the_chip_brings_the_keyboard_back', async () => {
+      const focus = jest.spyOn(TextInput.prototype, 'focus').mockImplementation(() => {});
+      const view = await composer();
+      await pickCommand(view, 'roll');
+      focus.mockClear();
+
+      await fireEvent.press(view.getByTestId('command-chip'));
+
+      expect(focus).toHaveBeenCalled();
+      focus.mockRestore();
+    });
+
+    it('after_removing_a_command_the_field_is_plain_and_the_keyboard_stays_up', async () => {
+      const blur = jest.spyOn(TextInput.prototype, 'blur').mockImplementation(() => {});
+      const view = await composer();
+      await pickCommand(view, 'roll');
+      expect(view.getByTestId('command-chip')).toBeTruthy();
+
+      await fireEvent.changeText(view.getByTestId('composer-input'), '');
+
+      expect(view.queryByTestId('command-chip')).toBeNull();
+      expect(view.getByTestId('composer-input').props.value).toBe('');
+      expect(view.getByPlaceholderText('Message #general')).toBeTruthy();
+      expect(blur).not.toHaveBeenCalled();
+      blur.mockRestore();
+    });
+
+    it('sending_a_command_runs_it_and_clears_the_field', async () => {
+      const execute = jest.spyOn(getCore(), 'commandExecute');
+      const view = await composer();
+      await pickCommand(view, 'roll');
+
+      await fireEvent.press(view.getByTestId('composer-send'));
+
+      expect(execute).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.general, 'roll', 'plugin:ticket-bot', [], expect.any(String));
+      expect(view.queryByTestId('command-chip')).toBeNull();
+    });
+
+    it('a_command_that_cant_be_used_stays_out_of_the_field', async () => {
+      const view = await composer();
+
+      await pickCommand(view, 'skip');
+
+      expect(view.queryByTestId('command-chip')).toBeNull();
+    });
+
+    it('a_name_typed_and_sent_without_picking_runs_it', async () => {
+      const execute = jest.spyOn(getCore(), 'commandExecute');
+      const send = jest.spyOn(getCore(), 'messageSend');
+      const view = await composer();
+
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), '/roll');
+      await fireEvent.press(view.getByTestId('composer-send'));
+
+      expect(execute).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.general, 'roll', '', [], expect.any(String));
+      expect(send).not.toHaveBeenCalled();
+      expect(view.getByPlaceholderText('Message #general').props.value).toBe('');
+    });
+
+    it('a_slash_that_is_no_command_is_sent_as_a_message', async () => {
+      const execute = jest.spyOn(getCore(), 'commandExecute');
+      const send = jest.spyOn(getCore(), 'messageSend');
+      const view = await composer();
+
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), '/home');
+      await fireEvent.press(view.getByTestId('composer-send'));
+
+      expect(execute).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalled();
+    });
+
+    it('the_caret_stays_after_the_mark_so_backspace_reaches_it', async () => {
+      const view = await composer();
+      await pickCommand(view, 'ticket');
+      const field = () => view.getByTestId('composer-input');
+
+      expect(field().props.selection).toEqual({ start: 1, end: 1 });
+
+      await fireEvent.changeText(field(), 'billing');
+      expect(field().props.selection).toBeUndefined();
+    });
+
+    it('a_space_after_the_name_closes_the_list', async () => {
+      const view = await composer();
+
+      await fireEvent.changeText(view.getByPlaceholderText('Message #general'), '/play now');
+
+      expect(view.queryByTestId('command-list')).toBeNull();
+    });
   });
 });

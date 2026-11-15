@@ -24,6 +24,7 @@ void main() {
   test('messages keep ids, times and the nonce', () {
     final message = messageFrom(
       const core.Message(
+        commandState: core.CommandRunState.answered,
         id: 10,
         channelId: 2,
         authorId: 7,
@@ -52,6 +53,7 @@ void main() {
     // A server can send anything; one bad value must not stop its events.
     final message = messageFrom(
       const core.Message(
+        commandState: core.CommandRunState.answered,
         id: 10,
         channelId: 2,
         authorId: 7,

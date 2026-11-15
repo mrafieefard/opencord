@@ -754,6 +754,7 @@ abstract interface class OpencordRepository {
     String name,
     Map<String, String> options, {
     required String nonce,
+    String source = '',
   });
 
   /// Up to 10 suggestions for an option as typed so far.
@@ -762,8 +763,9 @@ abstract interface class OpencordRepository {
     int channelId,
     String name,
     String option,
-    String value,
-  );
+    String value, {
+    String source = '',
+  });
 
   /// Every command, on or off, for the Commands page. Needs Manage server.
   Future<CommandList> commandSettings(String serverKey);
@@ -773,6 +775,7 @@ abstract interface class OpencordRepository {
   Future<CommandList> updateCommandSettings(
     String serverKey, {
     String name = '',
+    String source = '',
     bool? enabled,
     List<int>? channelIds,
     bool? resultsPublic,

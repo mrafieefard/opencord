@@ -5,11 +5,13 @@
 // and the time is drawn over that room.
 import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { CommandRunStateRecord } from '@opencord/core-native';
 
 import { deviceLocale } from '@/features/servers/formatTime';
 import { useImageFile } from '@/features/servers/useImageFile';
 import { discardSend, retrySend } from '@/state/actions/chat';
 import { useMember } from '@/state/selectors';
+import { useAppStore } from '@/state/store';
 import { Avatar, Icon, Menu, Text, radius, space, useTheme, type MenuAction } from '@/ui';
 
 import type { GroupPosition, MessageBubbleItem } from './items';
@@ -18,6 +20,7 @@ import { AttachmentView } from './attachments/AttachmentView';
 import { textDirectionOf } from './bidi';
 import { MessageMenu } from './MessageMenu';
 import { SendRise } from './SendRise';
+import { ThinkingDots } from './ThinkingDots';
 
 export interface MessageBubbleProps {
   item: MessageBubbleItem;
@@ -72,6 +75,13 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
     [message.createdAtMs, message.editedAtMs],
   );
 
+  const interaction = message.interaction;
+  const selfId = useAppStore((state) => state.servers[serverKey]?.snapshot?.selfUser.id);
+  const runner = useMember(serverKey, interaction?.userId ?? '');
+  const ranBy = interaction?.userId === selfId ? 'You' : runner?.name ?? 'Someone';
+  const thinking = interaction?.state === CommandRunStateRecord.Thinking;
+  const noAnswer = interaction?.state === CommandRunStateRecord.NoAnswer;
+
   const hasText = message.content.length > 0;
   const hasAttachments = message.attachments.length > 0;
   const mediaOnly = !hasText && hasAttachments;
@@ -79,7 +89,7 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
   // text. A right-to-left text's last line ends on the left, under where the
   // time is drawn, so the time takes its own row under it.
   const rtl = hasText && textDirectionOf(message.content) === 'rtl';
-  const timeOverText = hasText && !hasAttachments && !failed && !rtl;
+  const timeOverText = hasText && !hasAttachments && !failed && !rtl && !thinking && !noAnswer;
   // The clock takes an em more of the reserved room.
   const reserved = sending ? ` ${time}` : time;
   const padH = mediaOnly ? MEDIA_PAD : PAD_H;
@@ -131,7 +141,25 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
         </View>
       )}
 
-      {hasText && (
+      {thinking && (
+        <View style={styles.stateLine}>
+          <Text variant="body" color="textMuted">
+            is thinking…
+          </Text>
+          <ThinkingDots />
+        </View>
+      )}
+
+      {noAnswer && (
+        <View style={styles.stateLine}>
+          <Icon name="clock" size={14} color="textMuted" />
+          <Text variant="body" color="textMuted" style={styles.stateText}>
+            {message.content.startsWith(`${authorName} `) ? message.content.slice(authorName.length + 1) : message.content}
+          </Text>
+        </View>
+      )}
+
+      {hasText && !thinking && !noAnswer && (
         <MarkdownText
           content={message.content}
           serverKey={serverKey}
@@ -185,17 +213,24 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
           {showAvatar && <Avatar name={authorName} file={avatarFile} size={AVATAR_SIZE} />}
         </View>
       )}
-      {failed ? (
-        <Menu actions={FAILED_ACTIONS} onAction={onFailedAction} trigger="longPress" fit="content">
-          {bubble}
-        </Menu>
-      ) : sending ? (
-        bubble
-      ) : (
-        <MessageMenu serverKey={serverKey} channelId={message.channelId} message={message} trigger="longPress">
-          {bubble}
-        </MessageMenu>
-      )}
+      <View style={styles.bubbleColumn}>
+        {interaction && (
+          <Text variant="footnote" color="textMuted" numberOfLines={1} style={styles.ranBy}>
+            {`${ranBy} used /${interaction.command}`}
+          </Text>
+        )}
+        {failed ? (
+          <Menu actions={FAILED_ACTIONS} onAction={onFailedAction} trigger="longPress" fit="content">
+            {bubble}
+          </Menu>
+        ) : sending ? (
+          bubble
+        ) : (
+          <MessageMenu serverKey={serverKey} channelId={message.channelId} message={message} trigger="longPress">
+            {bubble}
+          </MessageMenu>
+        )}
+      </View>
     </View>
   );
   // Keyed by the send, so a recycled cell rises only for its own message.
@@ -229,6 +264,21 @@ const styles = StyleSheet.create({
   },
   bubble: {
     overflow: 'hidden',
+  },
+  bubbleColumn: {
+    flexShrink: 1,
+  },
+  ranBy: {
+    marginBottom: 2,
+    paddingHorizontal: space.xs,
+  },
+  stateLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  stateText: {
+    flexShrink: 1,
   },
   mediaInset: {
     paddingHorizontal: space.sm,

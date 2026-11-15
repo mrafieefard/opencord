@@ -15,10 +15,14 @@ class SettingsSection extends StatelessWidget {
     super.key,
     required this.children,
     this.title,
+    this.titleLeading,
     this.footer,
   });
 
   final String? title;
+
+  /// A small icon before the title.
+  final Widget? titleLeading;
   final String? footer;
   final List<Widget> children;
 
@@ -30,9 +34,20 @@ class SettingsSection extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (title != null)
-          SectionLabel(
-            title!,
-            padding: const EdgeInsets.only(left: 4, bottom: OcSpace.s8),
+          Row(
+            children: [
+              if (titleLeading case final leading?)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: OcSpace.s8),
+                  child: leading,
+                ),
+              Expanded(
+                child: SectionLabel(
+                  title!,
+                  padding: const EdgeInsets.only(left: 4, bottom: OcSpace.s8),
+                ),
+              ),
+            ],
           ),
         DecoratedBox(
           decoration: BoxDecoration(

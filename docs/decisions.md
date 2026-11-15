@@ -1831,3 +1831,20 @@ The owner's beta install kept downloading `0.0.1-canary.4` from October 26 after
 - **Review:** three rounds each for stages D and E. The last round broke the code under each test: the first-push retry test and the review dialog's two in-flight tests couldn't fail, and were rewritten until they did.
 - **Not run in CI when this was written:** `.github/check.sh` and `cicd.yml` listed neither `opencord-plugins` nor `opencord-plugin-cli`.
 - **Owed by hand:** installing and running a plugin on Windows and macOS, `opencord-plugin dev` there, and a plugin's message on a real phone (checked on the emulator's fake world only).
+
+## D94: Plugins, milestone 1.5: commands (2026-11-09)
+
+(The plan `docs/superpowers/plans/2026-11-09-plugins-m1-5-commands.md`, the design's §26, and the approved prototype `docs/superpowers/specs/2026-11-09-command-popup-prototype.html`; branch `feat/plugins-commands`.)
+
+**Decision:** a plugin's slash command is a function that can take its time, no command failure is silent, plugins can share names, and the `/` popup belongs to the floating UI on desktop and exists at all on the phone.
+
+- **A function per command:** `commands.register(spec, fn)`, and an option's `autocomplete = fn`. The shared `command` and `command_autocomplete` events are gone, and `opencord.on` refuses a name that isn't an event, so a typo isn't silent. A function that raises answers "{plugin} ran into an error" at once.
+- **`cmd:defer`:** the message says "{plugin} is thinking…" and the plugin has 15 minutes (`plugins.thinking_secs`). A reply edits that message with no edited mark, or replaces the private note by nonce. A reply, the time running out and the plugin stopping all start by removing the entry, so one of them wins. What was thinking when the server stopped becomes "didn't answer" at the next start.
+- **Late replies** raise `TIMEOUT: too late to reply` and log how late. The wait ends with `close` then `try_recv`, so an answer is either used or the plugin is told it wasn't.
+- **Names per source:** `Commands.plugins` is keyed by (plugin, name). With no source, Opencord's runs if it's set up here, then the only plugin; two plugins ask to pick. Settings are `plugin:<id>/<name>`; built-ins keep their plain keys.
+- **`interaction_user_id`** keeps who ran a command, which a plugin's reply can't say through its author.
+- **A share of the CPU:** 25 % of one core over 10 seconds, measured on the time Lua ran, then events wait. Plugin threads have a lower priority: `nice` 10 on Linux, utility QoS on macOS, below normal on Windows.
+- **Desktop:** one `ComposerPopup` for commands (with the rail and sticky groups), mentions, channels, emoji and an option's choices, 14 radius, 36 rows, 340 cap. The command being written has no box of its own. A name typed and sent without picking runs through the server. Messages are rows, so a thinking command is a state of the one-line result.
+- **Phone:** the attach menu has Commands. The list floats above the dock at no more than 75 % of the room (40 % left less than one row with the keyboard up), inside the dock so it rides the keyboard and adds nothing to its height. Backspace on an empty field is seen through a zero-width mark, because not every Android keyboard reports it. Phones keep their bubbles and list only the server's commands.
+- **Tests:** each of the plan's Review Focus cases is pinned (`a_restart_turns_thinking_into_no_answer`, `a_reply_after_the_message_was_deleted_logs_and_does_not_raise`, `commands_changing_while_open_keep_a_real_selection`, `no_source_prefers_a_plugin_when_the_builtin_feature_is_not_set_up`, `a_thinking_note_goes_when_the_connection_returns`, `reconnecting_clears_thinking_notes`).
+- **Not tested here:** the popup on Windows and macOS; the keyboard, back gesture and haptics on real phones; Backspace out of a command on iOS, Gboard and Samsung Keyboard; the lower thread priority on Windows and macOS.

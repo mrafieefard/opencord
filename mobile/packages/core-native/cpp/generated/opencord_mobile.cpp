@@ -115,6 +115,12 @@ void uniffi_opencord_mobile_fn_func_send_cancel(RustBuffer server_key,
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_typing_start(RustBuffer server_key,
                                             RustBuffer channel_id);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_command_autocomplete(
+    RustBuffer server_key, RustBuffer channel_id, RustBuffer name,
+    RustBuffer source, RustBuffer option, RustBuffer value);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_command_execute(
+    RustBuffer server_key, RustBuffer channel_id, RustBuffer name,
+    RustBuffer source, RustBuffer options, RustBuffer nonce);
 /*handle*/ uint64_t uniffi_opencord_mobile_fn_func_attachment_file(
     RustBuffer server_key, RustBuffer attachment_id, RustBuffer variant);
 RustBuffer uniffi_opencord_mobile_fn_func_identity_backup_decode(
@@ -370,6 +376,8 @@ uint16_t uniffi_opencord_mobile_checksum_func_message_send_files();
 uint16_t uniffi_opencord_mobile_checksum_func_messages_fetch();
 uint16_t uniffi_opencord_mobile_checksum_func_send_cancel();
 uint16_t uniffi_opencord_mobile_checksum_func_typing_start();
+uint16_t uniffi_opencord_mobile_checksum_func_command_autocomplete();
+uint16_t uniffi_opencord_mobile_checksum_func_command_execute();
 uint16_t uniffi_opencord_mobile_checksum_func_attachment_file();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_backup_decode();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_backup_encode();
@@ -1911,6 +1919,29 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_fn_func_typing_start(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_command_autocomplete"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_command_autocomplete"),
+          6,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_fn_func_command_autocomplete(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_command_execute"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_command_execute"),
+          6,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_command_execute(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_attachment_file"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3135,6 +3166,31 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_checksum_func_typing_start(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_command_autocomplete"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_command_autocomplete"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_command_autocomplete(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_command_execute"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_command_execute"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_command_execute(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_attachment_file"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4076,6 +4132,48 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_typing_start(
                                                             args[0]),
       uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
                                                             args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_command_autocomplete(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_command_autocomplete(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[3]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[4]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[5]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_command_execute(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_command_execute(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[3]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[4]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[5]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
@@ -5484,6 +5582,22 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_typing_start(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_typing_start();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_command_autocomplete(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_command_autocomplete();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_command_execute(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_command_execute();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

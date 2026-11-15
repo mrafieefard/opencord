@@ -2,6 +2,13 @@ import 'package:opencord/core/model/commands.dart';
 import 'package:opencord/core/model/permissions.dart';
 import 'package:opencord/src/rust/api/types.dart' as core;
 
+CommandRunState commandRunStateFrom(core.CommandRunState state) =>
+    switch (state) {
+      core.CommandRunState.answered => CommandRunState.answered,
+      core.CommandRunState.thinking => CommandRunState.thinking,
+      core.CommandRunState.noAnswer => CommandRunState.noAnswer,
+    };
+
 CommandChoice commandChoiceFrom(core.CommandChoice choice) => CommandChoice(
   name: choice.name,
   value: choice.value,
