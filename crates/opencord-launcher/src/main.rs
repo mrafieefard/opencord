@@ -157,7 +157,9 @@ fn run(
         layout.current().map(|v| v.to_string())
     ));
     match release::PLATFORM {
-        Some(platform) => update_until_installed(layout, track, platform, report),
+        Some(platform) => {
+            update_until_installed(layout, track, platform, signature::built_in_key(), report)
+        }
         None => log::line("this system has no builds to update from"),
     }
     report(Status::Starting);
@@ -170,10 +172,17 @@ fn update_until_installed(
     layout: &Layout,
     track: Track,
     platform: &'static str,
+    key: Result<Option<ed25519_dalek::VerifyingKey>, signature::KeyError>,
     report: &dyn Fn(Status),
 ) {
+    // A key this launcher can't read means no updates: the installed
+    // version starts, and unsigned releases are never taken instead.
+    let Ok(key) = key else {
+        log::line("not updating; starting the installed version");
+        return;
+    };
     let source = match Reqwest::new() {
-        Ok(http) => Github::new(http, REPOSITORY, signature::built_in_key(), platform),
+        Ok(http) => Github::new(http, REPOSITORY, key, platform),
         Err(error) => {
             log::line(format!("no HTTP client: {error}"));
             return;
