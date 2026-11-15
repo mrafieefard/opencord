@@ -53,18 +53,31 @@ These come from the review findings of the phone apps plan and the plugins miles
 
 ### Task owners
 
-Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus named, 1–2 Gemini). If the owner chose one builder (design §9 Q2), ignore this column.
+The owner decided (2026-11-15): Gemini builds, and hands Claude's tasks over with claude-bridge `delegate_task`. Every phone plan scores its tasks with this rubric:
 
-| Task | Score | Owner |
+| Score | Owner | What earns it |
 |---|---|---|
-| 1 Facade: roles, server access, presence | 4 | Claude |
-| 2 The JavaScript core and the fake | 2 | Gemini |
-| 3 The store and its selectors | 3 | Gemini (focus: events applied before and after Ready; a role deleted while a member holds it) |
-| 4 The settings kit | 2 | Gemini |
-| 5 The square photo picker | 2 | Gemini |
-| 6 The members list and a member's profile | 3 | Gemini (focus: grouping, offline at the end, plugin users) |
-| 7 The server button and its sheet | 3 | Gemini (focus: the iOS tab slot while a server is or isn't in front) |
-| 8 Live check, docs, D-entry, PR | 2 | Gemini |
+| 0 | nobody builds | No code: a decision, an account, a document only |
+| 1 | Gemini | Mechanical: one more case of a pattern the task names |
+| 2 | Gemini | A page or a port whose words, calls and tests come from the desktop or an earlier task; records and calls in the facade's existing pattern |
+| 3 | Gemini | Logic with edge cases (merging events with loads, gestures, several servers at once, a destructive action the server re-checks), all testable on the fake. **The "Why" column names the review focus** |
+| 4 | Claude | Any of: platform code (native tab bar, audio session, notifications, background behaviour) that can't be fully run here; FFI beyond records (event streams, generations, files read in Rust); security (keys, permission bits or install consent written to the server); a refactor of a shared component a review once had to fix; the base every later screen inherits |
+| 5 | Claude | Real-time audio or video pipelines, concurrency across reloads, end-to-end encryption trust decisions, anything whose mistake loses data or leaks messages |
+
+Claude's tasks are sized for the bridge (one module and its tests, under 60 minutes); the bindings step, screenshots and the commit after a Claude task are Gemini's (Lessons, rule 12). A Claude task runs first in its stage where its dependencies allow; the order is under the table.
+
+| Task | Score | Owner | Why |
+|---|---|---|---|
+| 1 Facade: roles, server access, presence | 3 | Gemini | Records and events in the facade's existing pattern; the server enforces every permission. Focus: `ADMINISTRATOR` granting every flag; no event left in the dropped list |
+| 2 The JavaScript core and the fake | 2 | Gemini | Types and a fake following `FakeCore`'s pattern |
+| 3 The store and its selectors | 3 | Gemini | State merging with edge cases, all testable on the fake. Focus: events held while seeding; a role deleted while a member holds it; `serverSettingsRows` equal to the desktop's gates |
+| 4 The settings kit | 4 | Claude | Platform code (`.ios`/`.android` rows) that every later page inherits; the owner judges the phone on how it feels, and earlier phone screens by Gemini failed on exactly this (memory: R1, R2) |
+| 5 The square photo picker | 2 | Gemini | One library call behind a menu; the camera permission is the library's |
+| 6 The members list and a member's profile | 3 | Gemini | A port with its desktop tests, plus a list. Focus: 2,000 members in one pass; the profile reached from chat, list and call |
+| 7 The server button and its sheet | 4 | Claude | Drives the iOS native tab bar in a way that can't be run here (only CI compiles iOS), with a fallback to decide; an open page must close when access goes |
+| 8 Live check, docs, D-entry, PR | 2 | Gemini | Running the checks and writing from `git diff` |
+
+**Order:** Stage A: 1, 2, 3. Stage B: **4, 7**, then 5, 6 (Task 7 needs only 3 and 4).
 
 ### Commands
 

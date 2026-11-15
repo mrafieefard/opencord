@@ -27,16 +27,20 @@
 
 P0's apply word for word. **Ledger:** `.superpowers/sdd/phone-p6/progress.md`.
 
-| Task | Score | Owner |
-|---|---|---|
-| 1 Facade: plugin calls and events | 4 | Claude |
-| 2 The JavaScript core and the fake | 2 | Gemini |
-| 3 The plugins list and installing | 3 | Gemini (focus: a review left open; an update over an installed plugin) |
-| 4 A plugin's page: overview, permissions, running | 3 | Gemini (focus: a crashed plugin) |
-| 5 Config fields | 3 | Gemini (focus: secrets; required fields) |
-| 6 The log | 2 | Gemini |
-| 7 Plugin channels | 2 | Gemini |
-| 8 Live checks, docs, D-entry, PR | 2 | Gemini |
+Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude**, handed over with claude-bridge `delegate_task`, each a cold session, so the task's section is self-contained. The rubric is P0's "Task owners". A Claude task runs first in its stage where its dependencies allow (memory: "my tasks come first"); the order is under the table.
+
+| Task | Score | Owner | Why |
+|---|---|---|---|
+| 1 Facade: plugin calls and events | 4 | Claude | Reads packages up to 50 MB in Rust beside the bridge, and carries secret config values; five dropped events join the queue |
+| 2 The JavaScript core and the fake | 2 | Gemini | A fake following the pattern |
+| 3 The plugins list and installing | 4 | Claude | Security: the install consent for code that runs on the server (unsigned and mismatched warnings, the licence, discarding an abandoned review) |
+| 4 A plugin's page: overview, permissions, running | 2 | Gemini | A page of rows over Task 1's calls |
+| 5 Config fields | 3 | Gemini | Eight field kinds and secret handling, all testable. Focus: a secret never shown, logged or resent |
+| 6 The log | 2 | Gemini | A capped list that follows the bottom |
+| 7 Plugin channels | 1 | Gemini | One more kind in P4's create sheet |
+| 8 Live checks, docs, D-entry, PR | 2 | Gemini | Running the checks and writing from `git diff` |
+
+**Order:** Stage A: **1**, then 2. Stage B: **3**, then 4, 5, 6, 7.
 
 Stages: A = 1–2, B = 3–7 with a review, C = 8. Commands as P0.
 

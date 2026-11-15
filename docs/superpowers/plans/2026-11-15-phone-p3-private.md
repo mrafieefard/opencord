@@ -29,18 +29,22 @@
 
 P0's apply word for word. **Ledger:** `.superpowers/sdd/phone-p3/progress.md`.
 
-| Task | Score | Owner |
-|---|---|---|
-| 1 Facade: records and calls | 4 | Claude |
-| 2 Facade: the private event stream, and opening at boot | 5 | Claude |
-| 3 The JavaScript core and the fake | 2 | Gemini |
-| 4 The store | 3 | Gemini (focus: events before the list is loaded; a message changing state twice) |
-| 5 The Messages tab | 3 | Gemini (focus: ordering, badges, muted) |
-| 6 The private chat | 4 | Claude |
-| 7 Friends, and starting a chat from a profile | 3 | Gemini (focus: a member on two shared servers) |
-| 8 Keys: words, new keys, your own devices | 5 | Claude |
-| 9 Privacy | 1 | Gemini |
-| 10 Live checks, docs, D-entry, PR | 3 | Claude |
+Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude**, handed over with claude-bridge `delegate_task`, each a cold session, so the task's section is self-contained. The rubric is P0's "Task owners". A Claude task runs first in its stage where its dependencies allow (memory: "my tasks come first"); the order is under the table.
+
+| Task | Score | Owner | Why |
+|---|---|---|---|
+| 1 Facade: records and calls | 4 | Claude | The FFI for end-to-end encryption: the master key's bytes, key strings and words cross here; a wrong mapping can send to the wrong keys |
+| 2 Facade: the private event stream, and opening at boot | 5 | Claude | A second event source merged into the generation-based queue (concurrency across JavaScript reloads) and the master key in the keystore (data loss if mishandled) |
+| 3 The JavaScript core and the fake | 2 | Gemini | A fake world following the pattern |
+| 4 The store | 3 | Gemini | Load-then-merge with events arriving during the load, testable on the fake. Focus: events before the first load; a message changing state twice |
+| 5 The Messages tab | 2 | Gemini | A list with swipes and menus the servers list already has |
+| 6 The private chat | 4 | Claude | Refactors the server chat's list and composer (keyboard and anti-jump rules that took two review rounds to get right) to take a second data source, without changing server chats |
+| 7 Friends, and starting a chat from a profile | 2 | Gemini | Lists and buttons over Task 1's calls |
+| 8 Keys: words, new keys, your own devices | 5 | Claude | Security: comparing words and approving devices decides who can read every chat; a wrong `keys` string or a missing block on sending leaks messages |
+| 9 Privacy | 1 | Gemini | Two switches |
+| 10 Live checks, docs, D-entry, PR | 4 | Claude | The encryption scenarios with two devices of one identity must be judged, not only run (Scenario 3 and 3b) |
+
+**Order:** Stage A: **1, 2**, then 3, 4. Stage B: **6**, then 5, 7. Stage C: **8**, then 9. Stage D: **10**.
 
 Stages: A = 1–4 (the phone knows private messages), B = 5–7 with a review, C = 8–9 with a review, D = 10. Commands as P0.
 

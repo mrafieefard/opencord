@@ -23,12 +23,14 @@
 
 ## Stages after the decision (A assumed)
 
-1. **Gates first** (as plugins M4's Stage A): `MediaCodec` encode and decode at 720p30 on the emulator and a mid-range Android phone; VideoToolbox on an iPhone (owner's Mac); frame latency from the core to a native view; the APK's growth. Any failed gate stops the plan for the owner.
-2. **Watching:** decoders, the native tile view (`mobile/modules/video-view`), the facade's video events, tiles in the call grid with the desktop's priorities (who's speaking, pinned), and streams opened full screen with the stream volume.
-3. **Camera:** the camera back ends, front and back switching, the camera permission's words, stopping on background (both systems stop the camera there), the desktop's limits (`max_camera_participants`).
-4. **Screen sharing on Android:** a `MediaProjection` foreground service with its notification, the system's own consent dialog, the stream's audio where Android 10+ allows it.
-5. **Screen sharing on iOS:** a Broadcast Upload Extension (a separate process with about 50 MB of memory) that encodes itself and hands packets to the app through an App Group. It has its own signing and its own hand checks on a real iPhone.
-6. **Live checks, docs, the D-entry and the pull request.**
+Scores as P0's rubric, in brackets. Real-time video, native codecs and two systems' capture are 5 throughout: almost all of P7 is Claude's, so with A or B it's the most Claude-heavy plan here; C lowers stages 2–3 to 4.
+
+1. **(5, Claude) Gates first** (as plugins M4's Stage A): `MediaCodec` encode and decode at 720p30 on the emulator and a mid-range Android phone; VideoToolbox on an iPhone (owner's Mac); frame latency from the core to a native view; the APK's growth. Any failed gate stops the plan for the owner.
+2. **(5, Claude) Watching:** decoders, the native tile view (`mobile/modules/video-view`), the facade's video events, tiles in the call grid with the desktop's priorities (who's speaking, pinned), and streams opened full screen with the stream volume.
+3. **(5, Claude) Camera:** the camera back ends, front and back switching, the camera permission's words, stopping on background (both systems stop the camera there), the desktop's limits (`max_camera_participants`).
+4. **(5, Claude) Screen sharing on Android:** a `MediaProjection` foreground service with its notification, the system's own consent dialog, the stream's audio where Android 10+ allows it.
+5. **(5, Claude) Screen sharing on iOS:** a Broadcast Upload Extension (a separate process with about 50 MB of memory) that encodes itself and hands packets to the app through an App Group. It has its own signing and its own hand checks on a real iPhone.
+6. **(2, Gemini) Live checks, docs, the D-entry and the pull request.** The call grid's tile layout and the full-screen stream page, once the native view exists, are Gemini's too (3: the pipeline is behind them).
 
 ## Questions for the owner (with design §9 Q6)
 

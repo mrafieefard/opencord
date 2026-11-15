@@ -28,20 +28,24 @@
 
 P0's apply word for word. **Ledger:** `.superpowers/sdd/phone-p4/progress.md`.
 
-| Task | Score | Owner |
-|---|---|---|
-| 1 Facade: settings in the snapshot, and the permission sets | 4 | Claude |
-| 2 Facade: the admin calls | 3 | Gemini (focus: optional fields left out stay unchanged) |
-| 3 The JavaScript core, the fake and `permissionInfo.ts` | 2 | Gemini |
-| 4 Overview | 2 | Gemini |
-| 5 Voice & video, Upload settings, Private messages | 2 | Gemini |
-| 6 Commands | 2 | Gemini |
-| 7 Channels: list, create, edit, delete, reorder | 3 | Gemini (focus: a drag across categories) |
-| 8 Channel permissions | 4 | Claude |
-| 9 Roles: list, edit, permissions, reorder | 4 | Claude |
-| 10 Members, invites and bans | 3 | Gemini (focus: acting on someone above you) |
-| 11 Soundboard sounds, with trim | 3 | Gemini (focus: the draft closed on every exit) |
-| 12 Live checks, docs, D-entry, PR | 2 | Gemini |
+Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude**, handed over with claude-bridge `delegate_task`, each a cold session, so the task's section is self-contained. The rubric is P0's "Task owners". A Claude task runs first in its stage where its dependencies allow (memory: "my tasks come first"); the order is under the table.
+
+| Task | Score | Owner | Why |
+|---|---|---|---|
+| 1 Facade: settings in the snapshot, and the permission sets | 4 | Claude | Security: permission bits up to bit 63 written back to the server; a lossy conversion can grant or strip `ADMINISTRATOR` |
+| 2 Facade: the admin calls | 3 | Gemini | Many calls in one pattern. Focus: fields left out stay unchanged; `parent_id` `"0"`; draft ids through `convert::draft_id` |
+| 3 The JavaScript core, the fake and `permissionInfo.ts` | 2 | Gemini | A fake and a port checked against every bitflags name |
+| 4 Overview | 2 | Gemini | A page of fields with the desktop's words |
+| 5 Voice & video, Upload settings, Private messages | 2 | Gemini | Pages of fields with the desktop's words |
+| 6 Commands | 2 | Gemini | A grouped list of switches |
+| 7 Channels: list, create, edit, delete, reorder | 3 | Gemini | A drag gesture and its two calls. Focus: a drop across categories; the list as it is now; losing access mid-edit |
+| 8 Channel permissions | 4 | Claude | Security: allow and deny sets written to the server, and the three-state rule; a slip opens a private channel to everyone |
+| 9 Roles: list, edit, permissions, reorder | 4 | Claude | Security: role permissions and the hierarchy, merged with remote edits while open |
+| 10 Members, invites and bans | 3 | Gemini | Kick and ban are destructive, but the server re-checks rank; the rules are a port of `_may` with a case per branch. Focus: no actions on someone above you or the owner; reasons sent |
+| 11 Soundboard sounds, with trim | 3 | Gemini | A waveform with two handles and a draft held by the core. Focus: the draft closed on every way out; the length limit |
+| 12 Live checks, docs, D-entry, PR | 2 | Gemini | Running the checks and writing from `git diff` |
+
+**Order:** Stage A: **1**, then 2, 3. Stage C: **8, 9** (they need only Stage A), then 7.
 
 Stages: A = 1–3, B = 4–6, C = 7–9 with a review, D = 10–11 with a review, E = 12. Commands as P0.
 
@@ -139,6 +143,8 @@ Desktop: `roles_page.dart`.
 ### Task 10: Members, invites and bans
 
 Desktop: `members_page.dart`, `invites_bans_pages.dart`, `app/lib/features/members/member_actions.dart`.
+
+- **`mayActOn`** (create `mobile/src/features/members/mayActOn.ts`, test `__tests__/mayActOn.test.ts`): `mayActOn(actor: ActorContext, member: MemberContext): { kick: boolean, ban: boolean, roles: boolean }`, a port of `member_actions.dart`'s `_may` for these three: never on yourself or the owner; only on members whose highest role is below the actor's (the owner is above everyone); with `kick_members`, `ban_members` or `manage_roles`. A table test with a case for every branch of `_may` these three use, named after the branch. P5 adds the voice actions to the same function.
 - **Members:** a search field (`Search N members`), each row with avatar, name, roles and `Joined`; a tap opens P0's `MemberProfile` with the actions this user may take: `Roles` (a checklist of assignable roles: `add_member_role`, `remove_member_role`), `Kick` and `Ban` (each asks for an optional reason in its confirm). The same actions appear on the profile wherever it opens. Empty search: `No members match "<query>".`
 - **Invites:** `Links stop working when they expire or reach their limit.`; each invite with `Code`, `Made by`, `Uses`, `Expires`; `Create invite` opens P2's invite sheet; a row's menu `Copy link`, `Copy code`, `Revoke invite` (confirm `Revoke this invite?` with the desktop's sentence). Empty: `No invites yet. Create one to bring people in.`
 - **Bans:** each ban with the user, the reason and who banned; `Unban` (confirm).

@@ -24,13 +24,17 @@
 
 P0's apply word for word. **Ledger:** `.superpowers/sdd/phone-p8/progress.md`.
 
-| Task | Score | Owner |
-|---|---|---|
-| 1 The rules, ported | 2 | Gemini |
-| 2 Mute and mentions only | 3 | Gemini (focus: a muted server mutes all its channels) |
-| 3 Local notifications | 4 | Claude |
-| 4 Settings and the server sheet's row | 2 | Gemini |
-| 5 Live checks, docs, D-entry, PR (Stage A) | 2 | Gemini |
+Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude**, handed over with claude-bridge `delegate_task`, each a cold session, so the task's section is self-contained. The rubric is P0's "Task owners". A Claude task runs first in its stage where its dependencies allow (memory: "my tasks come first"); the order is under the table.
+
+| Task | Score | Owner | Why |
+|---|---|---|---|
+| 1 The rules, ported | 2 | Gemini | A port with the desktop's tests |
+| 2 Mute and mentions only | 2 | Gemini | A port of `NotificationPrefs` and two menu items |
+| 3 Local notifications | 4 | Claude | Platform code: Android notification channels, iOS background delivery during a call, routing a tap into a cold app |
+| 4 Settings and the server sheet's row | 2 | Gemini | Switches and the permission state |
+| 5 Live checks, docs, D-entry, PR (Stage A) | 2 | Gemini | Running the checks and writing from `git diff` |
+
+**Order:** **3** needs 1 and 2: Gemini does 1 and 2 first, then hands over 3, then 4.
 
 ## Review Focus
 
@@ -65,9 +69,9 @@ Hand checks on the emulator (and owed on an iPhone): a mention in the foreground
 ## Stage B — While the app is closed (outline)
 
 Needs design §9 Q4. With **A (a relay run by Opencord)**, Claude's pick:
-1. **The relay:** a small service (`crates/opencord-push-relay`, Rust, axum) holding the APNs key and the FCM service account, taking `{ device_token, platform, wake }` from servers, signed by the server's identity key and rate-limited per server. It sees no content and no user ids, only a token and that something happened.
-2. **The server:** a `[push]` section (`relay_url`, off by default); members register device tokens (a new protocol message); on a mention or private message for an offline member with a token, the server asks the relay to wake that device.
-3. **The phone:** registers its APNs/FCM token with each server; on a silent push, connects briefly in the background (iOS gives about 30 s), fetches what's new, and shows Stage A's notification. A private message is decrypted on the phone, never by the relay or the server.
-4. **Operations:** who runs the relay, its domain, the Apple and Google accounts, and what self-hosters do who don't want it (option C: UnifiedPush on Android, nothing on iOS).
+1. **(5, Claude) The relay:** a small service (`crates/opencord-push-relay`, Rust, axum) holding the APNs key and the FCM service account, taking `{ device_token, platform, wake }` from servers, signed by the server's identity key and rate-limited per server. It sees no content and no user ids, only a token and that something happened.
+2. **(4, Claude) The server:** a `[push]` section (`relay_url`, off by default); members register device tokens (a new protocol message); on a mention or private message for an offline member with a token, the server asks the relay to wake that device.
+3. **(5, Claude) The phone:** registers its APNs/FCM token with each server; on a silent push, connects briefly in the background (iOS gives about 30 s), fetches what's new, and shows Stage A's notification. A private message is decrypted on the phone, never by the relay or the server.
+4. **(0, the owner) Operations:** who runs the relay, its domain, the Apple and Google accounts, and what self-hosters do who don't want it (option C: UnifiedPush on Android, nothing on iOS).
 
 Questions for the owner: who runs the relay and under which Apple/Google accounts; whether servers may opt out of it; whether UnifiedPush should be offered on Android as well.

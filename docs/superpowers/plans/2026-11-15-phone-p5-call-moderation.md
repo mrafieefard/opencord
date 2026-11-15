@@ -25,16 +25,20 @@
 
 P0's apply word for word. **Ledger:** `.superpowers/sdd/phone-p5/progress.md`.
 
-| Task | Score | Owner |
-|---|---|---|
-| 1 Facade: voice admin calls, stats, rejoin | 3 | Gemini (focus: stats only for the current call) |
-| 2 The JavaScript core and the fake | 2 | Gemini |
-| 3 `mayActOn`, the rules | 3 | Gemini (focus: parity with `_may`) |
-| 4 Actions on a profile in a call | 3 | Gemini (focus: the member leaves while the menu is open) |
-| 5 Priority speaker | 4 | Claude |
-| 6 Connection | 2 | Gemini |
-| 7 The reconnect bar | 3 | Gemini (focus: the app killed in a call) |
-| 8 Live checks, docs, D-entry, PR | 2 | Gemini |
+Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude**, handed over with claude-bridge `delegate_task`, each a cold session, so the task's section is self-contained. The rubric is P0's "Task owners". A Claude task runs first in its stage where its dependencies allow (memory: "my tasks come first"); the order is under the table.
+
+| Task | Score | Owner | Why |
+|---|---|---|---|
+| 1 Facade: voice admin calls, stats, rejoin | 2 | Gemini | Calls and two events in the facade's pattern |
+| 2 The JavaScript core and the fake | 2 | Gemini | A fake with a timer |
+| 3 `mayActOn`, the rules | 3 | Gemini | Extends P4's port with the voice branches. Focus: every voice branch named; P4's cases untouched |
+| 4 Actions on a profile in a call | 2 | Gemini | Buttons over Task 3's answer |
+| 5 Priority speaker | 4 | Claude | Real-time: a held state in the audio pipeline that must be released on every way out (gesture cancel, background, leaving) |
+| 6 Connection | 2 | Gemini | A sheet and a sparkline from one event |
+| 7 The reconnect bar | 3 | Gemini | State kept across an app kill. Focus: once per cut; nothing after a deliberate leave |
+| 8 Live checks, docs, D-entry, PR | 2 | Gemini | Running the checks and writing from `git diff` |
+
+**Order:** Stage B: **5**, then 4, 6, 7.
 
 Stages: A = 1–3, B = 4–7 with a review, C = 8. Commands as P0.
 
@@ -61,10 +65,10 @@ Stages: A = 1–3, B = 4–7 with a review, C = 8. Commands as P0.
 
 ### Task 3: `mayActOn`, the rules
 
-**Files:** create `mobile/src/features/members/mayActOn.ts`; test `__tests__/mayActOn.test.ts`.
+**Files:** modify `mobile/src/features/members/mayActOn.ts` (made by P4 Task 10 for kick, ban and roles); test `__tests__/mayActOn.test.ts`.
 
-**Interfaces (produces):** `mayActOn(actor: ActorContext, member: MemberContext): { serverMute, serverDeafen, move: string[], disconnect, kick, ban, roles, blockFromMusic: boolean }` (`move` the channel ids offered), a port of `member_actions.dart`'s rules: never on yourself or the owner; kick, ban and roles only on members whose highest role is below the actor's (the owner is above everyone); voice actions need the permission in the member's current channel (P4's overwrites included) and the member in voice.
-- [ ] A table test with a case for every branch of `_may` (read the desktop file; name each case after its branch). Run (fail), implement, run (pass); P4's member actions switch to it in the same commit (`feat(mobile): one rule for acting on members`).
+**Interfaces (produces):** `mayActOn` gains `serverMute`, `serverDeafen`, `move: string[]` (the channel ids offered), `disconnect` and `blockFromMusic`, the rest of `member_actions.dart`'s `_may`: never on yourself or the owner; voice actions need the permission in the member's current channel (P4's overwrites included) and the member in voice.
+- [ ] A table test with a case for every branch of `_may` (read the desktop file; name each case after its branch). P4's cases still pass unchanged. Run (fail), implement, run (pass); commit `feat(mobile): the voice actions join mayActOn`.
 
 ### Task 4: Actions on a profile in a call
 

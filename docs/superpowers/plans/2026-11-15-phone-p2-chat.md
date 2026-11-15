@@ -25,19 +25,23 @@
 
 P0's apply word for word. **Ledger:** `.superpowers/sdd/phone-p2/progress.md`.
 
-| Task | Score | Owner |
-|---|---|---|
-| 1 Facade: invites | 2 | Gemini |
-| 2 Mentions and the active token | 3 | Gemini (focus: names with spaces, code spans, the caret) |
-| 3 Emoji data and the picker | 2 | Gemini |
-| 4 Composer suggestions | 3 | Gemini (focus: the list and the keyboard, the command list sharing the space) |
-| 5 Videos, audio files and text previews | 3 | Gemini (focus: a file still downloading; memory with many videos in the list) |
-| 6 Highlighted code | 2 | Gemini |
-| 7 The reconnecting banner and a changed identity | 3 | Gemini (focus: the cached chat greyed, not cleared) |
-| 8 Invite people | 2 | Gemini |
-| 9 Search finds channels and people | 3 | Gemini (focus: ranking parity with the desktop) |
-| 10 Text chat in voice channels | 3 | Gemini (focus: unread counts for a voice channel's chat) |
-| 11 Live check, docs, D-entry, PR | 2 | Gemini |
+Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude**, handed over with claude-bridge `delegate_task`, each a cold session, so the task's section is self-contained. The rubric is P0's "Task owners". A Claude task runs first in its stage where its dependencies allow (memory: "my tasks come first"); the order is under the table.
+
+| Task | Score | Owner | Why |
+|---|---|---|---|
+| 1 Facade: invites | 2 | Gemini | Three calls and one record in the facade's pattern |
+| 2 Mentions and the active token | 3 | Gemini | A port whose desktop tests come with it. Focus: names with spaces, code spans, the caret; decode then encode unchanged |
+| 3 Emoji data and the picker | 2 | Gemini | A generator's second output and a grid |
+| 4 Composer suggestions | 3 | Gemini | Layout with the keyboard up, sharing the space with commands. Focus: the list never under the keyboard; commands win after `/` |
+| 5 Videos, audio files and text previews | 3 | Gemini | Expo's own players; the risks are file states and memory, all testable. Focus: never a half-written file; one player at a time |
+| 6 Highlighted code | 2 | Gemini | A library with the desktop's language list and two limits |
+| 7 The reconnecting banner and a changed identity | 3 | Gemini | A trust screen, but it only offers `Forget server` and `Disconnect`, never trusting the new key. Focus: the chat greyed, not cleared; the screen once per change |
+| 8 Invite people | 2 | Gemini | A sheet over Task 1's calls with the desktop's words |
+| 9 Search finds channels and people | 2 | Gemini | A port with its desktop tests |
+| 10 Text chat in voice channels | 2 | Gemini | Reuses `ChatPane` behind a button |
+| 11 Live check, docs, D-entry, PR | 2 | Gemini | Running the checks and writing from `git diff` |
+
+**Order:** No Claude tasks: Gemini runs them in order.
 
 Stages: A = Tasks 1–4 (the composer), B = 5–10 with the review, C = 11. Commands as P0.
 

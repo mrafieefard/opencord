@@ -1,6 +1,6 @@
 # The phone catches up with the desktop: design
 
-**Status:** draft for the owner, 2026-11-15. Nothing here is approved yet.
+**Status:** draft for the owner, 2026-11-15. Nothing here is approved yet; the plans are for later (the owner, 2026-11-15).
 
 ## 1. What the owner asked for
 
@@ -174,7 +174,7 @@ Each plan branches from the one before it, so the order is a chain. The real dep
 ## 9. Decisions the owner hasn't made (asked together)
 
 1. **The server button (§6.1):** the round button beside the tab bar with a `⋯`, as Claude read it, or a share icon, or something else?
-2. **Who builds:** Gemini Flash with Claude's tasks through the bridge (scores 4–5 to Claude), or one Claude session alone as in plugins milestone 4? Every plan scores its tasks, so either works.
+2. ~~**Who builds**~~ **Answered (2026-11-15):** Gemini builds; tasks scored 0–5, 1–3 Gemini, 4–5 Claude through the bridge (P0's rubric). The plans are for later, not to start now.
 3. **The base branch:** stack on `feat/plugins-phone` (§8), or wait until #46–#52 merge?
 4. **Push notifications:** run a relay (A), go without push (C), or both, local first?
 5. **Hosting settings on the phone:** desktop only, as Claude proposes, or a P9?
