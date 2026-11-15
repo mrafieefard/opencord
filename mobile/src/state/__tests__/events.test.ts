@@ -74,7 +74,7 @@ describe('applying events', () => {
 
   it('members join, change and leave', () => {
     let state = ready();
-    const joined = { user: { id: '2000', displayName: 'Zoe', fingerprint: 'Z' }, roleIds: [], joinedAtMs: 1_791_331_200_000 };
+    const joined = { user: { id: '2000', displayName: 'Zoe', fingerprint: 'Z' }, roleIds: [], joinedAtMs: 1_791_374_400_000 };
     state = apply(state, new MobileEvent.MemberUpserted({ serverKey: NIGHT_OWLS, member: joined }));
     state = apply(state, new MobileEvent.MemberUpserted({ serverKey: NIGHT_OWLS, member: { ...joined, nickname: 'Z' } }));
     const members = () => state.servers[NIGHT_OWLS]?.snapshot?.members.filter((member) => member.user.id === '2000') ?? [];

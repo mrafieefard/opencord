@@ -1337,12 +1337,12 @@ mod tests {
             },
             nickname: Some("Ali".to_owned()),
             role_ids: vec![1, 2],
-            joined_at_ms: 1_791_331_200_000,
+            joined_at_ms: 1_791_374_400_000,
         };
         let converted_member = member(core_member);
         assert_eq!(converted_member.user.id, "42");
         assert_eq!(converted_member.nickname.as_deref(), Some("Ali"));
         assert_eq!(converted_member.role_ids, vec!["1", "2"]);
-        assert_eq!(converted_member.joined_at_ms, 1_791_331_200_000.0);
+        assert_eq!(converted_member.joined_at_ms, 1_791_374_400_000.0);
     }
 }

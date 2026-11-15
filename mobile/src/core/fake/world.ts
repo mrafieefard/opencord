@@ -72,7 +72,7 @@ function members(): MemberRecord[] {
     let roleIds: string[] = [];
     if (id === SELF_ID) roleIds = ['2002'];
     else if (id === '1001') roleIds = ['2001'];
-    return { user: user(id), roleIds, joinedAtMs: 1_791_331_200_000 };
+    return { user: user(id), roleIds, joinedAtMs: 1_791_374_400_000 };
   });
 }
 

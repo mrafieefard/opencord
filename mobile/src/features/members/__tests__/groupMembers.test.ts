@@ -34,7 +34,7 @@ function makeMember(id: string, displayName: string, roleIds: string[] = []): Me
     },
     nickname: undefined,
     roleIds,
-    joinedAtMs: 1_791_331_200_000,
+    joinedAtMs: 1_791_374_400_000,
   };
 }
 

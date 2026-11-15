@@ -139,17 +139,17 @@ describe('roles, presence and server permissions', () => {
         {
           user: { id: '555', displayName: 'MultiRole', fingerprint: 'M' },
           roleIds: ['1', '2', '3'],
-          joinedAtMs: 1_791_331_200_000,
+          joinedAtMs: 1_791_374_400_000,
         },
         {
           user: { id: '666', displayName: 'NoColor', fingerprint: 'N' },
           roleIds: ['3'],
-          joinedAtMs: 1_791_331_200_000,
+          joinedAtMs: 1_791_374_400_000,
         },
         {
           user: { id: '777', displayName: 'NoRoles', fingerprint: 'O' },
           roleIds: [],
-          joinedAtMs: 1_791_331_200_000,
+          joinedAtMs: 1_791_374_400_000,
         },
       ],
     };

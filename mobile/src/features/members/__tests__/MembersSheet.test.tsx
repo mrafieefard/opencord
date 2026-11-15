@@ -56,17 +56,17 @@ const TEST_MEMBERS: MemberRecord[] = [
   {
     user: { id: '1001', displayName: 'Alice', fingerprint: 'fp-alice' },
     roleIds: ['2001'],
-    joinedAtMs: 1_791_331_200_000,
+    joinedAtMs: 1_791_374_400_000,
   },
   {
     user: { id: '1002', displayName: 'Bob', fingerprint: 'fp-bob' },
     roleIds: [],
-    joinedAtMs: 1_791_331_200_000,
+    joinedAtMs: 1_791_374_400_000,
   },
   {
     user: { id: '1003', displayName: 'Charlie', fingerprint: 'fp-charlie' },
     roleIds: [],
-    joinedAtMs: 1_791_331_200_000,
+    joinedAtMs: 1_791_374_400_000,
   },
 ];
 
@@ -169,7 +169,7 @@ describe('MembersSheet', () => {
       bigMembers.push({
         user: { id, displayName: `User ${i}`, fingerprint: `fp-${i}` },
         roleIds: i % 10 === 0 ? ['2001'] : [],
-        joinedAtMs: 1_791_331_200_000,
+        joinedAtMs: 1_791_374_400_000,
       });
       bigPresences.push({
         userId: id,
