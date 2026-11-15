@@ -66,13 +66,29 @@ export interface DestructiveRowProps {
   onPress: () => void;
 }
 
+/** A row that does something at once (Mark as read): no chevron, nothing opens. */
+export interface ActionRowProps {
+  kind: 'action';
+  label: string;
+  onPress: () => void;
+}
+
+/** A row that only says what is so, and can't be pressed (Hosting: Open on a computer). */
+export interface ValueRowProps {
+  kind: 'value';
+  label: string;
+  value: string;
+}
+
 export type SettingsRowProps =
   | LinkRowProps
   | SwitchRowProps
   | SliderRowProps
   | ChoiceRowProps
   | TextRowProps
-  | DestructiveRowProps;
+  | DestructiveRowProps
+  | ActionRowProps
+  | ValueRowProps;
 
 /** A slider's step when the row gives none. */
 export function sliderStep(props: SliderRowProps): number {

@@ -3,13 +3,14 @@
 // Android, a hairline under it.
 import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from './Icon';
 import { IconButton } from './IconButton';
 import type { IconName } from './icons';
 import { Text } from './Text';
-import { space } from './theme/space';
+import { radius, space } from './theme/space';
 import { useTheme } from './theme/useTheme';
 
 export interface HeaderAction {
@@ -29,13 +30,40 @@ export interface PaneHeaderProps {
   insetTop?: boolean;
   /** No colour or line of its own: over glass (the call). */
   clear?: boolean;
+  /** The title is a button (a press or a long press): the server's name opens its sheet. */
+  onTitlePress?: () => void;
 }
 
 const centered = Platform.OS === 'ios';
 
-export function PaneHeader({ title, subtitle, titleIcon, left, right = [], rightElement, insetTop = true, clear = false }: PaneHeaderProps) {
+export function PaneHeader({
+  title,
+  subtitle,
+  titleIcon,
+  left,
+  right = [],
+  rightElement,
+  insetTop = true,
+  clear = false,
+  onTitlePress,
+}: PaneHeaderProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const titles = (
+    <>
+      <View style={styles.titleLine}>
+        {titleIcon && <Icon name={titleIcon} size={17} color="textSecondary" />}
+        <Text variant="headline" numberOfLines={1} accessibilityRole="header">
+          {title}
+        </Text>
+      </View>
+      {subtitle !== undefined && subtitle !== '' && (
+        <Text variant="footnote" color="textMuted" numberOfLines={1}>
+          {subtitle}
+        </Text>
+      )}
+    </>
+  );
   return (
     <View
       style={[
@@ -49,19 +77,26 @@ export function PaneHeader({ title, subtitle, titleIcon, left, right = [], right
         <View style={[styles.side, centered && styles.sideFixed]}>
           {left && <IconButton icon={left.icon} label={left.label} onPress={left.onPress} />}
         </View>
-        <View style={[styles.titles, centered ? styles.titlesCentered : styles.titlesStart]}>
-          <View style={styles.titleLine}>
-            {titleIcon && <Icon name={titleIcon} size={17} color="textSecondary" />}
-            <Text variant="headline" numberOfLines={1} accessibilityRole="header">
-              {title}
-            </Text>
-          </View>
-          {subtitle !== undefined && subtitle !== '' && (
-            <Text variant="footnote" color="textMuted" numberOfLines={1}>
-              {subtitle}
-            </Text>
-          )}
-        </View>
+        {onTitlePress ? (
+          <Touchable
+            onPress={onTitlePress}
+            onLongPress={onTitlePress}
+            underlayColor={colors.selected}
+            activeUnderlayOpacity={1}
+            style={[styles.titles, styles.titlePress]}
+          >
+            <View
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={title}
+              style={[styles.titleInner, centered ? styles.titlesCentered : styles.titlesStart]}
+            >
+              {titles}
+            </View>
+          </Touchable>
+        ) : (
+          <View style={[styles.titles, centered ? styles.titlesCentered : styles.titlesStart]}>{titles}</View>
+        )}
         <View style={[styles.side, styles.sideEnd, centered && styles.sideFixed]}>
           {rightElement ?? right.map((action) => (
             <IconButton key={action.label} icon={action.icon} label={action.label} onPress={action.onPress} />
@@ -81,5 +116,7 @@ const styles = StyleSheet.create({
   titles: { flex: 1, minWidth: 0 },
   titlesCentered: { alignItems: 'center' },
   titlesStart: { alignItems: 'flex-start', paddingHorizontal: space.sm },
+  titlePress: { borderRadius: radius.row, justifyContent: 'center' },
+  titleInner: { paddingVertical: space.xs },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
 });

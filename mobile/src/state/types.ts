@@ -188,6 +188,8 @@ export interface AppState {
   voicePlayback: VoicePlayback | null;
   /** A text or plugin channel fills a phone's screen: the tab bar (and the floating voice bar, but in a chat's room for it) steps aside. */
   chatInFront: boolean;
+  /** The server whose screen is in front, if one is: iOS's search slot becomes its server button. */
+  serverInFront: string | null;
   /** The tab bar's room at the foot of a tab's screen (its bottom inset there); 0 unknown. */
   tabInset: number;
   /** Where a chat keeps room for the floating voice pill (iOS), if one does now. */

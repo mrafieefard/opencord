@@ -12,6 +12,7 @@ import { BackHandler, useWindowDimensions } from 'react-native';
 import { useSwipeBackHeld } from '@/features/plugins/swipeBack';
 import { useEngineWarmUp } from '@/features/plugins/warmUp';
 import { openCall } from '@/features/voice/callPosition';
+import { clearServerInFront, setServerInFront } from '@/state/actions/ui';
 import { useAppStore } from '@/state/store';
 
 import { PhonePanes } from './PhonePanes';
@@ -59,6 +60,15 @@ export function ServerScreen({ serverKey, channelId, startWithSidebar = false }:
   useLayoutEffect(() => {
     navigation.setOptions({ gestureEnabled: (tablet || mode === 'channels') && !pluginHoldsBack });
   }, [navigation, tablet, mode, pluginHoldsBack]);
+
+  // While this screen is in front, iOS's search slot is this server's
+  // button. Leaving it (back, another tab, a sheet over it) gives Search back.
+  useFocusEffect(
+    useCallback(() => {
+      setServerInFront(serverKey);
+      return () => clearServerInFront(serverKey);
+    }, [serverKey]),
+  );
 
   useFocusEffect(
     useCallback(() => {

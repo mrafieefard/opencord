@@ -34,6 +34,20 @@ export function setChatInFront(chatInFront: boolean): void {
   if (useAppStore.getState().chatInFront !== chatInFront) useAppStore.setState({ chatInFront });
 }
 
+/** A server's screen came to the front. */
+export function setServerInFront(serverKey: string): void {
+  if (useAppStore.getState().serverInFront !== serverKey) useAppStore.setState({ serverInFront: serverKey });
+}
+
+/**
+ * A server's screen left the front. Only the server that holds the slot
+ * clears it: going from one server to another, the second may have taken it
+ * before the first lets go.
+ */
+export function clearServerInFront(serverKey: string): void {
+  if (useAppStore.getState().serverInFront === serverKey) useAppStore.setState({ serverInFront: null });
+}
+
 /** Which voice channel's page fills the screen, if one does. */
 export function setVoicePageInFront(page: { serverKey: string; channelId: string } | null): void {
   const held = useAppStore.getState().voicePageInFront;

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as Clipboard from 'expo-clipboard';
+import { router } from 'expo-router';
 import {
   ConnectionRecord,
   MobileEvent,
@@ -181,36 +181,23 @@ describe('ChannelList', () => {
     expect(offTopicRow.props.accessibilityState).toEqual({ selected: false });
   });
 
-  it('the header menu marks all read and leaves the server', async () => {
+  // The header's old menu (Mark all as read, Copy address, Leave server)
+  // became the server sheet (design §6.1): Mark as read and Leave are
+  // tested there (features/serverMenu); Copy address stays in the servers
+  // list's long-press menu.
+  // Fails if the name stops opening the sheet, or the old menu comes back.
+  it('the header opens the server sheet from the name, and has no menu of its own', async () => {
     onEvents([
       new MobileEvent.Connection({ serverKey: NIGHT_OWLS, state: new ConnectionRecord.Connected() }),
       new MobileEvent.Ready({ snapshot: snapshot(NIGHT_OWLS) }),
     ]);
     await settle();
 
-    const onBack = jest.fn();
-    const { getByText, getByTestId } = await render(<ChannelListHeader serverKey={NIGHT_OWLS} backLabel="Servers" onBack={onBack} />);
+    const { getByRole, queryByTestId } = await render(<ChannelListHeader serverKey={NIGHT_OWLS} backLabel="Servers" onBack={jest.fn()} />);
 
-    expect(getByText('Night Owls')).toBeTruthy();
-
-    // Menu contains Mark all as read, Copy address, Leave server
-    const menu = getByTestId('channel-list-menu');
-    expect(menu).toBeTruthy();
-
-    // Trigger Mark all as read
-    fireEvent(menu, 'onAction', 'mark-read');
-    await settle();
-
-    // Trigger Copy address
-    fireEvent(menu, 'onAction', 'copy-address');
-    expect(Clipboard.setStringAsync).toHaveBeenCalled();
-
-    // Trigger Leave server
-    fireEvent(menu, 'onAction', 'leave');
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Leave Night Owls?',
-      'You can come back with an invite.',
-      expect.any(Array),
-    );
+    expect(queryByTestId('channel-list-menu')).toBeNull();
+    await fireEvent.press(getByRole('button', { name: 'Night Owls' }));
+    await fireEvent.press(getByRole('button', { name: 'Night Owls' }));
+    expect(jest.mocked(router.push).mock.calls).toEqual([['/server/fake-night-owls/settings'], ['/server/fake-night-owls/settings']]);
   });
 });

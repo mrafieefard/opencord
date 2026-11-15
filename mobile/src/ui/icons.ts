@@ -16,6 +16,9 @@ export const icons = {
   back: { ios: 'chevron.left', android: 'arrow_back' },
   dismiss: { ios: 'chevron.down', android: 'keyboard_arrow_down' },
   more: { ios: 'ellipsis', android: 'more_horiz' },
+  // The server button (design §6.1): the tab slot on iOS, the header on Android.
+  serverMenu: { ios: 'ellipsis', android: 'more_vert' },
+  settings: { ios: 'gearshape', android: 'settings' },
   search: { ios: 'magnifyingglass', android: 'search' },
   send: { ios: 'arrow.up', android: 'arrow_upward' },
   photo: { ios: 'photo', android: 'image' },

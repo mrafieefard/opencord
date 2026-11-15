@@ -98,6 +98,27 @@ describe.each(ROWS)('SettingsRow on %s', (system, SettingsRow) => {
     expect(onPress).toHaveBeenCalledTimes(2);
   });
 
+  // Fails if an action row draws a chevron or doesn't call onPress each time.
+  it('an action row acts at once, without a chevron', async () => {
+    const onPress = jest.fn();
+    await draw(<SettingsRow kind="action" label="Mark as read" onPress={onPress} />);
+    expect(screen.queryByTestId('settings-chevron')).toBeNull();
+    expect(StyleSheet.flatten(screen.getByText('Mark as read').props.style).color).toBe(tokens.dark.text);
+    await fireEvent.press(screen.getByLabelText('Mark as read'));
+    await fireEvent.press(screen.getByLabelText('Mark as read'));
+    expect(onPress).toHaveBeenCalledTimes(2);
+  });
+
+  // Fails if a value row becomes pressable or hides its value.
+  it('a value row shows its value and is not a button', async () => {
+    await draw(<SettingsRow kind="value" label="Hosting" value="Open on a computer" />);
+    expect(screen.getByText('Open on a computer')).toBeTruthy();
+    expect(StyleSheet.flatten(screen.getByText('Open on a computer').props.style).color).toBe(tokens.dark.textMuted);
+    expect(screen.getByLabelText('Hosting, Open on a computer').props.accessibilityRole).toBeUndefined();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByTestId('settings-chevron')).toBeNull();
+  });
+
   it('a text row edits its value within its limit', async () => {
     const onChange = jest.fn();
     await draw(<SettingsRow kind="text" label="Server name" value="Night Owls" placeholder="Name" maxLength={100} onChange={onChange} />);

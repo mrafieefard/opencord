@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootGate } from '@/features/boot/BootGate';
 import { DETENTS, TWO_COLUMNS } from '@/features/music/sheet';
+import { SHEET_DETENTS } from '@/features/serverMenu/ServerSheet';
 import { CallSheet } from '@/features/voice/CallSheet';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui';
@@ -53,6 +54,19 @@ function Routes() {
               sheetGrabberVisible: true,
               sheetCornerRadius: sheetLook.cornerRadius,
               contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
+            name="server/[serverKey]/settings"
+            options={{
+              presentation: 'formSheet',
+              // Medium; the sheet's stack allows only large while a page is open.
+              sheetAllowedDetents: SHEET_DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              // A grouped settings list, opaque as iOS Settings: its cards are `surface` on `chat`.
+              contentStyle: { backgroundColor: colors.chat },
             }}
           />
           <Stack.Screen
