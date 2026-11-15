@@ -1,4 +1,5 @@
 export { Avatar, initials, nameHash } from './Avatar';
+export { showActionSheet, type ActionSheetAction, type ActionSheetOptions } from './actionSheet';
 export { Badge, badgeText } from './Badge';
 export { Banner } from './Banner';
 export { Button } from './Button';

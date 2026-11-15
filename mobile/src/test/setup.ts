@@ -2,6 +2,12 @@
 // Jest setup. @opencord/core-native maps to the generated bindings without
 // their native installer (jest.config.js); tests use FakeCore for calls.
 
+// ActionSheetIOS mock.
+const { ActionSheetIOS } = require('react-native');
+if (ActionSheetIOS) {
+  ActionSheetIOS.showActionSheetWithOptions = jest.fn();
+}
+
 // expo-secure-store, kept in memory.
 jest.mock('expo-secure-store', () => {
   const items = new Map<string, string>();
@@ -41,7 +47,25 @@ jest.mock('expo-sharing', () => ({
 // expo-image-picker in memory.
 jest.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images', All: 'All', Videos: 'Videos' },
+  PermissionStatus: {
+    UNDETERMINED: 'undetermined',
+    GRANTED: 'granted',
+    DENIED: 'denied',
+  },
   launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: [] })),
+  launchCameraAsync: jest.fn(async () => ({ canceled: true, assets: [] })),
+  requestCameraPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    status: 'granted',
+    canAskAgain: true,
+    expires: 'never',
+  })),
+  getCameraPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    status: 'granted',
+    canAskAgain: true,
+    expires: 'never',
+  })),
 }));
 
 // expo-document-picker in memory.
