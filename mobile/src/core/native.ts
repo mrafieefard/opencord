@@ -5,6 +5,8 @@ import { PresenceStatus } from '@opencord/core-native';
 
 import type { CoreApi, PresenceStatusInput } from './api';
 
+export { PresenceStatus } from '@opencord/core-native';
+
 function toPresenceStatus(status: PresenceStatusInput): PresenceStatus {
   if (typeof status === 'string') {
     switch (status) {

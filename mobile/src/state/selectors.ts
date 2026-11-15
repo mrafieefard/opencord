@@ -420,11 +420,14 @@ export function useServerAccess(serverKey: string): ServerAccess | null {
   return useAppStore((state) => state.servers[serverKey]?.snapshot?.serverAccess ?? null);
 }
 
+const EMPTY_ROLES: RoleRecord[] = [];
+
 export function useRoles(serverKey: string): RoleRecord[] {
-  return useAppStore((state) => {
-    const roles = state.servers[serverKey]?.snapshot?.roles ?? [];
+  const roles = useAppStore((state) => state.servers[serverKey]?.snapshot?.roles);
+  return useMemo(() => {
+    if (!roles || roles.length === 0) return EMPTY_ROLES;
     return [...roles].sort((a, b) => b.position - a.position);
-  });
+  }, [roles]);
 }
 
 export function usePresence(serverKey: string, userId: string): PresenceStatus {

@@ -20,6 +20,7 @@ export const icons = {
   serverMenu: { ios: 'ellipsis', android: 'more_vert' },
   settings: { ios: 'gearshape', android: 'settings' },
   search: { ios: 'magnifyingglass', android: 'search' },
+  people: { ios: 'person.2', android: 'group' },
   send: { ios: 'arrow.up', android: 'arrow_upward' },
   photo: { ios: 'photo', android: 'image' },
   file: { ios: 'doc', android: 'description' },

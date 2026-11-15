@@ -1,6 +1,7 @@
 // A text channel's pane (spec §8.5): its header, then the messages, with
 // the dock (the voice bar and the composer) floating over their bottom as
 // Telegram's, the messages scrolling under it.
+import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
@@ -64,6 +65,13 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
         titleIcon="textChannel"
         subtitle={info?.channel.topic}
         left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
+        right={[
+          {
+            icon: 'people',
+            label: 'Members',
+            onPress: () => router.push(`/server/${serverKey}/members`),
+          },
+        ]}
       />
       <ChatDockContext.Provider value={dock}>
         <View style={styles.body} onLayout={(event) => setBodyHeight(Math.round(event.nativeEvent.layout.height))}>

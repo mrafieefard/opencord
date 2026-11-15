@@ -47,6 +47,17 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/members"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: SHEET_DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
             name="server/[serverKey]/member/[userId]"
             options={{
               presentation: 'formSheet',

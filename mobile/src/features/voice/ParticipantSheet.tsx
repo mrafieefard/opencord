@@ -2,20 +2,18 @@
 // (0–200 %, 100 % marked) and a mute-for-me switch, or "This is you." for
 // self. The values come from the store, so the sheet opens on what is set.
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { useImageFile } from '@/features/servers/useImageFile';
+import { MemberProfile } from '@/features/members/MemberProfile';
 import { setUserLocalMute, setUserVolume } from '@/state/actions/voice';
-import { useMember, useServer, useUserAudio } from '@/state/selectors';
-import { Avatar, SheetHeader, Slider, Switch, Text, sheetLook, space, useSheetBottomInset, useTheme } from '@/ui';
+import { useServer, useUserAudio } from '@/state/selectors';
+import { IconButton, SheetGrabber, Slider, Switch, Text, sheetLook, space, useSheetBottomInset, useTheme } from '@/ui';
 
 export interface ParticipantSheetProps {
   serverKey: string;
   userId: string;
   onClose?: () => void;
 }
-
-const AVATAR_SIZE = 48;
 
 /** "100 %", as the spec writes percentages. */
 function percent(fraction: number): string {
@@ -26,22 +24,22 @@ export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantShee
   const { colors } = useTheme();
   const bottomInset = useSheetBottomInset();
   const server = useServer(serverKey);
-  const member = useMember(serverKey, userId);
   const audio = useUserAudio(serverKey, userId);
   const selfId = server?.snapshot?.selfUser.id ?? server?.entry.userId;
   const isSelf = !!selfId && selfId === userId;
-
-  const name = member?.name ?? 'Member';
-  const avatarFile = useImageFile(serverKey, member?.avatarHash);
   const close = onClose ?? (() => router.back());
 
   return (
-    <View style={[styles.sheet, { backgroundColor: sheetLook.background(colors), paddingBottom: bottomInset + space.lg }]}>
-      <SheetHeader
-        title={name}
-        leading={<Avatar name={name} file={avatarFile} size={AVATAR_SIZE} />}
-        onClose={close}
-      />
+    <ScrollView
+      style={[styles.sheet, { backgroundColor: sheetLook.background(colors) }]}
+      contentContainerStyle={{ paddingBottom: bottomInset + space.lg }}
+    >
+      <SheetGrabber />
+      <View style={styles.closeRow}>
+        <View style={styles.spacer} />
+        <IconButton icon="close" label="Close" size={36} onPress={close} />
+      </View>
+      <MemberProfile serverKey={serverKey} userId={userId} />
       {isSelf ? (
         <Text variant="callout" color="textSecondary" style={styles.self}>
           This is you.
@@ -79,14 +77,16 @@ export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantShee
           </View>
         </View>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   sheet: { paddingHorizontal: space.lg },
-  self: { paddingTop: space.lg },
-  controls: { paddingTop: space.lg, gap: space.lg },
+  closeRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
+  spacer: { flex: 1 },
+  self: { paddingTop: space.lg, textAlign: 'center' },
+  controls: { marginTop: space.lg, gap: space.lg },
   section: { gap: space.xs },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   marks: { flexDirection: 'row', justifyContent: 'space-between' },
