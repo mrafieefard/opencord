@@ -19,6 +19,7 @@
 - **Scope:** `crates/opencord-mobile/`, `mobile/src/`, `docs/`. No core, server, protocol or desktop change.
 - **Priority speaker** (Claude's call): the desktop holds it with a key. On the phone, for those with `PRIORITY_SPEAKER` in the channel, a long press on the mute button holds it while the finger is down (`set_priority_speaker(true)` on press, `false` on release or cancel), with a haptic tick and the label `Priority speaker` over the button.
 - P0's Global Constraints from "Ids are decimal strings" on apply.
+- **Numbers follow the facade's rule** (`crates/opencord-mobile/src/types.rs:1-3`): ids are decimal strings; times (ms since the epoch), sizes, durations, positions and counters cross as `f64` through `convert::number` and `convert::unsigned`; a draft id comes back through `convert::draft_id`. No `u64` or `i64` field in a record JavaScript reads, whatever the core's type: a `u64` becomes a JavaScript `bigint` and breaks every comparison.
 
 ## Working Rules
 
@@ -51,7 +52,7 @@ Stages: A = 1–3, B = 4–7 with a review, C = 8. Commands as P0.
 
 **Files:** modify `crates/opencord-mobile/src/api/voice.rs`, `src/types.rs`, `src/events.rs`, `src/convert.rs`.
 
-**Interfaces (produces):** `server_mute(server_key, user_id, value)`, `server_deafen(server_key, user_id, value)`, `move_member(server_key, user_id, channel_id)`, `disconnect_member(server_key, user_id)`, `priority_speaker_set(held: bool)` (`set_priority_speaker`), `music_blocks(server_key) → Vec<MusicBlockRecord>`, `block_from_music(…)` with the core's arguments (`crates/opencord-core/src/music.rs:301-320`; read them and its unblock counterpart). Events: `MobileEvent::ConnectionStats { server_key, channel_id, stats: VoiceStatsRecord { ping_ms: Option<u32>, jitter_ms: Option<f32>, loss_in_percent: Option<f32>, loss_out_percent: Option<f32>, bitrate_in: u64, bitrate_out: u64, voice_node: String } }` and `MobileEvent::VoiceRejoinFailed { server_key, channel_id, message }`; both leave the dropped lists.
+**Interfaces (produces):** `server_mute(server_key, user_id, value)`, `server_deafen(server_key, user_id, value)`, `move_member(server_key, user_id, channel_id)`, `disconnect_member(server_key, user_id)`, `priority_speaker_set(held: bool)` (`set_priority_speaker`), `music_blocks(server_key) → Vec<MusicBlockRecord>`, `block_from_music(…)` with the core's arguments (`crates/opencord-core/src/music.rs:301-320`; read them and its unblock counterpart). Events: `MobileEvent::ConnectionStats { server_key, channel_id, stats: VoiceStatsRecord { ping_ms: Option<u32>, jitter_ms: Option<f32>, loss_in_percent: Option<f32>, loss_out_percent: Option<f32>, bitrate_in: f64, bitrate_out: f64, voice_node: String } }` and `MobileEvent::VoiceRejoinFailed { server_key, channel_id, message }`; both leave the dropped lists.
 - [ ] Tests: `stats_reach_javascript`, `a_rejoin_failure_reaches_javascript`, `voice_admin_ids_are_strings`. Run (fail), implement, run (pass); clippy; bindings; commit `feat(mobile): voice moderation calls and connection stats in the facade`.
 
 ### Task 2: The JavaScript core and the fake

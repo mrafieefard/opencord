@@ -1,6 +1,6 @@
 # Phone P7: Camera and Screen Sharing — Outline
 
-> **This isn't a task-level plan yet.** It stops where the owner's decision (design §9 Q5) changes what gets built. After the answer, Claude writes a design of its own (`docs/superpowers/specs/…-phone-video-design.md`), then turns this outline into tasks. Nothing here is to be built as written.
+> **This isn't a task-level plan yet.** It stops where the owner's decision (design §9 Q6) changes what gets built. After the answer, Claude writes a design of its own (`docs/superpowers/specs/…-phone-video-design.md`), then turns this outline into tasks. Nothing here is to be built as written.
 
 **Goal:** On the phone, turn the camera on in a call, share the phone's screen, and watch other people's cameras and streams, with the desktop's limits and permissions.
 
@@ -30,7 +30,7 @@
 5. **Screen sharing on iOS:** a Broadcast Upload Extension (a separate process with about 50 MB of memory) that encodes itself and hands packets to the app through an App Group. It has its own signing and its own hand checks on a real iPhone.
 6. **Live checks, docs, the D-entry and the pull request.**
 
-## Questions for the owner (with design §9 Q5)
+## Questions for the owner (with design §9 Q6)
 
 1. A, B or C?
 2. Is a stream from the phone allowed at the desktop's limits (`screen_share_max_resolution`, `screen_share_max_fps`), or capped lower on phones to save battery? Claude's pick: capped at 720p30 on phones.

@@ -15,14 +15,15 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-foundation`, made from `feat/plugins-phone` (PR #52) unless the owner answered design §9 Q2 otherwise; its first commit holds this plan and the design. Open a **draft pull request into `beta`** at the end of Stage A. Its description says the diff includes plugins milestones 1–4 until #46–#52 merge. Never merge; never push to `beta`, `canary` or `main`.
+- **Branch:** `feat/phone-foundation`, made from `feat/plugins-phone` (PR #52) unless the owner answered design §9 Q3 otherwise; its first commit holds this plan and the design. Open a **draft pull request into `beta`** at the end of Stage A. Its description says the diff includes plugins milestones 1–4 until #46–#52 merge. Never merge; never push to `beta`, `canary` or `main`.
 - **Before Task 1:** `git status --short -uno` prints nothing; `df -h /` shows at least 20 GB free; `source mobile/scripts/env.sh && cd mobile && yarn core:android && scripts/check-bindings.sh` passes; `adb devices` shows `emulator-5554`.
 - **Scope:** `crates/opencord-mobile/`, `mobile/src/`, `mobile/packages/core-native` (generated only), `docs/`. Nothing in `crates/opencord-core`, `crates/opencord-server`, `proto/` or `app/` changes. If a task seems to need that, stop and ask.
 - **Ids are decimal strings** in JavaScript; the facade converts. Permission bits never cross as numbers: they cross as named flags, as `ChannelAccess` does.
-- **Words the user sees** are copied exactly from the task that gives them; where the desktop already says it, the phone says the same.
+- **Words the user sees** are copied exactly from the task that gives them; where the desktop already says it, the phone says the same. Words with no desktop source are *new on the phone*; in this plan: `You no longer have access to this.`, `Choose a photo`, `Take a photo`, `Remove photo`, `Opencord can't use the camera. Allow it in Settings.`, `Open on a computer`, `N members · M online`.
 - **Never log** names, message text or tokens. Log ids and error kinds.
 - **Generated, never edited by hand:** `mobile/packages/core-native/{src,cpp}/generated`, `mobile/android`, `mobile/ios`.
 - **Build commands** start with `source mobile/scripts/env.sh &&`. `CARGO_INCREMENTAL=0` is set by it; never `cargo clean`.
+- **Numbers follow the facade's rule** (`crates/opencord-mobile/src/types.rs:1-3`): ids are decimal strings; times (ms since the epoch), sizes, durations, positions and counters cross as `f64` through `convert::number` and `convert::unsigned`; a draft id comes back through `convert::draft_id`. No `u64` or `i64` field in a record JavaScript reads, whatever the core's type: a `u64` becomes a JavaScript `bigint` and breaks every comparison.
 
 ## Working Rules
 
@@ -30,11 +31,29 @@
 
 **Ledger:** `.superpowers/sdd/phone-p0/progress.md` (git-ignored), one entry per task.
 
+### Lessons from earlier reviews (every phone plan)
+
+These come from the review findings of the phone apps plan and the plugins milestones. Each is a rule a review checks.
+
+1. **Screens are judged, not only taken.** Each screen's task names what must be measurably true (what stays visible with the keyboard up, row heights, where the time sits). The reviewer renders every screen in both themes and the tablet size and tries every gesture by hand; a screenshot that shows a blank or a red banner is a failure, reported. Metro's watcher misses edits: restart it with `-c` before screenshots, and launch twice after a restart.
+2. **The app's own controls only:** `mobile/src/ui` (its `Row`, `Menu`, `Switch`, `Slider`, `Text`, `confirm`, toasts) and react-native-gesture-handler's touchables inside gesture rows, never React Native's `Pressable` there. No `as` casts to quiet the types; no system font in inputs.
+3. **Errors are never swallowed:** no empty `catch`, no `void promise` without `.catch(report)`, no `try/catch` "for tests". A failure the user caused is a toast with the server's words; one they didn't is `report()`ed.
+4. **Load, then merge.** A screen that loads a list subscribes first and merges what arrived during the load, never replaces it. After any `await` on the core, re-read state before writing it back.
+5. **A page closed by an event** (P0's lost-permission rule) lists "my own request in flight" as a case: the event can come before the reply, and the reply's error must still show.
+6. **Every item under "Produces" gets a test,** not only those in Step 1, and every Review Focus line gets its own test and its mutation (`file:line old → new`, with the failing output pasted).
+7. **Every control is tested twice in a row,** checking the effect (the call made, the state changed), not the icon.
+8. **A record change is three changes:** the Rust record, the TypeScript type in `core/api.ts`, and the fake. A test feeds the fake the shape the Rust side serialises.
+9. **Native config is checked live.** Anything registered in `app.config.ts` or a config plugin (schemes, permissions, background modes) is proven on the emulator, not by a unit test.
+10. **The D-entry** names only identifiers found with `rg` in `git diff`, and every count is counted, not remembered. For Claude's tasks, describe Claude's own reports.
+11. **A new dependency** passes `yarn licenses:check` (`mobile/scripts/licenses.js`, MIT, Apache-2.0, BSD, ISC, Zlib, 0BSD only) in the task that adds it.
+12. **Through the bridge** (if the owner chose Gemini plus the bridge): the bridge refuses `source`, `gh` and `.github/check.sh`. A Claude task ends after `cargo test`, `cargo clippy` and `cargo fmt --check` run with `--config` flags; **the bindings step (`yarn core:android`, `check-bindings.sh`), screenshots and the commit are Gemini's**, as the next step of the same task.
+
+
 **Rulings:** where the plan is wrong or unclear, make the smallest change that satisfies the design, write `Task <N>: Ruling: <what> — <why> — <cost if wrong>` in the ledger, and go on.
 
 ### Task owners
 
-Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus named, 1–2 Gemini). If the owner chose one builder (design §9 Q1), ignore this column.
+Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus named, 1–2 Gemini). If the owner chose one builder (design §9 Q2), ignore this column.
 
 | Task | Score | Owner |
 |---|---|---|
@@ -72,7 +91,7 @@ Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus na
 
 1. **Events arrive while a server is seeding** (a `RoleUpdate` or `PresenceUpdate` before the first Ready's recent activity is fetched). Expected: they're held with the other events and applied in order after it, never lost and never applied to a missing snapshot. Pinned in Task 3: `role and presence events wait for seeding`.
 2. **A role is deleted, or a member loses it, while the members list or the server sheet is open.** Expected: the member moves to the right group, the role's colour goes, and a page the user may no longer open closes with the toast `You no longer have access to this.` Pinned in Task 3 (`deleting a role takes it off every member`) and Task 7 (`a row goes when its permission goes`).
-3. **The administrator bit.** Expected: `ADMINISTRATOR` grants every flag, exactly as `convert::access` does for channels; the server's owner has every flag even without a role. Pinned in Task 1: `administrator_grants_every_server_flag` and `the_owner_has_every_server_flag`.
+3. **The administrator bit.** Expected: `ADMINISTRATOR` grants every flag, exactly as `convert::access` does for channels. (The server already sends the owner every bit, `crates/opencord-server/src/guild.rs:637`, so the phone adds no owner rule of its own, as the desktop's `ServerData.can` adds none.) Pinned in Task 1: `administrator_grants_every_server_flag`.
 4. **The iOS search slot outside a server.** Expected: on the Servers tab it's still Search and filters servers; only while a server's screen is in front does it become the server button, and leaving the server brings Search back. Pinned in Task 7: `the tab slot is search outside a server`.
 5. **A big server** (2,000 members). Expected: the members list scrolls without dropped frames (FlashList), and grouping runs once per change, not per row. Pinned in Task 6: `grouping 2000 members is one pass` (counts calls to the grouping function).
 
@@ -88,7 +107,7 @@ Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus na
 
 **Interfaces:**
 - Produces (uniffi records, all fields named as below; JavaScript sees them camelCased):
-  - `RoleRecord { id: String, name: String, color: u32, position: i32, hoist: bool, mentionable: bool, max_upload_bytes: Option<u64>, plugin_id: Option<String>, access: ServerAccess }`
+  - `RoleRecord { id: String, name: String, color: u32, position: i32, hoist: bool, mentionable: bool, max_upload_bytes: Option<f64>, plugin_id: Option<String>, access: ServerAccess }`
   - `ServerAccess { manage_server, manage_channels, manage_roles, kick_members, ban_members, create_invite, manage_nicknames, change_nickname, manage_messages, mention_everyone, manage_plugins, manage_soundboard, music_manage, mute_members, deafen_members, move_members, priority_speaker, video, screenshare, administrator: bool }`: the server-wide flags. A role's `access` is that role's own bits; the snapshot's is the user's.
   - `enum PresenceStatus { Online, Idle, Dnd, Offline }` and `PresenceRecord { user_id: String, status: PresenceStatus }`
   - `ServerSnapshot` gains `roles: Vec<RoleRecord>`, `presences: Vec<PresenceRecord>`, `server_access: ServerAccess`.
@@ -97,15 +116,14 @@ Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus na
 - `RoleCreate`, `RoleUpdate`, `RoleDelete` and `PresenceUpdate` leave the dropped list in `core_event`.
 
 - [ ] **Step 1: Write the failing tests**
-  - `administrator_grants_every_server_flag`: `convert::server_access(Permissions::ADMINISTRATOR.bits(), false)` has every field true.
-  - `the_owner_has_every_server_flag`: `server_access(0, true)` has every field true.
+  - `administrator_grants_every_server_flag`: `convert::server_access(Permissions::ADMINISTRATOR.bits())` has every field true.
   - `server_access_follows_the_permission_bits`: `KICK_MEMBERS | MANAGE_ROLES` gives exactly `kick_members` and `manage_roles` true.
   - `a_role_crosses_with_its_bits`: a `core::Role` with `permissions = BAN_MEMBERS` becomes a `RoleRecord` with `id` as a decimal string and `access.ban_members` true, everything else false.
   - `the_snapshot_carries_roles_presences_and_server_access`: a `ReadySnapshot` with two roles, one presence and `server_permissions = MANAGE_SERVER` converts with all three.
   - `role_and_presence_events_reach_javascript`: feed `RoleCreate`, `RoleDelete { role_id: 7 }` and `PresenceUpdate` through `core_event`; each comes out as its `MobileEvent` with ids as strings.
   - `a_permissions_update_carries_server_access`: `PermissionsUpdate { server_permissions: MANAGE_CHANNELS, .. }` gives `AccessChanged` with `server_access.manage_channels` true.
 - [ ] **Step 2:** `cargo test -p opencord-mobile` fails on each; paste the lines in the ledger.
-- [ ] **Step 3:** implement `pub(crate) fn server_access(bits: i64, owner: bool) -> ServerAccess` in `convert.rs`, with `admin || owner` granting every flag, like `access` above it. The owner is `ready.server.owner_id == Some(ready.self_user.id)`. For `AccessChanged` the owner flag comes from the facade's own memory of each server's owner, kept from the last Ready in the same map the event loop already holds per server (`events.rs`); write a ruling if no such map exists and add one.
+- [ ] **Step 3:** implement `pub(crate) fn server_access(bits: i64) -> ServerAccess` in `convert.rs`, with `ADMINISTRATOR` granting every flag, like `access` above it. "Is the owner" (needed by the Hosting row only) is `snapshot.ownerId === snapshot.selfUser.id` in JavaScript, as the desktop's `isOwner`.
 - [ ] **Step 4:** `cargo test -p opencord-mobile` passes; `cargo clippy -p opencord-mobile --all-targets -- -D warnings` is clean.
 - [ ] **Step 5:** `cd mobile && yarn core:android && scripts/check-bindings.sh`, then commit `feat(mobile): roles, server permissions and presence reach the phone`.
 
@@ -137,7 +155,7 @@ Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus na
   - `useRoles(serverKey: string): RoleRecord[]` (sorted by `position`, highest first)
   - `usePresence(serverKey: string, userId: string): PresenceStatus` (`'Offline'` when unknown)
   - `useMemberColor(serverKey: string, userId: string): number | null`: the colour of the member's highest role with a non-zero colour, as the desktop does.
-  - `serverSettingsRows(access: ServerAccess, voiceEnabled: boolean): ServerRowKey[]`, a pure function in `selectors.ts`, giving the design §6.1 rows in order. `ServerRowKey` is `'overview' | 'voice' | 'commands' | 'soundboard' | 'privateMessages' | 'channels' | 'roles' | 'plugins' | 'hosting' | 'uploads' | 'members' | 'invites' | 'bans'`. The permissions per row are exactly `canOpenServerSettings`'s in `app/lib/features/settings/server_settings.dart:25-160` (Overview, Voice & video when voice is on, Commands, Private messages and Upload settings need `manage_server`; Soundboard needs `manage_server` or `manage_soundboard`; Channels `manage_channels`; Roles `manage_roles`; Plugins `manage_plugins`; Hosting (the desktop's Domains & network and Music together) needs the owner, or `manage_server` or `music_manage`; Members needs kick, ban or `manage_roles`; Invites `manage_server`; Bans `ban_members`).
+  - `serverSettingsRows(access: ServerAccess, voiceEnabled: boolean): ServerRowKey[]`, a pure function in `selectors.ts`, giving the design §6.1 rows in order. `ServerRowKey` is `'overview' | 'voice' | 'commands' | 'soundboard' | 'privateMessages' | 'channels' | 'roles' | 'plugins' | 'hosting' | 'uploads' | 'members' | 'invites' | 'bans'`. The permissions per row are exactly `canOpenServerSettings`'s in `app/lib/features/settings/server_settings.dart:25-160` (Overview, Voice & video when voice is on, Commands, Private messages and Upload settings need `manage_server`; Soundboard needs `manage_server` or `manage_soundboard`; Channels `manage_channels`; Roles `manage_roles`; Plugins `manage_plugins`; Hosting (the desktop's Domains & network, owner only, and Music, `manage_server` or `music_manage`) shows when either would; Members needs kick, ban or `manage_roles`; Invites `manage_server`; Bans `ban_members`).
   - `setPresence(serverKey, status)` in `actions/profile.ts`.
 - [ ] **Step 1: Write the failing tests**
   - `role and presence events wait for seeding`: with `seeding: true`, a `RoleUpserted` and a `PresenceChanged` go to `held` and apply after seeding ends, in order.
@@ -189,10 +207,10 @@ Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus na
 
 **Interfaces:**
 - Consumes: Task 3's selectors.
-- Produces: `groupMembers(members, roles, presences, pluginUsers): { title: string, count: number, rows: MemberRowData[] }[]`. Hoisted roles first, by position, each with only its online members; then `Online`; then `Offline`, as the desktop's member panel does (`app/lib/features/members/member_sections.dart`). Plugin users go in a final `Apps` group. Within a group, by display name (nickname first), case-insensitive, with `localeCompare`.
-- `MemberProfile({ serverKey, userId })`: avatar at 72 with presence, name in the role colour, `@displayName` under a nickname, the roles as chips, and the fingerprint in mono, as the desktop's `member_profile.dart` shows. Later plans add buttons below it (P1: edit your own; P3: message; P4: roles, kick, ban; P5: voice moderation).
+- Produces: `groupMembers(members, roles, presences, voice, query): MemberSection[]`, a port of `memberSections` in `app/lib/features/members/member_sections.dart:58-150`: while you're in voice, `In this voice channel` first; then one section per hoisted role (highest first) with the online members whose highest hoisted role it is; then `Online`; then `Offline`, collapsed when longer than `offlineCollapseAt` = 30. Headers read `NAME — N` (e.g. `MAINTAINER — 2`). A row's second line is `In voice · <channel>` when they're in voice. Empty sections are left out; `query` keeps names containing it. Port `app/test/unit/members/member_sections_test.dart`.
+- `MemberProfile({ serverKey, userId })`, as the desktop's `app/lib/features/members/member_profile.dart`: avatar at 72 with presence, the name in the role colour, `In voice · <channel>` when in voice, `Roles` as chips (`No roles` when none), `Member since`, `Identity key` with the fingerprint in mono and `Copy fingerprint` (toast `Fingerprint copied`), and `This member is not on the server any more.` when they left. Later plans add buttons below it (P3: `Message`, `Add friend`; P4: roles, kick, ban; P5: voice moderation).
 - Member rows: 52 pt, avatar 32 with presence, name in the role colour, an offline row at 50 % opacity, as the desktop.
-- [ ] **Step 1:** tests: `hoisted roles first then online then offline`, `a member with two hoisted roles shows once under the higher`, `plugin users go under Apps`, `grouping 2000 members is one pass`, `tapping a row opens the profile`.
+- [ ] **Step 1:** tests: the ported `member_sections_test.dart` cases, `grouping 2000 members is one pass`, `tapping a row opens the profile`.
 - [ ] **Step 2:** run (fail), implement, run (pass).
 - [ ] **Step 3:** screenshots: the sheet from the chat header (phone), the column (tablet), a profile. Dark and light. Reached by the real button. Commit `feat(mobile): the members list and member profiles`.
 
@@ -200,7 +218,7 @@ Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus na
 
 **Files:**
 - Create: `mobile/src/features/serverMenu/ServerSheet.tsx`, `serverRows.ts`, `mobile/src/app/server/[serverKey]/settings/_layout.tsx` (a stack inside a form sheet), `settings/index.tsx`
-- Modify: `mobile/src/app/(tabs)/_layout.tsx`, `mobile/src/features/server/ChannelListHeader.tsx` (Android button), `mobile/src/features/servers/ServerRow.tsx` (a `Settings` item in the long-press menu), `mobile/src/state/actions/ui.ts` (`serverInFront: string | null`), `mobile/src/ui/icons.ts` (`serverMenu: { ios: 'ellipsis', android: 'more_vert' }`)
+- Modify: `mobile/src/app/(tabs)/_layout.tsx`, `mobile/src/features/server/ChannelListHeader.tsx` (the Android button, and on both systems a tap on the server's name, which is the only way in while a chat is in front and the tab bar is hidden), `mobile/src/features/servers/ServerRow.tsx` (a `Settings` item in the long-press menu), `mobile/src/state/actions/ui.ts` (`serverInFront: string | null`), `mobile/src/ui/icons.ts` (`serverMenu: { ios: 'ellipsis', android: 'more_vert' }`)
 - Test: `mobile/src/features/serverMenu/__tests__/ServerSheet.test.tsx`, `__tests__/tabSlot.test.tsx`
 
 **Interfaces:**
@@ -208,7 +226,7 @@ Scores follow the memory's rule (4–5 Claude, 3 Gemini with the review focus na
 - Produces: `registerServerPage(key: ServerRowKey, page: { label: string, route: string })` in `serverRows.ts`. A row shows only when its key is in `serverSettingsRows(...)` **and** a page is registered for it, so this plan's sheet shows only the rows that exist, and each later plan registers its own. `hosting` is registered here as a non-tappable row whose value is `Open on a computer` (design §3).
 - **The iOS slot** (`(tabs)/_layout.tsx`): while `serverInFront` is set, the `search` trigger gets `disabled`, the `serverMenu` icon, the label `Server`, and a `tabPress` listener that opens `server/[serverKey]/settings`. `disabled` makes the navigator emit `tabPress` without switching tabs (`expo-router/build/native-tabs/types.d.ts:462`). Outside a server it's Search as today. If the slot can't be driven this way on the device, write a ruling and float a `GlassIconButton` (`ui/GlassIconButton.ios.tsx`) at the same position, beside the tab bar.
 - **The sheet** (design §6.1, sketch there): the header (server icon 40, name, `N members · M online`), then `Invite people` (registered by P2), `Mark as read` (`useServerRowActions(row).markRead`, the same file), then the admin rows, then `Leave server` (destructive; reuse `useServerRowActions(row).confirmLeave` from `features/servers/serverRowParts.tsx`, which already says `Leave <name>?` / `You can come back with an invite.`). Medium detent; a pushed page grows it to large.
-- [ ] **Step 1:** tests: `the tab slot is search outside a server`, `the tab slot opens the server sheet inside a server`, `rows follow permissions` (fake world: first server shows each registered row, second shows none), `a row goes when its permission goes` (an `AccessChanged` while the sheet is open removes it, and an open page for it closes with the toast `You no longer have access to this.`), `leave asks first`.
+- [ ] **Step 1:** tests: `the tab slot is search outside a server`, `the tab slot opens the server sheet inside a server`, `the server's name opens the sheet while a chat is in front`, `rows follow permissions` (fake world: first server shows each registered row, second shows none), `a row goes when its permission goes` (an `AccessChanged` while the sheet is open removes it, and an open page for it closes with the toast `You no longer have access to this.`), `leave asks first`.
 - [ ] **Step 2:** run (fail), implement, run (pass).
 - [ ] **Step 3:** screenshots on Android (header button) and the sheet on phone and tablet; the iOS slot is compiled by CI and listed as an owed iPhone check. Commit `feat(mobile): the server button and its sheet`. Then the stage end and review.
 

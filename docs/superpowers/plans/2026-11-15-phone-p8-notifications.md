@@ -1,6 +1,6 @@
 # Phone P8: Notifications — Plan
 
-> **Stage A is a task-level plan; Stage B is an outline** that stops at the owner's decision (design §9 Q3). Stage B is written as tasks after the answer.
+> **Stage A is a task-level plan; Stage B is an outline** that stops at the owner's decision (design §9 Q4). Stage B is written as tasks after the answer.
 
 **Goal:** The phone tells you about mentions and private messages as the desktop does, with per-server and per-channel mute and "mentions only", first while the app runs, then (Stage B) while it's closed.
 
@@ -64,7 +64,7 @@ Hand checks on the emulator (and owed on an iPhone): a mention in the foreground
 
 ## Stage B — While the app is closed (outline)
 
-Needs design §9 Q3. With **A (a relay run by Opencord)**, Claude's pick:
+Needs design §9 Q4. With **A (a relay run by Opencord)**, Claude's pick:
 1. **The relay:** a small service (`crates/opencord-push-relay`, Rust, axum) holding the APNs key and the FCM service account, taking `{ device_token, platform, wake }` from servers, signed by the server's identity key and rate-limited per server. It sees no content and no user ids, only a token and that something happened.
 2. **The server:** a `[push]` section (`relay_url`, off by default); members register device tokens (a new protocol message); on a mention or private message for an offline member with a token, the server asks the relay to wake that device.
 3. **The phone:** registers its APNs/FCM token with each server; on a silent push, connects briefly in the background (iOS gives about 30 s), fetches what's new, and shows Stage A's notification. A private message is decrypted on the phone, never by the relay or the server.

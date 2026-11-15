@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Chat on the phone does what it does on the desktop: `@`, `#` and `:` autocomplete with mentions sent as tokens, an emoji picker, videos, audio files and text files opening in place, highlighted code, a reconnecting banner, inviting people, a clear screen when a server's identity changes, and a Search that finds channels and people.
+**Goal:** Chat on the phone does what it does on the desktop, voice channels' text chat included: `@`, `#` and `:` autocomplete with mentions sent as tokens, an emoji picker, videos, audio files and text files opening in place, highlighted code, a reconnecting banner, inviting people, a clear screen when a server's identity changes, and a Search that finds channels and people.
 
 **Architecture:**
 - **Ports, not rewrites.** The desktop's mention rules (`app/lib/features/chat/mentions.dart`), suggestions (`suggestions.dart`) and switcher results (`app/lib/features/switcher/switcher_results.dart`) are pure functions with tests. Each becomes a TypeScript module with the desktop's test cases ported one for one.
@@ -19,6 +19,7 @@
 - **Scope:** `crates/opencord-mobile/`, `mobile/`, `app/tool/build_emoji.dart` (an extra output only; the desktop's generated file must not change, which `git diff app/lib` proves), `docs/`.
 - **Mentions:** messages carry `<@id>` and `<#id>`; the composer shows `@Name` and `#name`. Sending encodes; editing a sent message decodes. Text inside code stays as written. That's the desktop's rule and the phone must match it, or the desktop sees raw names.
 - P0's Global Constraints from "Ids are decimal strings" on apply.
+- **Numbers follow the facade's rule** (`crates/opencord-mobile/src/types.rs:1-3`): ids are decimal strings; times (ms since the epoch), sizes, durations, positions and counters cross as `f64` through `convert::number` and `convert::unsigned`; a draft id comes back through `convert::draft_id`. No `u64` or `i64` field in a record JavaScript reads, whatever the core's type: a `u64` becomes a JavaScript `bigint` and breaks every comparison.
 
 ## Working Rules
 
@@ -35,9 +36,10 @@ P0's apply word for word. **Ledger:** `.superpowers/sdd/phone-p2/progress.md`.
 | 7 The reconnecting banner and a changed identity | 3 | Gemini (focus: the cached chat greyed, not cleared) |
 | 8 Invite people | 2 | Gemini |
 | 9 Search finds channels and people | 3 | Gemini (focus: ranking parity with the desktop) |
-| 10 Live check, docs, D-entry, PR | 2 | Gemini |
+| 10 Text chat in voice channels | 3 | Gemini (focus: unread counts for a voice channel's chat) |
+| 11 Live check, docs, D-entry, PR | 2 | Gemini |
 
-Stages: A = Tasks 1–4 (the composer), B = 5–9 with the review, C = 10. Commands as P0.
+Stages: A = Tasks 1–4 (the composer), B = 5–10 with the review, C = 11. Commands as P0.
 
 ## Review Focus
 
@@ -55,7 +57,7 @@ Stages: A = Tasks 1–4 (the composer), B = 5–9 with the review, C = 10. Comma
 
 **Files:** create `crates/opencord-mobile/src/api/invites.rs`; modify `src/api/mod.rs`, `src/types.rs`, `src/convert.rs`.
 
-**Interfaces (produces):** `InviteRecord { code, link, web_link: Option<String>, domain_id: Option<String>, created_by: Option<String>, created_at_ms: i64, max_uses: Option<u32>, uses: u32, expires_at_ms: Option<i64> }`; `invite_create(server_key, max_uses: Option<u32>, expires_in_s: Option<u32>) -> Result<InviteRecord>` (domain `None`: the server's default, as the desktop's first choice); `invites_fetch(server_key) -> Result<Vec<InviteRecord>>` and `invite_revoke(server_key, code)` for P4.
+**Interfaces (produces):** `InviteRecord { code, link, web_link: Option<String>, domain_id: Option<String>, created_by: Option<String>, created_at_ms: f64, max_uses: Option<u32>, uses: u32, expires_at_ms: Option<f64> }`; `invite_create(server_key, max_uses: Option<u32>, expires_in_s: Option<u32>) -> Result<InviteRecord>` (domain `None`: the server's default, as the desktop's first choice); `invites_fetch(server_key) -> Result<Vec<InviteRecord>>` and `invite_revoke(server_key, code)` for P4.
 
 - [ ] Tests `an_invite_crosses_with_its_link`, `ids_in_an_invite_are_strings`; run (fail), implement, run (pass); clippy; bindings; `CoreApi`, `NativeCore`, `FakeCore` (the fake returns `opencord://fake.invite/AbC123` and keeps a list); commit `feat(mobile): invites in the facade`.
 
@@ -128,11 +130,18 @@ Stages: A = Tasks 1–4 (the composer), B = 5–9 with the review, C = 10. Comma
 **Files:** create `mobile/src/features/search/searchResults.ts` (a port of `switcher_results.dart`), `SearchResults.tsx`; modify `app/(tabs)/search/index.tsx` (iOS), `features/servers/ServerListScreen.tsx` (Android: the header's search field shows the same results).
 
 - Results as the desktop's switcher: channels the user can see on every server, the servers, and the members of the last opened server, ranked by the desktop's rules. A tap goes there: a channel opens its server and the chat; a member opens their profile (P0).
-- [ ] Port `app/test/unit/switcher/switcher_results_test.dart`; add `a channel result opens the chat`. Run (fail), implement, run (pass); screenshots; commit `feat(mobile): search finds channels and people`. Stage B's end and review.
+- [ ] Port `app/test/unit/switcher/switcher_results_test.dart`; add `a channel result opens the chat`. Run (fail), implement, run (pass); screenshots; commit `feat(mobile): search finds channels and people`.
+
+### Task 10: Text chat in voice channels
+
+**Files:** modify `mobile/src/features/voice/VoicePane.tsx` (a `Chat` button in the call's header while the channel has `textInVoice`), `features/server/VoiceChannelRow.tsx` (the unread dot and mention count, as text channels), `features/chat/ChatPane.tsx` (opens on a voice channel's id); the desktop's reference is `app/lib/features/voice/voice_chat_slot.dart`.
+
+- With `textInVoice` on, a voice channel's page and the open call show a `Chat` button; it opens the same `ChatPane` as a text channel, as a sheet over the call on the phone and beside it on the tablet. The rules for who may read and send are the channel's (P0's access).
+- [ ] Tests: `a voice channel with text opens its chat`, `its unread count shows on the row`, `without textInVoice there's no button`. Implement; screenshots; commit `feat(mobile): text chat in voice channels`. Stage B's end and review.
 
 ## Stage C — Live and docs
 
-### Task 10: Live check, docs, D-entry and the pull request
+### Task 11: Live check, docs, D-entry and the pull request
 
 - [ ] With the desktop in the same server: mention someone from the phone (the desktop shows a mention and counts it); edit it; send a video from the desktop and play it on the phone; make an invite on the phone and join from the desktop with it; restart the server with a new certificate and see the identity page.
 - [ ] `docs/mobile.md` "Chat" and "Not there yet"; the iPhone hand checks (the video player, picture in picture, the share sheet with an invite, the emoji sheet with the keyboard).

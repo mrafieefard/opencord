@@ -31,8 +31,8 @@ Grouped as the plans are. "Facade" means the group needs new calls, records or e
 | # | Group | What it holds | Facade work | Plan |
 |---|---|---|---|---|
 | P0 | **Foundation** | Roles and server-wide permissions in the snapshot and events; presence; the members list; a settings screen kit; the photo picker with crop; the server button (§6.1) | roles, presence, server permissions, `update_presence` | `2026-11-15-phone-p0-foundation.md` |
-| P1 | **You and your profile** | Avatar; status (Online, Idle, Do not disturb); voice and audio settings (noise suppression, input and output volume, the microphone test with a level meter); sounds (soundboard volume, mute all soundboards, the voice sounds, which the phone doesn't play at all today); the attachment cache's size and Clear | avatar upload, audio settings, mic test, level meter, voice sounds, cache size | `2026-11-15-phone-p1-you.md` |
-| P2 | **Chat, the rest of it** | `@`, `#` and `:` autocomplete in the composer; an emoji picker; the members list and a member's profile from the chat; videos and audio files playing in the chat; text file previews; code highlighting; the reconnecting banner; creating and sharing an invite; a server whose certificate changed; channels and people in Search | invites, download progress, a changed identity | `2026-11-15-phone-p2-chat.md` |
+| P1 | **You and your profile** | Avatar; status (Online, Idle, Do not disturb); voice and audio settings (noise suppression, input and output volume, the microphone test with a level meter); sounds (soundboard volume, mute all soundboards, the voice sounds, which the phone doesn't play at all today); the attachment cache's size and Clear; session logs to export | avatar upload, audio settings, mic test, level meter, voice sounds, cache size, logs | `2026-11-15-phone-p1-you.md` |
+| P2 | **Chat, the rest of it** | `@`, `#` and `:` autocomplete in the composer; an emoji picker; the members list and a member's profile from the chat; videos and audio files playing in the chat; text file previews; code highlighting; the reconnecting banner; creating and sharing an invite; a server whose certificate changed; channels and people in Search; text chat in voice channels | invites, download progress, a changed identity | `2026-11-15-phone-p2-chat.md` |
 | P3 | **Private messages and friends** | Friends, requests, blocking; private chats with edit, delete, retry, typing, read and mute; moving a chat to another server; the chat-key words, verifying a person, approving this phone as one of your devices; privacy settings | the whole private API and its event stream | `2026-11-15-phone-p3-private.md` |
 | P4 | **Running a server** | Overview (name, description, icon); channels (create, edit, delete, reorder, permissions); roles (create, edit, reorder, permissions); members (roles, kick, ban); invites; bans; voice and video settings; upload settings; the private message policy; commands on and off; soundboard sounds (upload with trim, rename, delete) | every admin call | `2026-11-15-phone-p4-admin.md` |
 | P5 | **Moderating a call** | Server mute and deafen, moving someone to another channel, disconnecting them; the priority speaker; the connection's ping and quality; rejoining after a failed reconnect | voice admin calls, `ConnectionStats`, `VoiceRejoinFailed` | `2026-11-15-phone-p5-call-moderation.md` |
@@ -40,13 +40,13 @@ Grouped as the plans are. "Facade" means the group needs new calls, records or e
 | P7 | **Camera and screen sharing** | The camera in a call, sharing the phone's screen, watching other people's streams | video codecs and native views (§7.2) | `2026-11-15-phone-p7-video.md` (outline; owner decisions first) |
 | P8 | **Notifications** | Notifications for mentions and private messages; muting servers and channels; mentions only | a push relay (§7.3) | `2026-11-15-phone-p8-notifications.md` (outline; owner decisions first) |
 
-### Hosting settings (owner decision Q4)
+### Hosting settings (owner decision Q5)
 
 `Domains & network` (domains, tunnels, ports, certificates, DNS providers), `Music` (Lavalink nodes, local songs) and storage (S3 back ends, moving files) run the server's machine. They work across platforms, but they are long forms with tests that take minutes, and a mistake can take the server offline. **Claude's call:** leave them desktop only, and show them in the server button's list as a row that says `Open on a computer`. If the owner wants them, they become P9.
 
 ### Not on the desktop either
 
-The core has `update_nickname`, but the desktop never calls it: there's no nickname editor to port. Push to talk and lowering other apps need a key or a system API phones don't offer the same way, so P1 leaves them out (Claude's call; a hold-to-talk button in the call could be a later idea).
+The core has `update_nickname`, but the desktop never calls it: there's no nickname editor to port. Push to talk and lowering other apps need a key or a system API phones don't offer the same way, so P1 leaves them out (Claude's call; a hold-to-talk button in the call could be a later idea). The desktop's `Font size` and `Reduce motion` are the phone system's own settings, which the app already follows.
 
 ### Desktop only (not planned)
 
@@ -101,6 +101,8 @@ The tray, window controls, global hotkeys and push-to-talk keys, start at login,
 └──────────────────────────────────────┘
 ```
 
+- **While a chat is in front the tab bar is hidden** (`hidden={chatInFront}` in `(tabs)/_layout.tsx`), so the button isn't there. Then the sheet opens from the server's name at the top of the channel sidebar, on both systems.
+- **Claude's reading of "the share button":** no share button exists in the server today; the owner's words read as the iPhone's round button beside the tab bar (the one Search uses), shown with `ellipsis`. If the owner meant the share icon (`square.and.arrow.up`), only the icon changes. Asked as question 1 in §9.
 - Rows appear only with the permission the desktop asks for each page (`app/lib/features/settings/server_settings.dart`), so a member sees four rows and the owner sees all of them.
 - Each row pushes its page in the sheet's own stack. A page grows the sheet to full height.
 - **Claude's call: Android has no such slot.** There the same sheet opens from a `more_vert` button in the server's header, and from a long press on the server's name.
@@ -130,7 +132,7 @@ The tray, window controls, global hotkeys and push-to-talk keys, start at login,
 2. A settings tab inside each server: rejected, because a tab bar inside a tab bar isn't how either system works.
 3. A cog in the channel list's header: kept only as the Android fallback.
 
-### 7.2 Camera and screen sharing (P7, owner decision Q5)
+### 7.2 Camera and screen sharing (P7, owner decision Q6)
 
 The phones have no FFmpeg and no `openh264` build here (`crates/opencord-media/Cargo.toml` lists both only for Linux and Windows).
 - **A. Encode and decode in Rust through the systems' codecs:** `MediaCodec` through the NDK on Android, VideoToolbox on iOS (macOS already uses VideoToolbox for calls), with frames drawn into native views. One media pipeline for every system, and the most work. Claude's pick.
@@ -139,7 +141,7 @@ The phones have no FFmpeg and no `openh264` build here (`crates/opencord-media/C
 
 Screen sharing also needs Android's `MediaProjection` foreground service and an iOS Broadcast Upload Extension (a separate process with a 50 MB memory limit). P7 starts with a design of its own, chosen from these.
 
-### 7.3 Notifications (P8, owner decision Q3)
+### 7.3 Notifications (P8, owner decision Q4)
 
 A phone can only be woken while the app is closed through Apple's (APNs) and Google's (FCM) servers, and each needs one sender identity per app, which the self-hosted servers don't have.
 - **A. A relay run by Opencord:** each server sends "wake device X" to one relay that holds the APNs key and the FCM credentials. Content stays on the server; the relay sees only that something happened. This is how most self-hosted chat apps do it.
@@ -161,22 +163,23 @@ P8 Notifications: after P1 (status) and P3 (private messages)
 P7 Video: its own design first, any time after P0
 ```
 
-Each plan branches from the one before it, so the order is a chain. The real dependencies are fewer: P1, P2 and P4 need only P0; P5 needs P4's permission sets; P6 needs P4's pages; P8 needs P1 and P3. If P3 is held (Q6), P4 branches from P2.
+Each plan branches from the one before it, so the order is a chain. The real dependencies are fewer: P1, P2 and P4 need only P0; P5 needs P4's permission sets; P6 needs P4's pages; P8 needs P1 and P3. If P3 is held (Q7), P4 branches from P2.
 
 - **P0 first:** every other plan uses its roles, permissions, members list, settings kit and server button.
 - **Then P1 and P2:** the most people see them every day, and both are small.
 - **Then P3, P4, P5, P6** in that order.
 - **P7 and P8 last,** after their designs.
-- **Base branch (owner decision Q2):** plugins milestones 1–4 (#46–#52) aren't merged into `beta`, and M4 changed the same facade, state and `FakeCore` files every plan here changes. **Claude's call:** P0 branches from `feat/plugins-phone`, and its pull request into `beta` is a draft that says so, until #52 merges. Each later plan branches from the one before.
+- **Base branch (owner decision Q3):** plugins milestones 1–4 (#46–#52) aren't merged into `beta`, and M4 changed the same facade, state and `FakeCore` files every plan here changes. **Claude's call:** P0 branches from `feat/plugins-phone`, and its pull request into `beta` is a draft that says so, until #52 merges. Each later plan branches from the one before.
 
 ## 9. Decisions the owner hasn't made (asked together)
 
-1. **Who builds:** Gemini Flash with Claude's tasks through the bridge (scores 4–5 to Claude), or one Claude session alone as in plugins milestone 4? Every plan scores its tasks, so either works.
-2. **The base branch:** stack on `feat/plugins-phone` (§8), or wait until #46–#52 merge?
-3. **Push notifications:** run a relay (A), go without push (C), or both, local first?
-4. **Hosting settings on the phone:** desktop only, as Claude proposes, or a P9?
-5. **The phone's video pipeline:** A (Rust through the systems' codecs), B (native Kotlin and Swift) or C (software)?
-6. **Private messages on the phone:** the memory of 2026-11-01 says not to add them until the owner says so. This request reads as yes. Confirm it, and say whether the Anchor (account sync) should wait for this or this for it.
+1. **The server button (§6.1):** the round button beside the tab bar with a `⋯`, as Claude read it, or a share icon, or something else?
+2. **Who builds:** Gemini Flash with Claude's tasks through the bridge (scores 4–5 to Claude), or one Claude session alone as in plugins milestone 4? Every plan scores its tasks, so either works.
+3. **The base branch:** stack on `feat/plugins-phone` (§8), or wait until #46–#52 merge?
+4. **Push notifications:** run a relay (A), go without push (C), or both, local first?
+5. **Hosting settings on the phone:** desktop only, as Claude proposes, or a P9?
+6. **The phone's video pipeline:** A (Rust through the systems' codecs), B (native Kotlin and Swift) or C (software)?
+7. **Private messages on the phone:** the memory of 2026-11-01 says not to add them until the owner says so. This request reads as yes. Confirm it, and say whether the Anchor (account sync) should wait for this or this for it.
 
 ## 10. Claude's calls (for the owner to check)
 
