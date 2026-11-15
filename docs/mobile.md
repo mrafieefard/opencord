@@ -70,6 +70,10 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | The tablet: the channel list beside a plugin screen; an activity at tablet width | not run | not run |
 | A call from another app arrives while an activity is open | not run | not run |
 | The app killed in the background, reopened on a plugin channel | not run | not run |
+| The members sheet (chat header on phone, 3rd column on tablet): search, presence indicators, role groupings | emulator | not run |
+| Member profile: avatar with presence, role chips, member-since date, identity key, copy fingerprint, volume and mute | emulator | not run |
+| The server button: header button on Android, search tab bar slot on iOS while inside a server | emulator | not run |
+| Server settings sheet: member and online counts, permission-gated admin rows, Open on a computer, Leave server | emulator | not run |
 
 ## Using the app
 
@@ -97,6 +101,8 @@ The first screen offers **Create an identity**, which asks only what people shou
   - Long-press a message to **Copy text**. On your own messages you can also **Edit** it, and **Delete** it, which people with the Manage messages permission can do to anyone's.
   - Scrolling down closes the keyboard. **Jump to latest** brings you back to the newest messages.
 - **Voice messages:** hold the mic beside the field to record, and let go to send. Slide left to cancel, or slide up to lock the recording and keep both hands free; a locked recording can be stopped and heard before it is sent. Voice messages play in the chat at 1×, 1.5× or 2×.
+- **Members:** tap the people button in the chat header (or view the 280 pt right column on tablet width ≥ 1000 pt). Members are grouped with voice participants first (`In this voice channel`), followed by hoisted roles in hierarchy order, then `Online` and `Offline` (collapsed after 30). Tapping a member opens their profile with their avatar, status badge, role chips, `Member since` date, identity key fingerprint with copy button, and local volume and mute controls.
+- **The server button and settings:** on Android, tap the three-dots menu button in the header (or tap the server's name in the channel list). On iOS, while inside a server, the tab bar's Search tab transforms into the `Server` tab. Both open the server settings sheet with server icon, name, member and online counts, permission-gated admin rows (`Channels`, `Members`, `Bans`, and `Open on a computer` for hosting) and `Leave server`.
 
 ### Voice
 
@@ -126,8 +132,7 @@ Your display name, **Back up your identity**, the theme (System, Light or Dark),
 | Camera, screen sharing, watching streams | The next phone plan: it needs the phones' video codecs. |
 | Private messages and friends | A later plan. The core has them; the phone needs their screens. |
 | Notifications when the app is closed | A later plan, with a push relay on the server. |
-| Server administration: channels, roles, invites, settings | The desktop app does it. |
-| Chat commands such as `/play` | Later. |
+| Server administration: managing channels, roles, bans | Later plans (P2 invites, P4 settings). P0 adds the server button and its sheet. |
 | A list of your own uploaded songs | Later: the server can't list a member's uploads yet. |
 | Trusting a server again after its certificate changed | Later. Until then, leave the server (long-press it) and add it again. |
 
