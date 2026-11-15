@@ -225,6 +225,73 @@ pub(crate) fn access_list(channels: Vec<core::ChannelPermissions>) -> Vec<Channe
         .collect()
 }
 
+pub(crate) fn server_access(bits: i64) -> ServerAccess {
+    let granted = permissions(bits);
+    let admin = granted.contains(Permissions::ADMINISTRATOR);
+    let has = |flag: Permissions| admin || granted.contains(flag);
+    ServerAccess {
+        manage_server: has(Permissions::MANAGE_SERVER),
+        manage_channels: has(Permissions::MANAGE_CHANNELS),
+        manage_roles: has(Permissions::MANAGE_ROLES),
+        kick_members: has(Permissions::KICK_MEMBERS),
+        ban_members: has(Permissions::BAN_MEMBERS),
+        create_invite: has(Permissions::CREATE_INVITE),
+        manage_nicknames: has(Permissions::MANAGE_NICKNAMES),
+        change_nickname: has(Permissions::CHANGE_NICKNAME),
+        manage_messages: has(Permissions::MANAGE_MESSAGES),
+        mention_everyone: has(Permissions::MENTION_EVERYONE),
+        manage_plugins: has(Permissions::MANAGE_PLUGINS),
+        manage_soundboard: has(Permissions::MANAGE_SOUNDBOARD),
+        music_manage: has(Permissions::MUSIC_MANAGE),
+        mute_members: has(Permissions::MUTE_MEMBERS),
+        deafen_members: has(Permissions::DEAFEN_MEMBERS),
+        move_members: has(Permissions::MOVE_MEMBERS),
+        priority_speaker: has(Permissions::PRIORITY_SPEAKER),
+        video: has(Permissions::VIDEO),
+        screenshare: has(Permissions::SCREENSHARE),
+        administrator: granted.contains(Permissions::ADMINISTRATOR),
+    }
+}
+
+pub(crate) fn role(r: core::Role) -> RoleRecord {
+    RoleRecord {
+        id: id(r.id),
+        name: r.name,
+        color: r.color,
+        position: r.position,
+        hoist: r.hoist,
+        mentionable: r.mentionable,
+        max_upload_bytes: r.max_upload_bytes.map(unsigned),
+        plugin_id: r.plugin_id,
+        access: server_access(r.permissions),
+    }
+}
+
+pub(crate) fn presence_status(s: core::PresenceStatus) -> PresenceStatus {
+    match s {
+        core::PresenceStatus::Online => PresenceStatus::Online,
+        core::PresenceStatus::Idle => PresenceStatus::Idle,
+        core::PresenceStatus::Dnd => PresenceStatus::Dnd,
+        core::PresenceStatus::Offline => PresenceStatus::Offline,
+    }
+}
+
+pub(crate) fn presence_status_to_core(s: PresenceStatus) -> core::PresenceStatus {
+    match s {
+        PresenceStatus::Online => core::PresenceStatus::Online,
+        PresenceStatus::Idle => core::PresenceStatus::Idle,
+        PresenceStatus::Dnd => core::PresenceStatus::Dnd,
+        PresenceStatus::Offline => core::PresenceStatus::Offline,
+    }
+}
+
+pub(crate) fn presence(p: core::Presence) -> PresenceRecord {
+    PresenceRecord {
+        user_id: id(p.user_id),
+        status: presence_status(p.status),
+    }
+}
+
 pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> ServerSnapshot {
     ServerSnapshot {
         server_key,
@@ -235,6 +302,9 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
         icon_hash: ready.server.icon_hash,
         channels: ready.channels.into_iter().filter_map(channel).collect(),
         access: access_list(ready.channel_permissions),
+        roles: ready.roles.into_iter().map(role).collect(),
+        presences: ready.presences.into_iter().map(presence).collect(),
+        server_access: server_access(ready.server_permissions),
         members: ready.members.into_iter().map(member).collect(),
         voice_states: ready.voice_states.into_iter().map(voice_state).collect(),
         voice_enabled: ready.voice_enabled,
@@ -785,6 +855,205 @@ mod tests {
 
     fn bits(flags: Permissions) -> i64 {
         i64::from_ne_bytes(flags.bits().to_ne_bytes())
+    }
+
+    // Fails if ADMINISTRATOR doesn't grant every server-wide permission flag.
+    #[test]
+    fn administrator_grants_every_server_flag() {
+        let access = server_access(bits(Permissions::ADMINISTRATOR));
+        assert!(
+            access.manage_server
+                && access.manage_channels
+                && access.manage_roles
+                && access.kick_members
+                && access.ban_members
+                && access.create_invite
+                && access.manage_nicknames
+                && access.change_nickname
+                && access.manage_messages
+                && access.mention_everyone
+                && access.manage_plugins
+                && access.manage_soundboard
+                && access.music_manage
+                && access.mute_members
+                && access.deafen_members
+                && access.move_members
+                && access.priority_speaker
+                && access.video
+                && access.screenshare
+                && access.administrator
+        );
+    }
+
+    // Fails if server_access doesn't map permission bits to the right fields, or leaks administrator.
+    #[test]
+    fn server_access_follows_the_permission_bits() {
+        let access = server_access(bits(Permissions::KICK_MEMBERS | Permissions::MANAGE_ROLES));
+        assert!(access.kick_members);
+        assert!(access.manage_roles);
+        assert!(
+            !access.manage_server
+                && !access.manage_channels
+                && !access.ban_members
+                && !access.create_invite
+                && !access.manage_nicknames
+                && !access.change_nickname
+                && !access.manage_messages
+                && !access.mention_everyone
+                && !access.manage_plugins
+                && !access.manage_soundboard
+                && !access.music_manage
+                && !access.mute_members
+                && !access.deafen_members
+                && !access.move_members
+                && !access.priority_speaker
+                && !access.video
+                && !access.screenshare
+                && !access.administrator
+        );
+    }
+
+    // Fails if a role loses its permissions, id as a string, or server access mapping.
+    #[test]
+    fn a_role_crosses_with_its_bits() {
+        let role = core::Role {
+            id: 42,
+            name: "Moderator".to_owned(),
+            color: 0x5865f2,
+            position: 3,
+            permissions: bits(Permissions::BAN_MEMBERS),
+            hoist: true,
+            mentionable: true,
+            max_upload_bytes: Some(25_000_000),
+            plugin_id: Some("moderation".to_owned()),
+        };
+        let record = super::role(role);
+        assert_eq!(record.id, "42");
+        assert_eq!(record.name, "Moderator");
+        assert_eq!(record.color, 0x5865f2);
+        assert_eq!(record.position, 3);
+        assert!(record.hoist);
+        assert!(record.mentionable);
+        assert_eq!(record.max_upload_bytes, Some(25_000_000.0));
+        assert_eq!(record.plugin_id.as_deref(), Some("moderation"));
+        assert!(record.access.ban_members);
+        assert!(
+            !record.access.manage_server
+                && !record.access.manage_channels
+                && !record.access.manage_roles
+                && !record.access.kick_members
+                && !record.access.create_invite
+                && !record.access.administrator
+        );
+    }
+
+    // Fails if ReadySnapshot drops roles, presences, or server_access when converting to ServerSnapshot.
+    #[test]
+    fn the_snapshot_carries_roles_presences_and_server_access() {
+        let ready = core::ReadySnapshot {
+            self_user: core::User {
+                id: 1,
+                public_key_hex: "01".repeat(32),
+                display_name: "Self".to_owned(),
+                avatar_hash: None,
+                fingerprint: "ABCD-EFGH-IJKL-MNOP".to_owned(),
+            },
+            server: core::ServerInfo {
+                server_id_hex: "02".repeat(16),
+                name: "Test Guild".to_owned(),
+                description: "Guild desc".to_owned(),
+                owner_id: Some(1),
+                open_join: false,
+                everyone_role_id: 1,
+                icon_hash: None,
+            },
+            channels: Vec::new(),
+            roles: vec![
+                core::Role {
+                    id: 10,
+                    name: "Moderator".to_owned(),
+                    color: 0x5865f2,
+                    position: 1,
+                    permissions: bits(Permissions::KICK_MEMBERS),
+                    hoist: true,
+                    mentionable: true,
+                    max_upload_bytes: Some(10_000_000),
+                    plugin_id: None,
+                },
+                core::Role {
+                    id: 11,
+                    name: "Admin".to_owned(),
+                    color: 0,
+                    position: 2,
+                    permissions: bits(Permissions::ADMINISTRATOR),
+                    hoist: false,
+                    mentionable: false,
+                    max_upload_bytes: None,
+                    plugin_id: None,
+                },
+            ],
+            members: Vec::new(),
+            presences: vec![core::Presence {
+                user_id: 1,
+                status: core::PresenceStatus::Online,
+            }],
+            server_permissions: bits(Permissions::MANAGE_SERVER),
+            channel_permissions: Vec::new(),
+            voice_enabled: false,
+            voice_states: Vec::new(),
+            streams: Vec::new(),
+            voice_settings: core::VoiceSettings {
+                screen_share_max_resolution: core::ScreenShareResolution::P1080,
+                screen_share_max_fps: 30,
+                max_stream_viewers: 10,
+                camera_allowed: true,
+                max_camera_participants: 10,
+                max_voice_bitrate: 64_000,
+                afk_channel_id: None,
+                afk_timeout_s: 300,
+                soundboard_enabled: true,
+                allow_default_sounds: false,
+                allow_external_sounds: true,
+                sound_cooldown_s: 3,
+                max_sounds: 48,
+            },
+            soundboard_sounds: Vec::new(),
+            addresses: core::ServerAddresses {
+                primary: None,
+                domains: Vec::new(),
+                ip: None,
+            },
+            commands: core::CommandList {
+                commands: Vec::new(),
+                results_public: false,
+            },
+            upload_settings: core::UploadSettings {
+                blocked_extensions: Vec::new(),
+                voice_message_max_seconds: 60,
+                max_file_bytes: 10_000_000,
+                max_attachments: 10,
+            },
+            private_messages: false,
+            private_settings: core::PrivateSettings {
+                enabled: false,
+                friends_only: false,
+                allowed_by_config: true,
+            },
+            plugin_users: Vec::new(),
+            plugin_channel_types: Vec::new(),
+            plugin_activities: Vec::new(),
+            activity_sessions: Vec::new(),
+        };
+
+        let snapshot = snapshot("srv".to_owned(), ready);
+        assert_eq!(snapshot.roles.len(), 2);
+        assert_eq!(snapshot.roles[0].id, "10");
+        assert_eq!(snapshot.roles[1].id, "11");
+        assert_eq!(snapshot.presences.len(), 1);
+        assert_eq!(snapshot.presences[0].user_id, "1");
+        assert_eq!(snapshot.presences[0].status, PresenceStatus::Online);
+        assert!(snapshot.server_access.manage_server);
+        assert!(!snapshot.server_access.administrator);
     }
 
     #[test]

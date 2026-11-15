@@ -60,10 +60,23 @@ pub enum MobileEvent {
         server_key: String,
         channel_id: String,
     },
+    RoleUpserted {
+        server_key: String,
+        role: RoleRecord,
+    },
+    RoleDeleted {
+        server_key: String,
+        role_id: String,
+    },
+    PresenceChanged {
+        server_key: String,
+        presence: PresenceRecord,
+    },
     /// The user's own permissions changed.
     AccessChanged {
         server_key: String,
         access: Vec<ChannelAccess>,
+        server_access: ServerAccess,
     },
     MemberUpserted {
         server_key: String,
@@ -421,11 +434,26 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             channel_id: id(channel_id),
         },
         CoreEventPayload::PermissionsUpdate {
+            server_permissions,
             channel_permissions,
-            ..
         } => MobileEvent::AccessChanged {
             server_key,
             access: convert::access_list(channel_permissions),
+            server_access: convert::server_access(server_permissions),
+        },
+        CoreEventPayload::RoleCreate(role) | CoreEventPayload::RoleUpdate(role) => {
+            MobileEvent::RoleUpserted {
+                server_key,
+                role: convert::role(role),
+            }
+        }
+        CoreEventPayload::RoleDelete { role_id } => MobileEvent::RoleDeleted {
+            server_key,
+            role_id: id(role_id),
+        },
+        CoreEventPayload::PresenceUpdate(presence) => MobileEvent::PresenceChanged {
+            server_key,
+            presence: convert::presence(presence),
         },
         CoreEventPayload::MemberJoin(member) | CoreEventPayload::MemberUpdate(member) => {
             MobileEvent::MemberUpserted {
@@ -543,11 +571,7 @@ pub(crate) fn core_event(event: CoreEvent) -> Option<MobileEvent> {
             server_key,
             plugin_users: users.into_iter().map(convert::plugin_user).collect(),
         },
-        CoreEventPayload::RoleCreate(_)
-        | CoreEventPayload::RoleUpdate(_)
-        | CoreEventPayload::RoleDelete { .. }
-        | CoreEventPayload::PresenceUpdate(_)
-        | CoreEventPayload::StreamCreate(_)
+        CoreEventPayload::StreamCreate(_)
         | CoreEventPayload::StreamUpdate(_)
         | CoreEventPayload::StreamDelete { .. }
         | CoreEventPayload::StreamViewersUpdate { .. }
@@ -644,7 +668,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use opencord_core::api::types::{Message, Role, SpeakingChange};
+    use opencord_core::api::types::{Message, SpeakingChange};
     use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
     use super::*;
@@ -848,17 +872,7 @@ mod tests {
         fed.core
             .send(CoreEvent {
                 server_key: "s".to_owned(),
-                payload: CoreEventPayload::RoleCreate(Role {
-                    id: 1,
-                    name: "r".to_owned(),
-                    color: 0,
-                    position: 0,
-                    permissions: 0,
-                    hoist: false,
-                    mentionable: false,
-                    max_upload_bytes: None,
-                    plugin_id: None,
-                }),
+                payload: CoreEventPayload::PrivateSettingsUpdate(core::PrivateSettings::default()),
             })
             .unwrap();
         let pump = Arc::clone(&fed.pump);
@@ -936,5 +950,80 @@ mod tests {
                 |event| matches!(event, MobileEvent::Typing { user_id, .. } if user_id == "3")
             )
         );
+    }
+
+    // Fails if RoleCreate, RoleDelete, or PresenceUpdate are dropped or fail to convert ids to strings.
+    #[test]
+    fn role_and_presence_events_reach_javascript() {
+        use opencord_common::permissions::Permissions;
+
+        let role = core::Role {
+            id: 10,
+            name: "Moderator".to_owned(),
+            color: 0x5865f2,
+            position: 1,
+            permissions: i64::from_ne_bytes(Permissions::MANAGE_ROLES.bits().to_ne_bytes()),
+            hoist: true,
+            mentionable: true,
+            max_upload_bytes: None,
+            plugin_id: None,
+        };
+        let created = incoming(CoreEventPayload::RoleCreate(role.clone()));
+        match created {
+            MobileEvent::RoleUpserted { server_key, role: r } => {
+                assert_eq!(server_key, "s");
+                assert_eq!(r.id, "10");
+                assert_eq!(r.name, "Moderator");
+                assert!(r.access.manage_roles);
+            }
+            other => panic!("expected RoleUpserted, got {other:?}"),
+        }
+
+        let deleted = incoming(CoreEventPayload::RoleDelete { role_id: 7 });
+        match deleted {
+            MobileEvent::RoleDeleted { server_key, role_id } => {
+                assert_eq!(server_key, "s");
+                assert_eq!(role_id, "7");
+            }
+            other => panic!("expected RoleDeleted, got {other:?}"),
+        }
+
+        let presence = core::Presence {
+            user_id: 5,
+            status: core::PresenceStatus::Idle,
+        };
+        let presence_event = incoming(CoreEventPayload::PresenceUpdate(presence));
+        match presence_event {
+            MobileEvent::PresenceChanged { server_key, presence: p } => {
+                assert_eq!(server_key, "s");
+                assert_eq!(p.user_id, "5");
+                assert_eq!(p.status, PresenceStatus::Idle);
+            }
+            other => panic!("expected PresenceChanged, got {other:?}"),
+        }
+    }
+
+    // Fails if PermissionsUpdate drops server_permissions or AccessChanged omits server_access.
+    #[test]
+    fn a_permissions_update_carries_server_access() {
+        use opencord_common::permissions::Permissions;
+
+        let event = incoming(CoreEventPayload::PermissionsUpdate {
+            server_permissions: i64::from_ne_bytes(Permissions::MANAGE_CHANNELS.bits().to_ne_bytes()),
+            channel_permissions: Vec::new(),
+        });
+        match event {
+            MobileEvent::AccessChanged {
+                server_key,
+                access,
+                server_access,
+            } => {
+                assert_eq!(server_key, "s");
+                assert!(access.is_empty());
+                assert!(server_access.manage_channels);
+                assert!(!server_access.administrator);
+            }
+            other => panic!("expected AccessChanged, got {other:?}"),
+        }
     }
 }

@@ -1340,6 +1340,32 @@ export async function pluginImageFile(serverKey: string, pluginId: string, sourc
     }
     }
 
+export async function presenceUpdate(serverKey: string, status: PresenceStatus, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_presence_update(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterTypePresenceStatus.lower(status, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
 /**
  * Sends this person's display name to a server.
  */
@@ -4515,6 +4541,272 @@ const FfiConverterTypePluginUserRecord = (() => {
     return new FFIConverter();
 })();
 
+export enum PresenceStatus {
+    Online,
+    Idle,
+    Dnd,
+    Offline
+}
+
+const FfiConverterTypePresenceStatus = (() => {
+    type TypeName = PresenceStatus;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return PresenceStatus.Online;
+                case 2: return PresenceStatus.Idle;
+                case 3: return PresenceStatus.Dnd;
+                case 4: return PresenceStatus.Offline;
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value) {
+                case PresenceStatus.Online: return c.writeI32(1);
+                case PresenceStatus.Idle: return c.writeI32(2);
+                case PresenceStatus.Dnd: return c.writeI32(3);
+                case PresenceStatus.Offline: return c.writeI32(4);
+            }
+        }
+        allocationSize(value: TypeName): number {
+            return 4;
+        }
+    }
+    return new FFIConverter();
+})();
+
+export type PresenceRecord = {
+    userId: string,
+    status: PresenceStatus
+}
+
+/**
+ * Generated factory for {@link PresenceRecord} record objects.
+ */
+export const PresenceRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<PresenceRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<PresenceRecord>,
+    });
+})();
+
+const FfiConverterTypePresenceRecord = (() => {
+    type TypeName = PresenceRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                userId: FfiConverterString.readFromCursor(c), 
+                status: FfiConverterTypePresenceStatus.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.userId, c);
+            FfiConverterTypePresenceStatus.writeIntoCursor(value.status, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.userId) +
+             FfiConverterTypePresenceStatus.allocationSize(value.status);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
+ * What this user or a role may do across a server, from its permission bits.
+ */
+export type ServerAccess = {
+    manageServer: boolean,
+    manageChannels: boolean,
+    manageRoles: boolean,
+    kickMembers: boolean,
+    banMembers: boolean,
+    createInvite: boolean,
+    manageNicknames: boolean,
+    changeNickname: boolean,
+    manageMessages: boolean,
+    mentionEveryone: boolean,
+    managePlugins: boolean,
+    manageSoundboard: boolean,
+    musicManage: boolean,
+    muteMembers: boolean,
+    deafenMembers: boolean,
+    moveMembers: boolean,
+    prioritySpeaker: boolean,
+    video: boolean,
+    screenshare: boolean,
+    administrator: boolean
+}
+
+/**
+ * Generated factory for {@link ServerAccess} record objects.
+ */
+export const ServerAccess = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ServerAccess, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<ServerAccess>,
+    });
+})();
+
+const FfiConverterTypeServerAccess = (() => {
+    type TypeName = ServerAccess;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                manageServer: FfiConverterBool.readFromCursor(c), 
+                manageChannels: FfiConverterBool.readFromCursor(c), 
+                manageRoles: FfiConverterBool.readFromCursor(c), 
+                kickMembers: FfiConverterBool.readFromCursor(c), 
+                banMembers: FfiConverterBool.readFromCursor(c), 
+                createInvite: FfiConverterBool.readFromCursor(c), 
+                manageNicknames: FfiConverterBool.readFromCursor(c), 
+                changeNickname: FfiConverterBool.readFromCursor(c), 
+                manageMessages: FfiConverterBool.readFromCursor(c), 
+                mentionEveryone: FfiConverterBool.readFromCursor(c), 
+                managePlugins: FfiConverterBool.readFromCursor(c), 
+                manageSoundboard: FfiConverterBool.readFromCursor(c), 
+                musicManage: FfiConverterBool.readFromCursor(c), 
+                muteMembers: FfiConverterBool.readFromCursor(c), 
+                deafenMembers: FfiConverterBool.readFromCursor(c), 
+                moveMembers: FfiConverterBool.readFromCursor(c), 
+                prioritySpeaker: FfiConverterBool.readFromCursor(c), 
+                video: FfiConverterBool.readFromCursor(c), 
+                screenshare: FfiConverterBool.readFromCursor(c), 
+                administrator: FfiConverterBool.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterBool.writeIntoCursor(value.manageServer, c);
+            FfiConverterBool.writeIntoCursor(value.manageChannels, c);
+            FfiConverterBool.writeIntoCursor(value.manageRoles, c);
+            FfiConverterBool.writeIntoCursor(value.kickMembers, c);
+            FfiConverterBool.writeIntoCursor(value.banMembers, c);
+            FfiConverterBool.writeIntoCursor(value.createInvite, c);
+            FfiConverterBool.writeIntoCursor(value.manageNicknames, c);
+            FfiConverterBool.writeIntoCursor(value.changeNickname, c);
+            FfiConverterBool.writeIntoCursor(value.manageMessages, c);
+            FfiConverterBool.writeIntoCursor(value.mentionEveryone, c);
+            FfiConverterBool.writeIntoCursor(value.managePlugins, c);
+            FfiConverterBool.writeIntoCursor(value.manageSoundboard, c);
+            FfiConverterBool.writeIntoCursor(value.musicManage, c);
+            FfiConverterBool.writeIntoCursor(value.muteMembers, c);
+            FfiConverterBool.writeIntoCursor(value.deafenMembers, c);
+            FfiConverterBool.writeIntoCursor(value.moveMembers, c);
+            FfiConverterBool.writeIntoCursor(value.prioritySpeaker, c);
+            FfiConverterBool.writeIntoCursor(value.video, c);
+            FfiConverterBool.writeIntoCursor(value.screenshare, c);
+            FfiConverterBool.writeIntoCursor(value.administrator, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterBool.allocationSize(value.manageServer) +
+             FfiConverterBool.allocationSize(value.manageChannels) +
+             FfiConverterBool.allocationSize(value.manageRoles) +
+             FfiConverterBool.allocationSize(value.kickMembers) +
+             FfiConverterBool.allocationSize(value.banMembers) +
+             FfiConverterBool.allocationSize(value.createInvite) +
+             FfiConverterBool.allocationSize(value.manageNicknames) +
+             FfiConverterBool.allocationSize(value.changeNickname) +
+             FfiConverterBool.allocationSize(value.manageMessages) +
+             FfiConverterBool.allocationSize(value.mentionEveryone) +
+             FfiConverterBool.allocationSize(value.managePlugins) +
+             FfiConverterBool.allocationSize(value.manageSoundboard) +
+             FfiConverterBool.allocationSize(value.musicManage) +
+             FfiConverterBool.allocationSize(value.muteMembers) +
+             FfiConverterBool.allocationSize(value.deafenMembers) +
+             FfiConverterBool.allocationSize(value.moveMembers) +
+             FfiConverterBool.allocationSize(value.prioritySpeaker) +
+             FfiConverterBool.allocationSize(value.video) +
+             FfiConverterBool.allocationSize(value.screenshare) +
+             FfiConverterBool.allocationSize(value.administrator);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+export type RoleRecord = {
+    id: string,
+    name: string,
+    color: number,
+    position: number,
+    hoist: boolean,
+    mentionable: boolean,
+    maxUploadBytes?: number,
+    pluginId?: string,
+    access: ServerAccess
+}
+
+/**
+ * Generated factory for {@link RoleRecord} record objects.
+ */
+export const RoleRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<RoleRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<RoleRecord>,
+    });
+})();
+
+const FfiConverterTypeRoleRecord = (() => {
+    type TypeName = RoleRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                id: FfiConverterString.readFromCursor(c), 
+                name: FfiConverterString.readFromCursor(c), 
+                color: FfiConverterUInt32.readFromCursor(c), 
+                position: FfiConverterInt32.readFromCursor(c), 
+                hoist: FfiConverterBool.readFromCursor(c), 
+                mentionable: FfiConverterBool.readFromCursor(c), 
+                maxUploadBytes: FfiConverterOptionalFloat64.readFromCursor(c), 
+                pluginId: FfiConverterOptionalString.readFromCursor(c), 
+                access: FfiConverterTypeServerAccess.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.id, c);
+            FfiConverterString.writeIntoCursor(value.name, c);
+            FfiConverterUInt32.writeIntoCursor(value.color, c);
+            FfiConverterInt32.writeIntoCursor(value.position, c);
+            FfiConverterBool.writeIntoCursor(value.hoist, c);
+            FfiConverterBool.writeIntoCursor(value.mentionable, c);
+            FfiConverterOptionalFloat64.writeIntoCursor(value.maxUploadBytes, c);
+            FfiConverterOptionalString.writeIntoCursor(value.pluginId, c);
+            FfiConverterTypeServerAccess.writeIntoCursor(value.access, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.id) +
+             FfiConverterString.allocationSize(value.name) +
+             FfiConverterUInt32.allocationSize(value.color) +
+             FfiConverterInt32.allocationSize(value.position) +
+             FfiConverterBool.allocationSize(value.hoist) +
+             FfiConverterBool.allocationSize(value.mentionable) +
+             FfiConverterOptionalFloat64.allocationSize(value.maxUploadBytes) +
+             FfiConverterOptionalString.allocationSize(value.pluginId) +
+             FfiConverterTypeServerAccess.allocationSize(value.access);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
 export type ServerEntry = {
     /**
      * `host:port`; names the server in every other call.
@@ -4713,6 +5005,9 @@ export type ServerSnapshot = {
     iconHash?: string,
     channels: Array<ChannelRecord>,
     access: Array<ChannelAccess>,
+    roles: Array<RoleRecord>,
+    presences: Array<PresenceRecord>,
+    serverAccess: ServerAccess,
     members: Array<MemberRecord>,
     voiceStates: Array<VoiceStateRecord>,
     voiceEnabled: boolean,
@@ -4758,6 +5053,9 @@ const FfiConverterTypeServerSnapshot = (() => {
                 iconHash: FfiConverterOptionalString.readFromCursor(c), 
                 channels: FfiConverterSequenceTypeChannelRecord.readFromCursor(c), 
                 access: FfiConverterSequenceTypeChannelAccess.readFromCursor(c), 
+                roles: FfiConverterSequenceTypeRoleRecord.readFromCursor(c), 
+                presences: FfiConverterSequenceTypePresenceRecord.readFromCursor(c), 
+                serverAccess: FfiConverterTypeServerAccess.readFromCursor(c), 
                 members: FfiConverterSequenceTypeMemberRecord.readFromCursor(c), 
                 voiceStates: FfiConverterSequenceTypeVoiceStateRecord.readFromCursor(c), 
                 voiceEnabled: FfiConverterBool.readFromCursor(c), 
@@ -4780,6 +5078,9 @@ const FfiConverterTypeServerSnapshot = (() => {
             FfiConverterOptionalString.writeIntoCursor(value.iconHash, c);
             FfiConverterSequenceTypeChannelRecord.writeIntoCursor(value.channels, c);
             FfiConverterSequenceTypeChannelAccess.writeIntoCursor(value.access, c);
+            FfiConverterSequenceTypeRoleRecord.writeIntoCursor(value.roles, c);
+            FfiConverterSequenceTypePresenceRecord.writeIntoCursor(value.presences, c);
+            FfiConverterTypeServerAccess.writeIntoCursor(value.serverAccess, c);
             FfiConverterSequenceTypeMemberRecord.writeIntoCursor(value.members, c);
             FfiConverterSequenceTypeVoiceStateRecord.writeIntoCursor(value.voiceStates, c);
             FfiConverterBool.writeIntoCursor(value.voiceEnabled, c);
@@ -4801,6 +5102,9 @@ const FfiConverterTypeServerSnapshot = (() => {
              FfiConverterOptionalString.allocationSize(value.iconHash) +
              FfiConverterSequenceTypeChannelRecord.allocationSize(value.channels) +
              FfiConverterSequenceTypeChannelAccess.allocationSize(value.access) +
+             FfiConverterSequenceTypeRoleRecord.allocationSize(value.roles) +
+             FfiConverterSequenceTypePresenceRecord.allocationSize(value.presences) +
+             FfiConverterTypeServerAccess.allocationSize(value.serverAccess) +
              FfiConverterSequenceTypeMemberRecord.allocationSize(value.members) +
              FfiConverterSequenceTypeVoiceStateRecord.allocationSize(value.voiceStates) +
              FfiConverterBool.allocationSize(value.voiceEnabled) +
@@ -6919,6 +7223,9 @@ export enum MobileEvent_Tags {
     MessageDeleted = "MessageDeleted",
     ChannelUpserted = "ChannelUpserted",
     ChannelDeleted = "ChannelDeleted",
+    RoleUpserted = "RoleUpserted",
+    RoleDeleted = "RoleDeleted",
+    PresenceChanged = "PresenceChanged",
     AccessChanged = "AccessChanged",
     MemberUpserted = "MemberUpserted",
     MemberLeft = "MemberLeft",
@@ -7243,10 +7550,103 @@ inner: {serverKey: string; channelId: string }): ChannelDeleted_ {
 
     }
 
+    type RoleUpserted__interface = {
+        tag: MobileEvent_Tags.RoleUpserted;
+        inner: 
+Readonly<{serverKey: string; role: RoleRecord}>
+    };
+    class RoleUpserted_ extends UniffiEnum implements RoleUpserted__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.RoleUpserted;
+        readonly inner: 
+Readonly<{serverKey: string; role: RoleRecord}>;
+        constructor(
+inner: {serverKey: string; role: RoleRecord }) {
+            super("MobileEvent", "RoleUpserted");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; role: RoleRecord }): RoleUpserted_ {
+            return new RoleUpserted_(inner);
+        }
+
+        static instanceOf(obj: any): obj is RoleUpserted_ {
+            return obj.tag === MobileEvent_Tags.RoleUpserted;
+        }
+
+    }
+
+    type RoleDeleted__interface = {
+        tag: MobileEvent_Tags.RoleDeleted;
+        inner: 
+Readonly<{serverKey: string; roleId: string}>
+    };
+    class RoleDeleted_ extends UniffiEnum implements RoleDeleted__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.RoleDeleted;
+        readonly inner: 
+Readonly<{serverKey: string; roleId: string}>;
+        constructor(
+inner: {serverKey: string; roleId: string }) {
+            super("MobileEvent", "RoleDeleted");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; roleId: string }): RoleDeleted_ {
+            return new RoleDeleted_(inner);
+        }
+
+        static instanceOf(obj: any): obj is RoleDeleted_ {
+            return obj.tag === MobileEvent_Tags.RoleDeleted;
+        }
+
+    }
+
+    type PresenceChanged__interface = {
+        tag: MobileEvent_Tags.PresenceChanged;
+        inner: 
+Readonly<{serverKey: string; presence: PresenceRecord}>
+    };
+    class PresenceChanged_ extends UniffiEnum implements PresenceChanged__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.PresenceChanged;
+        readonly inner: 
+Readonly<{serverKey: string; presence: PresenceRecord}>;
+        constructor(
+inner: {serverKey: string; presence: PresenceRecord }) {
+            super("MobileEvent", "PresenceChanged");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {serverKey: string; presence: PresenceRecord }): PresenceChanged_ {
+            return new PresenceChanged_(inner);
+        }
+
+        static instanceOf(obj: any): obj is PresenceChanged_ {
+            return obj.tag === MobileEvent_Tags.PresenceChanged;
+        }
+
+    }
+
     type AccessChanged__interface = {
         tag: MobileEvent_Tags.AccessChanged;
         inner: 
-Readonly<{serverKey: string; access: Array<ChannelAccess>}>
+Readonly<{serverKey: string; access: Array<ChannelAccess>; serverAccess: ServerAccess}>
     };
     /**
      * The user's own permissions changed.
@@ -7259,15 +7659,15 @@ Readonly<{serverKey: string; access: Array<ChannelAccess>}>
         readonly [uniffiTypeNameSymbol] = "MobileEvent";
         readonly tag = MobileEvent_Tags.AccessChanged;
         readonly inner: 
-Readonly<{serverKey: string; access: Array<ChannelAccess>}>;
+Readonly<{serverKey: string; access: Array<ChannelAccess>; serverAccess: ServerAccess}>;
         constructor(
-inner: {serverKey: string; access: Array<ChannelAccess> }) {
+inner: {serverKey: string; access: Array<ChannelAccess>; serverAccess: ServerAccess }) {
             super("MobileEvent", "AccessChanged");
 
             this.inner = Object.freeze(inner);
         }
         static new(
-inner: {serverKey: string; access: Array<ChannelAccess> }): AccessChanged_ {
+inner: {serverKey: string; access: Array<ChannelAccess>; serverAccess: ServerAccess }): AccessChanged_ {
             return new AccessChanged_(inner);
         }
 
@@ -8311,6 +8711,9 @@ inner: {serverKey: string; sessionId: string; channelId: string; reason: Activit
   MessageDeleted: MessageDeleted_, 
   ChannelUpserted: ChannelUpserted_, 
   ChannelDeleted: ChannelDeleted_, 
+  RoleUpserted: RoleUpserted_, 
+  RoleDeleted: RoleDeleted_, 
+  PresenceChanged: PresenceChanged_, 
   AccessChanged: AccessChanged_, 
   MemberUpserted: MemberUpserted_, 
   MemberLeft: MemberLeft_, 
@@ -8348,7 +8751,7 @@ inner: {serverKey: string; sessionId: string; channelId: string; reason: Activit
 
 })();
 export type MobileEvent = InstanceType<
-    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated' | 'PluginChannelTypesUpdated' | 'PluginActivitiesUpdated' | 'ActivitySessionCreated' | 'ActivitySessionUpdated' | 'ActivitySessionDeleted']
+    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'RoleUpserted' | 'RoleDeleted' | 'PresenceChanged' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated' | 'PluginChannelTypesUpdated' | 'PluginActivitiesUpdated' | 'ActivitySessionCreated' | 'ActivitySessionUpdated' | 'ActivitySessionDeleted']
 >;
 
 // FfiConverter for enum MobileEvent
@@ -8366,39 +8769,42 @@ const FfiConverterTypeMobileEvent = (() => {
                 case 7: return new MobileEvent.MessageDeleted({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), messageId: FfiConverterString.readFromCursor(c) });
                 case 8: return new MobileEvent.ChannelUpserted({serverKey: FfiConverterString.readFromCursor(c), channel: FfiConverterTypeChannelRecord.readFromCursor(c) });
                 case 9: return new MobileEvent.ChannelDeleted({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c) });
-                case 10: return new MobileEvent.AccessChanged({serverKey: FfiConverterString.readFromCursor(c), access: FfiConverterSequenceTypeChannelAccess.readFromCursor(c) });
-                case 11: return new MobileEvent.MemberUpserted({serverKey: FfiConverterString.readFromCursor(c), member: FfiConverterTypeMemberRecord.readFromCursor(c) });
-                case 12: return new MobileEvent.MemberLeft({serverKey: FfiConverterString.readFromCursor(c), userId: FfiConverterString.readFromCursor(c) });
-                case 13: return new MobileEvent.Typing({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), userId: FfiConverterString.readFromCursor(c) });
-                case 14: return new MobileEvent.ServerInfoChanged({serverKey: FfiConverterString.readFromCursor(c), name: FfiConverterString.readFromCursor(c), iconHash: FfiConverterOptionalString.readFromCursor(c) });
-                case 15: return new MobileEvent.VoiceStateChanged({serverKey: FfiConverterString.readFromCursor(c), state: FfiConverterTypeVoiceStateRecord.readFromCursor(c) });
-                case 16: return new MobileEvent.VoiceLink({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), state: FfiConverterTypeVoiceLinkState.readFromCursor(c) });
-                case 17: return new MobileEvent.Speaking({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), changes: FfiConverterSequenceTypeSpeakingChangeRecord.readFromCursor(c) });
-                case 18: return new MobileEvent.AudioProblem({output: FfiConverterBool.readFromCursor(c), fellBack: FfiConverterBool.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
-                case 19: return new MobileEvent.SpeakingWhileMuted();
-                case 20: return new MobileEvent.MusicSession({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeMusicSessionRecord.readFromCursor(c) });
-                case 21: return new MobileEvent.MusicNowPlaying({serverKey: FfiConverterString.readFromCursor(c), nowPlaying: FfiConverterTypeMusicNowPlayingRecord.readFromCursor(c) });
-                case 22: return new MobileEvent.MusicNotice({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), text: FfiConverterString.readFromCursor(c) });
-                case 23: return new MobileEvent.MusicSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeMusicSettingsRecord.readFromCursor(c) });
-                case 24: return new MobileEvent.SoundboardSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c) });
-                case 25: return new MobileEvent.SoundboardSoundUpserted({serverKey: FfiConverterString.readFromCursor(c), sound: FfiConverterTypeSoundboardSoundRecord.readFromCursor(c) });
-                case 26: return new MobileEvent.SoundboardSoundDeleted({serverKey: FfiConverterString.readFromCursor(c), soundId: FfiConverterString.readFromCursor(c) });
-                case 27: return new MobileEvent.VoiceMessageLimitChanged({serverKey: FfiConverterString.readFromCursor(c), maxSeconds: FfiConverterUInt32.readFromCursor(c) });
-                case 28: return new MobileEvent.VoiceRecordLevel({level: FfiConverterFloat32.readFromCursor(c) });
-                case 29: return new MobileEvent.VoiceRecordStopped({maxLength: FfiConverterBool.readFromCursor(c) });
-                case 30: return new MobileEvent.Playback({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), positionMs: FfiConverterUInt32.readFromCursor(c), durationMs: FfiConverterUInt32.readFromCursor(c), playing: FfiConverterBool.readFromCursor(c), buffering: FfiConverterBool.readFromCursor(c) });
-                case 31: return new MobileEvent.PlaybackEnded({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c) });
-                case 32: return new MobileEvent.PlaybackFailed({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
-                case 33: return new MobileEvent.SoundPlayed({serverKey: FfiConverterString.readFromCursor(c), effect: FfiConverterTypeSoundEffectRecord.readFromCursor(c) });
-                case 34: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 35: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 36: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
-                case 37: return new MobileEvent.PluginUsersUpdated({serverKey: FfiConverterString.readFromCursor(c), pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c) });
-                case 38: return new MobileEvent.PluginChannelTypesUpdated({serverKey: FfiConverterString.readFromCursor(c), types: FfiConverterSequenceTypePluginChannelTypeRecord.readFromCursor(c) });
-                case 39: return new MobileEvent.PluginActivitiesUpdated({serverKey: FfiConverterString.readFromCursor(c), activities: FfiConverterSequenceTypePluginActivityRecord.readFromCursor(c) });
-                case 40: return new MobileEvent.ActivitySessionCreated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
-                case 41: return new MobileEvent.ActivitySessionUpdated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
-                case 42: return new MobileEvent.ActivitySessionDeleted({serverKey: FfiConverterString.readFromCursor(c), sessionId: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), reason: FfiConverterTypeActivityEndReason.readFromCursor(c) });
+                case 10: return new MobileEvent.RoleUpserted({serverKey: FfiConverterString.readFromCursor(c), role: FfiConverterTypeRoleRecord.readFromCursor(c) });
+                case 11: return new MobileEvent.RoleDeleted({serverKey: FfiConverterString.readFromCursor(c), roleId: FfiConverterString.readFromCursor(c) });
+                case 12: return new MobileEvent.PresenceChanged({serverKey: FfiConverterString.readFromCursor(c), presence: FfiConverterTypePresenceRecord.readFromCursor(c) });
+                case 13: return new MobileEvent.AccessChanged({serverKey: FfiConverterString.readFromCursor(c), access: FfiConverterSequenceTypeChannelAccess.readFromCursor(c), serverAccess: FfiConverterTypeServerAccess.readFromCursor(c) });
+                case 14: return new MobileEvent.MemberUpserted({serverKey: FfiConverterString.readFromCursor(c), member: FfiConverterTypeMemberRecord.readFromCursor(c) });
+                case 15: return new MobileEvent.MemberLeft({serverKey: FfiConverterString.readFromCursor(c), userId: FfiConverterString.readFromCursor(c) });
+                case 16: return new MobileEvent.Typing({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), userId: FfiConverterString.readFromCursor(c) });
+                case 17: return new MobileEvent.ServerInfoChanged({serverKey: FfiConverterString.readFromCursor(c), name: FfiConverterString.readFromCursor(c), iconHash: FfiConverterOptionalString.readFromCursor(c) });
+                case 18: return new MobileEvent.VoiceStateChanged({serverKey: FfiConverterString.readFromCursor(c), state: FfiConverterTypeVoiceStateRecord.readFromCursor(c) });
+                case 19: return new MobileEvent.VoiceLink({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), state: FfiConverterTypeVoiceLinkState.readFromCursor(c) });
+                case 20: return new MobileEvent.Speaking({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), changes: FfiConverterSequenceTypeSpeakingChangeRecord.readFromCursor(c) });
+                case 21: return new MobileEvent.AudioProblem({output: FfiConverterBool.readFromCursor(c), fellBack: FfiConverterBool.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
+                case 22: return new MobileEvent.SpeakingWhileMuted();
+                case 23: return new MobileEvent.MusicSession({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeMusicSessionRecord.readFromCursor(c) });
+                case 24: return new MobileEvent.MusicNowPlaying({serverKey: FfiConverterString.readFromCursor(c), nowPlaying: FfiConverterTypeMusicNowPlayingRecord.readFromCursor(c) });
+                case 25: return new MobileEvent.MusicNotice({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), text: FfiConverterString.readFromCursor(c) });
+                case 26: return new MobileEvent.MusicSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeMusicSettingsRecord.readFromCursor(c) });
+                case 27: return new MobileEvent.SoundboardSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c) });
+                case 28: return new MobileEvent.SoundboardSoundUpserted({serverKey: FfiConverterString.readFromCursor(c), sound: FfiConverterTypeSoundboardSoundRecord.readFromCursor(c) });
+                case 29: return new MobileEvent.SoundboardSoundDeleted({serverKey: FfiConverterString.readFromCursor(c), soundId: FfiConverterString.readFromCursor(c) });
+                case 30: return new MobileEvent.VoiceMessageLimitChanged({serverKey: FfiConverterString.readFromCursor(c), maxSeconds: FfiConverterUInt32.readFromCursor(c) });
+                case 31: return new MobileEvent.VoiceRecordLevel({level: FfiConverterFloat32.readFromCursor(c) });
+                case 32: return new MobileEvent.VoiceRecordStopped({maxLength: FfiConverterBool.readFromCursor(c) });
+                case 33: return new MobileEvent.Playback({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), positionMs: FfiConverterUInt32.readFromCursor(c), durationMs: FfiConverterUInt32.readFromCursor(c), playing: FfiConverterBool.readFromCursor(c), buffering: FfiConverterBool.readFromCursor(c) });
+                case 34: return new MobileEvent.PlaybackEnded({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c) });
+                case 35: return new MobileEvent.PlaybackFailed({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
+                case 36: return new MobileEvent.SoundPlayed({serverKey: FfiConverterString.readFromCursor(c), effect: FfiConverterTypeSoundEffectRecord.readFromCursor(c) });
+                case 37: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 38: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 39: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
+                case 40: return new MobileEvent.PluginUsersUpdated({serverKey: FfiConverterString.readFromCursor(c), pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c) });
+                case 41: return new MobileEvent.PluginChannelTypesUpdated({serverKey: FfiConverterString.readFromCursor(c), types: FfiConverterSequenceTypePluginChannelTypeRecord.readFromCursor(c) });
+                case 42: return new MobileEvent.PluginActivitiesUpdated({serverKey: FfiConverterString.readFromCursor(c), activities: FfiConverterSequenceTypePluginActivityRecord.readFromCursor(c) });
+                case 43: return new MobileEvent.ActivitySessionCreated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
+                case 44: return new MobileEvent.ActivitySessionUpdated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
+                case 45: return new MobileEvent.ActivitySessionDeleted({serverKey: FfiConverterString.readFromCursor(c), sessionId: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), reason: FfiConverterTypeActivityEndReason.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -8467,29 +8873,51 @@ const FfiConverterTypeMobileEvent = (() => {
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
                     return;
                 }
-                case MobileEvent_Tags.AccessChanged: {
+                case MobileEvent_Tags.RoleUpserted: {
                     c.writeI32(10);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterTypeRoleRecord.writeIntoCursor(inner.role, c);
+                    return;
+                }
+                case MobileEvent_Tags.RoleDeleted: {
+                    c.writeI32(11);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterString.writeIntoCursor(inner.roleId, c);
+                    return;
+                }
+                case MobileEvent_Tags.PresenceChanged: {
+                    c.writeI32(12);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
+                    FfiConverterTypePresenceRecord.writeIntoCursor(inner.presence, c);
+                    return;
+                }
+                case MobileEvent_Tags.AccessChanged: {
+                    c.writeI32(13);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypeChannelAccess.writeIntoCursor(inner.access, c);
+                    FfiConverterTypeServerAccess.writeIntoCursor(inner.serverAccess, c);
                     return;
                 }
                 case MobileEvent_Tags.MemberUpserted: {
-                    c.writeI32(11);
+                    c.writeI32(14);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeMemberRecord.writeIntoCursor(inner.member, c);
                     return;
                 }
                 case MobileEvent_Tags.MemberLeft: {
-                    c.writeI32(12);
+                    c.writeI32(15);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.userId, c);
                     return;
                 }
                 case MobileEvent_Tags.Typing: {
-                    c.writeI32(13);
+                    c.writeI32(16);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -8497,7 +8925,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.ServerInfoChanged: {
-                    c.writeI32(14);
+                    c.writeI32(17);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.name, c);
@@ -8505,14 +8933,14 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.VoiceStateChanged: {
-                    c.writeI32(15);
+                    c.writeI32(18);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeVoiceStateRecord.writeIntoCursor(inner.state, c);
                     return;
                 }
                 case MobileEvent_Tags.VoiceLink: {
-                    c.writeI32(16);
+                    c.writeI32(19);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -8520,7 +8948,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.Speaking: {
-                    c.writeI32(17);
+                    c.writeI32(20);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -8528,7 +8956,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.AudioProblem: {
-                    c.writeI32(18);
+                    c.writeI32(21);
                     const inner = value.inner;
                     FfiConverterBool.writeIntoCursor(inner.output, c);
                     FfiConverterBool.writeIntoCursor(inner.fellBack, c);
@@ -8536,25 +8964,25 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.SpeakingWhileMuted: {
-                    c.writeI32(19);
+                    c.writeI32(22);
                     return;
                 }
                 case MobileEvent_Tags.MusicSession: {
-                    c.writeI32(20);
+                    c.writeI32(23);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeMusicSessionRecord.writeIntoCursor(inner.session, c);
                     return;
                 }
                 case MobileEvent_Tags.MusicNowPlaying: {
-                    c.writeI32(21);
+                    c.writeI32(24);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeMusicNowPlayingRecord.writeIntoCursor(inner.nowPlaying, c);
                     return;
                 }
                 case MobileEvent_Tags.MusicNotice: {
-                    c.writeI32(22);
+                    c.writeI32(25);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -8562,54 +8990,54 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.MusicSettingsChanged: {
-                    c.writeI32(23);
+                    c.writeI32(26);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeMusicSettingsRecord.writeIntoCursor(inner.settings, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundboardSettingsChanged: {
-                    c.writeI32(24);
+                    c.writeI32(27);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeSoundboardSettingsRecord.writeIntoCursor(inner.settings, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundboardSoundUpserted: {
-                    c.writeI32(25);
+                    c.writeI32(28);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeSoundboardSoundRecord.writeIntoCursor(inner.sound, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundboardSoundDeleted: {
-                    c.writeI32(26);
+                    c.writeI32(29);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.soundId, c);
                     return;
                 }
                 case MobileEvent_Tags.VoiceMessageLimitChanged: {
-                    c.writeI32(27);
+                    c.writeI32(30);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterUInt32.writeIntoCursor(inner.maxSeconds, c);
                     return;
                 }
                 case MobileEvent_Tags.VoiceRecordLevel: {
-                    c.writeI32(28);
+                    c.writeI32(31);
                     const inner = value.inner;
                     FfiConverterFloat32.writeIntoCursor(inner.level, c);
                     return;
                 }
                 case MobileEvent_Tags.VoiceRecordStopped: {
-                    c.writeI32(29);
+                    c.writeI32(32);
                     const inner = value.inner;
                     FfiConverterBool.writeIntoCursor(inner.maxLength, c);
                     return;
                 }
                 case MobileEvent_Tags.Playback: {
-                    c.writeI32(30);
+                    c.writeI32(33);
                     const inner = value.inner;
                     FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
                     FfiConverterUInt32.writeIntoCursor(inner.positionMs, c);
@@ -8619,27 +9047,27 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.PlaybackEnded: {
-                    c.writeI32(31);
+                    c.writeI32(34);
                     const inner = value.inner;
                     FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
                     return;
                 }
                 case MobileEvent_Tags.PlaybackFailed: {
-                    c.writeI32(32);
+                    c.writeI32(35);
                     const inner = value.inner;
                     FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
                     FfiConverterString.writeIntoCursor(inner.message, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundPlayed: {
-                    c.writeI32(33);
+                    c.writeI32(36);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeSoundEffectRecord.writeIntoCursor(inner.effect, c);
                     return;
                 }
                 case MobileEvent_Tags.MusicUpload: {
-                    c.writeI32(34);
+                    c.writeI32(37);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -8651,7 +9079,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.SendProgress: {
-                    c.writeI32(35);
+                    c.writeI32(38);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.nonce, c);
@@ -8662,7 +9090,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.Notice: {
-                    c.writeI32(36);
+                    c.writeI32(39);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.key, c);
@@ -8671,42 +9099,42 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.PluginUsersUpdated: {
-                    c.writeI32(37);
+                    c.writeI32(40);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypePluginUserRecord.writeIntoCursor(inner.pluginUsers, c);
                     return;
                 }
                 case MobileEvent_Tags.PluginChannelTypesUpdated: {
-                    c.writeI32(38);
+                    c.writeI32(41);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypePluginChannelTypeRecord.writeIntoCursor(inner.types, c);
                     return;
                 }
                 case MobileEvent_Tags.PluginActivitiesUpdated: {
-                    c.writeI32(39);
+                    c.writeI32(42);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypePluginActivityRecord.writeIntoCursor(inner.activities, c);
                     return;
                 }
                 case MobileEvent_Tags.ActivitySessionCreated: {
-                    c.writeI32(40);
+                    c.writeI32(43);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeActivitySessionRecord.writeIntoCursor(inner.session, c);
                     return;
                 }
                 case MobileEvent_Tags.ActivitySessionUpdated: {
-                    c.writeI32(41);
+                    c.writeI32(44);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeActivitySessionRecord.writeIntoCursor(inner.session, c);
                     return;
                 }
                 case MobileEvent_Tags.ActivitySessionDeleted: {
-                    c.writeI32(42);
+                    c.writeI32(45);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.sessionId, c);
@@ -8784,11 +9212,33 @@ const FfiConverterTypeMobileEvent = (() => {
                     size += FfiConverterString.allocationSize(inner.channelId);
                     return size;
                 }
+                case MobileEvent_Tags.RoleUpserted: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterTypeRoleRecord.allocationSize(inner.role);
+                    return size;
+                }
+                case MobileEvent_Tags.RoleDeleted: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterString.allocationSize(inner.roleId);
+                    return size;
+                }
+                case MobileEvent_Tags.PresenceChanged: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.serverKey);
+                    size += FfiConverterTypePresenceRecord.allocationSize(inner.presence);
+                    return size;
+                }
                 case MobileEvent_Tags.AccessChanged: {
                     const inner = value.inner;
                     let size = 4;
                     size += FfiConverterString.allocationSize(inner.serverKey);
                     size += FfiConverterSequenceTypeChannelAccess.allocationSize(inner.access);
+                    size += FfiConverterTypeServerAccess.allocationSize(inner.serverAccess);
                     return size;
                 }
                 case MobileEvent_Tags.MemberUpserted: {
@@ -9165,6 +9615,12 @@ const FfiConverterSequenceTypeChannelRecord = new FfiConverterArray(FfiConverter
 // FfiConverter for Array<ChannelAccess>
 const FfiConverterSequenceTypeChannelAccess = new FfiConverterArray(FfiConverterTypeChannelAccess);
 
+// FfiConverter for Array<RoleRecord>
+const FfiConverterSequenceTypeRoleRecord = new FfiConverterArray(FfiConverterTypeRoleRecord);
+
+// FfiConverter for Array<PresenceRecord>
+const FfiConverterSequenceTypePresenceRecord = new FfiConverterArray(FfiConverterTypePresenceRecord);
+
 // FfiConverter for Array<MemberRecord>
 const FfiConverterSequenceTypeMemberRecord = new FfiConverterArray(FfiConverterTypeMemberRecord);
 
@@ -9352,6 +9808,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_plugin_image_file() !== 64787) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_plugin_image_file");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_presence_update() !== 20932) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_presence_update");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_profile_update() !== 3083) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_profile_update");
     }
@@ -9520,6 +9979,10 @@ export default Object.freeze({
     FfiConverterTypePluginChannelState,
     FfiConverterTypePluginChannelTypeRecord,
     FfiConverterTypePluginUserRecord,
+    FfiConverterTypePresenceRecord,
+    FfiConverterTypePresenceStatus,
+    FfiConverterTypeRoleRecord,
+    FfiConverterTypeServerAccess,
     FfiConverterTypeServerEntry,
     FfiConverterTypeServerSnapshot,
     FfiConverterTypeSoundEffectRecord,

@@ -3,7 +3,7 @@
 use crate::MobileError;
 use crate::convert;
 use crate::mobile::{mobile, on_runtime};
-use crate::types::{AddServerResult, ServerEntry, UserRecord};
+use crate::types::{AddServerResult, PresenceStatus, ServerEntry, UserRecord};
 
 #[uniffi::export]
 pub fn servers_list() -> Result<Vec<ServerEntry>, MobileError> {
@@ -57,6 +57,19 @@ pub async fn profile_update(
     on_runtime(move |client| async move {
         let user = client.update_profile(&server_key, display_name).await?;
         Ok(convert::user(user))
+    })
+    .await
+}
+
+#[uniffi::export]
+pub async fn presence_update(
+    server_key: String,
+    status: PresenceStatus,
+) -> Result<(), MobileError> {
+    on_runtime(move |client| async move {
+        Ok(client
+            .update_presence(&server_key, convert::presence_status_to_core(status))
+            .await?)
     })
     .await
 }

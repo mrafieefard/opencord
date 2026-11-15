@@ -105,6 +105,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_next_view_outputs(generation: bigint, max: number): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_plugin_asset_file(serverKey: Uint8Array, pluginId: Uint8Array, path: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_plugin_image_file(serverKey: Uint8Array, pluginId: Uint8Array, sourceJson: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_presence_update(serverKey: Uint8Array, status: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_profile_update(serverKey: Uint8Array, displayName: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_send_cancel(serverKey: Uint8Array, nonce: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_server_add(linkOrAddress: Uint8Array, claimToken: Uint8Array): bigint;
@@ -182,6 +183,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_next_view_outputs(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_plugin_asset_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_plugin_image_file(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_presence_update(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_profile_update(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_send_cancel(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_server_add(): number;
