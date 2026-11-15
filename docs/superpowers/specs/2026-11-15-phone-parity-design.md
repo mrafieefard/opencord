@@ -155,13 +155,13 @@ The desktop plays them through FFmpeg in the core (`media_open`). The phone has 
 ## 8. Order and dependencies
 
 ```
-P0 Foundation ──┬── P1 You ──────────┐
-                ├── P2 Chat ─────────┤
-                ├── P4 Admin ── P6 Plugins admin
-                ├── P5 Call moderation
-                └── P3 Private ──────┴── P8 Notifications
-P7 Video (own design, any time after P0)
+P0 Foundation ── P1 You ── P2 Chat ── P3 Private ── P4 Admin ──┬── P5 Call moderation
+                                                               └── P6 Plugins admin
+P8 Notifications: after P1 (status) and P3 (private messages)
+P7 Video: its own design first, any time after P0
 ```
+
+Each plan branches from the one before it, so the order is a chain. The real dependencies are fewer: P1, P2 and P4 need only P0; P5 needs P4's permission sets; P6 needs P4's pages; P8 needs P1 and P3. If P3 is held (Q6), P4 branches from P2.
 
 - **P0 first:** every other plan uses its roles, permissions, members list, settings kit and server button.
 - **Then P1 and P2:** the most people see them every day, and both are small.
