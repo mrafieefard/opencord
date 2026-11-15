@@ -70,10 +70,10 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | The tablet: the channel list beside a plugin screen; an activity at tablet width | not run | not run |
 | A call from another app arrives while an activity is open | not run | not run |
 | The app killed in the background, reopened on a plugin channel | not run | not run |
-| The members sheet (chat header on phone, 3rd column on tablet): search, presence indicators, role groupings | emulator | not run |
-| Member profile: avatar with presence, role chips, member-since date, identity key, copy fingerprint, volume and mute | emulator | not run |
-| The server button: header button on Android, search tab bar slot on iOS while inside a server | emulator | not run |
-| Server settings sheet: member and online counts, permission-gated admin rows, Open on a computer, Leave server | emulator | not run |
+| The members sheet (chat header on phone, 3rd column on tablet): search, presence indicators, role groupings | fake world | not run |
+| Member profile: avatar with presence, role chips, member-since date, identity key, copy fingerprint, volume and mute | fake world | not run |
+| The server button: header button on Android, search tab bar slot on iOS while inside a server | fake world | not run |
+| Server settings sheet: member and online counts, Hosting row ("Open on a computer"), Leave server | fake world | not run |
 
 ## Using the app
 
@@ -102,7 +102,7 @@ The first screen offers **Create an identity**, which asks only what people shou
   - Scrolling down closes the keyboard. **Jump to latest** brings you back to the newest messages.
 - **Voice messages:** hold the mic beside the field to record, and let go to send. Slide left to cancel, or slide up to lock the recording and keep both hands free; a locked recording can be stopped and heard before it is sent. Voice messages play in the chat at 1×, 1.5× or 2×.
 - **Members:** tap the people button in the chat header (or view the 280 pt right column on tablet width ≥ 1000 pt). Members are grouped with voice participants first (`In this voice channel`), followed by hoisted roles in hierarchy order, then `Online` and `Offline` (collapsed after 30). Tapping a member opens their profile with their avatar, status badge, role chips, `Member since` date, identity key fingerprint with copy button, and local volume and mute controls.
-- **The server button and settings:** on Android, tap the three-dots menu button in the header (or tap the server's name in the channel list). On iOS, while inside a server, the tab bar's Search tab transforms into the `Server` tab. Both open the server settings sheet with server icon, name, member and online counts, permission-gated admin rows (`Channels`, `Members`, `Bans`, and `Open on a computer` for hosting) and `Leave server`.
+- **The server button and settings:** on Android, tap the three-dots menu button in the header (or tap the server's name in the channel list). On iOS, while inside a server, the tab bar's Search tab transforms into the `Server` tab. Both open the server settings sheet with server icon, name, member and online counts, the Hosting row (`Open on a computer` for owners; later plans register additional admin rows), and `Leave server`.
 
 ### Voice
 
