@@ -2,6 +2,7 @@
 import { ConnectionRecord_Tags } from '@opencord/core-native';
 
 import { getCore, report } from '@/core';
+import type { PresenceStatusInput } from '@/core/api';
 import { NAME_SETTING } from '@/core/identity';
 
 import { useAppStore } from '../store';
@@ -29,4 +30,9 @@ export function catchUpName(serverKey: string): void {
   const known = state.servers[serverKey]?.snapshot?.selfUser.displayName;
   if (!name || !known || known === name) return;
   report(getCore().profileUpdate(serverKey, name), 'sending the display name');
+}
+
+/** Updates this user's presence status on a server. */
+export async function setPresence(serverKey: string, status: PresenceStatusInput): Promise<void> {
+  await getCore().presenceUpdate(serverKey, status);
 }

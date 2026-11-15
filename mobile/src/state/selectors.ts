@@ -5,6 +5,7 @@ import {
   ChannelKind,
   ConnectionRecord_Tags,
   PluginChannelState,
+  PresenceStatus,
   type ActivitySessionRecord,
   type ChannelAccess,
   type ChannelRecord,
@@ -12,6 +13,8 @@ import {
   type MusicSessionRecord,
   type MusicSettingsRecord,
   type PluginActivityRecord,
+  type RoleRecord,
+  type ServerAccess,
   type ServerSnapshot,
 } from '@opencord/core-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -364,3 +367,70 @@ export function useSoundRing(serverKey: string, channelId: string, userId: strin
 
 /** When this device last played a sound on a server, for the cooldown. */
 export const useLastSound = (serverKey: string): number | undefined => useAppStore((state) => state.lastSound[serverKey]);
+
+export type ServerRowKey =
+  | 'overview'
+  | 'voice'
+  | 'commands'
+  | 'soundboard'
+  | 'privateMessages'
+  | 'channels'
+  | 'roles'
+  | 'plugins'
+  | 'hosting'
+  | 'uploads'
+  | 'members'
+  | 'invites'
+  | 'bans';
+
+export function memberColor(snapshot: ServerSnapshot | null | undefined, userId: string): number | null {
+  if (!snapshot) return null;
+  const member = snapshot.members.find((m) => m.user.id === userId);
+  if (!member) return null;
+  const coloredRoles = (snapshot.roles ?? [])
+    .filter((r) => member.roleIds.includes(r.id) && r.color !== 0 && r.color != null)
+    .sort((a, b) => b.position - a.position);
+  return coloredRoles[0]?.color ?? null;
+}
+
+export function selectPresence(snapshot: ServerSnapshot | null | undefined, userId: string): PresenceStatus {
+  const found = snapshot?.presences?.find((p) => p.userId === userId);
+  return found ? found.status : PresenceStatus.Offline;
+}
+
+export function serverSettingsRows(access: ServerAccess, voiceEnabled: boolean, isOwner = false): ServerRowKey[] {
+  const rows: ServerRowKey[] = [];
+  if (access.manageServer) rows.push('overview');
+  if (voiceEnabled && access.manageServer) rows.push('voice');
+  if (access.manageServer) rows.push('commands');
+  if (voiceEnabled && (access.manageServer || access.manageSoundboard)) rows.push('soundboard');
+  if (access.manageServer) rows.push('privateMessages');
+  if (access.manageChannels) rows.push('channels');
+  if (access.manageRoles) rows.push('roles');
+  if (access.managePlugins) rows.push('plugins');
+  if (isOwner || (voiceEnabled && (access.manageServer || access.musicManage))) rows.push('hosting');
+  if (access.manageServer) rows.push('uploads');
+  if (access.kickMembers || access.banMembers || access.manageRoles) rows.push('members');
+  if (access.manageServer) rows.push('invites');
+  if (access.banMembers) rows.push('bans');
+  return rows;
+}
+
+export function useServerAccess(serverKey: string): ServerAccess | null {
+  return useAppStore((state) => state.servers[serverKey]?.snapshot?.serverAccess ?? null);
+}
+
+export function useRoles(serverKey: string): RoleRecord[] {
+  return useAppStore((state) => {
+    const roles = state.servers[serverKey]?.snapshot?.roles ?? [];
+    return [...roles].sort((a, b) => b.position - a.position);
+  });
+}
+
+export function usePresence(serverKey: string, userId: string): PresenceStatus {
+  return useAppStore((state) => selectPresence(state.servers[serverKey]?.snapshot, userId));
+}
+
+export function useMemberColor(serverKey: string, userId: string): number | null {
+  return useAppStore((state) => memberColor(state.servers[serverKey]?.snapshot, userId));
+}
