@@ -5846,10 +5846,15 @@ class MockRepository implements OpencordRepository {
     final manages = server.selfChannelPermissions[session.channelId]!.has(
       Permissions.manageChannels,
     );
-    if (session.starterId != server.selfId && !manages) {
+    // Its last viewer may end it too: no one else has it open.
+    final lastViewer =
+        session.viewerIds.length == 1 &&
+        session.viewerIds.single == server.selfId;
+    if (session.starterId != server.selfId && !manages && !lastViewer) {
       throw const RepoException(
         RepoErrorKind.forbidden,
-        'only its starter or someone who manages the channel ends an activity',
+        'only its starter, someone who manages the channel or the last one '
+        'with it open ends an activity',
       );
     }
     _endActivitySession(server, sessionId, ActivityEndReason.ended);

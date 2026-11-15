@@ -6,12 +6,12 @@
 import type { ActivitySessionRecord } from '@opencord/core-native';
 import { StyleSheet, View } from 'react-native';
 
-import { openActivity } from '@/state/actions/plugins';
 import { memberName, useServer } from '@/state/selectors';
 import { Menu, Row, Text, radius, space, useTheme } from '@/ui';
 
 import { activityActions, runActivityAction } from './activityActions';
 import { PluginIcon } from './PluginIcon';
+import { showActivity } from './showActivity';
 
 export interface ActivityTileProps {
   serverKey: string;
@@ -36,33 +36,38 @@ export function ActivityTile({ serverKey, session, width, height }: ActivityTile
   const server = useServer(serverKey);
   const starter = memberName(server?.snapshot ?? null, session.starterId) ?? 'Someone';
   return (
-    <Menu
-      actions={activityActions(server, session, false)}
-      onAction={(id) => runActivityAction(serverKey, session, id)}
-      trigger="longPress"
-      testID={`activity-tile-${session.id}`}
-    >
-      <View style={[styles.tile, { width, height, backgroundColor: colors.surface }]}>
-        <Row height={height} accessibilityLabel={session.name} onPress={() => openActivity(serverKey, session.channelId, session.id)} style={styles.row}>
-          <View style={styles.body}>
-            {height >= WITH_ICON && <PluginIcon serverKey={serverKey} pluginId={session.pluginId} icon={session.icon} size={40} radius={10} />}
-            <Text variant="headline" numberOfLines={1}>
-              {session.name}
-            </Text>
-            {height >= WITH_STARTER && (
-              <Text variant="footnote" color="textSecondary" numberOfLines={1}>
-                {`Started by ${starter}`}
+    // Sized out here: in the grid's wrapping row the long-press menu's own
+    // wrapper has no width of its own, and on iOS its native host then came
+    // out 0 wide and the tile vanished beside another one.
+    <View style={{ width, height }}>
+      <Menu
+        actions={activityActions(server, session, false)}
+        onAction={(id) => runActivityAction(serverKey, session, id)}
+        trigger="longPress"
+        testID={`activity-tile-${session.id}`}
+      >
+        <View style={[styles.tile, { width, height, backgroundColor: colors.surface }]}>
+          <Row height={height} accessibilityLabel={session.name} onPress={() => showActivity(serverKey, session.channelId, session.id)} style={styles.row}>
+            <View style={styles.body}>
+              {height >= WITH_ICON && <PluginIcon serverKey={serverKey} pluginId={session.pluginId} icon={session.icon} size={40} radius={10} />}
+              <Text variant="headline" numberOfLines={1}>
+                {session.name}
               </Text>
-            )}
-            {height >= WITH_VIEWERS && (
-              <Text variant="footnote" color="textMuted" numberOfLines={1}>
-                {viewersLine(session.viewerIds.length)}
-              </Text>
-            )}
-          </View>
-        </Row>
-      </View>
-    </Menu>
+              {height >= WITH_STARTER && (
+                <Text variant="footnote" color="textSecondary" numberOfLines={1}>
+                  {`Started by ${starter}`}
+                </Text>
+              )}
+              {height >= WITH_VIEWERS && (
+                <Text variant="footnote" color="textMuted" numberOfLines={1}>
+                  {viewersLine(session.viewerIds.length)}
+                </Text>
+              )}
+            </View>
+          </Row>
+        </View>
+      </Menu>
+    </View>
   );
 }
 

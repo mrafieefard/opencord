@@ -1,9 +1,11 @@
 // The trust step (spec §8.3), shown in the Add server sheet when a server's
 // certificate is self-signed or unknown: the address, and the fingerprint
-// as a 4 × 4 grid of groups to read out and compare.
+// as a 4 × 4 grid of groups to read out and compare. Its top is every
+// sheet's (SheetHeader): the title, the address under it, and the close
+// button, which goes back to the address.
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Icon, SheetGrabber, Text, radius, sheetLook, space, useTheme } from '@/ui';
+import { Button, Icon, SheetHeader, Text, radius, sheetLook, space, useTheme } from '@/ui';
 
 export interface TrustStepProps {
   address: string;
@@ -30,28 +32,14 @@ export function fingerprintLines(fingerprint: string): string[] {
   return lines;
 }
 
-const BADGE = 48;
-
 export function TrustStep({ address, fingerprint, busy = false, error = null, onTrust, onCancel }: TrustStepProps) {
   const { colors } = useTheme();
 
   return (
     <View style={styles.container}>
-      <SheetGrabber />
-      <View style={[styles.badge, { backgroundColor: sheetLook.well(colors) }]}>
-        <Icon name="lock" size={22} color="text" />
-      </View>
+      <SheetHeader title="Trust this server?" subtitle={address} onClose={onCancel} />
 
-      <View style={styles.heading}>
-        <Text variant="title2" accessibilityRole="header" style={styles.center}>
-          Trust this server?
-        </Text>
-        <Text variant="headline" color="textSecondary" numberOfLines={1} style={styles.center}>
-          {address}
-        </Text>
-      </View>
-
-      <Text variant="callout" color="textSecondary" style={styles.center}>
+      <Text variant="callout" color="textSecondary">
         {"Its certificate isn't from a public authority. Check this fingerprint with the server's owner."}
       </Text>
 
@@ -83,7 +71,6 @@ export function TrustStep({ address, fingerprint, busy = false, error = null, on
 
       <View style={styles.actions}>
         <Button title="Trust and add" variant="primary" loading={busy} onPress={onTrust} />
-        <Button title="Cancel" variant="plain" disabled={busy} onPress={onCancel} />
       </View>
     </View>
   );
@@ -92,20 +79,6 @@ export function TrustStep({ address, fingerprint, busy = false, error = null, on
 const styles = StyleSheet.create({
   container: {
     gap: space.lg,
-  },
-  badge: {
-    alignSelf: 'center',
-    width: BADGE,
-    height: BADGE,
-    borderRadius: BADGE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heading: {
-    gap: space.xs,
-  },
-  center: {
-    textAlign: 'center',
   },
   fingerprintBox: {
     borderRadius: radius.icon,
@@ -125,7 +98,6 @@ const styles = StyleSheet.create({
   error: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'center',
     gap: space.xs + 2,
   },
   errorText: {
@@ -133,6 +105,5 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: space.xs,
-    gap: space.xs,
   },
 });

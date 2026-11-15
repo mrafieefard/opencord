@@ -562,7 +562,7 @@ end)
 - `ActivityEndEvent`:
   - `session: ActivitySession`: the session that ended.
   - `reason: string`: one of:
-    - `"ended"`: ended by the session starter or a channel manager (`manage_channels`).
+    - `"ended"`: ended by the session starter, a channel manager (`manage_channels`), or the only member with it open.
     - `"plugin"`: ended by the plugin via `activity.finish`.
     - `"call_empty"`: all members left the voice call.
     - `"plugin_stopping"`: the plugin was stopped, turned off, uninstalled, or failed to start.
@@ -626,7 +626,7 @@ Client scripts listen for call changes with `app.listen`:
 ### 7. When a Session Ends
 
 An activity session ends when:
-1. The starter or a member with `manage_channels` in the voice channel chooses **End activity** from the tile's menu (`"ended"`).
+1. The starter, a member with `manage_channels` in the voice channel, or the only member who has it open chooses **End activity** (`"ended"`).
 2. The plugin server script calls `activity.finish(session)` (`"plugin"`).
 3. The last participant disconnects from the voice channel (`"call_empty"`).
 4. The plugin is stopped, turned off, uninstalled, or fails to start (`"plugin_stopping"`). A restart or update that registers the activity again keeps the session.

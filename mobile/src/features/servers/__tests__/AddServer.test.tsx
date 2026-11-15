@@ -98,10 +98,12 @@ describe('AddServer', () => {
 
     expect(screen.getByText('Trust this server?')).toBeTruthy();
 
-    await fireEvent.press(screen.getByLabelText('Cancel'));
+    // The trust step's close button, as every sheet's, cancels it.
+    await fireEvent.press(screen.getByLabelText('Close'));
     await settle();
 
     expect(useAppStore.getState().order).not.toContain('127.0.0.1:7710');
+    expect(screen.getByLabelText('Invite link or address')).toBeTruthy();
   });
 
   it('the claim token is sent only when filled in', async () => {

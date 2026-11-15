@@ -12,6 +12,7 @@ import type { FakeArea } from '@/test/fakeArea';
 import * as ui from '@/ui';
 
 import { activityActions } from '../activityActions';
+import { ActivityPage } from '../ActivityPage';
 import { ENDED_SHOWN_MS, OPEN_WAIT_MS, stageInPane, watchOpenActivity } from '../activityHolder';
 import { viewersLine } from '../ActivityTile';
 
@@ -39,7 +40,7 @@ jest.mock('@opencord/plugin-area', () => {
     PluginAreaView: ({ areaId }: { areaId: string }) => <View testID={`area-view-${areaId}`} />,
   };
 });
-jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() } }));
+jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) } }));
 jest.mock('@/ui', () => ({ ...jest.requireActual<object>('@/ui'), confirm: jest.fn() }));
 jest.mock('expo-audio', () => ({
   getRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
@@ -115,6 +116,13 @@ async function pane(props: { asCall?: boolean; shown?: boolean } = {}) {
   );
 }
 
+/** The activity's own page, as its route shows it. */
+async function page(id: string) {
+  return render(<ActivityPage serverKey={NIGHT_OWLS} sessionId={id} />);
+}
+
+const router = (jest.requireMock('expo-router') as { router: { back: jest.Mock; push: jest.Mock; replace: jest.Mock; canGoBack: jest.Mock } }).router;
+
 function lastAreaId(): string {
   const created = area.calls.filter((call) => call.method === 'createArea').at(-1);
   if (!created) throw new Error('no area was created');
@@ -138,6 +146,7 @@ async function openIt(id: string) {
 
 beforeEach(() => {
   area.calls.length = 0;
+  for (const fn of Object.values(router)) fn.mockClear();
 });
 
 afterEach(() => {
@@ -164,33 +173,37 @@ describe('activities in a call', () => {
     expect(screen.getByText('Started by Kai')).toBeTruthy();
   });
 
-  // Fails if the tap opens another session, channel or key, or the people
-  // don't stay above it.
-  it('tapping the tile opens the activity over the stage, the people in a strip above', async () => {
+  // Fails if the tap opens another session, channel or key, the page
+  // doesn't come up, or the call's people are repeated on it.
+  it('tapping the tile opens the activity on its own page', async () => {
     const core = await inCall(session('900', 'paint'));
-    await pane();
+    const call = await pane();
     await fireEvent.press(screen.getByLabelText('Paint together'));
     await settle();
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/activity/900`);
+    await call.unmount();
+    await page('900');
     await act(async () => area.input(lastAreaId(), context));
     await settle();
     const opened = core.calls.filter((call) => call.method === 'viewOpenActivity').map((call) => call.args.slice(0, 4));
     expect(opened).toEqual([[NIGHT_OWLS, '900', CHANNELS.lounge, 'paint']]);
-    expect(screen.getByTestId('activity-stage')).toBeTruthy();
-    expect(screen.getByLabelText('Ava')).toBeTruthy();
+    expect(screen.getByTestId('activity-page')).toBeTruthy();
+    expect(screen.getByTestId(`area-view-${lastAreaId()}`)).toBeTruthy();
+    expect(screen.queryByLabelText('Ava')).toBeNull();
   });
 
   // Fails if Close leaves the view open in the core, ends the session, or
-  // doesn't bring the tile back.
-  it('Close closes my view and the tile returns', async () => {
+  // leaves its page up.
+  it('Close closes my view and its page goes', async () => {
     const core = await inCall(session('900', 'paint'));
-    await pane();
+    await page('900');
     await openIt('900');
-    await fireEvent.press(screen.getByLabelText('Close'));
+    const { runActivityAction } = jest.requireActual<typeof import('../activityActions')>('../activityActions');
+    await act(async () => runActivityAction(NIGHT_OWLS, session('900', 'paint'), 'close'));
     await settle();
     expect(core.calls.filter((call) => call.method === 'viewClose')).toHaveLength(1);
     expect(useAppStore.getState().servers[NIGHT_OWLS]?.snapshot?.activitySessions.map((s) => s.id)).toEqual(['900']);
-    expect(screen.queryByTestId('activity-stage')).toBeNull();
-    expect(screen.getByLabelText('Paint together')).toBeTruthy();
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
   it('opening a second activity closes the first', async () => {
@@ -210,6 +223,9 @@ describe('activities in a call', () => {
     const mineIds = activityActions(server, session('900', 'paint'), false).map((a) => a.id);
     expect(mineIds).toEqual(['open', 'end']);
     expect(activityActions(server, session('901', 'chess', '1001'), false).map((a) => a.id)).toEqual(['open']);
+    // Someone else's, but no one else has it open: its last viewer may end it.
+    expect(activityActions(server, session('901', 'chess', '1001', [SELF_ID]), true).map((a) => a.id)).toEqual(['close', 'end']);
+    expect(activityActions(server, session('901', 'chess', '1001', [SELF_ID, '1001']), true).map((a) => a.id)).toEqual(['close']);
     const confirm = ui.confirm as jest.Mock;
     const { runActivityAction } = jest.requireActual<typeof import('../activityActions')>('../activityActions');
     confirm.mockImplementationOnce((options: ui.ConfirmOptions) => options.onCancel?.());
@@ -227,17 +243,17 @@ describe('activities in a call', () => {
     });
   });
 
-  // Fails if leaving the pane destroys the activity or tells it more than
+  // Fails if leaving the page destroys the activity or tells it more than
   // one pause, or coming back makes a new view or skips the resume.
-  it("an open activity survives leaving the call's pane", async () => {
+  it('an open activity survives leaving its page', async () => {
     const core = await inCall(session('900', 'paint'));
-    const shown = await pane();
+    const shown = await page('900');
     await openIt('900');
     const areaId = lastAreaId();
     const before = core.calls.filter((call) => call.method === 'viewOpenActivity').length;
     await shown.unmount();
     await settle();
-    await pane();
+    await page('900');
     await settle();
     expect(area.methods()).not.toContain('destroyArea');
     expect(lastAreaId()).toBe(areaId);
@@ -265,7 +281,7 @@ describe('activities in a call', () => {
   // answers, and the event that adds it to the snapshot can come after.
   it('opens an activity whose session arrives after it was opened', async () => {
     const core = await inCall();
-    await pane();
+    await page('900');
     await act(async () => openActivity(NIGHT_OWLS, CHANNELS.lounge, '900'));
     await settle();
     expect(useAppStore.getState().openActivity?.sessionId).toBe('900');
@@ -275,7 +291,7 @@ describe('activities in a call', () => {
     await settle();
     const opened = core.calls.filter((call) => call.method === 'viewOpenActivity').map((call) => call.args[1]);
     expect(opened).toEqual(['900']);
-    expect(screen.getByTestId('activity-stage')).toBeTruthy();
+    expect(screen.getByTestId(`area-view-${lastAreaId()}`)).toBeTruthy();
   });
 
   // Fails if a session that never arrives keeps the open slot forever.
@@ -297,11 +313,11 @@ describe('activities in a call', () => {
     expect(core.calls.filter((call) => call.method === 'viewClose')).toHaveLength(1);
   });
 
-  // Fails if an ended activity's screen vanishes without saying so, or
-  // stays after the moment it should.
-  it('an ended activity closes its screen and its tile goes', async () => {
+  // Fails if an ended activity's page vanishes without saying so, or stays
+  // after the moment it should.
+  it('an ended activity says so on its page, then the page goes', async () => {
     await inCall(session('900', 'paint'));
-    await pane();
+    await page('900');
     await openIt('900');
     jest.useFakeTimers();
     await act(async () => {
@@ -309,38 +325,55 @@ describe('activities in a call', () => {
       area.status(lastAreaId(), { state: 'closed', reason: 'activity_ended', detail: '', overlays: 0 });
     });
     expect(screen.getByText('This activity ended')).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
     await act(async () => jest.advanceTimersByTime(ENDED_SHOWN_MS));
-    expect(screen.queryByTestId('activity-stage')).toBeNull();
-    expect(screen.queryByLabelText('Paint together')).toBeNull();
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
-  it('the voice pane and the call sheet never both draw it', async () => {
+  // Fails if the call draws the activity itself again: it shows its tile.
+  it('the call shows the tile, not the activity', async () => {
     await inCall(session('900', 'paint'));
-    await render(
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />
-        <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} asCall shown />
-      </GestureHandlerRootView>,
-    );
+    await pane({ asCall: true });
     await openIt('900');
-    expect(screen.getAllByTestId('activity-stage')).toHaveLength(1);
+    expect(screen.getByLabelText('Paint together')).toBeTruthy();
+    expect(screen.queryByTestId(`area-view-${lastAreaId()}`)).toBeNull();
   });
 
-  // Fails if the phone can't tell that the pane, not the call sheet, draws
-  // the activity: the sidebar's swipe must step aside only for the pane's.
-  it('says whether the pane draws it', async () => {
+  // Fails if Activities isn't on while one runs, or its menu doesn't open,
+  // change or close (end) it.
+  it("Activities is on while one runs, and its menu opens, changes or closes it", async () => {
     await inCall(session('900', 'paint'));
-    const shown = await pane();
-    expect(stageInPane()).toBe(false);
-    await openIt('900');
-    expect(stageInPane()).toBe(true);
-    await shown.rerender(
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} />
-        <VoicePane serverKey={NIGHT_OWLS} channelId={CHANNELS.lounge} asCall shown />
-      </GestureHandlerRootView>,
-    );
+    await pane({ asCall: true });
+    // On, Activities is the menu itself (iOS: a glass menu button).
+    expect(screen.getByTestId('activities-menu')).toBeTruthy();
+    expect(screen.queryByTestId('control-activities')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Open activity'));
     await settle();
+    expect(useAppStore.getState().openActivity).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, sessionId: '900' });
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/activity/900`);
+    await fireEvent.press(screen.getByLabelText('Change activity'));
+    expect(router.push).toHaveBeenLastCalledWith(`/server/${NIGHT_OWLS}/activities/${CHANNELS.lounge}`);
+    const confirm = ui.confirm as jest.Mock;
+    confirm.mockImplementationOnce((options: ui.ConfirmOptions) => options.onCancel?.());
+    await fireEvent.press(screen.getByLabelText('Close activity'));
+    expect(confirm.mock.calls.at(-1)?.[0]).toMatchObject({ title: 'End Paint together for everyone?' });
+  });
+
+  // Fails if Activities shows on with nothing running.
+  it('Activities is off with nothing running', async () => {
+    await inCall();
+    await pane({ asCall: true });
+    expect(screen.getByTestId('control-activities')).toBeTruthy();
+    expect(screen.queryByTestId('activities-menu')).toBeNull();
+  });
+
+  // Fails if the phone's sidebar swipe steps aside for an activity on its
+  // own page: only the pane's would need it, and the pane draws none now.
+  it('the page, not the pane, draws it', async () => {
+    await inCall(session('900', 'paint'));
+    await pane();
+    await page('900');
+    await openIt('900');
     expect(stageInPane()).toBe(false);
   });
 });

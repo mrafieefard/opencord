@@ -110,7 +110,8 @@ export function useStageOwner(): symbol | null {
   return useSyncExternalStore(subscribe, stageOwner);
 }
 
-/** The stages' priorities: the open call sheet over the voice pane. */
+/** The stages' priorities: the activity's page, over the open call sheet, over the voice pane. */
+export const STAGE_PAGE = 3;
 export const STAGE_CALL = 2;
 export const STAGE_PANE = 1;
 

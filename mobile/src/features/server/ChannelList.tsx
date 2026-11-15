@@ -5,7 +5,7 @@ import type { ChannelRecord, MusicNowPlayingRecord } from '@opencord/core-native
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useVoicePillRoom } from '@/features/voice/callPosition';
+import { useListEndRoom } from '@/features/voice/callPosition';
 import { useChannelSections } from '@/state/selectors';
 import type { ChannelItem, VoiceMember } from '@/state/types';
 import { useTheme } from '@/ui';
@@ -34,7 +34,8 @@ type ListItem =
 
 export function ChannelList({ serverKey, variant, selectedId, onSelect }: ChannelListProps) {
   const { colors } = useTheme();
-  const pillRoom = useVoicePillRoom();
+  // Its last rows scroll out from under the tab bar and the voice pill.
+  const endRoom = useListEndRoom();
   const sections = useChannelSections(serverKey);
   const highlighted = variant === 'sidebar' ? selectedId : undefined;
 
@@ -133,7 +134,10 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
         renderItem={renderItem}
         getItemType={(item) => item.type}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: pillRoom }}
+        contentContainerStyle={{ paddingBottom: endRoom }}
+        // The room above is the bar's: iOS doesn't add it for a list that
+        // isn't its screen's own, and mustn't add it twice if it does.
+        contentInsetAdjustmentBehavior="never"
       />
     </View>
   );

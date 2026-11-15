@@ -60,12 +60,16 @@ class ActivityTile extends ConsumerWidget {
     final serverData = ref.watch(
       serverProvider(serverKey).select((state) => state.data),
     );
+    // Its starter, who manages the channel, or its last viewer (no one else
+    // has it open) may end it, as the server allows.
     final canEnd =
         serverData != null &&
         (session.starterId == serverData.self.id ||
             serverData
                 .permissionsIn(session.channelId)
-                .has(Permissions.manageChannels));
+                .has(Permissions.manageChannels) ||
+            (session.viewerIds.length == 1 &&
+                session.viewerIds.single == serverData.self.id));
     void menu(Offset position) => showOcMenu(
       context: context,
       position: position,

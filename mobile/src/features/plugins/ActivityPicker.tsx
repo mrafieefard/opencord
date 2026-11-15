@@ -2,19 +2,19 @@
 // app's sheet with one row per registered activity, by plugin name then
 // name. A row that runs already says Running; while the call holds the
 // most it can, the others are disabled. Pressing a row starts it (or
-// finds it running) and opens it.
+// finds it running) and its page takes the sheet's place (showActivity).
 import * as PluginArea from '@opencord/plugin-area';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { openCall } from '@/features/voice/callPosition';
-import { ACTIVITY_SESSIONS_PER_CALL, openActivity, startActivity } from '@/state/actions/plugins';
+import { ACTIVITY_SESSIONS_PER_CALL, startActivity } from '@/state/actions/plugins';
 import { activitySessions, canStartActivities, pluginActivities, useServer } from '@/state/selectors';
 import type { ServerState } from '@/state/types';
-import { Row, SheetHeader, Text, space, useSheetBottomInset } from '@/ui';
+import { Row, SheetHeader, Text, sheetLook, space, useSheetBottomInset, useTheme } from '@/ui';
 
 import { PluginIcon } from './PluginIcon';
+import { showActivity } from './showActivity';
 
 const ICON_SIZE = 40;
 const ICON_RADIUS = 10;
@@ -33,6 +33,7 @@ export interface ActivityPickerProps {
 
 export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPickerProps) {
   const server = useServer(serverKey);
+  const { colors } = useTheme();
   const bottomInset = useSheetBottomInset();
   const close = onClose ?? (() => router.back());
   const activities = useMemo(
@@ -69,14 +70,15 @@ export function ActivityPicker({ serverKey, channelId, onClose }: ActivityPicker
       if (mounted.current) setPending(null);
       return;
     }
-    if (mounted.current) close();
-    openActivity(serverKey, channelId, session.id);
-    // The call shows it; Android put the call away to open this sheet.
-    openCall(serverKey, channelId);
+    // Its page takes the sheet's place; swiped away meanwhile, it comes up over the call.
+    showActivity(serverKey, channelId, session.id, mounted.current ? 'replace' : 'push');
   };
 
   return (
-    <View style={styles.root}>
+    // Kept as its own view: flattened, its children land in the sheet's own
+    // container, and react-native-screens places the ScrollView at the top
+    // of the sheet, over the title (iOS 26; as SoundboardSheet).
+    <View collapsable={false} style={[styles.root, { backgroundColor: sheetLook.background(colors) }]}>
       <SheetHeader title="Activities" onClose={close} />
       <ScrollView contentContainerStyle={{ paddingBottom: bottomInset + space.md }}>
         {activities.map((activity) => {
