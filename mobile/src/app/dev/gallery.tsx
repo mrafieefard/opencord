@@ -1,6 +1,8 @@
-// Every UI primitive in each of its states, for screenshots (plan Task 6).
-// Development builds only.
-import { useState, type ReactNode } from 'react';
+// Every UI primitive in each of its states, for screenshots (plan Task 6),
+// and the settings kit on its own page (phone P0 Task 4): open it with
+// `opencord-app:///dev/gallery?page=settings`. Development builds only.
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useCallback, useLayoutEffect, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,16 +21,133 @@ import {
   SearchField,
   Segmented,
   ServerIcon,
+  SettingsList,
+  SettingsRow,
+  SettingsSection,
   Slider,
   Switch,
   Text,
+  fonts,
+  nativeHeaderLook,
   space,
   typography,
+  useSaveButton,
   useTheme,
   type IconName,
   type TextVariant,
 } from '@/ui';
 import { icons } from '@/ui/icons';
+
+const PAGES = ['Primitives', 'Settings kit'];
+
+const NOTIFY_OPTIONS = [
+  { key: 'all', label: 'All messages' },
+  { key: 'mentions', label: 'Only mentions' },
+  { key: 'none', label: 'Nothing' },
+];
+
+interface KitDraft {
+  name: string;
+  description: string;
+  notify: string;
+  joinMessages: boolean;
+  uploadMb: number;
+}
+
+const KIT_SAVED: KitDraft = {
+  name: 'Night Owls',
+  description: '',
+  notify: 'mentions',
+  joinMessages: true,
+  uploadMb: 25,
+};
+
+/** How long the gallery's pretend save takes. */
+const KIT_SAVE_MS = 800;
+
+/**
+ * One of each settings row in two sections, under a native header with
+ * Save, as a server settings page will be (Task 7 puts them in a sheet).
+ */
+function SettingsKitPage({ onPage }: { onPage: (index: number) => void }) {
+  const { colors, scheme } = useTheme();
+  const navigation = useNavigation();
+  const [saved, setSaved] = useState(KIT_SAVED);
+  const [draft, setDraft] = useState(KIT_SAVED);
+  const [saving, setSaving] = useState(false);
+  const edit = (change: Partial<KitDraft>) => setDraft((current) => ({ ...current, ...change }));
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+
+  const onSave = useCallback(async () => {
+    setSaving(true);
+    await new Promise((resolve) => setTimeout(resolve, KIT_SAVE_MS));
+    setSaved(draft);
+    setSaving(false);
+  }, [draft]);
+  useSaveButton({ dirty, saving, onSave });
+
+  // The gallery hides the stack's header; this page shows it for Save.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: 'Settings kit',
+      headerShadowVisible: false,
+      ...nativeHeaderLook(scheme, colors.chat),
+      headerTintColor: colors.text,
+      headerTitleStyle: { fontFamily: fonts.semiBold, color: colors.text },
+    });
+    return () => navigation.setOptions({ headerShown: false });
+  }, [navigation, scheme, colors]);
+
+  return (
+    <SettingsList>
+      <View style={styles.pages}>
+        <Segmented values={PAGES} index={1} onChange={onPage} />
+      </View>
+      <SettingsSection title="Overview" footer="Everyone on the server sees its name and description.">
+        <SettingsRow kind="text" label="Server name" value={draft.name} placeholder="Name" maxLength={100} onChange={(name) => edit({ name })} />
+        <SettingsRow
+          kind="text"
+          label="Description"
+          value={draft.description}
+          placeholder="What the server is for"
+          maxLength={1000}
+          multiline
+          onChange={(description) => edit({ description })}
+        />
+        <SettingsRow kind="link" label="Roles" value="3" icon="lock" onPress={() => {}} />
+        <SettingsRow
+          kind="choice"
+          label="Notifications"
+          value={draft.notify}
+          options={NOTIFY_OPTIONS}
+          onChange={(notify) => edit({ notify })}
+        />
+        <SettingsRow
+          kind="switch"
+          label="Show join messages"
+          detail="Say in the first channel when someone joins."
+          value={draft.joinMessages}
+          onChange={(joinMessages) => edit({ joinMessages })}
+        />
+      </SettingsSection>
+      <SettingsSection title="Uploads">
+        <SettingsRow
+          kind="slider"
+          label="Upload limit"
+          value={draft.uploadMb}
+          min={1}
+          max={100}
+          step={1}
+          format={(mb) => `${mb} MB`}
+          onChange={(uploadMb) => edit({ uploadMb })}
+          onDone={(uploadMb) => edit({ uploadMb })}
+        />
+        <SettingsRow kind="destructive" label="Delete server" onPress={() => {}} />
+      </SettingsSection>
+    </SettingsList>
+  );
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -48,7 +167,12 @@ export default function Gallery() {
   const [duck, setDuck] = useState(true);
   const [segment, setSegment] = useState(0);
   const [query, setQuery] = useState('');
+  const params = useLocalSearchParams<{ page?: string }>();
+  // The page lives in the route, so a link to it works while it is open.
+  const page = params.page === 'settings' ? 1 : 0;
+  const setPage = (index: number) => router.setParams({ page: index === 1 ? 'settings' : 'primitives' });
   if (!__DEV__) return null;
+  if (page === 1) return <SettingsKitPage onPage={setPage} />;
   return (
     <View style={{ flex: 1, backgroundColor: colors.sidebar }}>
       <PaneHeader
@@ -57,6 +181,9 @@ export default function Gallery() {
         left={{ icon: 'back', label: 'Back', onPress: () => {} }}
         right={[{ icon: 'more', label: 'More', onPress: () => {} }]}
       />
+      <View style={styles.pages}>
+        <Segmented values={PAGES} index={0} onChange={setPage} />
+      </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + space.xxxl }}>
         <Section title="Type">
           {(Object.keys(typography) as TextVariant[]).map((variant) => (
@@ -156,6 +283,7 @@ export default function Gallery() {
 }
 
 const styles = StyleSheet.create({
+  pages: { paddingHorizontal: space.lg, paddingTop: space.md },
   section: { paddingHorizontal: space.lg, paddingTop: space.xxl, gap: space.md },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   line: { flexDirection: 'row', alignItems: 'center', gap: space.md },
