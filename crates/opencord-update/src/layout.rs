@@ -131,31 +131,70 @@ impl Layout {
         }
     }
 
-    /// Removes every version but the current one and the newest other, and
-    /// anything half unpacked or half downloaded. A folder still in use
-    /// (Windows) stays until the next time.
+    /// Removes every version but the current one, the newest other and the
+    /// waiting version, and removes downloads not needed by the newest release.
     pub fn prune(&self) {
         let current = self.current();
         let other = self
             .versions()
             .into_iter()
             .find(|version| Some(version) != current.as_ref());
-        let keep: Vec<PathBuf> = current
+        let pending = self.read_pending().map(|p| p.version);
+        let keep_dirs: Vec<PathBuf> = current
             .iter()
             .chain(other.iter())
+            .chain(pending.iter())
             .map(|version| self.version_dir(version))
             .collect();
-        let Ok(entries) = fs::read_dir(&self.root) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with(VERSION_PREFIX) && !keep.contains(&path) {
-                let _ = fs::remove_dir_all(&path);
+        if let Ok(entries) = fs::read_dir(&self.root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with(VERSION_PREFIX) && !keep_dirs.contains(&path) {
+                    let _ = fs::remove_dir_all(&path);
+                }
             }
         }
-        let _ = fs::remove_dir_all(self.downloads());
+
+        let downloads_dir = self.downloads();
+        let Ok(entries) = fs::read_dir(&downloads_dir) else {
+            return;
+        };
+        let mut notes: Vec<(PathBuf, crate::pending::DownloadNote)> = Vec::new();
+        let entries: Vec<_> = entries.flatten().collect();
+        for entry in &entries {
+            let path = entry.path();
+            if path.extension().is_some_and(|ext| ext == "json")
+                && let Some(note) = self.read_download_note(&path)
+            {
+                notes.push((path, note));
+            }
+        }
+
+        let target_note = if let Some(pending_ver) = &pending {
+            notes.iter().find(|(_, n)| &n.version == pending_ver)
+        } else {
+            notes.iter().max_by_key(|(_, n)| &n.version)
+        };
+
+        if target_note.is_none() {
+            let _ = fs::remove_dir_all(&downloads_dir);
+            return;
+        }
+
+        let mut keep_downloads: Vec<PathBuf> = Vec::new();
+        if let Some((note_path, note)) = target_note {
+            keep_downloads.push(note_path.clone());
+            keep_downloads.push(downloads_dir.join(&note.file));
+            keep_downloads.push(downloads_dir.join(format!("{}.partial", note.file)));
+        }
+
+        for entry in entries {
+            let path = entry.path();
+            if !keep_downloads.contains(&path) {
+                let _ = fs::remove_file(&path).or_else(|_| fs::remove_dir_all(&path));
+            }
+        }
     }
 
     pub fn read_settings(&self) -> Settings {
@@ -185,10 +224,30 @@ impl Layout {
         self.write_json(&self.installed_file(), installed)
     }
 
+    pub fn cover_image(&self) -> PathBuf {
+        self.root.join("cover.rgba")
+    }
+
+    pub fn cover_shown(&self) -> PathBuf {
+        self.root.join("cover.shown")
+    }
+
+    pub fn cover_taken(&self) -> PathBuf {
+        self.root.join("cover.taken")
+    }
+
     /// Writes `value` to `path` whole: the app may read it meanwhile.
-    fn write_json(&self, path: &Path, value: &impl Serialize) -> io::Result<()> {
-        fs::create_dir_all(&self.root)?;
-        let partial = path.with_extension("json.partial");
+    pub(crate) fn write_json(&self, path: &Path, value: &impl Serialize) -> io::Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        } else {
+            fs::create_dir_all(&self.root)?;
+        }
+        let file_name = path
+            .file_name()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no filename"))?
+            .to_string_lossy();
+        let partial = path.with_file_name(format!("{file_name}.partial"));
         fs::write(&partial, serde_json::to_vec_pretty(value)?)?;
         fs::rename(&partial, path)
     }
@@ -379,5 +438,84 @@ mod tests {
         assert_eq!(layout.read_settings().track(), Track::built_in());
         fs::write(layout.settings_file(), br#"{"track":"nightly"}"#).unwrap();
         assert_eq!(layout.read_settings().track(), Track::built_in());
+    }
+
+    // Fails if write_json leaves a .partial file or fails to persist
+    #[test]
+    fn files_are_written_through_a_partial() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        let pending = crate::pending::Pending {
+            version: Version::parse("0.0.2").unwrap(),
+            track: Track::built_in().name().to_owned(),
+            prepared_at: 1000,
+            confirmed_at: None,
+        };
+        layout.write_pending(&pending).unwrap();
+
+        assert!(layout.pending_file().is_file());
+        let partial = layout.pending_file().with_file_name("pending.json.partial");
+        assert!(!partial.exists());
+        assert_eq!(layout.read_pending().unwrap(), pending);
+    }
+
+    // Fails if prune deletes the pending version directory or its download files
+    #[test]
+    fn prune_keeps_the_waiting_version_and_its_download() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        let v0 = Version::parse("0.0.0").unwrap();
+        let v1 = Version::parse("0.0.1").unwrap();
+        let v2 = Version::parse("0.0.2").unwrap();
+        install(&layout, "0.0.0");
+        install(&layout, "0.0.1");
+        install(&layout, "0.0.2");
+
+        layout
+            .write_installed(&Installed {
+                version: Some(v1.clone()),
+                track: Some(Track::built_in().name().to_owned()),
+            })
+            .unwrap();
+
+        let pending = crate::pending::Pending {
+            version: v2.clone(),
+            track: Track::built_in().name().to_owned(),
+            prepared_at: 1000,
+            confirmed_at: None,
+        };
+        layout.write_pending(&pending).unwrap();
+
+        let note = crate::pending::DownloadNote {
+            tag: "v0.0.2".to_owned(),
+            version: v2.clone(),
+            track: Track::built_in().name().to_owned(),
+            file: "opencord.tar.gz".to_owned(),
+            url: "https://example.com/a".to_owned(),
+            size: 10,
+            sha256: "a".repeat(64),
+        };
+        let note_file = layout.downloads().join("opencord.tar.gz.json");
+        layout.write_download_note(&note_file, &note).unwrap();
+        let target_file = layout.downloads().join("opencord.tar.gz");
+        layout
+            .write_json(&target_file, &"fake archive content")
+            .unwrap();
+
+        let stale_file = layout.downloads().join("stale.tar.gz");
+        layout.write_json(&stale_file, &"old archive").unwrap();
+
+        layout.prune();
+
+        // Kept versions: current (v1) and pending (v2). v0 pruned.
+        assert!(layout.is_whole(&v1));
+        assert!(layout.is_whole(&v2));
+        assert!(!layout.is_whole(&v0));
+
+        // Kept download for pending
+        assert!(note_file.exists());
+        assert!(target_file.exists());
+        // Stale download removed
+        assert!(!stale_file.exists());
     }
 }
