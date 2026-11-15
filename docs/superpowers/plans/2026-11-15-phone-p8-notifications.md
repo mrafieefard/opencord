@@ -15,7 +15,7 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-notifications`, from the last finished phone plan (it needs P1's status and, for private messages, P3). Draft PR into `beta`, stacked.
+- **Branch:** `feat/mobile-features`, the one branch and **one pull request into `beta`** for every phone plan (the owner, 2026-11-15). It already holds the design and the plans. Work on it in order, P0 first; never on a branch of its own. Never merge; never push to `beta`, `canary` or `main`. The pull request is open already (P0 opened it): push to it, add this plan's section to its description, and read its checks at each stage end.
 - **Scope:** `mobile/`, `docs/`. No facade, server or protocol change (messages and private events already reach JavaScript). If one seems needed, stop and ask.
 - **Never put message text in a notification** on the lock screen unless the user turns on `Show message previews` (default off, Claude's call): the title is the server and channel, or the person; the body `New message` or `Mentioned you`. A private message's text never leaves the phone's own process.
 - P0's Global Constraints from "Ids are decimal strings" on apply.

@@ -160,19 +160,19 @@ P8 Notifications: after P1 (status) and P3 (private messages)
 P7 Video: any time after P0; it touches the core, so not alongside P4's facade work
 ```
 
-Each plan branches from the one before it, so the order is a chain. The real dependencies are fewer: P1, P2 and P4 need only P0; P5 needs P4's permission sets; P6 needs P4's pages; P8 needs P1 and P3. 
+All plans are built on one branch, `feat/mobile-features`, in this order, under one pull request into `beta` (the owner, 2026-11-15). The real dependencies are fewer than the order: P1, P2 and P4 need only P0; P5 needs P4's permission sets; P6 needs P4's pages; P8 needs P1 and P3.
 
 - **P0 first:** every other plan uses its roles, permissions, members list, settings kit and server button.
 - **Then P1 and P2:** the most people see them every day, and both are small.
 - **Then P3, P4, P5, P6** in that order.
 - **P7 and P8 last,** after their designs.
-- **Base branch:** plugins milestones 1–4 are merged into `beta` (#46–#52, and #53, 2026-11-15). P0 branches from `beta`; each later plan branches from the one before.
+- **Branch:** `feat/mobile-features`, made from `beta` after #46–#53 merged (2026-11-15). It holds this design and the plans, then every plan's work, in one pull request into `beta`.
 
 ## 9. The owner's answers (2026-11-15)
 
 1. **The server button:** yes, the iPhone's button beside the tab bar is the shortcut to the server's settings (and may hold other shortcuts later). No search of servers while in a server.
 2. **Who builds:** Gemini, with tasks scored 0–5: 1–3 Gemini, 4–5 Claude through the bridge (P0's rubric).
-3. **Base branch:** the plugin pull requests are merged; plans are written on a new branch from `beta`, and P0 branches from `beta`.
+3. **Branch:** the plugin pull requests are merged. Everything (these plans and all the work) goes on one branch, `feat/mobile-features`, from `beta`, under one pull request.
 4. **Notifications while the app is closed:** skipped.
 5. **Hosting settings on the phone:** skipped for now.
 6. **Video:** whichever is lighter for the phone: B (§7.2).
@@ -186,4 +186,4 @@ Each plan branches from the one before it, so the order is a chain. The real dep
 4. Videos in the chat play through the system's player, not the core's (§7.4).
 5. Hosting settings stay desktop only for now (§3, the owner's).
 6. Reactions, pins, replies, announcements and read states stay out until the server has them (§2).
-7. P0 branches from `beta` (§8).
+7. One branch and pull request, `feat/mobile-features` (§8, the owner's).

@@ -15,7 +15,7 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-chat`, from `feat/phone-you` (P1). Draft PR into `beta` at Stage A's end, stacked.
+- **Branch:** `feat/mobile-features`, the one branch and **one pull request into `beta`** for every phone plan (the owner, 2026-11-15). It already holds the design and the plans. Work on it in order, P0 first; never on a branch of its own. Never merge; never push to `beta`, `canary` or `main`. The pull request is open already (P0 opened it): push to it, add this plan's section to its description, and read its checks at each stage end.
 - **Scope:** `crates/opencord-mobile/`, `mobile/`, `app/tool/build_emoji.dart` (an extra output only; the desktop's generated file must not change, which `git diff app/lib` proves), `docs/`.
 - **Mentions:** messages carry `<@id>` and `<#id>`; the composer shows `@Name` and `#name`. Sending encodes; editing a sent message decodes. Text inside code stays as written. That's the desktop's rule and the phone must match it, or the desktop sees raw names.
 - P0's Global Constraints from "Ids are decimal strings" on apply.

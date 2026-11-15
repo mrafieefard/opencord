@@ -15,8 +15,8 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-foundation`, made from `beta` (plugins milestones 1–4 and #53 are merged); its first commit holds this plan and the design. Open a **draft pull request into `beta`** at the end of Stage A. Never merge; never push to `beta`, `canary` or `main`.
-- **Before Task 1:** `git status --short -uno` prints nothing; `df -h /` shows at least 20 GB free; `source mobile/scripts/env.sh && cd mobile && yarn core:android && scripts/check-bindings.sh` passes; `adb devices` shows `emulator-5554`.
+- **Branch:** `feat/mobile-features`, the one branch and **one pull request into `beta`** for every phone plan (the owner, 2026-11-15). It already holds the design and the plans. Work on it in order, P0 first; never on a branch of its own. Never merge; never push to `beta`, `canary` or `main`. P0 opens the pull request as a **draft** at its Stage A's end; every later plan pushes to the same branch, adds its own section to the pull request's description (what changed, why, how tested, what wasn't run), and reads the same pull request's checks at each stage end. The pull request leaves draft only after the last plan's final review.
+- **Before Task 1:** `git switch feat/mobile-features`; if `beta` moved since the branch was made, merge `origin/beta` into it (a merge commit, never a rebase); `git status --short -uno` prints nothing; `df -h /` shows at least 20 GB free; `source mobile/scripts/env.sh && cd mobile && yarn core:android && scripts/check-bindings.sh` passes; `adb devices` shows `emulator-5554`.
 - **Scope:** `crates/opencord-mobile/`, `mobile/src/`, `mobile/packages/core-native` (generated only), `docs/`. Nothing in `crates/opencord-core`, `crates/opencord-server`, `proto/` or `app/` changes. If a task seems to need that, stop and ask.
 - **Ids are decimal strings** in JavaScript; the facade converts. Permission bits never cross as numbers: they cross as named flags, as `ChannelAccess` does.
 - **Words the user sees** are copied exactly from the task that gives them; where the desktop already says it, the phone says the same. Words with no desktop source are *new on the phone*; in this plan: `You no longer have access to this.`, `Choose a photo`, `Take a photo`, `Remove photo`, `Opencord can't use the camera. Allow it in Settings.`, `Open on a computer`, `N members · M online`.
@@ -99,7 +99,7 @@ Claude's tasks are sized for the bridge (one module and its tests, under 60 minu
 
 | Stage | Tasks | At its end |
 |---|---|---|
-| A — The phone knows roles | 1–3 | Full checks; push; open the draft PR; read its checks |
+| A — The phone knows roles | 1–3 | Full checks; push; open the draft pull request (`feat/mobile-features` into `beta`); read its checks |
 | B — The pieces | 4–7 | Full checks; push; **review of A–B** (a fresh Opus context, as the M4 plan's "Stages and their reviews" says) |
 | C — Live and docs | 8 | Full checks; push; review round; report to the owner |
 

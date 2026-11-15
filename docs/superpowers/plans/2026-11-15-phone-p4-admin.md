@@ -15,7 +15,7 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-admin`, from the last finished phone plan (P3, or P2 if P3 is still held). Draft PR into `beta` at Stage A's end, stacked.
+- **Branch:** `feat/mobile-features`, the one branch and **one pull request into `beta`** for every phone plan (the owner, 2026-11-15). It already holds the design and the plans. Work on it in order, P0 first; never on a branch of its own. Never merge; never push to `beta`, `canary` or `main`. The pull request is open already (P0 opened it): push to it, add this plan's section to its description, and read its checks at each stage end.
 - **Scope:** `crates/opencord-mobile/`, `mobile/src/`, `docs/`. No core, server, protocol or desktop change.
 - **Words new on the phone** (no desktop source) are marked so where they're given; every other quoted word is the desktop's, from the file the task names. Where a sentence is given with `…`, copy the whole sentence from that file.
 - **Every destructive action confirms** with the system dialog and the desktop's words: delete a channel, delete a role, kick, ban, revoke an invite, delete a sound, remove an overwrite. The button names the action (`Delete channel`, `Ban`), never `OK`.

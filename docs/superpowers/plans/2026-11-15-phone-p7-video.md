@@ -21,7 +21,7 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-video`, from the last finished phone plan (P0 at least; not alongside P4, which also changes the facade heavily). Draft PR into `beta` at Stage A's end.
+- **Branch:** `feat/mobile-features`, the one branch and **one pull request into `beta`** for every phone plan (the owner, 2026-11-15). It already holds the design and the plans. Work on it in order, P0 first; never on a branch of its own. Never merge; never push to `beta`, `canary` or `main`. The pull request is open already (P0 opened it): push to it, add this plan's section to its description, and read its checks at each stage end.
 - **Scope:** this plan **does change the core**: `crates/opencord-core/src/video.rs` and a new `video/external.rs`, and `crates/opencord-media/src/video/layers.rs`, all gated to `target_os = "android"` and `"ios"`, so nothing changes on the desktop (`cargo test -p opencord-core -p opencord-media` on Linux and the desktop app's tests prove it). No server or protocol change.
 - **Gates need real phones.** The emulator's codecs are software, so performance is measured on the owner's Android phone (over `adb`) and on an iPhone through the Mac session (git bundles, as the phone apps plan did). Stage A stops for the owner if a gate fails or a phone isn't available.
 - **Never log** frames or packet contents: log sizes, rates, layer names and error kinds.

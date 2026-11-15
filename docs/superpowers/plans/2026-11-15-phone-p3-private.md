@@ -18,7 +18,7 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-private`, from `feat/phone-chat` (P2). Draft PR into `beta` at Stage A's end, stacked.
+- **Branch:** `feat/mobile-features`, the one branch and **one pull request into `beta`** for every phone plan (the owner, 2026-11-15). It already holds the design and the plans. Work on it in order, P0 first; never on a branch of its own. Never merge; never push to `beta`, `canary` or `main`. The pull request is open already (P0 opened it): push to it, add this plan's section to its description, and read its checks at each stage end.
 - **Scope:** `crates/opencord-mobile/`, `mobile/src/`, `docs/`. No core, server, protocol or desktop change: if one is needed, stop and ask.
 - **Never log** message content, names, words, keys or the master key. The keystore entry is never backed up in plain text: `keychainAccessible: AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY` on iOS, and Android's encrypted shared preferences (expo-secure-store's default).
 - **Losing the master key loses this device's chat history,** never the identity: the core starts fresh (`PrivateOpened.started_fresh`), and the phone shows the desktop's sentence (Task 2).

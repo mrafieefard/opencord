@@ -15,7 +15,7 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-plugins-admin`, from `feat/phone-admin` (P4) or P5 if it's done. Draft PR into `beta`, stacked; it also needs plugins milestones 1–4 (#46–#52) in `beta` before it can merge.
+- **Branch:** `feat/mobile-features`, the one branch and **one pull request into `beta`** for every phone plan (the owner, 2026-11-15). It already holds the design and the plans. Work on it in order, P0 first; never on a branch of its own. Never merge; never push to `beta`, `canary` or `main`. The pull request is open already (P0 opened it): push to it, add this plan's section to its description, and read its checks at each stage end.
 - **Scope:** `crates/opencord-mobile/`, `mobile/src/`, `docs/`. No core, server, protocol or desktop change.
 - **Not in P6:** dev tokens (desktop only, design §3).
 - **The package limit** is the server's `max_package_mb` (default 50, `crates/opencord-server/src/config.rs:125`); the phone refuses a bigger file before reading it, with `This package is over the server's limit of <N> MB.` and the limit from the server's refusal when it isn't known.
