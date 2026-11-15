@@ -2,14 +2,14 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-11-07-plugins-m1.md`: milestone 1 of plugins (the runtime, the resource manager and bots). The design is `docs/superpowers/specs/2026-11-07-plugins-design.md`.
+You are implementing `docs/superpowers/plans/2026-11-15-background-updates.md`: signed releases, then background updates with the update square and the restart animation. The design is `docs/superpowers/specs/2026-11-12-background-updates-design.md`, with two mockups beside it.
 
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each stage: it grows after every review.
-- **One draft pull request for the whole milestone,** opened after Task 3. It stays a draft until the Stage E review passes. For this plan, that replaces "at the end of each milestone, open a pull request" below.
-- The plan gives behavior, interfaces, names and tests, and the spec gives the numbers and words. You write the code, and the rules below are what the review checks it against.
+- **Two pull requests:** Stage 0 (signing) on `ci/update-signing`, then one draft pull request for Stages A–E on `feat/background-updates`. The plan's Global Constraints say how each is made.
+- The plan gives behavior, interfaces, names and tests, and the design gives the numbers and words. You write the code, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-- **Keep going through stages A to E without waiting for the owner.** Claude reviews stages D and E; its verdict decides: PASS goes on, FAIL goes back to fixing. The plan's "Stages and their reviews" says how, and when to stop and ask the owner. Stop after Stage E: the owner releases milestone 2.
-- **The decisions entry is Claude's** for this plan, at the last review. Don't write one.
+- **Keep going between stages** unless the plan says to stop: it stops after Stage 0's pull request and at the end of Stage E. At each review, hand it to Claude and wait for its verdict.
+- **The decisions entry is Claude's,** at the last review. Don't write one.
 
 ## Every change is a pull request
 

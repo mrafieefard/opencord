@@ -4,15 +4,42 @@
 //! the signature covers the downloads too. A launcher built without a key
 //! trusts HTTPS to github.com alone.
 
+use std::fmt;
+
 use data_encoding::BASE64;
 use ed25519_dalek::{Signature, VerifyingKey};
 
-/// The public key this launcher was built with, if any.
-pub fn built_in_key() -> Option<VerifyingKey> {
-    let text = option_env!("OPENCORD_UPDATE_PUBLIC_KEY").filter(|key| !key.trim().is_empty())?;
-    // A key that doesn't read is a broken build, not a reason to accept
-    // unsigned releases.
-    Some(parse_key(text).expect("OPENCORD_UPDATE_PUBLIC_KEY is not a base64 Ed25519 key"))
+use crate::log;
+
+/// The launcher was built with a key it can't read. `build.rs` refuses
+/// keys of the wrong shape, so this is 32 bytes that aren't a point on
+/// the curve.
+#[derive(Debug, PartialEq)]
+pub struct KeyError;
+
+impl fmt::Display for KeyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("the built-in update key can't be read")
+    }
+}
+
+/// The public key this launcher was built with: `None` without one, and
+/// `Err` when it can't be read. A key that doesn't read means no updates,
+/// never unsigned ones.
+pub fn built_in_key() -> Result<Option<VerifyingKey>, KeyError> {
+    let key = key_from(option_env!("OPENCORD_UPDATE_PUBLIC_KEY"));
+    if let Err(error) = &key {
+        log::line(error.to_string());
+    }
+    key
+}
+
+/// The key `text` (`OPENCORD_UPDATE_PUBLIC_KEY` at build time) names.
+fn key_from(text: Option<&str>) -> Result<Option<VerifyingKey>, KeyError> {
+    match text.filter(|key| !key.trim().is_empty()) {
+        None => Ok(None),
+        Some(text) => parse_key(text).map(Some).ok_or(KeyError),
+    }
 }
 
 /// A base64 Ed25519 public key: the 32 raw bytes, or the 44-byte DER
@@ -95,5 +122,54 @@ mod tests {
         der.extend_from_slice(key.as_bytes());
         assert_eq!(parse_key(&BASE64.encode(&der)), Some(key));
         assert_eq!(parse_key("short"), None);
+    }
+
+    /// 32 bytes, so `build.rs` lets them through, that aren't a point on
+    /// the curve.
+    fn not_a_point() -> String {
+        let mut bytes = [0; 32];
+        bytes[0] = 2;
+        assert!(
+            VerifyingKey::from_bytes(&bytes).is_err(),
+            "pick other bytes"
+        );
+        BASE64.encode(&bytes)
+    }
+
+    // Fails if `key_from` panics on a key it can't read (as
+    // `built_in_key`'s old `expect` did), if it answers `Ok(None)` and so
+    // trusts unsigned releases, or if `update_until_installed` goes on to
+    // update with an unreadable key (`let Ok(key) = key else` →
+    // `let key = key.unwrap_or(None);`).
+    #[test]
+    fn a_key_that_is_not_a_point_refuses_updates_without_panicking() {
+        let key = key_from(Some(&not_a_point()));
+        assert_eq!(key, Err(KeyError));
+
+        let dir = tempfile::tempdir().unwrap();
+        let layout = crate::layout::Layout::new(dir.path());
+        // The first status an update reports is `Checking`, before it
+        // goes online: stop there rather than reach GitHub.
+        crate::update_until_installed(
+            &layout,
+            crate::track::Track::built_in(),
+            "linux-x64",
+            key,
+            &|status| panic!("it went on to update: {status:?}"),
+        );
+        assert_eq!(layout.current(), None);
+    }
+
+    // Fails if a blank or missing key stops being "built without a key",
+    // or a good key stops reading.
+    #[test]
+    fn no_key_is_none_and_a_good_key_reads() {
+        assert_eq!(key_from(None), Ok(None));
+        assert_eq!(key_from(Some("  ")), Ok(None));
+        let key = signing_key().verifying_key();
+        assert_eq!(
+            key_from(Some(&BASE64.encode(key.as_bytes()))),
+            Ok(Some(key))
+        );
     }
 }
