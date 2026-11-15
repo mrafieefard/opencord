@@ -34,3 +34,25 @@ export function formatTime(atMs: number, nowMs: number, locale: string): string 
 export function deviceLocale(): string {
   return Intl.DateTimeFormat().resolvedOptions().locale;
 }
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/** `7 October 2026`, for "member since" (desktop parity §4.8). */
+export function longDate(time: number | Date): string {
+  const d = typeof time === 'number' ? new Date(time) : time;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+

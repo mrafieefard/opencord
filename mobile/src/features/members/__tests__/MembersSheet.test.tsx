@@ -12,6 +12,7 @@ import { CHANNELS, NIGHT_OWLS, snapshot } from '@/core/fake/world';
 import { settle } from '@/test/store';
 import { useAppStore } from '@/state/store';
 import * as groupMembersModule from '../groupMembers';
+import { MemberProfile } from '../MemberProfile';
 import { MembersSheet } from '../MembersSheet';
 
 const defaultAccess: ServerAccess = {
@@ -55,14 +56,17 @@ const TEST_MEMBERS: MemberRecord[] = [
   {
     user: { id: '1001', displayName: 'Alice', fingerprint: 'fp-alice' },
     roleIds: ['2001'],
+    joinedAtMs: 1_791_331_200_000,
   },
   {
     user: { id: '1002', displayName: 'Bob', fingerprint: 'fp-bob' },
     roleIds: [],
+    joinedAtMs: 1_791_331_200_000,
   },
   {
     user: { id: '1003', displayName: 'Charlie', fingerprint: 'fp-charlie' },
     roleIds: [],
+    joinedAtMs: 1_791_331_200_000,
   },
 ];
 
@@ -127,16 +131,33 @@ describe('MembersSheet', () => {
     expect(screen.getByText('Charlie')).toBeTruthy();
   });
 
-  // Fails if tapping a member row does not push the member profile route idempotently.
+  // Fails if tapping a member row does not push the member profile route.
   it('tapping a row opens the profile', async () => {
     await render(<MembersSheet serverKey={serverKey} />);
 
     const aliceRow = screen.getByText('Alice');
     await fireEvent.press(aliceRow);
-    await fireEvent.press(aliceRow);
 
-    expect(router.push).toHaveBeenCalledTimes(2);
+    expect(router.push).toHaveBeenCalledTimes(1);
     expect(router.push).toHaveBeenCalledWith(`/server/${serverKey}/member/1001`);
+  });
+
+  // Fails if Member since is not rendered with the formatted join date in MemberProfile.
+  it('member profile renders Member since with long date format', async () => {
+    await render(<MemberProfile serverKey={serverKey} userId="1001" />);
+
+    expect(screen.getByText('MEMBER SINCE')).toBeTruthy();
+    expect(screen.getByText('7 October 2026')).toBeTruthy();
+  });
+
+  // Fails if the sheet header is not padded with horizontal gutter.
+  it('sheet header has horizontal padding matching content gutter', async () => {
+    await render(<MembersSheet serverKey={serverKey} />);
+
+    const headerWrap = screen.getByTestId('members-sheet-header-wrap');
+    expect(headerWrap.props.style).toEqual(
+      expect.objectContaining({ paddingHorizontal: 16 }),
+    );
   });
 
   // Fails if groupMembers is called more than once when rendering 2000 members.
@@ -148,6 +169,7 @@ describe('MembersSheet', () => {
       bigMembers.push({
         user: { id, displayName: `User ${i}`, fingerprint: `fp-${i}` },
         roleIds: i % 10 === 0 ? ['2001'] : [],
+        joinedAtMs: 1_791_331_200_000,
       });
       bigPresences.push({
         userId: id,

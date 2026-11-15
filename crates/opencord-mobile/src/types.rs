@@ -79,11 +79,12 @@ pub struct UserRecord {
     pub fingerprint: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct MemberRecord {
     pub user: UserRecord,
     pub nickname: Option<String>,
     pub role_ids: Vec<String>,
+    pub joined_at_ms: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]

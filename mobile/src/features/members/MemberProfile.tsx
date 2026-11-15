@@ -1,6 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { StyleSheet, View } from 'react-native';
 
+import { longDate } from '@/features/servers/formatTime';
 import { useImageFile } from '@/features/servers/useImageFile';
 import { toast } from '@/state/actions/ui';
 import { useMemberColor, usePresence, useRoles, useServer } from '@/state/selectors';
@@ -81,7 +82,7 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
             {subtitle}
           </Text>
           {inVoiceChannelName && (
-            <Text variant="caption" color="voice" style={styles.voiceText}>
+            <Text variant="footnote" color="voice" style={styles.voiceText}>
               In voice · {inVoiceChannelName}
             </Text>
           )}
@@ -114,6 +115,17 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
           </View>
         )}
       </View>
+
+      {memberRecord.joinedAtMs > 0 && (
+        <View style={styles.section}>
+          <Text variant="caption" color="textMuted" style={styles.sectionLabel}>
+            MEMBER SINCE
+          </Text>
+          <Text variant="body" color="text">
+            {longDate(memberRecord.joinedAtMs)}
+          </Text>
+        </View>
+      )}
 
       {memberRecord.user.fingerprint !== '' && (
         <View style={styles.section}>

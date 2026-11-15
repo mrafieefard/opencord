@@ -96,6 +96,7 @@ pub(crate) fn member(member: core::Member) -> MemberRecord {
         user: user(member.user),
         nickname: member.nickname,
         role_ids: member.role_ids.into_iter().map(id).collect(),
+        joined_at_ms: number(member.joined_at_ms),
     }
 }
 
@@ -1325,5 +1326,23 @@ mod tests {
 
         assert_eq!(track(core_track(0)).local_song_id, None);
         assert_eq!(track(core_track(7)).local_song_id, Some("7".to_owned()));
+
+        let core_member = core::Member {
+            user: core::User {
+                id: 42,
+                public_key_hex: "PK".to_owned(),
+                display_name: "Alice".to_owned(),
+                avatar_hash: None,
+                fingerprint: "FP".to_owned(),
+            },
+            nickname: Some("Ali".to_owned()),
+            role_ids: vec![1, 2],
+            joined_at_ms: 1_791_331_200_000,
+        };
+        let converted_member = member(core_member);
+        assert_eq!(converted_member.user.id, "42");
+        assert_eq!(converted_member.nickname.as_deref(), Some("Ali"));
+        assert_eq!(converted_member.role_ids, vec!["1", "2"]);
+        assert_eq!(converted_member.joined_at_ms, 1_791_331_200_000.0);
     }
 }

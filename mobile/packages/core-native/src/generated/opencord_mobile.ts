@@ -3518,7 +3518,8 @@ const FfiConverterTypeUserRecord = (() => {
 export type MemberRecord = {
     user: UserRecord,
     nickname?: string,
-    roleIds: Array<string>
+    roleIds: Array<string>,
+    joinedAtMs: number
 }
 
 /**
@@ -3544,18 +3545,21 @@ const FfiConverterTypeMemberRecord = (() => {
             return {
                 user: FfiConverterTypeUserRecord.readFromCursor(c), 
                 nickname: FfiConverterOptionalString.readFromCursor(c), 
-                roleIds: FfiConverterSequenceString.readFromCursor(c)
+                roleIds: FfiConverterSequenceString.readFromCursor(c), 
+                joinedAtMs: FfiConverterFloat64.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
             FfiConverterTypeUserRecord.writeIntoCursor(value.user, c);
             FfiConverterOptionalString.writeIntoCursor(value.nickname, c);
             FfiConverterSequenceString.writeIntoCursor(value.roleIds, c);
+            FfiConverterFloat64.writeIntoCursor(value.joinedAtMs, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterTypeUserRecord.allocationSize(value.user) +
              FfiConverterOptionalString.allocationSize(value.nickname) +
-             FfiConverterSequenceString.allocationSize(value.roleIds);
+             FfiConverterSequenceString.allocationSize(value.roleIds) +
+             FfiConverterFloat64.allocationSize(value.joinedAtMs);
             
         }
     };

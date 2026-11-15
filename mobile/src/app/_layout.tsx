@@ -14,7 +14,11 @@ import { CallSheet } from '@/features/voice/CallSheet';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui';
 
-LogBox.ignoreLogs([/REMOVE_ROUTES/]);
+// Suppress library warnings from expo-router:
+// - useClearGuardedRoutes, set off by Stack.Protected guards during initial redirect.
+// - formSheet warning when deep-linking directly into a modal sheet as the initial screen.
+// - tab preloading action warning during deep link navigation.
+LogBox.ignoreLogs([/REMOVE_ROUTES/, /uses presentation.*first screen/, /The action 'PRELOAD'/]);
 
 function Routes() {
   const boot = useBoot();

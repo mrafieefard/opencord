@@ -157,9 +157,11 @@ export function MembersSheet({ serverKey, onClose, onSelectMember, variant = 'sh
   return (
     <View style={[styles.container, { backgroundColor: bg, paddingBottom }]}>
       {variant === 'column' ? (
-        <PaneHeader title="Members" insetTop={false} />
+        <PaneHeader title="Members" />
       ) : (
-        <SheetHeader title="Members" onClose={close} />
+        <View style={styles.sheetHeaderWrap} testID="members-sheet-header-wrap">
+          <SheetHeader title="Members" onClose={close} />
+        </View>
       )}
       <View style={styles.search}>
         <SearchField
@@ -183,6 +185,9 @@ export function MembersSheet({ serverKey, onClose, onSelectMember, variant = 'sh
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  sheetHeaderWrap: {
+    paddingHorizontal: space.lg,
   },
   search: {
     paddingHorizontal: space.lg,

@@ -1,4 +1,4 @@
-import { formatTime } from '../formatTime';
+import { formatTime, longDate } from '../formatTime';
 
 function norm(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
@@ -35,5 +35,12 @@ describe('formatTime', () => {
   it('a time a little ahead of the clock reads as today, and another year says the year', () => {
     expect(norm(formatTime(nowMs + 60_000, nowMs, 'en-GB'))).toBe('21:31');
     expect(norm(formatTime(new Date(2025, 11, 30, 12, 0).getTime(), nowMs, 'en-GB'))).toBe('30 Dec 2025');
+  });
+
+  // Fails if longDate does not match desktop longDate format ('5 October 2026').
+  it('longDate formats as day Month year', () => {
+    const date = new Date(2026, 9, 5);
+    expect(longDate(date)).toBe('5 October 2026');
+    expect(longDate(date.getTime())).toBe('5 October 2026');
   });
 });
