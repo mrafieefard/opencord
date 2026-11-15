@@ -1,6 +1,6 @@
 # The phone catches up with the desktop: design
 
-**Status:** draft for the owner, 2026-11-15. Nothing here is approved yet; the plans are for later (the owner, 2026-11-15).
+**Status:** the owner answered every open question on 2026-11-15 (§9). The plans are for later; nothing is built yet.
 
 ## 1. What the owner asked for
 
@@ -8,13 +8,13 @@
 
 > "You can also use the share button in server alongside bottom nav in iphone to act as Command and when user click on it, it shows a list of settings just for shortcut." (2026-11-15)
 
-The second message sets how settings are reached on an iPhone: inside a server, the round glass button beside the tab bar (where the Search button sits on the servers list) becomes a **server button**. Tapping it opens a list of shortcuts into that server's settings and actions (§6.1).
+The second message sets how settings are reached on an iPhone: inside a server, the round glass button beside the tab bar (where the Search button sits on the servers list) becomes a **server button**. Tapping it opens a list of shortcuts into that server's settings and actions (§6.1). The owner, later the same day: "in iPhone you can use that button as shortcut to server settings or anywhere else that was just a tip. But keep in mind … I don't want to search in servers while I'm in a server."
 
 ## 2. How this list was made
 
 - **The desktop:** every file under `app/lib/features`, the section headings of `docs/plans/desktop-ui.md`, and every public call of `opencord_core::Client` (`crates/opencord-core/src/client.rs`).
 - **The phone:** every file under `mobile/src` and every export of `crates/opencord-mobile/src/api/*.rs`, including the core events the facade drops (`crates/opencord-mobile/src/events.rs`, `core_event` and `media_event`).
-- **Checked against the tree on `feat/plugins-phone` at 039bce2**, plugins milestone 4. The "Not there yet" table in `docs/mobile.md` is out of date: it still lists the soundboard, voice messages and commands as missing, and the phone has all three.
+- **Checked against the tree on `feat/plugins-phone` at 039bce2** (plugins milestone 4), then against `beta` at 616ced8 after #46–#53 merged; #53's changes to the call controls and sheets are in P0's lessons and P5. The "Not there yet" table in `docs/mobile.md` is out of date: it still lists the soundboard, voice messages and commands as missing, and the phone has all three.
 
 ### What the phone already has (not planned again)
 
@@ -37,12 +37,12 @@ Grouped as the plans are. "Facade" means the group needs new calls, records or e
 | P4 | **Running a server** | Overview (name, description, icon); channels (create, edit, delete, reorder, permissions); roles (create, edit, reorder, permissions); members (roles, kick, ban); invites; bans; voice and video settings; upload settings; the private message policy; commands on and off; soundboard sounds (upload with trim, rename, delete) | every admin call | `2026-11-15-phone-p4-admin.md` |
 | P5 | **Moderating a call** | Server mute and deafen, moving someone to another channel, disconnecting them; the priority speaker; the connection's ping and quality; rejoining after a failed reconnect | voice admin calls, `ConnectionStats`, `VoiceRejoinFailed` | `2026-11-15-phone-p5-call-moderation.md` |
 | P6 | **Plugins, managed** | The Plugins page: install a package from Files, review it, permissions, config, run and stop, restart, uninstall, the log | every plugin management call and event | `2026-11-15-phone-p6-plugins-admin.md` |
-| P7 | **Camera and screen sharing** | The camera in a call, sharing the phone's screen, watching other people's streams | video codecs and native views (§7.2) | `2026-11-15-phone-p7-video.md` (outline; owner decisions first) |
-| P8 | **Notifications** | Notifications for mentions and private messages; muting servers and channels; mentions only | a push relay (§7.3) | `2026-11-15-phone-p8-notifications.md` (outline; owner decisions first) |
+| P7 | **Camera and screen sharing** | The camera in a call, sharing the phone's screen, watching other people's streams | a native video bridge; the core takes encoded video from and gives it to native code (§7.2) | `2026-11-15-phone-p7-video.md` |
+| P8 | **Notifications** | Notifications for mentions and private messages while the app is running or in a call; muting servers and channels; mentions only (notifications while the app is closed are skipped, §7.3) | none | `2026-11-15-phone-p8-notifications.md` |
 
-### Hosting settings (owner decision Q5)
+### Hosting settings (skipped for now, the owner, 2026-11-15)
 
-`Domains & network` (domains, tunnels, ports, certificates, DNS providers), `Music` (Lavalink nodes, local songs) and storage (S3 back ends, moving files) run the server's machine. They work across platforms, but they are long forms with tests that take minutes, and a mistake can take the server offline. **Claude's call:** leave them desktop only, and show them in the server button's list as a row that says `Open on a computer`. If the owner wants them, they become P9.
+`Domains & network` (domains, tunnels, ports, certificates, DNS providers), `Music` (Lavalink nodes, local songs) and storage (S3 back ends, moving files) run the server's machine. They work across platforms, but they are long forms with tests that take minutes, and a mistake can take the server offline. **The owner: skip them for now.** They stay desktop only, shown in the server button's list as a row that says `Open on a computer`. They could become a P9 later.
 
 ### Not on the desktop either
 
@@ -56,7 +56,7 @@ The tray, window controls, global hotkeys and push-to-talk keys, start at login,
 
 **Goals:** a member who owns only a phone can do everything the desktop lets them do in §3, with the desktop's words, permissions and limits.
 
-**Non-goals:** new features the desktop doesn't have; changing the desktop; the server's protocol (except P8, if the owner chooses a push relay).
+**Non-goals:** new features the desktop doesn't have; changing the desktop; the server's protocol; notifications while the app is closed (skipped by the owner).
 
 **Anti-goals** (failure even if it works):
 - **A desktop port.** Settings drawn as the desktop's dialog: tabs holding one button, set-once switches in the open, forms wider than a thumb. The owner wants Apple and Material feel, with small details right (memory, 2026-10-29).
@@ -102,7 +102,8 @@ The tray, window controls, global hotkeys and push-to-talk keys, start at login,
 ```
 
 - **While a chat is in front the tab bar is hidden** (`hidden={chatInFront}` in `(tabs)/_layout.tsx`), so the button isn't there. Then the sheet opens from the server's name at the top of the channel sidebar, on both systems.
-- **Claude's reading of "the share button":** no share button exists in the server today; the owner's words read as the iPhone's round button beside the tab bar (the one Search uses), shown with `ellipsis`. If the owner meant the share icon (`square.and.arrow.up`), only the icon changes. Asked as question 1 in §9.
+- **No search inside a server** (the owner): the button replaces Search there, and nothing else in a server offers a search of servers. Search stays on the Servers tab.
+- **"Or anywhere else":** the owner allows the button for other shortcuts later; for now it's the server's list.
 - Rows appear only with the permission the desktop asks for each page (`app/lib/features/settings/server_settings.dart`), so a member sees four rows and the owner sees all of them.
 - Each row pushes its page in the sheet's own stack. A page grows the sheet to full height.
 - **Claude's call: Android has no such slot.** There the same sheet opens from a `more_vert` button in the server's header, and from a long press on the server's name.
@@ -132,23 +133,19 @@ The tray, window controls, global hotkeys and push-to-talk keys, start at login,
 2. A settings tab inside each server: rejected, because a tab bar inside a tab bar isn't how either system works.
 3. A cog in the channel list's header: kept only as the Android fallback.
 
-### 7.2 Camera and screen sharing (P7, owner decision Q6)
+### 7.2 Camera and screen sharing (P7): B, decided for performance
 
-The phones have no FFmpeg and no `openh264` build here (`crates/opencord-media/Cargo.toml` lists both only for Linux and Windows).
-- **A. Encode and decode in Rust through the systems' codecs:** `MediaCodec` through the NDK on Android, VideoToolbox on iOS (macOS already uses VideoToolbox for calls), with frames drawn into native views. One media pipeline for every system, and the most work. Claude's pick.
-- **B. Native capture, encode and draw in Kotlin and Swift,** with the core sending only RTP. Less Rust, but two more pipelines to keep in step with the desktop's.
-- **C. `openh264` in software on the phones:** quickest to get working, but it heats the phone and drains the battery, and it has no hardware decode.
+The owner (2026-11-15): "Between A and B which one is lighter for phone performance is priority."
 
-Screen sharing also needs Android's `MediaProjection` foreground service and an iOS Broadcast Upload Extension (a separate process with a 50 MB memory limit). P7 starts with a design of its own, chosen from these.
+- **A. Rust through the systems' codecs.** It would reuse the desktop's pipeline, which turns frames into packed pictures in memory (`crates/opencord-media/src/video/picture.rs`), converts and scales them on the CPU (`video/codec/convert.rs`, `scale.rs`), and hands every tile RGBA rows (`FrameSink::present` in `crates/opencord-core/src/video.rs`). On a phone that's a full-size copy and a colour conversion per frame per tile, which is heat and battery.
+- **B. Native capture, encode, decode and draw (chosen).** The camera feeds the hardware encoder's input surface directly; the hardware decoder draws straight into the tile's view (`SurfaceView` on Android, `AVSampleBufferDisplayLayer` on iOS). No frame is ever copied to the CPU, converted, or crosses into Rust or JavaScript. Rust keeps what it does best and already has: the transport, which takes encoded H.264 per layer (`Transport::send_video(VideoFrame)`) and gives back assembled pictures (`ReceivedVideo`), and its decisions (which layers to send and at what bitrate, keyframe requests, which tiles get which layer: `VideoSender::encode`, `keyframe`, `video/priorities.rs`). Only small encoded packets cross between native code and Rust, through a small C interface (P7 Task 1), never through JavaScript.
+- **C. OpenH264 in software:** rejected; it's the heaviest of the three.
 
-### 7.3 Notifications (P8, owner decision Q4)
+The cost of B is two native pipelines (Kotlin and Swift) beside the desktop's, and a few core changes so the core can drive an outside encoder and decoder (P7 says which). iOS screen sharing needs a Broadcast Upload Extension, which is native code in any of the three.
 
-A phone can only be woken while the app is closed through Apple's (APNs) and Google's (FCM) servers, and each needs one sender identity per app, which the self-hosted servers don't have.
-- **A. A relay run by Opencord:** each server sends "wake device X" to one relay that holds the APNs key and the FCM credentials. Content stays on the server; the relay sees only that something happened. This is how most self-hosted chat apps do it.
-- **B. Each server owner sets up their own APNs and FCM credentials.** That isn't possible for an app installed from one store listing, because the credentials are tied to the app's bundle id.
-- **C. No push:** notify only while the app runs (in a call, or in the foreground), and through Android's UnifiedPush for people who run a distributor such as ntfy. Free, but iPhones get nothing while the app is closed.
+### 7.3 Notifications (P8): only while the app runs
 
-Claude's pick is A with C first: local notifications while the app is running ship in P8's first stage, and the relay follows once the owner decides who runs it.
+The owner (2026-11-15): "Skip offline notification." P8 notifies while the app is in the foreground, or in the background during a call (when the phone keeps it running). Waking a closed app needs Apple's and Google's push services and a relay to hold their credentials; that's left out, and the server and protocol don't change.
 
 ### 7.4 Videos in the chat
 
@@ -160,26 +157,26 @@ The desktop plays them through FFmpeg in the core (`media_open`). The phone has 
 P0 Foundation ── P1 You ── P2 Chat ── P3 Private ── P4 Admin ──┬── P5 Call moderation
                                                                └── P6 Plugins admin
 P8 Notifications: after P1 (status) and P3 (private messages)
-P7 Video: its own design first, any time after P0
+P7 Video: any time after P0; it touches the core, so not alongside P4's facade work
 ```
 
-Each plan branches from the one before it, so the order is a chain. The real dependencies are fewer: P1, P2 and P4 need only P0; P5 needs P4's permission sets; P6 needs P4's pages; P8 needs P1 and P3. If P3 is held (Q7), P4 branches from P2.
+Each plan branches from the one before it, so the order is a chain. The real dependencies are fewer: P1, P2 and P4 need only P0; P5 needs P4's permission sets; P6 needs P4's pages; P8 needs P1 and P3. 
 
 - **P0 first:** every other plan uses its roles, permissions, members list, settings kit and server button.
 - **Then P1 and P2:** the most people see them every day, and both are small.
 - **Then P3, P4, P5, P6** in that order.
 - **P7 and P8 last,** after their designs.
-- **Base branch (owner decision Q3):** plugins milestones 1–4 (#46–#52) aren't merged into `beta`, and M4 changed the same facade, state and `FakeCore` files every plan here changes. **Claude's call:** P0 branches from `feat/plugins-phone`, and its pull request into `beta` is a draft that says so, until #52 merges. Each later plan branches from the one before.
+- **Base branch:** plugins milestones 1–4 are merged into `beta` (#46–#52, and #53, 2026-11-15). P0 branches from `beta`; each later plan branches from the one before.
 
-## 9. Decisions the owner hasn't made (asked together)
+## 9. The owner's answers (2026-11-15)
 
-1. **The server button (§6.1):** the round button beside the tab bar with a `⋯`, as Claude read it, or a share icon, or something else?
-2. ~~**Who builds**~~ **Answered (2026-11-15):** Gemini builds; tasks scored 0–5, 1–3 Gemini, 4–5 Claude through the bridge (P0's rubric). The plans are for later, not to start now.
-3. **The base branch:** stack on `feat/plugins-phone` (§8), or wait until #46–#52 merge?
-4. **Push notifications:** run a relay (A), go without push (C), or both, local first?
-5. **Hosting settings on the phone:** desktop only, as Claude proposes, or a P9?
-6. **The phone's video pipeline:** A (Rust through the systems' codecs), B (native Kotlin and Swift) or C (software)?
-7. **Private messages on the phone:** the memory of 2026-11-01 says not to add them until the owner says so. This request reads as yes. Confirm it, and say whether the Anchor (account sync) should wait for this or this for it.
+1. **The server button:** yes, the iPhone's button beside the tab bar is the shortcut to the server's settings (and may hold other shortcuts later). No search of servers while in a server.
+2. **Who builds:** Gemini, with tasks scored 0–5: 1–3 Gemini, 4–5 Claude through the bridge (P0's rubric).
+3. **Base branch:** the plugin pull requests are merged; plans are written on a new branch from `beta`, and P0 branches from `beta`.
+4. **Notifications while the app is closed:** skipped.
+5. **Hosting settings on the phone:** skipped for now.
+6. **Video:** whichever is lighter for the phone: B (§7.2).
+7. **Private messages:** now, in P3. The Anchor (account sync) is built after this plan.
 
 ## 10. Claude's calls (for the owner to check)
 
@@ -187,6 +184,6 @@ Each plan branches from the one before it, so the order is a chain. The real dep
 2. Settings save on touch, and text saves with a header `Save` (§6.2).
 3. A Messages tab for private messages (§6.3).
 4. Videos in the chat play through the system's player, not the core's (§7.4).
-5. Hosting settings stay desktop only (§3).
+5. Hosting settings stay desktop only for now (§3, the owner's).
 6. Reactions, pins, replies, announcements and read states stay out until the server has them (§2).
-7. P0 stacks on `feat/plugins-phone` (§8).
+7. P0 branches from `beta` (§8).

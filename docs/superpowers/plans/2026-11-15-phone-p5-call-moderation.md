@@ -33,7 +33,7 @@ Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude*
 | 2 The JavaScript core and the fake | 2 | Gemini | A fake with a timer |
 | 3 `mayActOn`, the rules | 3 | Gemini | Extends P4's port with the voice branches. Focus: every voice branch named; P4's cases untouched |
 | 4 Actions on a profile in a call | 2 | Gemini | Buttons over Task 3's answer |
-| 5 Priority speaker | 4 | Claude | Real-time: a held state in the audio pipeline that must be released on every way out (gesture cancel, background, leaving) |
+| 5 Priority speaker | 4 | Claude | Real-time: a held state in the audio pipeline that must be released on every way out (gesture cancel, background, leaving), on a SwiftUI button on iOS |
 | 6 Connection | 2 | Gemini | A sheet and a sparkline from one event |
 | 7 The reconnect bar | 3 | Gemini | State kept across an app kill. Focus: once per cut; nothing after a deliberate leave |
 | 8 Live checks, docs, D-entry, PR | 2 | Gemini | Running the checks and writing from `git diff` |
@@ -79,7 +79,7 @@ Stages: A = 1–3, B = 4–7 with a review, C = 8. Commands as P0.
 
 ### Task 5: Priority speaker
 
-**Files:** modify `features/voice/ControlBar.tsx`; create `features/voice/usePrioritySpeaker.ts`.
+**Files:** modify `features/voice/ControlBar.tsx` (Android) and `features/voice/ControlBar.ios.tsx` (the SwiftUI glass buttons since #53: the long press is the SwiftUI button's own `onLongPressGesture`, reported to JavaScript as press-down and press-up; add those two events to the native button if `@expo/ui` doesn't give them, with a ruling); create `features/voice/usePrioritySpeaker.ts`.
 
 - As the Global Constraints say. Released on finger up, gesture cancel, `AppState` leaving `active`, leaving the call, and the component unmounting.
 - [ ] Tests: `priority speaker is released on every way out` (one case per way), `only with the permission`. Implement; on the emulator with the desktop in the call, hold and see the desktop lower others (ledger it); commit `feat(mobile): hold for priority speaker`.

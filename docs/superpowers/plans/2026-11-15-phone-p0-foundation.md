@@ -15,7 +15,7 @@
 
 ## Global Constraints
 
-- **Branch:** `feat/phone-foundation`, made from `feat/plugins-phone` (PR #52) unless the owner answered design §9 Q3 otherwise; its first commit holds this plan and the design. Open a **draft pull request into `beta`** at the end of Stage A. Its description says the diff includes plugins milestones 1–4 until #46–#52 merge. Never merge; never push to `beta`, `canary` or `main`.
+- **Branch:** `feat/phone-foundation`, made from `beta` (plugins milestones 1–4 and #53 are merged); its first commit holds this plan and the design. Open a **draft pull request into `beta`** at the end of Stage A. Never merge; never push to `beta`, `canary` or `main`.
 - **Before Task 1:** `git status --short -uno` prints nothing; `df -h /` shows at least 20 GB free; `source mobile/scripts/env.sh && cd mobile && yarn core:android && scripts/check-bindings.sh` passes; `adb devices` shows `emulator-5554`.
 - **Scope:** `crates/opencord-mobile/`, `mobile/src/`, `mobile/packages/core-native` (generated only), `docs/`. Nothing in `crates/opencord-core`, `crates/opencord-server`, `proto/` or `app/` changes. If a task seems to need that, stop and ask.
 - **Ids are decimal strings** in JavaScript; the facade converts. Permission bits never cross as numbers: they cross as named flags, as `ChannelAccess` does.
@@ -46,6 +46,9 @@ These come from the review findings of the phone apps plan and the plugins miles
 9. **Native config is checked live.** Anything registered in `app.config.ts` or a config plugin (schemes, permissions, background modes) is proven on the emulator, not by a unit test.
 10. **The D-entry** names only identifiers found with `rg` in `git diff`, and every count is counted, not remembered. For Claude's tasks, describe Claude's own reports.
 11. **A new dependency** passes `yarn licenses:check` (`mobile/scripts/licenses.js`, MIT, Apache-2.0, BSD, ISC, Zlib, 0BSD only) in the task that adds it.
+12a. **Sheets** open with `SheetHeader` (title, a close button) and keep their root view un-flattened, as every sheet does since #53; check each new sheet on iOS 26 for its list drawn over its title.
+12b. **Lists under the tab bar** leave room for it and the voice pill with `useListEndRoom`, and turn iOS's own inset adjusting off (#53's fix); a new list's last rows are checked on screen.
+12c. **The iOS call controls are SwiftUI glass buttons** (`features/voice/ControlBar.ios.tsx`, since #53); Android keeps `ControlBar.tsx`. A change to the call's controls is made in both.
 12. **Through the bridge** (if the owner chose Gemini plus the bridge): the bridge refuses `source`, `gh` and `.github/check.sh`. A Claude task ends after `cargo test`, `cargo clippy` and `cargo fmt --check` run with `--config` flags; **the bindings step (`yarn core:android`, `check-bindings.sh`), screenshots and the commit are Gemini's**, as the next step of the same task.
 
 

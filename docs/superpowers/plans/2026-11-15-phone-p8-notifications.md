@@ -1,13 +1,13 @@
 # Phone P8: Notifications — Plan
 
-> **Stage A is a task-level plan; Stage B is an outline** that stops at the owner's decision (design §9 Q4). Stage B is written as tasks after the answer.
+> **The owner, 2026-11-15: skip notifications while the app is closed.** This plan covers only the app running in the foreground, or in the background during a call. There's no push relay and no server change.
 
-**Goal:** The phone tells you about mentions and private messages as the desktop does, with per-server and per-channel mute and "mentions only", first while the app runs, then (Stage B) while it's closed.
+**Goal:** The phone tells you about mentions and private messages as the desktop does, with per-server and per-channel mute and "mentions only", while the app runs (in the foreground, or in the background during a call).
 
 **Architecture:**
 - **The rules are the desktop's** (`app/lib/features/desktop/notification_policy.dart`): nothing in do not disturb (P1's status) or with notifications off; in muted channels and with "mentions only", just mentions; a private message or friend request unless that chat is on screen. They're pure functions, ported with their tests.
-- **Stage A: local notifications while the app runs.** The app is alive in the foreground, and in the background while in a call (Android's voice service, iOS's audio background mode). New messages there go through `expo-notifications` as local notifications. Tapping one opens the channel or the private chat.
-- **Stage B: push while the app is closed** needs one of design §7.3's options.
+- **Local notifications while the app runs.** The app is alive in the foreground, and in the background while in a call (Android's voice service, iOS's audio background mode). New messages there go through `expo-notifications` as local notifications. Tapping one opens the channel or the private chat.
+- **Not here:** waking a closed app (Apple's and Google's push services and a relay); skipped by the owner.
 
 **Tech Stack:** as P0. **New dependency:** `expo-notifications` (Expo's own, ~58).
 
@@ -16,7 +16,7 @@
 ## Global Constraints
 
 - **Branch:** `feat/phone-notifications`, from the last finished phone plan (it needs P1's status and, for private messages, P3). Draft PR into `beta`, stacked.
-- **Scope (Stage A):** `mobile/`, `docs/`. No facade change is expected (messages and private events already reach JavaScript). Stage B changes the server and the protocol: stop and ask before any of it.
+- **Scope:** `mobile/`, `docs/`. No facade, server or protocol change (messages and private events already reach JavaScript). If one seems needed, stop and ask.
 - **Never put message text in a notification** on the lock screen unless the user turns on `Show message previews` (default off, Claude's call): the title is the server and channel, or the person; the body `New message` or `Mentioned you`. A private message's text never leaves the phone's own process.
 - P0's Global Constraints from "Ids are decimal strings" on apply.
 
@@ -32,7 +32,7 @@ Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude*
 | 2 Mute and mentions only | 2 | Gemini | A port of `NotificationPrefs` and two menu items |
 | 3 Local notifications | 4 | Claude | Platform code: Android notification channels, iOS background delivery during a call, routing a tap into a cold app |
 | 4 Settings and the server sheet's row | 2 | Gemini | Switches and the permission state |
-| 5 Live checks, docs, D-entry, PR (Stage A) | 2 | Gemini | Running the checks and writing from `git diff` |
+| 5 Live checks, docs, D-entry, PR | 2 | Gemini | Running the checks and writing from `git diff` |
 
 **Order:** **3** needs 1 and 2: Gemini does 1 and 2 first, then hands over 3, then 4.
 
@@ -44,7 +44,7 @@ Scores (the owner, 2026-11-15): **0** no code; **1–3 Gemini**; **4–5 Claude*
 4. **Many messages at once** (a reconnect delivers 200). Expected: one notification per channel, updated, not 200; nothing for messages older than the reconnect. Pinned in Task 3: `a burst becomes one notification per channel`.
 5. **Notification permission refused.** Expected: the settings page says so with a button to the system settings; nothing else breaks. Pinned in Task 4.
 
-## Stage A — While the app runs
+## The tasks
 
 ### Task 1: The rules, ported
 
@@ -64,14 +64,4 @@ You → `Notifications`: `Notifications` (on/off), `Only mentions` (the desktop'
 
 ### Task 5: Live checks, docs, D-entry, PR
 
-Hand checks on the emulator (and owed on an iPhone): a mention in the foreground, in a call in the background, a private message, do not disturb. `docs/mobile.md` says notifications arrive only while the app runs or is in a call, until Stage B. The next D-number. `.github/check.sh`; push; PR; checks green; review; report.
-
-## Stage B — While the app is closed (outline)
-
-Needs design §9 Q4. With **A (a relay run by Opencord)**, Claude's pick:
-1. **(5, Claude) The relay:** a small service (`crates/opencord-push-relay`, Rust, axum) holding the APNs key and the FCM service account, taking `{ device_token, platform, wake }` from servers, signed by the server's identity key and rate-limited per server. It sees no content and no user ids, only a token and that something happened.
-2. **(4, Claude) The server:** a `[push]` section (`relay_url`, off by default); members register device tokens (a new protocol message); on a mention or private message for an offline member with a token, the server asks the relay to wake that device.
-3. **(5, Claude) The phone:** registers its APNs/FCM token with each server; on a silent push, connects briefly in the background (iOS gives about 30 s), fetches what's new, and shows Stage A's notification. A private message is decrypted on the phone, never by the relay or the server.
-4. **(0, the owner) Operations:** who runs the relay, its domain, the Apple and Google accounts, and what self-hosters do who don't want it (option C: UnifiedPush on Android, nothing on iOS).
-
-Questions for the owner: who runs the relay and under which Apple/Google accounts; whether servers may opt out of it; whether UnifiedPush should be offered on Android as well.
+Hand checks on the emulator (and owed on an iPhone): a mention in the foreground, in a call in the background, a private message, do not disturb. `docs/mobile.md` says notifications arrive only while the app runs or is in a call. The next D-number. `.github/check.sh`; push; PR; checks green; review; report.

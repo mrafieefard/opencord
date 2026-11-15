@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Hold:** don't start until the owner has answered design §9 Q7. The memory of 2026-11-01 says private messages stay off the phone until the owner says so.
+> **The owner, 2026-11-15:** private messages come to the phone now. The Anchor (account sync, which changes how devices get chat keys) is built after this whole plan, so P3 uses today's device approval as the desktop does.
 
 **Goal:** On the phone you have friends and private chats with the desktop's end-to-end encryption: requests, blocking, chats that survive being offline, comparing words, and approving the phone as one of your own devices.
 
