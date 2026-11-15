@@ -1,12 +1,12 @@
-// The voice call's controls on iOS (ControlBar.tsx is Android's): a row of
-// round Liquid Glass buttons, as the Phone app's call controls, each its
-// own glass with no bar around them. Off, a control is glass faintly tinted
+// The voice call's controls on iOS (ControlBar.tsx is Android's): round
+// Liquid Glass buttons, as the Phone app's call controls, in one frame (a
+// softly filled capsule, not glass), all drawn in SwiftUI. Off, a control is glass faintly tinted
 // with the text colour; Mute, Deafen and Activities are on (glass in the
 // accent) when their state is; Leave is glass in the recording colour. Activities is on while an activity runs
 // in the call: then it's a menu (open it, change it, close it), which grows
 // out of that button alone; off, it opens the picker.
-import { Button, HStack, Host, Menu, Spacer } from '@expo/ui/swift-ui';
-import { accessibilityLabel, buttonBorderShape, buttonStyle, controlSize, foregroundStyle, labelStyle, tint } from '@expo/ui/swift-ui/modifiers';
+import { Button, HStack, Host, Image, Menu, Spacer } from '@expo/ui/swift-ui';
+import { accessibilityLabel, background, buttonBorderShape, buttonStyle, controlSize, foregroundStyle, frame, padding, shapes, tint } from '@expo/ui/swift-ui/modifiers';
 import { StyleSheet, View } from 'react-native';
 
 import { onHue, space, useTheme, withAlpha, type IconName } from '@/ui';
@@ -18,6 +18,11 @@ export type { ControlBarProps } from './ControlBar';
 
 /** The row's height, held from the first layout: SwiftUI measures it a moment later. */
 const ROW_HEIGHT = 72;
+/** The frame's room around its buttons. */
+const FRAME_PAD = space.sm;
+/** A control's glyph, and the square it's set in. */
+const GLYPH = 20;
+const GLYPH_BOX = 24;
 
 type Tone = 'plain' | 'on' | 'leave';
 
@@ -40,14 +45,18 @@ export function ControlBar({
   const look = (label: string, tone: Tone) => [
     buttonStyle('glassProminent'),
     buttonBorderShape('circle'),
-    controlSize('extraLarge'),
-    labelStyle('iconOnly'),
+    controlSize('large'),
     tint(tone === 'on' ? colors.accent : tone === 'leave' ? colors.recording : withAlpha(colors.text, 0.14)),
     foregroundStyle(tone === 'on' ? colors.onAccent : tone === 'leave' ? onHue : colors.text),
     accessibilityLabel(label),
   ];
+  // Its glyph in a fixed square: a circle sizes to what it holds, so every
+  // control is the same size whatever its symbol's shape.
+  const glyph = (icon: IconName) => <Image systemName={icons[icon].ios} size={GLYPH} modifiers={[frame({ width: GLYPH_BOX, height: GLYPH_BOX })]} />;
   const control = (icon: IconName, label: string, tone: Tone, testID: string, onPress?: () => void) => (
-    <Button label={label} systemImage={icons[icon].ios} onPress={onPress} modifiers={look(label, tone)} testID={testID} />
+    <Button onPress={onPress} modifiers={look(label, tone)} testID={testID}>
+      {glyph(icon)}
+    </Button>
   );
   const showActivities = onOpenActivities !== undefined || activityActive;
   const withMenu = activityActive && activityMenu.length > 0 && onActivityAction !== undefined;
@@ -55,7 +64,15 @@ export function ControlBar({
   return (
     <View style={styles.row} testID="control-bar">
       <Host matchContents={{ vertical: true }} colorScheme={scheme} style={styles.host}>
-        <HStack>
+        {/* The frame: one capsule the buttons sit in. */}
+        <HStack
+          modifiers={[
+            padding({ vertical: FRAME_PAD, horizontal: FRAME_PAD }),
+            // A soft fill, not glass: a frame of glass would be what the
+            // Activities menu grows out of, taking every button with it.
+            background(withAlpha(colors.text, 0.07), shapes.capsule()),
+          ]}
+        >
           <Spacer />
           {control(muted ? 'micOff' : 'mic', muted ? 'Unmute' : 'Mute', muted ? 'on' : 'plain', 'control-mute', onToggleMute)}
           <Spacer />
@@ -65,7 +82,7 @@ export function ControlBar({
           {showActivities && <Spacer />}
           {showActivities &&
             (withMenu ? (
-              <Menu label="Activities" systemImage={icons.extension.ios} modifiers={look('Activities', 'on')} testID="activities-menu">
+              <Menu label={glyph('extension')} modifiers={look('Activities', 'on')} testID="activities-menu">
                 {activityMenu.map((action) => (
                   <Button
                     key={action.id}
@@ -88,6 +105,6 @@ export function ControlBar({
 }
 
 const styles = StyleSheet.create({
-  row: { marginHorizontal: space.sm, marginBottom: space.sm },
+  row: { marginHorizontal: space.md, marginBottom: space.sm },
   host: { minHeight: ROW_HEIGHT },
 });

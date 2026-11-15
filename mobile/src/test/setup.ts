@@ -145,10 +145,10 @@ jest.mock('@expo/ui/swift-ui', () => {
     Spacer: () => null,
     // A menu button: named by its label (or accessibilityLabel), its items
     // beside it as menu items.
-    Menu: ({ label, modifiers, testID, children }: { label?: string; modifiers?: { _label?: string }[]; testID?: string; children?: React.ReactNode }) =>
+    Menu: ({ label, modifiers, testID, children }: { label?: React.ReactNode; modifiers?: { _label?: string }[]; testID?: string; children?: React.ReactNode }) =>
       React.createElement(
         View,
-        { testID, accessibilityRole: 'button', accessibilityLabel: modifiers?.find((m) => m && m._label)?._label ?? label },
+        { testID, accessibilityRole: 'button', accessibilityLabel: modifiers?.find((m) => m && m._label)?._label ?? (typeof label === 'string' ? label : undefined) },
         React.createElement(InMenu.Provider, { value: true }, children),
       ),
     Image: () => null,
@@ -209,6 +209,10 @@ jest.mock('@expo/ui/swift-ui/modifiers', () => ({
   font: () => ({}),
   foregroundStyle: () => ({}),
   frame: () => ({}),
+  padding: () => ({}),
+  glassEffect: () => ({}),
+  background: () => ({}),
+  shapes: { capsule: () => ({}) },
   pickerStyle: () => ({ _style: 'segmented' }),
   tag: (idx: number) => ({ _tag: idx }),
   accessibilityLabel: (lbl: string) => ({ _label: lbl }),
