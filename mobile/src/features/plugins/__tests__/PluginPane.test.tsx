@@ -164,9 +164,10 @@ describe('a plugin channel', () => {
     expect(area.calls.filter((call) => call.method === 'createArea')).toHaveLength(1);
   });
 
-  // Fails if a plugin channel hides the way back to the call this device is
-  // in elsewhere (found live: no bar, no way back but the sidebar).
-  it('in a call elsewhere, the pane shows the connected bar', async () => {
+  // Fails if the call's bar takes room from a plugin's screen: a plugin
+  // channel has no voice bar (nor tab bar) under it, by the owner's choice;
+  // the way back to the call from there is the sidebar.
+  it('in a call elsewhere, the pane shows no voice bar', async () => {
     const core = await ready();
     await core.voiceJoin(NIGHT_OWLS, CHANNELS.lounge);
     onEvents(await core.nextEvents(core.eventsAttach(), 100));
@@ -177,7 +178,7 @@ describe('a plugin channel', () => {
       </GestureHandlerRootView>,
     );
     await settle();
-    expect(screen.getByTestId('connected-bar-pressable')).toBeTruthy();
+    expect(screen.queryByTestId('connected-bar-pressable')).toBeNull();
   });
 
   // Fails if the phone's sidebar swipe can take a horizontal drag from a

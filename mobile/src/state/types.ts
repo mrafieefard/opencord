@@ -186,7 +186,7 @@ export interface AppState {
   /** When this device last played a sound, per server: the cooldown runs from it. */
   lastSound: Record<string, number>;
   voicePlayback: VoicePlayback | null;
-  /** A text channel fills a phone's screen: the tab bar steps aside for typing. */
+  /** A text or plugin channel fills a phone's screen: the tab bar (and the floating voice bar, but in a chat's room for it) steps aside. */
   chatInFront: boolean;
   /** The tab bar's room at the foot of a tab's screen (its bottom inset there); 0 unknown. */
   tabInset: number;

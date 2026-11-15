@@ -66,9 +66,10 @@ export function PhonePanes({ serverKey, panes, width }: PhonePanesProps) {
   const listOut = full || sidebarOpen;
   const narrow = sidebarWidth(width);
 
-  // The tab bar shows everywhere in a server but a text channel in front,
-  // where the keyboard and the composer need the room.
-  const chatInFront = open?.kind === 'text' && !listOut;
+  // The tab bar shows everywhere in a server but a text or plugin channel in
+  // front: a chat's keyboard and composer need the room, and a plugin its
+  // whole screen (the floating voice bar steps aside there too).
+  const chatInFront = (open?.kind === 'text' || open?.kind === 'plugin') && !listOut;
   useEffect(() => {
     setChatInFront(chatInFront);
   }, [chatInFront]);
