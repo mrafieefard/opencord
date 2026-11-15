@@ -223,6 +223,9 @@ describe('activities in a call', () => {
     const mineIds = activityActions(server, session('900', 'paint'), false).map((a) => a.id);
     expect(mineIds).toEqual(['open', 'end']);
     expect(activityActions(server, session('901', 'chess', '1001'), false).map((a) => a.id)).toEqual(['open']);
+    // Someone else's, but no one else has it open: its last viewer may end it.
+    expect(activityActions(server, session('901', 'chess', '1001', [SELF_ID]), true).map((a) => a.id)).toEqual(['close', 'end']);
+    expect(activityActions(server, session('901', 'chess', '1001', [SELF_ID, '1001']), true).map((a) => a.id)).toEqual(['close']);
     const confirm = ui.confirm as jest.Mock;
     const { runActivityAction } = jest.requireActual<typeof import('../activityActions')>('../activityActions');
     confirm.mockImplementationOnce((options: ui.ConfirmOptions) => options.onCancel?.());
@@ -341,17 +344,18 @@ describe('activities in a call', () => {
   it("Activities is on while one runs, and its menu opens, changes or closes it", async () => {
     await inCall(session('900', 'paint'));
     await pane({ asCall: true });
-    expect(screen.getByTestId('control-activities').props.accessibilityState).toMatchObject({ selected: true });
-    const menu = screen.getByTestId('activities-menu');
-    await act(async () => fireEvent(menu, 'onAction', 'open:900'));
+    // On, Activities is the menu itself (iOS: a glass menu button).
+    expect(screen.getByTestId('activities-menu')).toBeTruthy();
+    expect(screen.queryByTestId('control-activities')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Open activity'));
     await settle();
     expect(useAppStore.getState().openActivity).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, sessionId: '900' });
     expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/activity/900`);
-    await act(async () => fireEvent(menu, 'onAction', 'change'));
+    await fireEvent.press(screen.getByLabelText('Change activity'));
     expect(router.push).toHaveBeenLastCalledWith(`/server/${NIGHT_OWLS}/activities/${CHANNELS.lounge}`);
     const confirm = ui.confirm as jest.Mock;
     confirm.mockImplementationOnce((options: ui.ConfirmOptions) => options.onCancel?.());
-    await act(async () => fireEvent(menu, 'onAction', 'close'));
+    await fireEvent.press(screen.getByLabelText('Close activity'));
     expect(confirm.mock.calls.at(-1)?.[0]).toMatchObject({ title: 'End Paint together for everyone?' });
   });
 
@@ -359,7 +363,7 @@ describe('activities in a call', () => {
   it('Activities is off with nothing running', async () => {
     await inCall();
     await pane({ asCall: true });
-    expect(screen.getByTestId('control-activities').props.accessibilityState).toMatchObject({ selected: false });
+    expect(screen.getByTestId('control-activities')).toBeTruthy();
     expect(screen.queryByTestId('activities-menu')).toBeNull();
   });
 
