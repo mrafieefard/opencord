@@ -31,10 +31,10 @@ Grouped as the plans are. "Facade" means the group needs new calls, records or e
 | # | Group | What it holds | Facade work | Plan |
 |---|---|---|---|---|
 | P0 | **Foundation** | Roles and server-wide permissions in the snapshot and events; presence; the members list; a settings screen kit; the photo picker with crop; the server button (§6.1) | roles, presence, server permissions, `update_presence` | `2026-11-15-phone-p0-foundation.md` |
-| P1 | **You and your profile** | Avatar; a nickname per server; status (online, idle, do not disturb, invisible); voice and audio settings (echo cancellation, noise suppression, automatic gain, sensitivity, input and output volume, mic test with a level meter); sounds (soundboard volume, mute all soundboards, voice cues); the media cache's size and Clear | avatar upload, nickname, audio settings, mic test, level meter | `2026-11-15-phone-p1-you.md` |
+| P1 | **You and your profile** | Avatar; status (Online, Idle, Do not disturb); voice and audio settings (noise suppression, input and output volume, the microphone test with a level meter); sounds (soundboard volume, mute all soundboards, the voice sounds, which the phone doesn't play at all today); the attachment cache's size and Clear | avatar upload, audio settings, mic test, level meter, voice sounds, cache size | `2026-11-15-phone-p1-you.md` |
 | P2 | **Chat, the rest of it** | `@`, `#` and `:` autocomplete in the composer; an emoji picker; the members list and a member's profile from the chat; videos and audio files playing in the chat; text file previews; code highlighting; the reconnecting banner; creating and sharing an invite; a server whose certificate changed; channels and people in Search | invites, download progress, a changed identity | `2026-11-15-phone-p2-chat.md` |
 | P3 | **Private messages and friends** | Friends, requests, blocking; private chats with edit, delete, retry, typing, read and mute; moving a chat to another server; the chat-key words, verifying a person, approving this phone as one of your devices; privacy settings | the whole private API and its event stream | `2026-11-15-phone-p3-private.md` |
-| P4 | **Running a server** | Overview (name, description, icon); channels (create, edit, delete, reorder, permissions); roles (create, edit, reorder, permissions); members (roles, nickname, kick, ban); invites; bans; voice and video settings; upload settings; the private message policy; commands on and off; soundboard sounds (upload with trim, rename, delete) | every admin call | `2026-11-15-phone-p4-admin.md` |
+| P4 | **Running a server** | Overview (name, description, icon); channels (create, edit, delete, reorder, permissions); roles (create, edit, reorder, permissions); members (roles, kick, ban); invites; bans; voice and video settings; upload settings; the private message policy; commands on and off; soundboard sounds (upload with trim, rename, delete) | every admin call | `2026-11-15-phone-p4-admin.md` |
 | P5 | **Moderating a call** | Server mute and deafen, moving someone to another channel, disconnecting them; the priority speaker; the connection's ping and quality; rejoining after a failed reconnect | voice admin calls, `ConnectionStats`, `VoiceRejoinFailed` | `2026-11-15-phone-p5-call-moderation.md` |
 | P6 | **Plugins, managed** | The Plugins page: install a package from Files, review it, permissions, config, run and stop, restart, uninstall, the log | every plugin management call and event | `2026-11-15-phone-p6-plugins-admin.md` |
 | P7 | **Camera and screen sharing** | The camera in a call, sharing the phone's screen, watching other people's streams | video codecs and native views (§7.2) | `2026-11-15-phone-p7-video.md` (outline; owner decisions first) |
@@ -43,6 +43,10 @@ Grouped as the plans are. "Facade" means the group needs new calls, records or e
 ### Hosting settings (owner decision Q4)
 
 `Domains & network` (domains, tunnels, ports, certificates, DNS providers), `Music` (Lavalink nodes, local songs) and storage (S3 back ends, moving files) run the server's machine. They work across platforms, but they are long forms with tests that take minutes, and a mistake can take the server offline. **Claude's call:** leave them desktop only, and show them in the server button's list as a row that says `Open on a computer`. If the owner wants them, they become P9.
+
+### Not on the desktop either
+
+The core has `update_nickname`, but the desktop never calls it: there's no nickname editor to port. Push to talk and lowering other apps need a key or a system API phones don't offer the same way, so P1 leaves them out (Claude's call; a hold-to-talk button in the call could be a later idea).
 
 ### Desktop only (not planned)
 
@@ -82,8 +86,6 @@ The tray, window controls, global hotkeys and push-to-talk keys, start at login,
 │  Invite people                     › │
 │  Mark as read                        │
 │  Notifications           All  ›      │   (P8)
-├──────────────────────────────────────┤
-│  Your profile here                 › │   nickname, avatar (P1)
 ├──────────────────────────────────────┤
 │  Overview                          › │   only with the right permissions (P4)
 │  Channels                          › │
