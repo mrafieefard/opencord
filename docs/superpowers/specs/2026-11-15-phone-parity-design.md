@@ -38,7 +38,7 @@ Grouped as the plans are. "Facade" means the group needs new calls, records or e
 | P5 | **Moderating a call** | Server mute and deafen, moving someone to another channel, disconnecting them; the priority speaker; the connection's ping and quality; rejoining after a failed reconnect | voice admin calls, `ConnectionStats`, `VoiceRejoinFailed` | `2026-11-15-phone-p5-call-moderation.md` |
 | P6 | **Plugins, managed** | The Plugins page: install a package from Files, review it, permissions, config, run and stop, restart, uninstall, the log | every plugin management call and event | `2026-11-15-phone-p6-plugins-admin.md` |
 | P7 | **Camera and screen sharing** | The camera in a call, sharing the phone's screen, watching other people's streams | video codecs and native views (§7.2) | `2026-11-15-phone-p7-video.md` (outline; owner decisions first) |
-| P8 | **Notifications** | Notifications for mentions and private messages, per-channel mute, mentions only | a push relay (§7.3) | `2026-11-15-phone-p8-notifications.md` (outline; owner decisions first) |
+| P8 | **Notifications** | Notifications for mentions and private messages; muting servers and channels; mentions only | a push relay (§7.3) | `2026-11-15-phone-p8-notifications.md` (outline; owner decisions first) |
 
 ### Hosting settings (owner decision Q4)
 
@@ -85,7 +85,7 @@ The tray, window controls, global hotkeys and push-to-talk keys, start at login,
 ├──────────────────────────────────────┤
 │  Invite people                     › │
 │  Mark as read                        │
-│  Notifications           All  ›      │   (P8)
+│  Mute server                    [ ] │   (P8)
 ├──────────────────────────────────────┤
 │  Overview                          › │   only with the right permissions (P4)
 │  Channels                          › │
