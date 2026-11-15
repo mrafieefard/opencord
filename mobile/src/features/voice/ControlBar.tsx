@@ -1,8 +1,8 @@
 // The voice call's controls (spec §8.6): 56 pt round buttons (Mute,
-// Deafen, Soundboard, Activities, the running activity, Leave), floating in
-// one glass bar (iOS) or raised surface (Android) over the call. The
-// running activity's button wears its icon and opens its page; with more
-// than one running it offers them in a menu. Music and, on iOS, the sound output
+// Deafen, Soundboard, Activities, Leave), floating in one glass bar (iOS)
+// or raised surface (Android) over the call. Activities is on, as Mute is,
+// while an activity runs in the call: then it offers a menu (open it,
+// change it, close it); off, it opens the picker. Music and, on iOS, the sound output
 // have their buttons in the header. Toggles flip between surface/text (off)
 // and accent/onAccent (on), and their glyph shows the state; Leave is
 // recording with a white glyph.
@@ -10,16 +10,7 @@ import { useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
-import { PluginIcon } from '@/features/plugins/PluginIcon';
-import { GlassSurface, Icon, Menu, onHue, space, useTheme, type MenuHandle } from '@/ui';
-
-/** An activity running in the call, as its button shows it. */
-export interface RunningActivity {
-  sessionId: string;
-  name: string;
-  pluginId: string;
-  icon: string;
-}
+import { GlassSurface, Icon, Menu, onHue, space, useTheme, type MenuAction, type MenuHandle } from '@/ui';
 
 export interface ControlBarProps {
   muted: boolean;
@@ -27,49 +18,49 @@ export interface ControlBarProps {
   onToggleMute: () => void;
   onToggleDeafen: () => void;
   onOpenSoundboard?: () => void;
-  /** Given when this call can start an activity (plugins M4 Task 14). */
+  /** Given when this call can start an activity (plugins M4 Task 14): the picker. */
   onOpenActivities?: () => void;
-  /** The activities running in the call, newest last; their button opens one's page. */
-  running?: RunningActivity[];
-  serverKey?: string;
-  onOpenActivity?: (sessionId: string) => void;
+  /** An activity runs in the call: the button is on, and offers `activityMenu`. */
+  activityActive?: boolean;
+  activityMenu?: MenuAction[];
+  onActivityAction?: (id: string) => void;
   onLeave: () => void;
 }
 
 const BUTTON_SIZE = 56;
 
-interface RunningActivityButtonProps {
-  running: RunningActivity[];
-  serverKey: string;
-  onOpen: (sessionId: string) => void;
+interface ActivitiesButtonProps {
+  active: boolean;
+  menu: MenuAction[];
+  onAction?: (id: string) => void;
+  onOpenPicker?: () => void;
 }
 
-/** The running activity's button: its icon; with more than one, a menu of them. */
-function RunningActivityButton({ running, serverKey, onOpen }: RunningActivityButtonProps) {
+/** Activities: off, the picker; on (one running), its menu. */
+function ActivitiesButton({ active, menu: actions, onAction, onOpenPicker }: ActivitiesButtonProps) {
   const { colors } = useTheme();
   const menu = useRef<MenuHandle>(null);
-  const newest = running[running.length - 1];
-  const several = running.length > 1;
+  const withMenu = active && actions.length > 0 && onAction !== undefined;
   const press = useCallback(() => {
-    if (several) menu.current?.open();
-    else if (newest) onOpen(newest.sessionId);
-  }, [several, newest, onOpen]);
-  if (!newest) return null;
+    if (withMenu) menu.current?.open();
+    else onOpenPicker?.();
+  }, [withMenu, onOpenPicker]);
   const button = (
     <Touchable
       onPress={press}
       accessible
       accessibilityRole="button"
-      accessibilityLabel={several ? 'Open an activity' : `Open ${newest.name}`}
-      testID="control-activity"
+      accessibilityLabel="Activities"
+      accessibilityState={{ selected: active }}
+      testID="control-activities"
     >
-      <View style={[styles.button, { backgroundColor: colors.surface }]}>
-        <PluginIcon serverKey={serverKey} pluginId={newest.pluginId} icon={newest.icon} size={28} radius={7} />
+      <View style={[styles.button, { backgroundColor: active ? colors.accent : colors.surface }]}>
+        <Icon name="extension" size={24} color={active ? 'onAccent' : 'text'} />
       </View>
     </Touchable>
   );
-  return several ? (
-    <Menu ref={menu} actions={running.map((activity) => ({ id: activity.sessionId, title: activity.name }))} onAction={onOpen} trigger="press">
+  return withMenu ? (
+    <Menu ref={menu} actions={actions} onAction={onAction} trigger="press" testID="activities-menu">
       {button}
     </Menu>
   ) : (
@@ -84,9 +75,9 @@ export function ControlBar({
   onToggleDeafen,
   onOpenSoundboard,
   onOpenActivities,
-  running = [],
-  serverKey,
-  onOpenActivity,
+  activityActive = false,
+  activityMenu = [],
+  onActivityAction,
   onLeave,
 }: ControlBarProps) {
   const { colors } = useTheme();
@@ -150,24 +141,9 @@ export function ControlBar({
         </View>
       </Touchable>
 
-      {/* Activities */}
-      {onOpenActivities && (
-        <Touchable
-          onPress={onOpenActivities}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel="Activities"
-          testID="control-activities"
-        >
-          <View style={[styles.button, { backgroundColor: colors.surface }]}>
-            <Icon name="extension" size={24} color="text" />
-          </View>
-        </Touchable>
-      )}
-
-      {/* The running activity: its page, or a choice of them */}
-      {running.length > 0 && serverKey && onOpenActivity && (
-        <RunningActivityButton running={running} serverKey={serverKey} onOpen={onOpenActivity} />
+      {/* Activities: on while one runs */}
+      {(onOpenActivities || activityActive) && (
+        <ActivitiesButton active={activityActive} menu={activityMenu} onAction={onActivityAction} onOpenPicker={onOpenActivities} />
       )}
 
       {/* Leave */}

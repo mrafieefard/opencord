@@ -14,10 +14,12 @@ import { report } from '@/core';
 import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader';
 import { showActivitiesButton } from '@/features/plugins/ActivityPicker';
 import { ActivityTile } from '@/features/plugins/ActivityTile';
+import { activityActions, runActivityAction } from '@/features/plugins/activityActions';
+import { useOpenActivity } from '@/features/plugins/activityHolder';
 import { showActivity } from '@/features/plugins/showActivity';
 import { joinVoice, leaveVoice, setDeafened, setMuted } from '@/state/actions/voice';
 import { activitySessions, useChannelInfo, useMusicSettings, useMyVoice, useServer, useVoiceMembers } from '@/state/selectors';
-import { Button, EmptyState, IconButton, PaneHeader, space, useTheme } from '@/ui';
+import { Button, EmptyState, IconButton, PaneHeader, space, useTheme, type MenuAction } from '@/ui';
 
 import { chrome } from '@/features/servers/chrome';
 
@@ -59,8 +61,10 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const members = useVoiceMembers(serverKey, channelId);
   const server = useServer(serverKey);
   const sessions = activitySessions(server, channelId);
-  const running = sessions.map((session) => ({ sessionId: session.id, name: session.name, pluginId: session.pluginId, icon: session.icon }));
-  const openRunning = useCallback((sessionId: string) => showActivity(serverKey, channelId, sessionId), [serverKey, channelId]);
+  // The activity the Activities menu is about: the one open on this device,
+  // else the newest running in the call.
+  const open = useOpenActivity();
+  const current = sessions.find((session) => open?.serverKey === serverKey && session.id === open.sessionId) ?? sessions.at(-1);
 
   const here = myVoice?.serverKey === serverKey && myVoice.channelId === channelId ? myVoice : null;
   const showMusic = !!(musicSettings?.supported && musicSettings.enabled);
@@ -92,6 +96,23 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
     [openSheet, serverKey, channelId],
   );
   const canOpenActivities = showActivitiesButton(server, channelId);
+  const activityMenu: MenuAction[] = current
+    ? [
+        ...(sessions.length > 1
+          ? sessions.map((session) => ({ id: `open:${session.id}`, title: `Open ${session.name}` }))
+          : [{ id: `open:${current.id}`, title: 'Open activity' }]),
+        ...(canOpenActivities ? [{ id: 'change', title: 'Change activity' }] : []),
+        // Closing ends it for everyone: for its starter or who manages the channel.
+        ...(activityActions(server, current, false).some((action) => action.id === 'end')
+          ? [{ id: 'close', title: 'Close activity', destructive: true }]
+          : []),
+      ]
+    : [];
+  const onActivityAction = (id: string) => {
+    if (id.startsWith('open:')) showActivity(serverKey, channelId, id.slice('open:'.length));
+    else if (id === 'change') openActivities();
+    else if (id === 'close' && current) runActivityAction(serverKey, current, 'end');
+  };
   const openMember = useCallback((userId: string) => openSheet(`/server/${serverKey}/member/${userId}`), [openSheet, serverKey]);
   // In the call, the grid scrolls only when not everyone fits; a pull down
   // at its top (or anywhere, when it doesn't scroll) takes the call down.
@@ -215,9 +236,9 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
             onToggleDeafen={() => setDeafened(!here.deafened)}
             onOpenSoundboard={openSoundboard}
             onOpenActivities={canOpenActivities ? openActivities : undefined}
-            running={running}
-            serverKey={serverKey}
-            onOpenActivity={openRunning}
+            activityActive={current !== undefined}
+            activityMenu={activityMenu}
+            onActivityAction={onActivityAction}
             onLeave={leave}
           />
         </View>

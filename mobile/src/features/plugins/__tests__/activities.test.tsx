@@ -336,15 +336,31 @@ describe('activities in a call', () => {
     expect(screen.queryByTestId(`area-view-${lastAreaId()}`)).toBeNull();
   });
 
-  // Fails if the control bar has no way to the running activity, or opens
-  // another.
-  it("the control bar's activity button opens its page", async () => {
+  // Fails if Activities isn't on while one runs, or its menu doesn't open,
+  // change or close (end) it.
+  it("Activities is on while one runs, and its menu opens, changes or closes it", async () => {
     await inCall(session('900', 'paint'));
     await pane({ asCall: true });
-    await fireEvent.press(screen.getByLabelText('Open Paint together'));
+    expect(screen.getByTestId('control-activities').props.accessibilityState).toMatchObject({ selected: true });
+    const menu = screen.getByTestId('activities-menu');
+    await act(async () => fireEvent(menu, 'onAction', 'open:900'));
     await settle();
     expect(useAppStore.getState().openActivity).toEqual({ serverKey: NIGHT_OWLS, channelId: CHANNELS.lounge, sessionId: '900' });
     expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/activity/900`);
+    await act(async () => fireEvent(menu, 'onAction', 'change'));
+    expect(router.push).toHaveBeenLastCalledWith(`/server/${NIGHT_OWLS}/activities/${CHANNELS.lounge}`);
+    const confirm = ui.confirm as jest.Mock;
+    confirm.mockImplementationOnce((options: ui.ConfirmOptions) => options.onCancel?.());
+    await act(async () => fireEvent(menu, 'onAction', 'close'));
+    expect(confirm.mock.calls.at(-1)?.[0]).toMatchObject({ title: 'End Paint together for everyone?' });
+  });
+
+  // Fails if Activities shows on with nothing running.
+  it('Activities is off with nothing running', async () => {
+    await inCall();
+    await pane({ asCall: true });
+    expect(screen.getByTestId('control-activities').props.accessibilityState).toMatchObject({ selected: false });
+    expect(screen.queryByTestId('activities-menu')).toBeNull();
   });
 
   // Fails if the phone's sidebar swipe steps aside for an activity on its
