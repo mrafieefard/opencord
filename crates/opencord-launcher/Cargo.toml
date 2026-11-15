@@ -8,6 +8,7 @@ license = "MPL-2.0"
 publish = false
 
 [dependencies]
+opencord-update.workspace = true
 ab_glyph = "0.2.32"
 data-encoding.workspace = true
 ed25519-dalek.workspace = true
@@ -44,9 +45,6 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 windows-core = "0.62"
-
-[build-dependencies]
-data-encoding.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

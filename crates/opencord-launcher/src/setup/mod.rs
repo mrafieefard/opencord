@@ -10,8 +10,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::layout::Layout;
-use crate::track::Track;
+use opencord_update::layout::Layout;
+use opencord_update::track::Track;
 
 #[cfg(target_os = "linux")]
 mod linux;

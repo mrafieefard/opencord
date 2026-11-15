@@ -10,10 +10,10 @@ use std::path::Path;
 use semver::Version;
 use sha2::{Digest, Sha256};
 
-use crate::archive;
-use crate::layout::{self, Installed, Layout};
-use crate::release::{Asset, Manifest, ManifestError};
-use crate::track::Track;
+use opencord_update::archive;
+use opencord_update::layout::{self, Installed, Layout};
+use opencord_update::release::{Asset, Manifest, ManifestError};
+use opencord_update::track::Track;
 
 /// Where releases come from.
 pub trait Source {
@@ -35,6 +35,7 @@ pub enum Error {
     /// The file isn't the one `release.json` describes.
     Download(String),
     Install(io::Error),
+    Archive(archive::ArchiveError),
 }
 
 impl std::fmt::Display for Error {
@@ -46,6 +47,7 @@ impl std::fmt::Display for Error {
             Self::Signature => f.write_str("release.json isn't signed by Opencord's key"),
             Self::Download(error) => write!(f, "the download is wrong: {error}"),
             Self::Install(error) => write!(f, "can't install: {error}"),
+            Self::Archive(error) => write!(f, "can't unpack: {error}"),
         }
     }
 }
@@ -53,6 +55,12 @@ impl std::fmt::Display for Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
         Self::Install(error)
+    }
+}
+
+impl From<archive::ArchiveError> for Error {
+    fn from(error: archive::ArchiveError) -> Self {
+        Self::Archive(error)
     }
 }
 

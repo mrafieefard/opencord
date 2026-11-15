@@ -5,8 +5,40 @@ use std::fs::File;
 use std::io::{self, BufReader};
 use std::path::Path;
 
+#[derive(Debug)]
+pub enum ArchiveError {
+    Io(io::Error),
+    Outside(String),
+    UnknownFormat(String),
+}
+
+impl std::fmt::Display for ArchiveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(err) => err.fmt(f),
+            Self::Outside(path) => write!(f, "{path} would land outside the folder"),
+            Self::UnknownFormat(name) => write!(f, "{name} is not an archive the launcher unpacks"),
+        }
+    }
+}
+
+impl std::error::Error for ArchiveError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for ArchiveError {
+    fn from(err: io::Error) -> Self {
+        Self::Io(err)
+    }
+}
+
 /// Unpacks `archive`, named `name` in the release, into `dest`.
-pub fn unpack(archive: &Path, name: &str, dest: &Path) -> io::Result<()> {
+pub fn unpack(archive: &Path, name: &str, dest: &Path) -> Result<(), ArchiveError> {
     std::fs::create_dir_all(dest)?;
     let file = BufReader::new(File::open(archive)?);
     if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
@@ -18,10 +50,7 @@ pub fn unpack(archive: &Path, name: &str, dest: &Path) -> io::Result<()> {
             // `unpack_in` refuses paths with `..` or a root, and links
             // that would write outside `dest`.
             if !entry.unpack_in(dest)? {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("{} would land outside the folder", entry.path()?.display()),
-                ));
+                return Err(ArchiveError::Outside(entry.path()?.display().to_string()));
             }
         }
         Ok(())
@@ -29,12 +58,10 @@ pub fn unpack(archive: &Path, name: &str, dest: &Path) -> io::Result<()> {
         let mut zip = zip::ZipArchive::new(file).map_err(io::Error::other)?;
         // Refuses entries outside `dest`; keeps Unix modes and symlinks,
         // which a macOS app's frameworks are full of.
-        zip.extract(dest).map_err(io::Error::other)
+        zip.extract(dest).map_err(io::Error::other)?;
+        Ok(())
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("{name} is not an archive the launcher unpacks"),
-        ))
+        Err(ArchiveError::UnknownFormat(name.to_owned()))
     }
 }
 

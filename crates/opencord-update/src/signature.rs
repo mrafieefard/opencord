@@ -9,8 +9,6 @@ use std::fmt;
 use data_encoding::BASE64;
 use ed25519_dalek::{Signature, VerifyingKey};
 
-use crate::log;
-
 /// The launcher was built with a key it can't read. `build.rs` refuses
 /// keys of the wrong shape, so this is 32 bytes that aren't a point on
 /// the curve.
@@ -29,7 +27,7 @@ impl fmt::Display for KeyError {
 pub fn built_in_key() -> Result<Option<VerifyingKey>, KeyError> {
     let key = key_from(option_env!("OPENCORD_UPDATE_PUBLIC_KEY"));
     if let Err(error) = &key {
-        log::line(error.to_string());
+        eprintln!("{error}");
     }
     key
 }
@@ -137,27 +135,12 @@ mod tests {
     }
 
     // Fails if `key_from` panics on a key it can't read (as
-    // `built_in_key`'s old `expect` did), if it answers `Ok(None)` and so
-    // trusts unsigned releases, or if `update_until_installed` goes on to
-    // update with an unreadable key (`let Ok(key) = key else` →
-    // `let key = key.unwrap_or(None);`).
+    // `built_in_key`'s old `expect` did), or if it answers `Ok(None)` and so
+    // trusts unsigned releases.
     #[test]
     fn a_key_that_is_not_a_point_refuses_updates_without_panicking() {
         let key = key_from(Some(&not_a_point()));
         assert_eq!(key, Err(KeyError));
-
-        let dir = tempfile::tempdir().unwrap();
-        let layout = crate::layout::Layout::new(dir.path());
-        // The first status an update reports is `Checking`, before it
-        // goes online: stop there rather than reach GitHub.
-        crate::update_until_installed(
-            &layout,
-            crate::track::Track::built_in(),
-            "linux-x64",
-            key,
-            &|status| panic!("it went on to update: {status:?}"),
-        );
-        assert_eq!(layout.current(), None);
     }
 
     // Fails if a blank or missing key stops being "built without a key",

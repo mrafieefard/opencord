@@ -12,25 +12,23 @@
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-mod archive;
 mod github;
 mod launch;
-mod layout;
 mod log;
-mod release;
 mod setup;
-mod signature;
 mod splash;
-mod track;
 mod update;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use github::{Github, REPOSITORY, Reqwest};
-use layout::Layout;
-use track::Track;
+use github::{Github, Reqwest};
+use opencord_update::REPOSITORY;
+use opencord_update::layout::{self, Layout};
+use opencord_update::release;
+use opencord_update::signature;
+use opencord_update::track::Track;
 use update::Status;
 
 /// How long a restart waits for the old app to quit.
