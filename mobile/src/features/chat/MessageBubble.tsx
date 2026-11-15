@@ -5,6 +5,8 @@
 // and the time is drawn over that room.
 import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
+import { router } from 'expo-router';
 import { CommandRunStateRecord } from '@opencord/core-native';
 
 import { deviceLocale } from '@/features/servers/formatTime';
@@ -128,9 +130,15 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
     >
       {showAuthor && !own && (
         <View style={[styles.authorRow, mediaOnly && styles.mediaInset]}>
-          <Text variant="subhead" numberOfLines={1}>
-            {authorName}
-          </Text>
+          <Touchable
+            onPress={() => router.push(`/server/${serverKey}/member/${message.authorId}`)}
+            accessibilityRole="button"
+            accessibilityLabel={authorName}
+          >
+            <Text variant="subhead" numberOfLines={1}>
+              {authorName}
+            </Text>
+          </Touchable>
           {member?.isPlugin && (
             <View style={[styles.pluginBadge, { backgroundColor: colors.selected }]}>
               <Text variant="badge" color="textMuted">
@@ -210,7 +218,15 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
     >
       {!own && (
         <View style={styles.avatarSlot}>
-          {showAvatar && <Avatar name={authorName} file={avatarFile} size={AVATAR_SIZE} />}
+          {showAvatar && (
+            <Touchable
+              onPress={() => router.push(`/server/${serverKey}/member/${message.authorId}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`${authorName} avatar`}
+            >
+              <Avatar name={authorName} file={avatarFile} size={AVATAR_SIZE} />
+            </Touchable>
+          )}
         </View>
       )}
       <View style={styles.bubbleColumn}>

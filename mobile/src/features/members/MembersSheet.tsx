@@ -1,12 +1,14 @@
+import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 
 import { PresenceStatus } from '@/core/native';
-import { useRoles, useServer } from '@/state/selectors';
+import { useMyVoice, useRoles, useServer } from '@/state/selectors';
 import { Icon, PaneHeader, SearchField, SheetHeader, Text, sheetLook, space, useSheetBottomInset, useTheme } from '@/ui';
-import { groupMembers, type MemberItem, type MemberSection } from './groupMembers';
+import * as membersGrouping from './groupMembers';
+import { type MemberItem, type MemberSection } from './groupMembers';
 import { MemberRow } from './MemberRow';
 
 export interface MembersSheetProps {
@@ -16,11 +18,16 @@ export interface MembersSheetProps {
   variant?: 'sheet' | 'column';
 }
 
+type FlatMemberRow =
+  | { kind: 'header'; key: string; section: MemberSection }
+  | { kind: 'member'; key: string; item: MemberItem };
+
 export function MembersSheet({ serverKey, onClose, onSelectMember, variant = 'sheet' }: MembersSheetProps) {
   const { colors } = useTheme();
   const bottomInset = useSheetBottomInset();
   const server = useServer(serverKey);
   const roles = useRoles(serverKey);
+  const myVoice = useMyVoice();
   const [query, setQuery] = useState('');
   const [offlineExpanded, setOfflineExpanded] = useState(false);
 
@@ -32,6 +39,17 @@ export function MembersSheet({ serverKey, onClose, onSelectMember, variant = 'sh
     return map;
   }, [server?.snapshot?.presences]);
 
+  const inVoiceUserIds = useMemo(() => {
+    if (!myVoice || myVoice.serverKey !== serverKey) return undefined;
+    const ids: string[] = [];
+    for (const vs of Object.values(server?.voice ?? {})) {
+      if (vs.channelId === myVoice.channelId) {
+        ids.push(vs.userId);
+      }
+    }
+    return ids.length > 0 ? ids : undefined;
+  }, [myVoice, serverKey, server?.voice]);
+
   const voiceCtx = useMemo(() => {
     const channelMap = new Map<string, string>();
     for (const vs of Object.values(server?.voice ?? {})) {
@@ -40,11 +58,12 @@ export function MembersSheet({ serverKey, onClose, onSelectMember, variant = 'sh
     }
     return {
       channelOf: (userId: string) => channelMap.get(userId),
+      inVoiceUserIds,
     };
-  }, [server?.voice, server?.snapshot?.channels]);
+  }, [server?.voice, server?.snapshot?.channels, inVoiceUserIds]);
 
   const sections: MemberSection[] = useMemo(() => {
-    return groupMembers(
+    return membersGrouping.groupMembers(
       server?.snapshot?.members ?? [],
       roles,
       presences,
@@ -57,15 +76,80 @@ export function MembersSheet({ serverKey, onClose, onSelectMember, variant = 'sh
     );
   }, [server?.snapshot?.members, roles, presences, voiceCtx, query, offlineExpanded, server?.snapshot?.ownerId]);
 
+  const flatData = useMemo<FlatMemberRow[]>(() => {
+    const rows: FlatMemberRow[] = [];
+    for (const section of sections) {
+      rows.push({
+        kind: 'header',
+        key: `header:${section.key}`,
+        section,
+      });
+      for (const item of section.data) {
+        rows.push({
+          kind: 'member',
+          key: `${section.key}:${item.id}`,
+          item,
+        });
+      }
+    }
+    return rows;
+  }, [sections]);
+
   const close = onClose ?? (() => router.back());
 
-  const handlePressMember = (userId: string) => {
-    if (onSelectMember) {
-      onSelectMember(userId);
-    } else {
-      router.push(`/server/${serverKey}/member/${userId}`);
-    }
-  };
+  const handlePressMember = useCallback(
+    (userId: string) => {
+      if (onSelectMember) {
+        onSelectMember(userId);
+      } else {
+        router.push(`/server/${serverKey}/member/${userId}`);
+      }
+    },
+    [onSelectMember, serverKey],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: FlatMemberRow }) => {
+      if (item.kind === 'header') {
+        const section = item.section;
+        if (section.collapsible) {
+          return (
+            <Touchable
+              onPress={() => setOfflineExpanded((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={`${section.title}, ${section.count}`}
+              style={styles.headerRow}
+            >
+              <Text variant="caption" color="textMuted" style={styles.headerText}>
+                {section.header}
+              </Text>
+              <Icon
+                name={section.collapsed ? 'arrowDown' : 'arrowUp'}
+                size={14}
+                color="textMuted"
+              />
+            </Touchable>
+          );
+        }
+        return (
+          <View style={styles.headerRow}>
+            <Text variant="caption" color="textMuted" style={styles.headerText}>
+              {section.header}
+            </Text>
+          </View>
+        );
+      }
+
+      return (
+        <MemberRow
+          serverKey={serverKey}
+          item={item.item}
+          onPress={() => handlePressMember(item.item.id)}
+        />
+      );
+    },
+    [serverKey, handlePressMember],
+  );
 
   const bg = variant === 'column' ? colors.chat : sheetLook.background(colors);
   const paddingBottom = variant === 'column' ? space.lg : bottomInset + space.lg;
@@ -85,43 +169,13 @@ export function MembersSheet({ serverKey, onClose, onSelectMember, variant = 'sh
           onSheet
         />
       </View>
-      <ScrollView contentContainerStyle={styles.list}>
-        {sections.map((section) => (
-          <View key={section.key} style={styles.section}>
-            {section.collapsible ? (
-              <Touchable
-                onPress={() => setOfflineExpanded((prev) => !prev)}
-                accessibilityRole="button"
-                accessibilityLabel={`${section.title}, ${section.count}`}
-                style={styles.headerRow}
-              >
-                <Text variant="caption" color="textMuted" style={styles.headerText}>
-                  {section.header}
-                </Text>
-                <Icon
-                  name={section.collapsed ? 'arrowDown' : 'arrowUp'}
-                  size={14}
-                  color="textMuted"
-                />
-              </Touchable>
-            ) : (
-              <View style={styles.headerRow}>
-                <Text variant="caption" color="textMuted" style={styles.headerText}>
-                  {section.header}
-                </Text>
-              </View>
-            )}
-            {section.data.map((item: MemberItem) => (
-              <MemberRow
-                key={item.id}
-                serverKey={serverKey}
-                item={item}
-                onPress={() => handlePressMember(item.id)}
-              />
-            ))}
-          </View>
-        ))}
-      </ScrollView>
+      <FlashList
+        data={flatData}
+        renderItem={renderItem}
+        getItemType={(item) => item.kind}
+        keyExtractor={(item) => item.key}
+        contentContainerStyle={styles.list}
+      />
     </View>
   );
 }

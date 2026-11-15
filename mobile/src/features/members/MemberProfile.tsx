@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { useImageFile } from '@/features/servers/useImageFile';
 import { toast } from '@/state/actions/ui';
 import { useMemberColor, usePresence, useRoles, useServer } from '@/state/selectors';
-import { Avatar, Button, Text, radius, space, useTheme } from '@/ui';
+import { Avatar, Button, Text, presenceLabel, radius, space, useTheme } from '@/ui';
 
 export interface MemberProfileProps {
   serverKey: string;
@@ -49,14 +49,19 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
     ? `#${roleColorNumber.toString(16).padStart(6, '0')}`
     : colors.text;
 
-  const copyFingerprint = async () => {
+  const copyFingerprint = () => {
     if (memberRecord.user.fingerprint) {
-      await Clipboard.setStringAsync(memberRecord.user.fingerprint);
-      toast('Fingerprint copied');
+      Clipboard.setStringAsync(memberRecord.user.fingerprint)
+        .then(() => toast('Fingerprint copied'))
+        .catch((err) => {
+          console.warn('Failed to copy fingerprint', err);
+          toast("Couldn't copy fingerprint");
+        });
     }
   };
 
-  const presenceLabel = isOwner ? `${presence} · Server owner` : presence;
+  const statusText = presenceLabel(presence);
+  const subtitle = isOwner ? `${statusText} · Server owner` : statusText;
 
   return (
     <View style={styles.container}>
@@ -73,7 +78,7 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
             {name}
           </Text>
           <Text variant="callout" color="textSecondary">
-            {presenceLabel}
+            {subtitle}
           </Text>
           {inVoiceChannelName && (
             <Text variant="caption" color="voice" style={styles.voiceText}>
@@ -110,22 +115,13 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
         )}
       </View>
 
-      <View style={styles.section}>
-        <Text variant="caption" color="textMuted" style={styles.sectionLabel}>
-          MEMBER SINCE
-        </Text>
-        <Text variant="body" color="text">
-          Recent
-        </Text>
-      </View>
-
       {memberRecord.user.fingerprint !== '' && (
         <View style={styles.section}>
           <Text variant="caption" color="textMuted" style={styles.sectionLabel}>
             IDENTITY KEY
           </Text>
           <View style={styles.fingerprintRow}>
-            <Text variant="callout" color="text" tabular style={styles.fingerprint}>
+            <Text variant="mono" color="text" tabular style={styles.fingerprint}>
               {memberRecord.user.fingerprint.replace(/-/g, ' ')}
             </Text>
             <Button
@@ -190,7 +186,6 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   fingerprint: {
-    fontFamily: 'monospace',
     letterSpacing: 1,
   },
 });

@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
+import { PresenceStatus } from '@opencord/core-native';
 import { Avatar, initials, nameHash } from '../Avatar';
 import { Badge, badgeText } from '../Badge';
 import { Button } from '../Button.android';
 import { PaneHeader } from '../PaneHeader';
+import { PresenceDot, presenceLabel } from '../PresenceDot';
 import { Text } from '../Text';
 import { onHue, tokens } from '../theme/tokens';
 import { typography, type TextVariant } from '../theme/typography';
@@ -90,5 +92,21 @@ describe('Button', () => {
   it('disabled, the words are muted whatever the variant', async () => {
     await render(<Button title="This channel is full" variant="voice" disabled onPress={() => {}} />);
     expect(StyleSheet.flatten(screen.getByText('This channel is full').props.style).color).toBe(tokens.dark.textMuted);
+  });
+});
+
+describe('PresenceDot', () => {
+  // Fails if presenceLabel returns numbers or wrong human-readable status labels.
+  it('presenceLabel returns human-readable status labels', () => {
+    expect(presenceLabel(PresenceStatus.Online)).toBe('Online');
+    expect(presenceLabel(PresenceStatus.Idle)).toBe('Idle');
+    expect(presenceLabel(PresenceStatus.Dnd)).toBe('Do not disturb');
+    expect(presenceLabel(PresenceStatus.Offline)).toBe('Offline');
+  });
+
+  // Fails if PresenceDot does not carry accessibilityLabel corresponding to presence.
+  it('PresenceDot renders with accessibility label for presence', async () => {
+    const { getByLabelText } = await render(<PresenceDot presence={PresenceStatus.Idle} />);
+    expect(getByLabelText('Idle')).toBeTruthy();
   });
 });

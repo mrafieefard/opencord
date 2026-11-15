@@ -14,6 +14,7 @@ export type { IconName } from './icons';
 export { Menu, useMenuOpener, type MenuAction, type MenuHandle } from './Menu';
 export { nativeHeaderLook } from './nativeHeader';
 export { PaneHeader, type HeaderAction } from './PaneHeader';
+export { PresenceDot, presenceLabel, type PresenceDotProps } from './PresenceDot';
 export { ProgressBar } from './ProgressBar';
 export { Row } from './Row';
 export { SearchField } from './SearchField';

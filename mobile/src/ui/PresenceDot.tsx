@@ -10,12 +10,19 @@ export interface PresenceDotProps {
   ringColor?: ColorToken;
 }
 
-const presenceLabels: Record<PresenceStatus, string> = {
-  [PresenceStatus.Online]: 'Online',
-  [PresenceStatus.Idle]: 'Idle',
-  [PresenceStatus.Dnd]: 'Do not disturb',
-  [PresenceStatus.Offline]: 'Offline',
-};
+export function presenceLabel(status: PresenceStatus): string {
+  switch (status) {
+    case PresenceStatus.Online:
+      return 'Online';
+    case PresenceStatus.Idle:
+      return 'Idle';
+    case PresenceStatus.Dnd:
+      return 'Do not disturb';
+    case PresenceStatus.Offline:
+    default:
+      return 'Offline';
+  }
+}
 
 export function PresenceDot({ presence = PresenceStatus.Offline, size = 10, ringColor = 'sidebar' }: PresenceDotProps) {
   const { colors } = useTheme();
@@ -24,7 +31,7 @@ export function PresenceDot({ presence = PresenceStatus.Offline, size = 10, ring
   const outerRadius = outerSize / 2;
   const innerRadius = size / 2;
   const ringBg = colors[ringColor] ?? colors.sidebar;
-  const label = presenceLabels[presence] ?? 'Offline';
+  const label = presenceLabel(presence);
 
   return (
     <View

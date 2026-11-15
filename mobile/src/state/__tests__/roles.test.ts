@@ -1,3 +1,4 @@
+import { renderHook } from '@testing-library/react-native';
 import {
   MobileEvent,
   PresenceStatus,
@@ -5,11 +6,13 @@ import {
   type PresenceRecord,
 } from '@opencord/core-native';
 
+import { getCore } from '@/core';
 import { CHANNELS, NIGHT_OWLS, emptyServerAccess, fullAccess, snapshot } from '@/core/fake/world';
 import { freshStore, settle } from '@/test/store';
 
+import { setPresence } from '../actions/profile';
 import { onEvents, useAppStore } from '../store';
-import { memberColor, serverSettingsRows, type ServerRowKey } from '../selectors';
+import { memberColor, serverSettingsRows, usePresence, useRoles, useServerAccess, type ServerRowKey } from '../selectors';
 
 describe('roles, presence and server permissions', () => {
   // Fails if role and presence events during seeding are applied immediately or lost instead of held.
@@ -209,5 +212,64 @@ describe('roles, presence and server permissions', () => {
     expect(voiceOffOwner).not.toContain('soundboard');
     // hosting is still visible because isOwner is true
     expect(voiceOffOwner).toContain('hosting');
+  });
+
+  // Fails if setPresence does not call core.presenceUpdate with the given serverKey and status.
+  it('setPresence forwards to core.presenceUpdate', async () => {
+    freshStore();
+    const core = getCore();
+    const spy = jest.spyOn(core, 'presenceUpdate');
+    await setPresence(NIGHT_OWLS, 'Idle');
+    expect(spy).toHaveBeenCalledWith(NIGHT_OWLS, 'Idle');
+    spy.mockRestore();
+  });
+
+  // Fails if useServerAccess does not return serverAccess from the server's snapshot.
+  it('useServerAccess returns serverAccess from snapshot', async () => {
+    freshStore();
+    onEvents([new MobileEvent.Ready({ snapshot: snapshot(NIGHT_OWLS) })]);
+    await settle();
+
+    const { result } = await renderHook(() => useServerAccess(NIGHT_OWLS));
+    expect(result.current).not.toBeNull();
+    expect(result.current?.manageServer).toBeDefined();
+
+    const { result: nullResult } = await renderHook(() => useServerAccess('unknown-server'));
+    expect(nullResult.current).toBeNull();
+  });
+
+  // Fails if useRoles does not return roles sorted descending by position.
+  it('useRoles returns roles sorted descending by position', async () => {
+    freshStore();
+    onEvents([new MobileEvent.Ready({ snapshot: snapshot(NIGHT_OWLS) })]);
+    await settle();
+
+    const { result } = await renderHook(() => useRoles(NIGHT_OWLS));
+    const rolesList = result.current;
+    expect(rolesList.length).toBeGreaterThan(0);
+    for (let i = 1; i < rolesList.length; i++) {
+      const prev = rolesList[i - 1];
+      const curr = rolesList[i];
+      if (prev && curr) {
+        expect(prev.position).toBeGreaterThanOrEqual(curr.position);
+      }
+    }
+
+    const { result: emptyResult } = await renderHook(() => useRoles('unknown-server'));
+    expect(emptyResult.current).toEqual([]);
+  });
+
+  // Fails if usePresence does not return the user's presence or defaults to Offline.
+  it('usePresence returns presence status or Offline for unknown user', async () => {
+    freshStore();
+    onEvents([new MobileEvent.Ready({ snapshot: snapshot(NIGHT_OWLS) })]);
+    await settle();
+
+    // In fake world NIGHT_OWLS snapshot, '1001' (Kai) is online or idle.
+    const { result: kaiResult } = await renderHook(() => usePresence(NIGHT_OWLS, '1001'));
+    expect([PresenceStatus.Online, PresenceStatus.Idle, PresenceStatus.Dnd]).toContain(kaiResult.current);
+
+    const { result: unknownResult } = await renderHook(() => usePresence(NIGHT_OWLS, '999999'));
+    expect(unknownResult.current).toBe(PresenceStatus.Offline);
   });
 });

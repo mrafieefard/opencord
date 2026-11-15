@@ -54,7 +54,9 @@ export async function pickPhoto(options: PickPhotoOptions): Promise<PickPhotoRes
               mimeType: asset.mimeType ?? 'image/jpeg',
             };
             resolve({ kind: 'picked', file });
-          } catch {
+          } catch (error: unknown) {
+            console.warn('Failed to pick image from library', error);
+            toast("Couldn't open photo library");
             resolve({ kind: 'cancelled' });
           }
           return;
@@ -87,7 +89,9 @@ export async function pickPhoto(options: PickPhotoOptions): Promise<PickPhotoRes
               mimeType: asset.mimeType ?? 'image/jpeg',
             };
             resolve({ kind: 'picked', file });
-          } catch {
+          } catch (error: unknown) {
+            console.warn('Failed to launch camera', error);
+            toast("Couldn't open camera");
             resolve({ kind: 'cancelled' });
           }
           return;

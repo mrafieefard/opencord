@@ -2,12 +2,12 @@
 // (0–200 %, 100 % marked) and a mute-for-me switch, or "This is you." for
 // self. The values come from the store, so the sheet opens on what is set.
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { MemberProfile } from '@/features/members/MemberProfile';
 import { setUserLocalMute, setUserVolume } from '@/state/actions/voice';
 import { useServer, useUserAudio } from '@/state/selectors';
-import { IconButton, SheetGrabber, Slider, Switch, Text, sheetLook, space, useSheetBottomInset, useTheme } from '@/ui';
+import { SheetHeader, Slider, Switch, Text, sheetLook, space, useSheetBottomInset, useTheme } from '@/ui';
 
 export interface ParticipantSheetProps {
   serverKey: string;
@@ -30,15 +30,8 @@ export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantShee
   const close = onClose ?? (() => router.back());
 
   return (
-    <ScrollView
-      style={[styles.sheet, { backgroundColor: sheetLook.background(colors) }]}
-      contentContainerStyle={{ paddingBottom: bottomInset + space.lg }}
-    >
-      <SheetGrabber />
-      <View style={styles.closeRow}>
-        <View style={styles.spacer} />
-        <IconButton icon="close" label="Close" size={36} onPress={close} />
-      </View>
+    <View style={[styles.sheet, { backgroundColor: sheetLook.background(colors), paddingBottom: bottomInset + space.lg }]}>
+      <SheetHeader title="" onClose={close} />
       <MemberProfile serverKey={serverKey} userId={userId} />
       {isSelf ? (
         <Text variant="callout" color="textSecondary" style={styles.self}>
@@ -77,14 +70,12 @@ export function ParticipantSheet({ serverKey, userId, onClose }: ParticipantShee
           </View>
         </View>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   sheet: { paddingHorizontal: space.lg },
-  closeRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
-  spacer: { flex: 1 },
   self: { paddingTop: space.lg, textAlign: 'center' },
   controls: { marginTop: space.lg, gap: space.lg },
   section: { gap: space.xs },

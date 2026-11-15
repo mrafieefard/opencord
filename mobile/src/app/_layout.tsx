@@ -2,7 +2,7 @@
 // the boot state: onboarding before an identity, the rest after.
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useWindowDimensions } from 'react-native';
+import { LogBox, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,6 +13,8 @@ import { SHEET_DETENTS } from '@/features/serverMenu/ServerSheet';
 import { CallSheet } from '@/features/voice/CallSheet';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui';
+
+LogBox.ignoreLogs([/REMOVE_ROUTES/]);
 
 function Routes() {
   const boot = useBoot();

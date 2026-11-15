@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import type { PresenceStatus } from '@/core/native';
-import { PresenceDot } from '@/features/members/PresenceDot';
+import { PresenceDot } from './PresenceDot';
 
 import { Text } from './Text';
 import { motion } from './theme/space';

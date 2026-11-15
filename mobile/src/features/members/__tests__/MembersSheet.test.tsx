@@ -8,8 +8,10 @@ import {
   type RoleRecord,
   type ServerAccess,
 } from '@opencord/core-native';
-import { NIGHT_OWLS, snapshot } from '@/core/fake/world';
+import { CHANNELS, NIGHT_OWLS, snapshot } from '@/core/fake/world';
+import { settle } from '@/test/store';
 import { useAppStore } from '@/state/store';
+import * as groupMembersModule from '../groupMembers';
 import { MembersSheet } from '../MembersSheet';
 
 const defaultAccess: ServerAccess = {
@@ -37,7 +39,7 @@ const defaultAccess: ServerAccess = {
 
 const TEST_ROLES: RoleRecord[] = [
   {
-    id: 'role-mod',
+    id: '2001',
     name: 'Moderators',
     color: 0x5865f2,
     position: 2,
@@ -51,15 +53,15 @@ const TEST_ROLES: RoleRecord[] = [
 
 const TEST_MEMBERS: MemberRecord[] = [
   {
-    user: { id: 'user-1', displayName: 'Alice', fingerprint: 'fp-alice' },
-    roleIds: ['role-mod'],
+    user: { id: '1001', displayName: 'Alice', fingerprint: 'fp-alice' },
+    roleIds: ['2001'],
   },
   {
-    user: { id: 'user-2', displayName: 'Bob', fingerprint: 'fp-bob' },
+    user: { id: '1002', displayName: 'Bob', fingerprint: 'fp-bob' },
     roleIds: [],
   },
   {
-    user: { id: 'user-3', displayName: 'Charlie', fingerprint: 'fp-charlie' },
+    user: { id: '1003', displayName: 'Charlie', fingerprint: 'fp-charlie' },
     roleIds: [],
   },
 ];
@@ -70,16 +72,17 @@ describe('MembersSheet', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     const snap = snapshot(serverKey);
-    snap.ownerId = 'user-1';
+    snap.ownerId = '1001';
     snap.members = TEST_MEMBERS;
     snap.roles = TEST_ROLES;
     snap.presences = [
-      { userId: 'user-1', status: PresenceStatus.Online },
-      { userId: 'user-2', status: PresenceStatus.Online },
-      { userId: 'user-3', status: PresenceStatus.Offline },
+      { userId: '1001', status: PresenceStatus.Online },
+      { userId: '1002', status: PresenceStatus.Online },
+      { userId: '1003', status: PresenceStatus.Offline },
     ];
 
     useAppStore.setState({
+      myVoice: null,
       servers: {
         [serverKey]: {
           key: serverKey,
@@ -88,7 +91,7 @@ describe('MembersSheet', () => {
             host: 'test.opencord.org',
             port: 443,
             name: 'Test Server',
-            userId: 'user-1',
+            userId: '1001',
           },
           connection: new ConnectionRecord.Connected(),
           snapshot: snap,
@@ -103,6 +106,10 @@ describe('MembersSheet', () => {
         },
       },
     });
+  });
+
+  afterEach(async () => {
+    await settle();
   });
 
   // Fails if member sections are not rendered with correct headers and names.
@@ -120,13 +127,105 @@ describe('MembersSheet', () => {
     expect(screen.getByText('Charlie')).toBeTruthy();
   });
 
-  // Fails if tapping a member row does not push the member profile route.
+  // Fails if tapping a member row does not push the member profile route idempotently.
   it('tapping a row opens the profile', async () => {
     await render(<MembersSheet serverKey={serverKey} />);
 
     const aliceRow = screen.getByText('Alice');
-    fireEvent.press(aliceRow);
+    await fireEvent.press(aliceRow);
+    await fireEvent.press(aliceRow);
 
-    expect(router.push).toHaveBeenCalledWith(`/server/${serverKey}/member/user-1`);
+    expect(router.push).toHaveBeenCalledTimes(2);
+    expect(router.push).toHaveBeenCalledWith(`/server/${serverKey}/member/1001`);
+  });
+
+  // Fails if groupMembers is called more than once when rendering 2000 members.
+  it('grouping 2000 members is one pass', async () => {
+    const bigMembers: MemberRecord[] = [];
+    const bigPresences = [];
+    for (let i = 0; i < 2000; i++) {
+      const id = String(1000 + i);
+      bigMembers.push({
+        user: { id, displayName: `User ${i}`, fingerprint: `fp-${i}` },
+        roleIds: i % 10 === 0 ? ['2001'] : [],
+      });
+      bigPresences.push({
+        userId: id,
+        status: i % 2 === 0 ? PresenceStatus.Online : PresenceStatus.Offline,
+      });
+    }
+
+    const snap = snapshot(serverKey);
+    snap.ownerId = '1001';
+    snap.members = bigMembers;
+    snap.roles = TEST_ROLES;
+    snap.presences = bigPresences;
+
+    const currentServer = useAppStore.getState().servers[serverKey];
+    if (!currentServer) throw new Error('missing server');
+
+    useAppStore.setState({
+      servers: {
+        [serverKey]: {
+          ...currentServer,
+          snapshot: snap,
+        },
+      },
+    });
+
+    const spy = jest.spyOn(groupMembersModule, 'groupMembers');
+
+    await render(<MembersSheet serverKey={serverKey} />);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  // Fails if members in the current user's voice channel are not grouped under 'IN THIS VOICE CHANNEL'.
+  it('renders in this voice channel section when connected to voice', async () => {
+    const channelId = CHANNELS.lounge;
+    const snap = snapshot(serverKey);
+    snap.ownerId = '1001';
+    snap.members = TEST_MEMBERS;
+    snap.roles = TEST_ROLES;
+    snap.presences = [
+      { userId: '1001', status: PresenceStatus.Online },
+      { userId: '1002', status: PresenceStatus.Online },
+      { userId: '1003', status: PresenceStatus.Offline },
+    ];
+
+    const currentServer = useAppStore.getState().servers[serverKey];
+    if (!currentServer) throw new Error('missing server');
+
+    useAppStore.setState({
+      myVoice: {
+        serverKey,
+        channelId,
+        link: null,
+        muted: false,
+        deafened: false,
+      },
+      servers: {
+        [serverKey]: {
+          ...currentServer,
+          snapshot: snap,
+          voice: {
+            '1002': {
+              userId: '1002',
+              channelId,
+              thisDevice: false,
+              selfMute: false,
+              selfDeaf: false,
+              serverMute: false,
+              serverDeaf: false,
+            },
+          },
+        },
+      },
+    });
+
+    const { findByText } = await render(<MembersSheet serverKey={serverKey} />);
+
+    expect(await findByText('IN THIS VOICE CHANNEL — 1')).toBeTruthy();
   });
 });

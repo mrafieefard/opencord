@@ -142,6 +142,33 @@ describe('groupMembers (ported from desktop member_sections_test.dart)', () => {
     expect(mira?.activity).toBe('In voice · General');
   });
 
+  // Fails if members in voice channel are not shown in both voice section and their role/status section.
+  it('members in voice channel appear in both voice section and role section', () => {
+    const sections = groupMembers(
+      everyone,
+      roles,
+      presences,
+      {
+        channelOf: (id) => (id === kaiId ? 'General' : undefined),
+        inVoiceUserIds: [kaiId],
+      },
+      undefined,
+      { ownerId: selfId },
+    );
+    expect(describeSections(sections)).toEqual([
+      'In this voice channel — 1',
+      'Kai',
+      'Maintainer — 1',
+      'Kai',
+      'Online — 2',
+      'Alex',
+      'Mira',
+      'Offline — 2',
+      'Lena',
+      'Omar',
+    ]);
+  });
+
   // Fails if query filter does not retain matching members and their non-empty sections.
   it('search keeps matching members and their sections', () => {
     const sections = groupMembers(everyone, roles, presences, undefined, 'en', { ownerId: selfId });
