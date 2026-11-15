@@ -970,7 +970,10 @@ mod tests {
         };
         let created = incoming(CoreEventPayload::RoleCreate(role.clone()));
         match created {
-            MobileEvent::RoleUpserted { server_key, role: r } => {
+            MobileEvent::RoleUpserted {
+                server_key,
+                role: r,
+            } => {
                 assert_eq!(server_key, "s");
                 assert_eq!(r.id, "10");
                 assert_eq!(r.name, "Moderator");
@@ -981,7 +984,10 @@ mod tests {
 
         let deleted = incoming(CoreEventPayload::RoleDelete { role_id: 7 });
         match deleted {
-            MobileEvent::RoleDeleted { server_key, role_id } => {
+            MobileEvent::RoleDeleted {
+                server_key,
+                role_id,
+            } => {
                 assert_eq!(server_key, "s");
                 assert_eq!(role_id, "7");
             }
@@ -994,7 +1000,10 @@ mod tests {
         };
         let presence_event = incoming(CoreEventPayload::PresenceUpdate(presence));
         match presence_event {
-            MobileEvent::PresenceChanged { server_key, presence: p } => {
+            MobileEvent::PresenceChanged {
+                server_key,
+                presence: p,
+            } => {
                 assert_eq!(server_key, "s");
                 assert_eq!(p.user_id, "5");
                 assert_eq!(p.status, PresenceStatus::Idle);
@@ -1009,7 +1018,9 @@ mod tests {
         use opencord_common::permissions::Permissions;
 
         let event = incoming(CoreEventPayload::PermissionsUpdate {
-            server_permissions: i64::from_ne_bytes(Permissions::MANAGE_CHANNELS.bits().to_ne_bytes()),
+            server_permissions: i64::from_ne_bytes(
+                Permissions::MANAGE_CHANNELS.bits().to_ne_bytes(),
+            ),
             channel_permissions: Vec::new(),
         });
         match event {
