@@ -634,6 +634,7 @@ mod tests {
         layout
             .write_settings(&Settings {
                 track: Some("beta".into()),
+                installer_track: Some(Track::built_in().name().to_string()),
                 ..Settings::default()
             })
             .unwrap();
@@ -906,6 +907,7 @@ mod tests {
         layout
             .write_settings(&Settings {
                 track: Some("canary".into()),
+                installer_track: Some(Track::built_in().name().to_string()),
                 ..Settings::default()
             })
             .unwrap();

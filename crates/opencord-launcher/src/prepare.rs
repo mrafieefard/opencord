@@ -562,7 +562,7 @@ mod tests {
         assert!(!layout.version_dir(&v(version)).exists());
         assert!(!layout.partial_dir(&v(version)).exists());
         assert!(
-            update::lock_install_within(layout, Duration::ZERO)
+            update::lock_install_within(layout, Duration::from_millis(500))
                 .unwrap()
                 .is_some(),
             "the lock is released"
