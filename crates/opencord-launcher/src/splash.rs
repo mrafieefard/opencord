@@ -5,8 +5,9 @@
 
 use std::num::NonZeroU32;
 use std::rc::Rc;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
+use std::time::Duration;
 
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use winit::application::ApplicationHandler;
@@ -42,30 +43,70 @@ enum Message {
     Done,
 }
 
-/// Shows the splash while `work` runs on another thread, then returns
-/// what it returned. Without a display (a terminal session), `work` runs
-/// here, its statuses going to the log.
-pub fn show<T: Send + 'static>(work: impl FnOnce(&dyn Fn(Status)) -> T + Send + 'static) -> T {
+/// Runs `work` on another thread and returns what it returned. If it is
+/// still running after `delay`, the splash shows until it ends. Without a
+/// display (a terminal session), its statuses go to the log instead.
+pub fn show_after<T: Send + 'static>(
+    delay: Duration,
+    work: impl FnOnce(&dyn Fn(Status)) -> T + Send + 'static,
+) -> T {
+    let (messages_tx, messages_rx) = mpsc::channel();
+    let (result_tx, result_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        // A send fails only once the splash has gone, when nobody is left
+        // to read a status or the end of the work.
+        let report = |status: Status| {
+            let _ = messages_tx.send(Message::Status(status));
+        };
+        let result = work(&report);
+        let _ = result_tx.send(result);
+        let _ = messages_tx.send(Message::Done);
+    });
+    // The work's panic is the launcher's.
+    let join = |worker: thread::JoinHandle<()>| {
+        if let Err(panic) = worker.join() {
+            std::panic::resume_unwind(panic);
+        }
+    };
+    let finished = |worker, result_rx: mpsc::Receiver<T>| {
+        join(worker);
+        result_rx
+            .recv()
+            .expect("the launcher's work ended without a result")
+    };
+    match result_rx.recv_timeout(delay) {
+        Ok(result) => {
+            join(worker);
+            return result;
+        }
+        Err(RecvTimeoutError::Disconnected) => return finished(worker, result_rx),
+        Err(RecvTimeoutError::Timeout) => {}
+    }
+
     let event_loop = match EventLoop::<Message>::with_user_event().build() {
         Ok(event_loop) => event_loop,
         Err(error) => {
             crate::log::line(format!("no splash ({error})"));
-            return work(&|status| crate::log::line(format!("{status:?}")));
+            for message in messages_rx {
+                match message {
+                    Message::Status(status) => crate::log::line(format!("{status:?}")),
+                    Message::Done => break,
+                }
+            }
+            return finished(worker, result_rx);
         }
     };
-    let proxy = event_loop.create_proxy();
-    let (result_tx, result_rx) = mpsc::channel();
-    let worker = {
-        let proxy: EventLoopProxy<Message> = proxy.clone();
-        thread::spawn(move || {
-            let report = |status: Status| {
-                let _ = proxy.send_event(Message::Status(status));
-            };
-            let result = work(&report);
-            let _ = result_tx.send(result);
-            let _ = proxy.send_event(Message::Done);
-        })
-    };
+    // Passes the work's messages on to the window, the ones sent before
+    // it was made first.
+    let proxy: EventLoopProxy<Message> = event_loop.create_proxy();
+    thread::spawn(move || {
+        for message in messages_rx {
+            let done = matches!(message, Message::Done);
+            if proxy.send_event(message).is_err() || done {
+                break;
+            }
+        }
+    });
     let mut splash = Splash::new();
     if let Err(error) = event_loop.run_app(&mut splash) {
         crate::log::line(format!("the splash ended: {error}"));
@@ -74,10 +115,7 @@ pub fn show<T: Send + 'static>(work: impl FnOnce(&dyn Fn(Status)) -> T + Send + 
         // The work may be mid-download: it is left, and tidied next time.
         std::process::exit(0);
     }
-    let _ = worker.join();
-    result_rx
-        .recv()
-        .expect("the launcher's work ended without a result")
+    finished(worker, result_rx)
 }
 
 struct Splash {

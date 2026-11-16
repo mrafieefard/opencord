@@ -3,7 +3,7 @@
 //! the others. Nothing installed is touched until the new version is
 //! whole, so a failed update leaves the app as it was.
 
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
 
@@ -97,11 +97,7 @@ pub fn update(
 ) -> Result<Option<Version>, Error> {
     report(Status::Checking);
     let current = layout.current();
-    let switching = current.is_some()
-        && layout
-            .read_installed()
-            .track
-            .is_some_and(|installed_for| installed_for != track.name());
+    let switching = switching_tracks(layout, track);
     let manifest = source.latest(track)?;
     let wanted = manifest.version.clone();
     let stays = current.as_ref().is_some_and(|current| {
@@ -124,6 +120,32 @@ pub fn update(
         track: Some(track.name().to_owned()),
     })?;
     Ok(Some(wanted))
+}
+
+/// Whether the user picked another track than the installed one was
+/// installed for, and the launcher hasn't switched yet.
+pub fn switching_tracks(layout: &Layout, track: Track) -> bool {
+    layout.current().is_some()
+        && layout
+            .read_installed()
+            .track
+            .is_some_and(|installed_for| installed_for != track.name())
+}
+
+/// Holds `prepare.lock` until the returned file is dropped, waiting for
+/// whoever holds it first. Preparing, switching, updating and pruning all
+/// change the install folder, so they take turns: none of them sees, or
+/// prunes, a folder another is still unpacking.
+pub fn lock_install(layout: &Layout) -> io::Result<File> {
+    fs::create_dir_all(layout.root())?;
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(layout.prepare_lock())?;
+    file.lock()?;
+    Ok(file)
 }
 
 /// Downloads and unpacks `manifest`'s build beside the others.
