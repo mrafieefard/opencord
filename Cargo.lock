@@ -4529,7 +4529,6 @@ dependencies = [
  "windows",
  "windows-core",
  "winit",
- "zip",
 ]
 
 [[package]]

@@ -74,7 +74,7 @@ impl Layout {
 mod tests {
     use super::*;
 
-    // Fails if restart.json fixture cannot be parsed into a RestartNote
+    // Fails if RestartNote serde schema does not deserialize tests/fixtures/restart.json
     #[test]
     fn the_restart_fixture_parses() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

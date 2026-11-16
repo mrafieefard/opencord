@@ -175,9 +175,13 @@ fn update_until_installed(
 ) {
     // A key this launcher can't read means no updates: the installed
     // version starts, and unsigned releases are never taken instead.
-    let Ok(key) = key else {
-        log::line("not updating; starting the installed version");
-        return;
+    let key = match key {
+        Ok(key) => key,
+        Err(error) => {
+            log::line(format!("the built-in update key can't be read: {error}"));
+            log::line("not updating; starting the installed version");
+            return;
+        }
     };
     let source = match Reqwest::new() {
         Ok(http) => Github::new(http, REPOSITORY, key, platform),
@@ -257,6 +261,7 @@ fn start_installed(layout: &Layout, exe: &Path, forward: &[OsString]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opencord_update::signature::KeyError;
 
     fn args(list: &[&str]) -> Args {
         Args::parse(list.iter().map(OsString::from))
@@ -291,5 +296,20 @@ mod tests {
         assert!(args(&["opencord:host"]).opens_a_link());
         assert!(!args(&["--autostart"]).opens_a_link());
         assert!(!args(&[]).opens_a_link());
+    }
+
+    // Fails if main.rs:178 let key = match key { Ok(key) => key, Err(_) => return } is changed to let key = key.unwrap_or(None)
+    #[test]
+    fn an_unreadable_key_never_updates() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = Layout::new(dir.path());
+        update_until_installed(
+            &layout,
+            Track::built_in(),
+            "linux-x64",
+            Err(KeyError),
+            &|s| panic!("it went on to update: {s:?}"),
+        );
+        assert_eq!(layout.current(), None);
     }
 }

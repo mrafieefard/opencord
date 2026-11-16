@@ -135,11 +135,28 @@ impl Layout {
     /// waiting version, and removes downloads not needed by the newest release.
     pub fn prune(&self) {
         let current = self.current();
+        if let Some(pending) = self.read_pending() {
+            let current_track = current.as_ref().and_then(Track::of);
+            let pending_track = Track::parse(&pending.track);
+            let is_stale = match (&current, current_track, pending_track) {
+                (Some(curr), Some(curr_t), Some(pend_t)) => {
+                    curr_t != pend_t || curr >= &pending.version
+                }
+                (Some(curr), _, _) => {
+                    pending.track != Track::built_in().name() || curr >= &pending.version
+                }
+                (None, _, _) => false,
+            };
+            if is_stale {
+                let _ = self.remove_pending();
+            }
+        }
+
+        let pending = self.read_pending().map(|p| p.version);
         let other = self
             .versions()
             .into_iter()
             .find(|version| Some(version) != current.as_ref());
-        let pending = self.read_pending().map(|p| p.version);
         let keep_dirs: Vec<PathBuf> = current
             .iter()
             .chain(other.iter())
@@ -171,21 +188,42 @@ impl Layout {
             }
         }
 
-        let target_note = if let Some(pending_ver) = &pending {
-            notes.iter().find(|(_, n)| &n.version == pending_ver)
-        } else {
-            notes.iter().max_by_key(|(_, n)| &n.version)
-        };
+        // Kept notes: the waiting version's note (if any), plus the newest note above it (or newest newer than current if none waiting).
+        let waiting_note = pending
+            .as_ref()
+            .and_then(|pending_ver| notes.iter().find(|(_, n)| &n.version == pending_ver));
+        let newest_above = notes
+            .iter()
+            .filter(|(_, n)| match (&pending, &current) {
+                (Some(pending_ver), _) => &n.version > pending_ver,
+                (None, Some(curr_ver)) => &n.version > curr_ver,
+                (None, None) => true,
+            })
+            .max_by_key(|(_, n)| &n.version);
 
-        if target_note.is_none() {
+        let mut kept_notes: Vec<&(PathBuf, crate::pending::DownloadNote)> = Vec::new();
+        if let Some(wn) = waiting_note {
+            kept_notes.push(wn);
+        }
+        if let Some(na) = newest_above
+            && !kept_notes.iter().any(|(p, _)| p == &na.0)
+        {
+            kept_notes.push(na);
+        }
+
+        if kept_notes.is_empty() {
             let _ = fs::remove_dir_all(&downloads_dir);
             return;
         }
 
         let mut keep_downloads: Vec<PathBuf> = Vec::new();
-        if let Some((note_path, note)) = target_note {
+        keep_downloads.push(downloads_dir.join("release.json"));
+        keep_downloads.push(downloads_dir.join("release.json.sig"));
+
+        for (note_path, note) in kept_notes {
             keep_downloads.push(note_path.clone());
             keep_downloads.push(downloads_dir.join(&note.file));
+            keep_downloads.push(downloads_dir.join(format!("{}.part", note.file)));
             keep_downloads.push(downloads_dir.join(format!("{}.partial", note.file)));
         }
 
@@ -440,7 +478,7 @@ mod tests {
         assert_eq!(layout.read_settings().track(), Track::built_in());
     }
 
-    // Fails if write_json leaves a .partial file or fails to persist
+    // Fails if layout.rs:288 write_json fs::rename(&partial, path) is removed
     #[test]
     fn files_are_written_through_a_partial() {
         let root = tempfile::tempdir().unwrap();
@@ -459,7 +497,7 @@ mod tests {
         assert_eq!(layout.read_pending().unwrap(), pending);
     }
 
-    // Fails if prune deletes the pending version directory or its download files
+    // Fails if layout.rs:163 prune excludes pending version directory or its download files from keep_dirs
     #[test]
     fn prune_keeps_the_waiting_version_and_its_download() {
         let root = tempfile::tempdir().unwrap();
@@ -496,7 +534,7 @@ mod tests {
             sha256: "a".repeat(64),
         };
         let note_file = layout.downloads().join("opencord.tar.gz.json");
-        layout.write_download_note(&note_file, &note).unwrap();
+        layout.write_download_note(&note).unwrap();
         let target_file = layout.downloads().join("opencord.tar.gz");
         layout
             .write_json(&target_file, &"fake archive content")
@@ -517,5 +555,155 @@ mod tests {
         assert!(target_file.exists());
         // Stale download removed
         assert!(!stale_file.exists());
+    }
+
+    // Fails if layout.rs prune deletes .part, release.json, release.json.sig, or an in-progress note
+    #[test]
+    fn prune_keeps_an_in_progress_download_and_its_release_json() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        let v1 = Version::parse("0.0.1").unwrap();
+        let v2 = Version::parse("0.0.2").unwrap();
+        install(&layout, "0.0.1");
+        layout
+            .write_installed(&Installed {
+                version: Some(v1.clone()),
+                track: Some(Track::built_in().name().to_owned()),
+            })
+            .unwrap();
+
+        // Case 1: Nothing waiting. Download in progress for v2.
+        let note2 = crate::pending::DownloadNote {
+            tag: "v0.0.2".to_owned(),
+            version: v2.clone(),
+            track: Track::built_in().name().to_owned(),
+            file: "opencord-v2.tar.gz".to_owned(),
+            url: "https://example.com/v2".to_owned(),
+            size: 100,
+            sha256: "b".repeat(64),
+        };
+        layout.write_download_note(&note2).unwrap();
+        let part_file = layout.downloads().join("opencord-v2.tar.gz.part");
+        fs::write(&part_file, b"partial-download").unwrap();
+        let rel_file = layout.downloads().join("release.json");
+        fs::write(&rel_file, b"{}").unwrap();
+        let sig_file = layout.downloads().join("release.json.sig");
+        fs::write(&sig_file, b"sig").unwrap();
+        let stale_file = layout.downloads().join("stale.tar.gz");
+        fs::write(&stale_file, b"stale").unwrap();
+
+        layout.prune();
+
+        assert!(layout.downloads().join("opencord-v2.tar.gz.json").exists());
+        assert!(part_file.exists());
+        assert!(rel_file.exists());
+        assert!(sig_file.exists());
+        assert!(!stale_file.exists());
+
+        // Case 2: Now v2 is waiting, and a newer v3 is downloading in progress.
+        let v3 = Version::parse("0.0.3").unwrap();
+        let pending = crate::pending::Pending {
+            version: v2.clone(),
+            track: Track::built_in().name().to_owned(),
+            prepared_at: 1000,
+            confirmed_at: None,
+        };
+        layout.write_pending(&pending).unwrap();
+        let completed_v2 = layout.downloads().join("opencord-v2.tar.gz");
+        fs::write(&completed_v2, b"completed-v2").unwrap();
+
+        let note3 = crate::pending::DownloadNote {
+            tag: "v0.0.3".to_owned(),
+            version: v3.clone(),
+            track: Track::built_in().name().to_owned(),
+            file: "opencord-v3.tar.gz".to_owned(),
+            url: "https://example.com/v3".to_owned(),
+            size: 150,
+            sha256: "c".repeat(64),
+        };
+        layout.write_download_note(&note3).unwrap();
+        let part_v3 = layout.downloads().join("opencord-v3.tar.gz.part");
+        fs::write(&part_v3, b"partial-v3").unwrap();
+        let stale2 = layout.downloads().join("old.tar.gz");
+        fs::write(&stale2, b"stale2").unwrap();
+
+        layout.prune();
+
+        // Both v2 (waiting) and v3 (in-progress) are kept
+        assert!(layout.downloads().join("opencord-v2.tar.gz.json").exists());
+        assert!(completed_v2.exists());
+        assert!(layout.downloads().join("opencord-v3.tar.gz.json").exists());
+        assert!(part_v3.exists());
+        assert!(rel_file.exists());
+        assert!(sig_file.exists());
+        assert!(!stale2.exists());
+    }
+
+    // Fails if layout.rs prune does not remove pending.json when installed >= pending or track differs
+    #[test]
+    fn prune_drops_a_waiting_update_the_installed_one_has_passed() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        let v1 = Version::parse("0.0.1").unwrap();
+        let v2 = Version::parse("0.0.2").unwrap();
+        let v3 = Version::parse("0.0.3").unwrap();
+        install(&layout, "0.0.1");
+        install(&layout, "0.0.2");
+        install(&layout, "0.0.3");
+
+        // Current installed is v3, other kept is v2
+        layout
+            .write_installed(&Installed {
+                version: Some(v3.clone()),
+                track: Some(Track::built_in().name().to_owned()),
+            })
+            .unwrap();
+
+        // Pending is older (v1)
+        let pending_old = crate::pending::Pending {
+            version: v1.clone(),
+            track: Track::built_in().name().to_owned(),
+            prepared_at: 1000,
+            confirmed_at: None,
+        };
+        layout.write_pending(&pending_old).unwrap();
+
+        let note1 = crate::pending::DownloadNote {
+            tag: "v0.0.1".to_owned(),
+            version: v1.clone(),
+            track: Track::built_in().name().to_owned(),
+            file: "opencord-v1.tar.gz".to_owned(),
+            url: "https://example.com/v1".to_owned(),
+            size: 50,
+            sha256: "a".repeat(64),
+        };
+        layout.write_download_note(&note1).unwrap();
+        let note1_json = layout.downloads().join("opencord-v1.tar.gz.json");
+        let note1_file = layout.downloads().join("opencord-v1.tar.gz");
+        fs::write(&note1_file, b"v1-archive").unwrap();
+
+        layout.prune();
+
+        // pending.json must be dropped
+        assert_eq!(layout.read_pending(), None);
+        // v1 version dir pruned (only current v3 and other v2 kept)
+        assert!(!layout.is_whole(&v1));
+        assert!(layout.is_whole(&v2));
+        assert!(layout.is_whole(&v3));
+        // v1 download dropped
+        assert!(!note1_json.exists());
+        assert!(!note1_file.exists());
+
+        // Track mismatch case:
+        let v4 = Version::parse("0.0.4").unwrap();
+        let pending_diff_track = crate::pending::Pending {
+            version: v4,
+            track: "canary".to_owned(),
+            prepared_at: 2000,
+            confirmed_at: None,
+        };
+        layout.write_pending(&pending_diff_track).unwrap();
+        layout.prune();
+        assert_eq!(layout.read_pending(), None);
     }
 }

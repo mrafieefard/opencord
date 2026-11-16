@@ -102,7 +102,7 @@ mod tests {
         fs::write(exe, b"app").unwrap();
     }
 
-    // Fails if last_start_crashed returns false when started mark is missing
+    // Fails if markers.rs:85 None => true becomes None => false
     #[test]
     fn a_launch_without_a_started_mark_is_a_crash() {
         let dir = tempfile::tempdir().unwrap();
@@ -120,7 +120,7 @@ mod tests {
         assert!(layout.last_start_crashed());
     }
 
-    // Fails if last_start_crashed returns false when started mark has an older version
+    // Fails if markers.rs:84 started.version != current becomes false
     #[test]
     fn a_started_mark_for_another_version_is_too() {
         let dir = tempfile::tempdir().unwrap();
@@ -146,7 +146,62 @@ mod tests {
         assert!(layout.last_start_crashed());
     }
 
-    // Fails if app_running returns false when app.lock is held
+    // Fails if markers.rs:84 started.version != current becomes true
+    #[test]
+    fn a_started_mark_for_the_current_version_is_not_a_crash() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = Layout::new(dir.path());
+        let version = Version::parse("0.0.1").unwrap();
+        fake_app(&layout, &version);
+
+        layout
+            .write_launching(&Mark {
+                version: version.clone(),
+                at: 1000,
+            })
+            .unwrap();
+        layout
+            .write_started(&Mark {
+                version: version.clone(),
+                at: 1050,
+            })
+            .unwrap();
+
+        assert!(!layout.last_start_crashed());
+    }
+
+    // Fails if markers.rs:80 launching.version != current returns true instead of false
+    #[test]
+    fn a_launch_mark_for_another_version_is_not_a_crash() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = Layout::new(dir.path());
+        let version_old = Version::parse("0.0.1").unwrap();
+        let version_curr = Version::parse("0.0.2").unwrap();
+        fake_app(&layout, &version_old);
+        fake_app(&layout, &version_curr);
+
+        layout
+            .write_launching(&Mark {
+                version: version_old,
+                at: 1000,
+            })
+            .unwrap();
+
+        assert!(!layout.last_start_crashed());
+    }
+
+    // Fails if markers.rs:77 read_launching None returns true instead of false
+    #[test]
+    fn no_launch_mark_is_not_a_crash() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = Layout::new(dir.path());
+        let version = Version::parse("0.0.1").unwrap();
+        fake_app(&layout, &version);
+
+        assert!(!layout.last_start_crashed());
+    }
+
+    // Fails if markers.rs:68 match file.try_lock() Err(_) => true becomes Err(_) => false
     #[test]
     fn app_running_sees_a_held_lock() {
         let dir = tempfile::tempdir().unwrap();

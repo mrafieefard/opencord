@@ -84,8 +84,19 @@ impl Layout {
         serde_json::from_slice(&bytes).ok()
     }
 
-    pub fn write_download_note(&self, path: &Path, note: &DownloadNote) -> io::Result<()> {
-        self.write_json(path, note)
+    pub fn write_download_note(&self, note: &DownloadNote) -> io::Result<()> {
+        if note.file.contains('/')
+            || note.file.contains('\\')
+            || note.file.contains("..")
+            || note.file.is_empty()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid file name",
+            ));
+        }
+        let path = self.downloads().join(format!("{}.json", note.file));
+        self.write_json(&path, note)
     }
 }
 
@@ -143,7 +154,7 @@ mod tests {
             .unwrap();
     }
 
-    // Fails if switchable returns None for a fresh update
+    // Fails if pending.rs:115 pending.is_fresh(now) || restart_matches becomes restart_matches
     #[test]
     fn a_fresh_waiting_update_is_switchable() {
         let dir = tempfile::tempdir().unwrap();
@@ -167,7 +178,7 @@ mod tests {
         );
     }
 
-    // Fails if is_fresh allows updates older than FRESH_FOR
+    // Fails if pending.rs:30 now - reference < FRESH_FOR.as_millis() as u64 becomes true
     #[test]
     fn one_older_than_a_day_is_not() {
         let dir = tempfile::tempdir().unwrap();
@@ -191,7 +202,7 @@ mod tests {
         assert_eq!(switchable(&layout, Track::built_in(), expired, None), None);
     }
 
-    // Fails if is_fresh ignores confirmed_at
+    // Fails if pending.rs:29 reference = self.prepared_at.max(self.confirmed_at.unwrap_or(0)) becomes reference = self.prepared_at
     #[test]
     fn a_recent_confirmation_keeps_it_fresh() {
         let dir = tempfile::tempdir().unwrap();
@@ -220,7 +231,7 @@ mod tests {
         );
     }
 
-    // Fails if switchable requires is_fresh when an update restart matches
+    // Fails if pending.rs:115 pending.is_fresh(now) || restart_matches becomes pending.is_fresh(now)
     #[test]
     fn an_update_restart_switches_an_old_one_but_only_its_own_version() {
         let dir = tempfile::tempdir().unwrap();
@@ -271,7 +282,7 @@ mod tests {
         );
     }
 
-    // Fails if switchable ignores track mismatch
+    // Fails if pending.rs:103 pending.track != track.name() check is removed
     #[test]
     fn a_waiting_update_for_another_track_is_not_switched_to() {
         let dir = tempfile::tempdir().unwrap();
@@ -290,7 +301,7 @@ mod tests {
         assert_eq!(switchable(&layout, Track::Beta, 2000, None), None);
     }
 
-    // Fails if switchable does not check layout.is_whole
+    // Fails if pending.rs:100 !layout.is_whole(&pending.version) check is removed
     #[test]
     fn a_half_unpacked_one_is_not_switchable() {
         let dir = tempfile::tempdir().unwrap();
@@ -309,7 +320,7 @@ mod tests {
         assert_eq!(switchable(&layout, Track::built_in(), 2000, None), None);
     }
 
-    // Fails if switchable allows older versions than current on the same track
+    // Fails if pending.rs:110 current > pending.version check is removed
     #[test]
     fn one_older_than_the_installed_version_is_not_switchable() {
         let dir = tempfile::tempdir().unwrap();
@@ -337,7 +348,7 @@ mod tests {
         assert_eq!(switchable(&layout, Track::built_in(), 2000, None), None);
     }
 
-    // Fails if confirm_pending updates confirmed_at for a mismatched version
+    // Fails if pending.rs:74 pending.version != *version check is removed
     #[test]
     fn confirm_only_touches_the_named_version() {
         let dir = tempfile::tempdir().unwrap();
@@ -360,5 +371,33 @@ mod tests {
         let confirmed_self = layout.confirm_pending(&version, 5000).unwrap();
         assert!(confirmed_self);
         assert_eq!(layout.read_pending().unwrap().confirmed_at, Some(5000));
+    }
+
+    // Fails if pending.rs:88 note.file validation is removed
+    #[test]
+    fn write_download_note_validates_file_and_writes_in_downloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let layout = Layout::new(dir.path());
+        let note = DownloadNote {
+            tag: "v0.0.1".into(),
+            version: Version::parse("0.0.1").unwrap(),
+            track: "beta".into(),
+            file: "opencord.tar.gz".into(),
+            url: "https://example.com/a".into(),
+            size: 100,
+            sha256: "0".repeat(64),
+        };
+        layout.write_download_note(&note).unwrap();
+        let note_path = layout.downloads().join("opencord.tar.gz.json");
+        assert!(note_path.is_file());
+        assert_eq!(layout.read_download_note(&note_path).unwrap(), note);
+
+        let mut bad_note = note.clone();
+        bad_note.file = "../evil.tar.gz".into();
+        assert!(layout.write_download_note(&bad_note).is_err());
+        bad_note.file = "sub/dir.tar.gz".into();
+        assert!(layout.write_download_note(&bad_note).is_err());
+        bad_note.file = "sub\\dir.tar.gz".into();
+        assert!(layout.write_download_note(&bad_note).is_err());
     }
 }

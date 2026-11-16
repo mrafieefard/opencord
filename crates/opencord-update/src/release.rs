@@ -109,8 +109,6 @@ pub struct Listed {
     pub draft: bool,
 }
 
-pub use crate::check::newest;
-
 #[cfg(test)]
 mod tests {
     use super::*;

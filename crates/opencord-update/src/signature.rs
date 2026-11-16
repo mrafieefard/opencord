@@ -25,11 +25,7 @@ impl fmt::Display for KeyError {
 /// `Err` when it can't be read. A key that doesn't read means no updates,
 /// never unsigned ones.
 pub fn built_in_key() -> Result<Option<VerifyingKey>, KeyError> {
-    let key = key_from(option_env!("OPENCORD_UPDATE_PUBLIC_KEY"));
-    if let Err(error) = &key {
-        eprintln!("{error}");
-    }
-    key
+    key_from(option_env!("OPENCORD_UPDATE_PUBLIC_KEY"))
 }
 
 /// The key `text` (`OPENCORD_UPDATE_PUBLIC_KEY` at build time) names.

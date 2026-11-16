@@ -10,9 +10,7 @@ publish = false
 [dependencies]
 opencord-update.workspace = true
 ab_glyph = "0.2.32"
-data-encoding.workspace = true
 ed25519-dalek.workspace = true
-flate2 = "1.1.10"
 hex.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 rustls.workspace = true
@@ -21,10 +19,8 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 softbuffer = "0.4.8"
-tar = "0.4.46"
 webpki-roots.workspace = true
 winit = "0.30.12"
-zip = { version = "9.1.0", default-features = false, features = ["deflate"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.190"
@@ -47,4 +43,7 @@ windows = { version = "0.62", features = [
 windows-core = "0.62"
 
 [dev-dependencies]
+data-encoding.workspace = true
+flate2 = "1.1.10"
+tar = "0.4.46"
 tempfile.workspace = true
