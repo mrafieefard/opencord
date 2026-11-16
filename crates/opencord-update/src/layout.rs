@@ -108,6 +108,11 @@ impl Layout {
             .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
             .filter_map(|entry| {
                 let name = entry.file_name().into_string().ok()?;
+                // A folder still being unpacked: a pre-release's name
+                // parses with `.partial` on it.
+                if name.ends_with(PARTIAL) {
+                    return None;
+                }
                 Version::parse(name.strip_prefix(VERSION_PREFIX)?).ok()
             })
             .filter(|version| app_executable(&self.version_dir(version)).is_file())
@@ -381,6 +386,25 @@ mod tests {
         let names: Vec<String> = layout.versions().iter().map(Version::to_string).collect();
         assert_eq!(names, ["0.0.2", "0.0.2-canary.1", "0.0.2-beta.3"]);
         assert_eq!(layout.current().unwrap().to_string(), "0.0.2");
+    }
+
+    // Fails if `versions` reads `app-<version>.partial` as a version: a
+    // pre-release's partial name parses (`0.0.2-beta.2.partial`), and the
+    // app is in it before the folder is renamed.
+    #[test]
+    fn a_half_unpacked_pre_release_is_not_a_version() {
+        let root = tempfile::tempdir().unwrap();
+        let layout = Layout::new(root.path());
+        install(&layout, "0.0.2-beta.1");
+        let unpacking =
+            app_executable(&layout.partial_dir(&Version::parse("0.0.2-beta.2").unwrap()));
+        fs::create_dir_all(unpacking.parent().unwrap()).unwrap();
+        fs::write(&unpacking, b"half").unwrap();
+
+        let names: Vec<String> = layout.versions().iter().map(Version::to_string).collect();
+        assert_eq!(names, ["0.0.2-beta.1"]);
+        // With no installed.json, the newest whole version starts.
+        assert_eq!(layout.current().unwrap().to_string(), "0.0.2-beta.1");
     }
 
     #[test]
