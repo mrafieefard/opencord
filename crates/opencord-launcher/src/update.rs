@@ -3,9 +3,10 @@
 //! the others. Nothing installed is touched until the new version is
 //! whole, so a failed update leaves the app as it was.
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use semver::Version;
 use sha2::{Digest, Sha256};
@@ -137,15 +138,43 @@ pub fn switching_tracks(layout: &Layout, track: Track) -> bool {
 /// change the install folder, so they take turns: none of them sees, or
 /// prunes, a folder another is still unpacking.
 pub fn lock_install(layout: &Layout) -> io::Result<File> {
+    let file = open_install_lock(layout)?;
+    file.lock()?;
+    Ok(file)
+}
+
+/// [`lock_install`], giving up after `wait`: `Ok(None)` when someone else
+/// held the lock all that time.
+pub fn lock_install_within(layout: &Layout, wait: Duration) -> io::Result<Option<File>> {
+    let file = open_install_lock(layout)?;
+    let deadline = Instant::now() + wait;
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(Some(file)),
+            Err(TryLockError::WouldBlock) => {}
+            Err(TryLockError::Error(error)) => return Err(error),
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Ok(None);
+        }
+        std::thread::sleep(left.min(LOCK_POLL));
+    }
+}
+
+/// How often [`lock_install_within`] tries again.
+const LOCK_POLL: Duration = Duration::from_millis(100);
+
+/// `prepare.lock`, which stays in the install folder: only the lock on it
+/// comes and goes.
+fn open_install_lock(layout: &Layout) -> io::Result<File> {
     fs::create_dir_all(layout.root())?;
-    let file = OpenOptions::new()
+    OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .open(layout.prepare_lock())?;
-    file.lock()?;
-    Ok(file)
+        .open(layout.prepare_lock())
 }
 
 /// Downloads and unpacks `manifest`'s build beside the others.

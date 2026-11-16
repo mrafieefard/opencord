@@ -10,6 +10,8 @@
 //! opencord --uninstall [--quiet]   remove the app (Windows, Linux)
 //! opencord --after-pid PID …       wait for PID to end first (a restart)
 //! opencord --launcher-root DIR …   install into DIR (for testing)
+//! opencord --prepare NOTE          unpack the download NOTE describes, for
+//!                                  the next start (the app runs it)
 //! ```
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
@@ -17,6 +19,7 @@
 mod github;
 mod launch;
 mod log;
+mod prepare;
 mod setup;
 mod splash;
 mod update;
@@ -51,6 +54,8 @@ struct Args {
     root: Option<PathBuf>,
     uninstall: bool,
     after_pid: Option<u32>,
+    /// `--prepare <downloads/<file>.json>`: the app has a download ready.
+    prepare: Option<PathBuf>,
     /// Everything else, for the app: links, `--autostart`.
     forward: Vec<OsString>,
 }
@@ -65,6 +70,11 @@ impl Args {
                 Some("--launcher-root") => parsed.root = args.next().map(PathBuf::from),
                 Some("--after-pid") => {
                     parsed.after_pid = args.next().and_then(|pid| pid.to_str()?.parse().ok());
+                }
+                // An empty path, should the note be missing, is refused by
+                // the prepare itself: it never starts the app instead.
+                Some("--prepare") => {
+                    parsed.prepare = Some(args.next().map(PathBuf::from).unwrap_or_default());
                 }
                 _ => parsed.forward.push(arg),
             }
@@ -141,6 +151,21 @@ fn main() {
         std::process::exit(1);
     };
     let layout = Layout::new(root);
+    if let Some(note) = &args.prepare {
+        log::append(&layout.log_file());
+        log::line(format!(
+            "opencord-launcher {} preparing {}",
+            env!("CARGO_PKG_VERSION"),
+            note.display()
+        ));
+        std::process::exit(prepare::run(
+            &layout,
+            note,
+            signature::built_in_key(),
+            release::PLATFORM,
+            prepare::LOCK_WAIT,
+        ));
+    }
     log::open(&layout.log_file());
     log::line(format!(
         "opencord-launcher {} ({} track built in), installing into {}",
@@ -669,6 +694,22 @@ mod tests {
         );
         assert!(!parsed.uninstall);
         assert!(args(&["--uninstall"]).uninstall);
+    }
+
+    // Fails if `Args::parse` passes `--prepare` on to the app: the launcher
+    // would start a second Opencord in place of preparing.
+    #[test]
+    fn prepare_takes_the_note_and_passes_nothing_on() {
+        let parsed = args(&["--prepare", "/x/downloads/a.tar.gz.json"]);
+        assert_eq!(
+            parsed.prepare,
+            Some(PathBuf::from("/x/downloads/a.tar.gz.json"))
+        );
+        assert!(parsed.forward.is_empty());
+        // Without its note it is still a prepare, which refuses the empty
+        // path, never a start.
+        assert_eq!(args(&["--prepare"]).prepare, Some(PathBuf::new()));
+        assert_eq!(args(&[]).prepare, None);
     }
 
     #[test]

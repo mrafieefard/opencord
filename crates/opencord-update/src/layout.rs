@@ -281,19 +281,29 @@ impl Layout {
 
     /// Writes `value` to `path` whole: the app may read it meanwhile.
     pub(crate) fn write_json(&self, path: &Path, value: &impl Serialize) -> io::Result<()> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        } else {
+        if path.parent().is_none() {
             fs::create_dir_all(&self.root)?;
         }
-        let file_name = path
-            .file_name()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no filename"))?
-            .to_string_lossy();
-        let partial = path.with_file_name(format!("{file_name}.partial"));
-        fs::write(&partial, serde_json::to_vec_pretty(value)?)?;
-        fs::rename(&partial, path)
+        write_whole(path, &serde_json::to_vec_pretty(value)?)
     }
+}
+
+/// Writes `bytes` to `path` whole, through `<name>.partial` and a rename,
+/// so whoever reads it meanwhile (the app, the launcher) sees the old file
+/// or the new one, never half of one. Every file in the install folder is
+/// written here.
+pub fn write_whole(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut partial_name = path
+        .file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no file name"))?
+        .to_owned();
+    partial_name.push(PARTIAL);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let partial = path.with_file_name(partial_name);
+    fs::write(&partial, bytes)?;
+    fs::rename(&partial, path)
 }
 
 /// `installed.json`, which only the launcher writes: the version that
@@ -519,6 +529,26 @@ mod tests {
         let partial = layout.pending_file().with_file_name("pending.json.partial");
         assert!(!partial.exists());
         assert_eq!(layout.read_pending().unwrap(), pending);
+    }
+
+    // Fails if `write_whole` leaves `<name>.partial` in place of renaming it
+    // (drop its `fs::rename`).
+    #[test]
+    fn write_whole_replaces_a_file_through_a_partial() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("downloads").join("a.error");
+
+        write_whole(&path, b"first").unwrap();
+        write_whole(&path, b"second").unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"second");
+        assert!(
+            !root
+                .path()
+                .join("downloads")
+                .join("a.error.partial")
+                .exists()
+        );
     }
 
     // Fails if prune excludes pending version directory or its download files from keep_dirs
