@@ -298,7 +298,7 @@ mod tests {
         assert!(!args(&[]).opens_a_link());
     }
 
-    // Fails if main.rs:178 let key = match key { Ok(key) => key, Err(_) => return } is changed to let key = key.unwrap_or(None)
+    // Fails if unreadable update key continues to update (let key = key.unwrap_or(None))
     #[test]
     fn an_unreadable_key_never_updates() {
         let dir = tempfile::tempdir().unwrap();

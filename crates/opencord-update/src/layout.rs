@@ -478,7 +478,7 @@ mod tests {
         assert_eq!(layout.read_settings().track(), Track::built_in());
     }
 
-    // Fails if layout.rs:288 write_json fs::rename(&partial, path) is removed
+    // Fails if write_json does not atomically rename from .partial to path
     #[test]
     fn files_are_written_through_a_partial() {
         let root = tempfile::tempdir().unwrap();
@@ -497,37 +497,39 @@ mod tests {
         assert_eq!(layout.read_pending().unwrap(), pending);
     }
 
-    // Fails if layout.rs:163 prune excludes pending version directory or its download files from keep_dirs
+    // Fails if prune excludes pending version directory or its download files from keep_dirs
     #[test]
     fn prune_keeps_the_waiting_version_and_its_download() {
         let root = tempfile::tempdir().unwrap();
         let layout = Layout::new(root.path());
-        let v0 = Version::parse("0.0.0").unwrap();
-        let v1 = Version::parse("0.0.1").unwrap();
-        let v2 = Version::parse("0.0.2").unwrap();
-        install(&layout, "0.0.0");
-        install(&layout, "0.0.1");
-        install(&layout, "0.0.2");
+        let v_old = Version::parse("0.0.1-beta.1").unwrap();
+        let v_curr = Version::parse("0.0.2-beta.1").unwrap();
+        let v_pending = Version::parse("0.0.2-beta.2").unwrap();
+        let v_canary = Version::parse("0.0.3-canary.1").unwrap();
+        install(&layout, "0.0.1-beta.1");
+        install(&layout, "0.0.2-beta.1");
+        install(&layout, "0.0.2-beta.2");
+        install(&layout, "0.0.3-canary.1");
 
         layout
             .write_installed(&Installed {
-                version: Some(v1.clone()),
-                track: Some(Track::built_in().name().to_owned()),
+                version: Some(v_curr.clone()),
+                track: Some("beta".to_owned()),
             })
             .unwrap();
 
         let pending = crate::pending::Pending {
-            version: v2.clone(),
-            track: Track::built_in().name().to_owned(),
+            version: v_pending.clone(),
+            track: "beta".to_owned(),
             prepared_at: 1000,
             confirmed_at: None,
         };
         layout.write_pending(&pending).unwrap();
 
         let note = crate::pending::DownloadNote {
-            tag: "v0.0.2".to_owned(),
-            version: v2.clone(),
-            track: Track::built_in().name().to_owned(),
+            tag: "v0.0.2-beta.2".to_owned(),
+            version: v_pending.clone(),
+            track: "beta".to_owned(),
             file: "opencord.tar.gz".to_owned(),
             url: "https://example.com/a".to_owned(),
             size: 10,
@@ -545,10 +547,12 @@ mod tests {
 
         layout.prune();
 
-        // Kept versions: current (v1) and pending (v2). v0 pruned.
-        assert!(layout.is_whole(&v1));
-        assert!(layout.is_whole(&v2));
-        assert!(!layout.is_whole(&v0));
+        // Kept versions: current (0.0.2-beta.1), other newest (0.0.3-canary.1), and pending (0.0.2-beta.2).
+        // 0.0.1-beta.1 pruned.
+        assert!(layout.is_whole(&v_curr));
+        assert!(layout.is_whole(&v_canary));
+        assert!(layout.is_whole(&v_pending));
+        assert!(!layout.is_whole(&v_old));
 
         // Kept download for pending
         assert!(note_file.exists());

@@ -154,7 +154,7 @@ mod tests {
             .unwrap();
     }
 
-    // Fails if pending.rs:115 pending.is_fresh(now) || restart_matches becomes restart_matches
+    // Fails if switchable returns None for a fresh update (pending.is_fresh(now) || restart_matches becomes restart_matches)
     #[test]
     fn a_fresh_waiting_update_is_switchable() {
         let dir = tempfile::tempdir().unwrap();
@@ -178,7 +178,7 @@ mod tests {
         );
     }
 
-    // Fails if pending.rs:30 now - reference < FRESH_FOR.as_millis() as u64 becomes true
+    // Fails if pending.is_fresh allows updates older than FRESH_FOR
     #[test]
     fn one_older_than_a_day_is_not() {
         let dir = tempfile::tempdir().unwrap();
@@ -202,7 +202,7 @@ mod tests {
         assert_eq!(switchable(&layout, Track::built_in(), expired, None), None);
     }
 
-    // Fails if pending.rs:29 reference = self.prepared_at.max(self.confirmed_at.unwrap_or(0)) becomes reference = self.prepared_at
+    // Fails if pending.is_fresh ignores confirmed_at (reference = prepared_at instead of max(prepared_at, confirmed_at))
     #[test]
     fn a_recent_confirmation_keeps_it_fresh() {
         let dir = tempfile::tempdir().unwrap();
@@ -231,7 +231,7 @@ mod tests {
         );
     }
 
-    // Fails if pending.rs:115 pending.is_fresh(now) || restart_matches becomes pending.is_fresh(now)
+    // Fails if switchable ignores matching restart note (pending.is_fresh(now) || restart_matches becomes pending.is_fresh(now))
     #[test]
     fn an_update_restart_switches_an_old_one_but_only_its_own_version() {
         let dir = tempfile::tempdir().unwrap();
@@ -282,16 +282,18 @@ mod tests {
         );
     }
 
-    // Fails if pending.rs:103 pending.track != track.name() check is removed
+    // Fails if switchable pending.track != track.name() check is removed
     #[test]
     fn a_waiting_update_for_another_track_is_not_switched_to() {
         let dir = tempfile::tempdir().unwrap();
         let layout = Layout::new(dir.path());
+        let v_installed = Version::parse("0.0.1-beta.1").unwrap();
+        fake_installed(&layout, &v_installed);
         let version = Version::parse("0.0.2-canary.1").unwrap();
         fake_app(&layout, &version);
 
         let pending = Pending {
-            version,
+            version: version.clone(),
             track: "canary".to_owned(),
             prepared_at: 1000,
             confirmed_at: None,
@@ -299,9 +301,13 @@ mod tests {
         layout.write_pending(&pending).unwrap();
 
         assert_eq!(switchable(&layout, Track::Beta, 2000, None), None);
+        assert_eq!(
+            switchable(&layout, Track::Canary, 2000, None),
+            Some(version)
+        );
     }
 
-    // Fails if pending.rs:100 !layout.is_whole(&pending.version) check is removed
+    // Fails if switchable !layout.is_whole(&pending.version) check is removed
     #[test]
     fn a_half_unpacked_one_is_not_switchable() {
         let dir = tempfile::tempdir().unwrap();
@@ -320,7 +326,7 @@ mod tests {
         assert_eq!(switchable(&layout, Track::built_in(), 2000, None), None);
     }
 
-    // Fails if pending.rs:110 current > pending.version check is removed
+    // Fails if switchable current > pending.version check is removed
     #[test]
     fn one_older_than_the_installed_version_is_not_switchable() {
         let dir = tempfile::tempdir().unwrap();
@@ -348,7 +354,7 @@ mod tests {
         assert_eq!(switchable(&layout, Track::built_in(), 2000, None), None);
     }
 
-    // Fails if pending.rs:74 pending.version != *version check is removed
+    // Fails if confirm_pending pending.version != *version check is removed
     #[test]
     fn confirm_only_touches_the_named_version() {
         let dir = tempfile::tempdir().unwrap();
@@ -373,7 +379,7 @@ mod tests {
         assert_eq!(layout.read_pending().unwrap().confirmed_at, Some(5000));
     }
 
-    // Fails if pending.rs:88 note.file validation is removed
+    // Fails if write_download_note note.file validation is removed
     #[test]
     fn write_download_note_validates_file_and_writes_in_downloads() {
         let dir = tempfile::tempdir().unwrap();

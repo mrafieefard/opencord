@@ -102,7 +102,7 @@ mod tests {
         fs::write(exe, b"app").unwrap();
     }
 
-    // Fails if markers.rs:85 None => true becomes None => false
+    // Fails if last_start_crashed returns false when started mark is missing (None => false)
     #[test]
     fn a_launch_without_a_started_mark_is_a_crash() {
         let dir = tempfile::tempdir().unwrap();
@@ -120,7 +120,7 @@ mod tests {
         assert!(layout.last_start_crashed());
     }
 
-    // Fails if markers.rs:84 started.version != current becomes false
+    // Fails if last_start_crashed returns false when started mark has another version (started.version != current returns false)
     #[test]
     fn a_started_mark_for_another_version_is_too() {
         let dir = tempfile::tempdir().unwrap();
@@ -146,7 +146,7 @@ mod tests {
         assert!(layout.last_start_crashed());
     }
 
-    // Fails if markers.rs:84 started.version != current becomes true
+    // Fails if last_start_crashed returns true when started mark matches the current version (started.version != current returns true)
     #[test]
     fn a_started_mark_for_the_current_version_is_not_a_crash() {
         let dir = tempfile::tempdir().unwrap();
@@ -170,7 +170,7 @@ mod tests {
         assert!(!layout.last_start_crashed());
     }
 
-    // Fails if markers.rs:80 launching.version != current returns true instead of false
+    // Fails if last_start_crashed returns true when launching mark has another version (launching.version != current returns true)
     #[test]
     fn a_launch_mark_for_another_version_is_not_a_crash() {
         let dir = tempfile::tempdir().unwrap();
@@ -190,7 +190,7 @@ mod tests {
         assert!(!layout.last_start_crashed());
     }
 
-    // Fails if markers.rs:77 read_launching None returns true instead of false
+    // Fails if last_start_crashed returns true when there is no launching mark (read_launching None returns true)
     #[test]
     fn no_launch_mark_is_not_a_crash() {
         let dir = tempfile::tempdir().unwrap();
@@ -201,7 +201,7 @@ mod tests {
         assert!(!layout.last_start_crashed());
     }
 
-    // Fails if markers.rs:68 match file.try_lock() Err(_) => true becomes Err(_) => false
+    // Fails if app_running returns false when lock is held (match file.try_lock() Err(_) => false)
     #[test]
     fn app_running_sees_a_held_lock() {
         let dir = tempfile::tempdir().unwrap();
