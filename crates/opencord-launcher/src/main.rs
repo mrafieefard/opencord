@@ -12,10 +12,13 @@
 //! opencord --launcher-root DIR …   install into DIR (for testing)
 //! opencord --prepare NOTE          unpack the download NOTE describes, for
 //!                                  the next start (the app runs it)
+//! opencord --after-pid PID --cover hold the app's covered picture across an
+//!                                  update restart
 //! ```
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+mod cover;
 mod github;
 mod launch;
 mod log;
@@ -56,6 +59,8 @@ struct Args {
     after_pid: Option<u32>,
     /// `--prepare <downloads/<file>.json>`: the app has a download ready.
     prepare: Option<PathBuf>,
+    /// `--cover`: an update restart with the app's window covered.
+    cover: bool,
     /// Everything else, for the app: links, `--autostart`.
     forward: Vec<OsString>,
 }
@@ -76,6 +81,7 @@ impl Args {
                 Some("--prepare") => {
                     parsed.prepare = Some(args.next().map(PathBuf::from).unwrap_or_default());
                 }
+                Some("--cover") => parsed.cover = true,
                 _ => parsed.forward.push(arg),
             }
         }
@@ -190,17 +196,30 @@ fn main() {
     };
     launch::tidy_after_replace(&layout.launcher());
 
-    if let Some(pid) = args.after_pid {
-        launch::wait_for_exit(pid, RESTART_WAIT);
-    }
+    let after_pid = args.after_pid;
+    let wait_for_app = move || {
+        if let Some(pid) = after_pid {
+            launch::wait_for_exit(pid, RESTART_WAIT);
+        }
+    };
     let start = Start {
         installer: setup::is_installer(&layout, &exe),
         link: args.opens_a_link(),
-        restart: args.after_pid.is_some(),
+        restart: after_pid.is_some(),
         exe,
         forward: args.forward,
     };
-    let started = run(layout, start, Box::new(System), splash::show_after);
+    let started = if args.cover {
+        // The cover is shown before the wait for the old app: it waits
+        // for `cover.shown` before it exits.
+        let starting = layout.clone();
+        cover::across_restart(layout, wait_for_app, move || {
+            run(starting, start, Box::new(System), under_the_cover)
+        })
+    } else {
+        wait_for_app();
+        run(layout, start, Box::new(System), splash::show_after)
+    };
     if !started {
         std::process::exit(1);
     }
@@ -235,6 +254,12 @@ fn run(
             }
         }),
     )
+}
+
+/// Runs a start's work under the cover, which stands in for the splash:
+/// a second window would show over it. Its statuses go to the log.
+fn under_the_cover(_: Duration, work: Work) -> bool {
+    work(&|status| log::line(format!("{status:?}")))
 }
 
 /// Whether this start waits for GitHub: nothing is installed, it is the
@@ -710,6 +735,17 @@ mod tests {
         // path, never a start.
         assert_eq!(args(&["--prepare"]).prepare, Some(PathBuf::new()));
         assert_eq!(args(&[]).prepare, None);
+    }
+
+    // Fails if `Args::parse` passes `--cover` on to the app: the new app
+    // would get a flag it doesn't know, and no cover would be held.
+    #[test]
+    fn cover_is_the_launchers_own_flag() {
+        let parsed = args(&["--after-pid", "42", "--cover"]);
+        assert!(parsed.cover);
+        assert_eq!(parsed.after_pid, Some(42));
+        assert!(parsed.forward.is_empty());
+        assert!(!args(&["--after-pid", "42"]).cover);
     }
 
     #[test]

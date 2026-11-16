@@ -26,7 +26,7 @@ const HEIGHT: f64 = 180.0;
 /// XRGB, whose top byte compositors should ignore, but some read it as
 /// alpha: KWin on Wayland drew the splash fully transparent, a black box.
 /// Opaque means the same everywhere.
-const OPAQUE: u32 = 0xFF00_0000;
+pub const OPAQUE: u32 = 0xFF00_0000;
 
 // The app's dark theme (app/lib/ui/theme/oc_colors.dart).
 const BACKGROUND: u32 = OPAQUE | 0x0E0E10;
@@ -118,9 +118,57 @@ pub fn show_after<T: Send + 'static>(
     finished(worker, result_rx)
 }
 
+/// A window's pixel buffer, drawn by hand (the splash, the cover).
+pub type Surface = softbuffer::Surface<Rc<Window>, Rc<Window>>;
+
+/// A pixel buffer for `window`.
+pub fn surface(window: &Rc<Window>) -> Result<Surface, softbuffer::SoftBufferError> {
+    softbuffer::Context::new(window.clone())
+        .and_then(|context| softbuffer::Surface::new(&context, window.clone()))
+}
+
+/// Why [`paint`] didn't put a frame on the screen.
+#[derive(Debug)]
+pub enum PaintError {
+    /// The window has no size yet.
+    NoRoom,
+    /// The buffer can't be resized or locked: nothing was drawn.
+    Surface(softbuffer::SoftBufferError),
+    /// Drawn, but not presented.
+    Present(softbuffer::SoftBufferError),
+}
+
+impl std::fmt::Display for PaintError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoRoom => f.write_str("the window has no size"),
+            Self::Surface(error) => write!(f, "no pixel buffer: {error}"),
+            Self::Present(error) => write!(f, "can't present: {error}"),
+        }
+    }
+}
+
+/// Draws one frame: sizes `surface` to `window`, lets `draw` fill its
+/// `0RGB` pixels (`width` × `height`, row by row) and presents them.
+pub fn paint(
+    window: &Window,
+    surface: &mut Surface,
+    draw: impl FnOnce(&mut [u32], usize, usize),
+) -> Result<(), PaintError> {
+    let size = window.inner_size();
+    let (Some(width), Some(height)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+    else {
+        return Err(PaintError::NoRoom);
+    };
+    surface.resize(width, height).map_err(PaintError::Surface)?;
+    let mut buffer = surface.buffer_mut().map_err(PaintError::Surface)?;
+    draw(&mut buffer, size.width as usize, size.height as usize);
+    buffer.present().map_err(PaintError::Present)
+}
+
 struct Splash {
     window: Option<Rc<Window>>,
-    surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
+    surface: Option<Surface>,
     status: Status,
     fonts: Fonts,
     shown: bool,
@@ -143,27 +191,16 @@ impl Splash {
         let (Some(window), Some(surface)) = (&self.window, &mut self.surface) else {
             return;
         };
-        let size = window.inner_size();
-        let (Some(width), Some(height)) =
-            (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
-        else {
-            return;
-        };
-        if surface.resize(width, height).is_err() {
-            return;
+        let scale = window.scale_factor() as f32;
+        let painted = paint(window, surface, |buffer, width, height| {
+            draw(buffer, width, height, scale, &self.status, &self.fonts);
+        });
+        match painted {
+            // A frame that didn't reach the screen is drawn again on the
+            // next redraw; the window shows meanwhile, as it always has.
+            Ok(()) | Err(PaintError::Present(_)) => {}
+            Err(PaintError::NoRoom | PaintError::Surface(_)) => return,
         }
-        let Ok(mut buffer) = surface.buffer_mut() else {
-            return;
-        };
-        draw(
-            &mut buffer,
-            size.width as usize,
-            size.height as usize,
-            window.scale_factor() as f32,
-            &self.status,
-            &self.fonts,
-        );
-        let _ = buffer.present();
         // Shown once drawn, so it never flashes white first.
         if !self.shown {
             self.shown = true;
@@ -198,9 +235,7 @@ impl ApplicationHandler<Message> for Splash {
                 return;
             }
         };
-        let surface = softbuffer::Context::new(window.clone())
-            .and_then(|context| softbuffer::Surface::new(&context, window.clone()));
-        match surface {
+        match surface(&window) {
             Ok(surface) => self.surface = Some(surface),
             Err(error) => crate::log::line(format!("no splash surface: {error}")),
         }
