@@ -20,6 +20,17 @@ pub fn newest(listing: &[Listed], track: Track) -> Option<&Listed> {
         .map(|(_, release)| release)
 }
 
+/// Whether a user on `track` with `installed` takes `candidate`, `track`'s
+/// newest build, as the launcher's update does (D91): never the installed
+/// version again, never an older build of the same track, but another
+/// track's installed build gives way to `track`'s, even an older one.
+pub fn takes(installed: &Version, candidate: &Version, track: Track) -> bool {
+    if Track::of(candidate) != Some(track) || candidate == installed {
+        return false;
+    }
+    Track::of(installed) != Some(track) || candidate > installed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,6 +81,38 @@ mod tests {
         let listing = listed(&["v0.0.2-beta.1"]);
         assert!(newest(&listing, Track::Canary).is_none());
         assert!(newest(&listing, Track::Stable).is_none());
+    }
+
+    fn version(text: &str) -> Version {
+        Version::parse(text).unwrap()
+    }
+
+    // Fails if `takes` drops `candidate > installed` (an older beta is
+    // taken), or `candidate == installed` (the installed one downloads
+    // again).
+    #[test]
+    fn the_installed_build_or_an_older_one_of_the_track_is_not_taken() {
+        let installed = version("0.0.2-beta.3");
+        assert!(!takes(&installed, &version("0.0.2-beta.3"), Track::Beta));
+        assert!(!takes(&installed, &version("0.0.2-beta.2"), Track::Beta));
+        assert!(takes(&installed, &version("0.0.2-beta.4"), Track::Beta));
+    }
+
+    // Fails if `takes` compares across tracks (`Track::of(installed) !=
+    // Some(track) ||` removed): a canary user switching to beta would never
+    // get beta's lower-sorting build.
+    #[test]
+    fn another_tracks_installed_build_gives_way() {
+        let installed = version("0.0.2-canary.1");
+        assert!(takes(&installed, &version("0.0.2-beta.9"), Track::Beta));
+    }
+
+    // Fails if `takes` drops `Track::of(candidate) != Some(track)`.
+    #[test]
+    fn a_candidate_of_another_track_is_never_taken() {
+        let installed = version("0.0.1-beta.1");
+        assert!(!takes(&installed, &version("0.0.2-canary.1"), Track::Beta));
+        assert!(!takes(&installed, &version("0.0.2"), Track::Beta));
     }
 
     #[test]

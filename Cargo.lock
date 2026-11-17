@@ -4792,9 +4792,11 @@ name = "opencord_core"
 version = "0.0.1"
 dependencies = [
  "arboard",
+ "axum",
  "bytes",
  "chacha20poly1305",
  "data-encoding",
+ "ed25519-dalek",
  "flutter_rust_bridge",
  "futures-util",
  "getrandom 0.4.3",
@@ -4812,6 +4814,7 @@ dependencies = [
  "opencord-plugins",
  "opencord-proto",
  "opencord-server",
+ "opencord-update",
  "opus",
  "prost",
  "regex",
@@ -4819,6 +4822,7 @@ dependencies = [
  "rtrb",
  "rustls",
  "rustls-platform-verifier",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.0",

@@ -52,6 +52,8 @@ webpki-roots.workspace = true
 wsola.workspace = true
 
 [dev-dependencies]
+# The updater's tests serve releases from a local server.
+axum.workspace = true
 opencord-server.workspace = true
 tempfile.workspace = true
 # The view timers' tests run on Tokio's paused clock.
@@ -64,6 +66,13 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 [target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
 irondash_run_loop.workspace = true
 irondash_texture.workspace = true
+
+# Background updates (background updates plan, Task 8), on the desktop
+# only: the phone apps update through their stores.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+ed25519-dalek.workspace = true
+opencord-update.workspace = true
+semver = "1.0.28"
 
 # The session log's clock and its crash handler (D82), on every Unix,
 # phones included.

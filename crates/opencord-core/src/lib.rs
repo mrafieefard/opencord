@@ -29,6 +29,10 @@ mod server_clock;
 mod soundboard;
 pub mod store;
 pub mod tofu;
+/// Background updates, on the desktop only: the phone apps update through
+/// their stores.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod updates;
 pub mod video;
 pub mod views;
 pub mod voice;
