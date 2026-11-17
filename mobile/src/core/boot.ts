@@ -8,6 +8,7 @@ export interface SelfInfo {
   displayName: string;
   fingerprint: string;
   publicKeyHex: string;
+  avatarHash?: string;
 }
 
 export type BootResult =

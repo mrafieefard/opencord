@@ -2,21 +2,16 @@
 // audio, appearance, music listening preferences, and version information.
 import { useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
-import { File, Paths } from 'expo-file-system';
 import { useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing';
-import { Touchable } from 'react-native-gesture-handler';
 
-import { getCore, report } from '@/core';
-import { loadIdentity } from '@/core/identity';
+import { getCore } from '@/core';
 import { useVoicePillRoom } from '@/features/voice/callPosition';
 import { setTheme } from '@/state/actions/prefs';
-import { toast } from '@/state/actions/ui';
+import { toPresenceStatus } from '@/state/actions/presence';
 import { usePrefs, useSelf } from '@/state/selectors';
-import type { Theme } from '@/state/types';
-import { Avatar, Divider, Icon, Row, Segmented, Text, radius, space, typography, useTheme } from '@/ui';
+import type { Theme, UserStatus } from '@/state/types';
+import { Avatar, Divider, Icon, Row, Segmented, Text, radius, space, useTheme } from '@/ui';
 
 import { MusicListeningRows } from './MusicListeningRows';
 
@@ -26,40 +21,32 @@ const THEME_OPTIONS: { label: string; value: Theme }[] = [
   { label: 'Dark', value: 'dark' },
 ];
 
+function statusLabel(status: UserStatus): string {
+  switch (status) {
+    case 'online':
+      return 'Online';
+    case 'idle':
+      return 'Idle';
+    case 'dnd':
+      return 'Do not disturb';
+  }
+}
+
 export function YouScreen() {
   const router = useRouter();
   const self = useSelf();
-  const { theme } = usePrefs();
+  const { theme, status } = usePrefs();
   const { colors } = useTheme();
   const pillRoom = useVoicePillRoom();
 
   const themeIndex = THEME_OPTIONS.findIndex((opt) => opt.value === theme);
-
-  const fingerprint = self?.fingerprint;
-  const copyFingerprint = useCallback(async () => {
-    if (!fingerprint) return;
-    await Clipboard.setStringAsync(fingerprint);
-    toast('Copied fingerprint');
-  }, [fingerprint]);
-
-  const handleBackup = useCallback(async () => {
-    const core = getCore();
-    const identity = await loadIdentity(core);
-    // The tabs show only once an identity is saved.
-    if (!identity) throw new Error('no saved identity');
-    const backupText = core.identityBackupEncode(identity.secret);
-    const file = new File(Paths.cache, 'opencord-identity.txt');
-    await file.write(backupText);
-    await Sharing.shareAsync(file.uri, {
-      dialogTitle: 'Back up your identity',
-    });
-  }, []);
 
   const handleThemeChange = useCallback((index: number) => {
     const chosen = THEME_OPTIONS[index]?.value ?? 'system';
     setTheme(chosen);
   }, []);
 
+  const ownAvatar = getCore().ownAvatar();
   const appVersion = Constants.expoConfig?.version ?? '0.0.1';
   const coreVersion = getCore().coreVersion();
 
@@ -69,76 +56,31 @@ export function YouScreen() {
       style={[styles.screen, { backgroundColor: colors.chat }]}
       contentContainerStyle={[styles.content, { paddingBottom: space.lg + pillRoom }]}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <Avatar name={self?.displayName ?? ''} size={72} />
-        <View style={styles.headerText}>
-          <Text variant="title2">{self?.displayName ?? ''}</Text>
-          <Touchable
-            onPress={() => report(copyFingerprint(), 'copy fingerprint')}
-            style={styles.fingerprintButton}
-          >
-            <View
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel="Copy fingerprint"
-              style={styles.fingerprintContent}
-            >
-              <Text variant="mono" color="textSecondary" style={styles.fingerprint}>
-                {self?.fingerprint ?? ''}
-              </Text>
-              <Icon name="copy" size={14} color="textSecondary" />
-            </View>
-          </Touchable>
-        </View>
-      </View>
-
       {/* Profile */}
-      <View style={styles.section}>
-        <Text variant="caption" color="textMuted" style={styles.sectionTitle}>
-          Profile
-        </Text>
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Row
-            accessibilityLabel="Display name"
-            onPress={() => router.push('/you/name')}
-            style={styles.rowItem}
-          >
-            <View style={styles.rowContent}>
-              <Text variant="body">Display name</Text>
-              <View style={styles.rowRight}>
-                <Text variant="callout" color="textSecondary">
-                  {self?.displayName ?? ''}
-                </Text>
-                <View style={styles.chevron}>
-                  <Icon name="back" size={14} color="textSecondary" />
-                </View>
-              </View>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <Row
+          accessibilityLabel="Profile"
+          onPress={() => router.push('/you/profile')}
+          style={styles.profileRowItem}
+        >
+          <View style={styles.profileRowContent}>
+            <Avatar
+              name={self?.displayName ?? ''}
+              file={ownAvatar.file}
+              size={56}
+              presence={toPresenceStatus(status)}
+            />
+            <View style={styles.profileDetails}>
+              <Text variant="headline">{self?.displayName ?? ''}</Text>
+              <Text variant="subhead" color="textSecondary">
+                {statusLabel(status)}
+              </Text>
             </View>
-          </Row>
-        </View>
-      </View>
-
-      {/* Identity */}
-      <View style={styles.section}>
-        <Text variant="caption" color="textMuted" style={styles.sectionTitle}>
-          Identity
-        </Text>
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Row
-            accessibilityLabel="Back up your identity"
-            onPress={() => report(handleBackup(), 'back up identity')}
-            style={styles.rowItem}
-          >
-            <View style={styles.rowContent}>
-              <Text variant="body">Back up your identity</Text>
-              <Icon name="share" size={18} color="textSecondary" />
+            <View style={styles.chevron}>
+              <Icon name="back" size={16} color="textSecondary" />
             </View>
-          </Row>
-        </View>
-        <Text variant="footnote" color="textSecondary" style={styles.sectionFooter}>
-          This file is your identity. Anyone who has it can be you. Keep it somewhere safe.
-        </Text>
+          </View>
+        </Row>
       </View>
 
       {/* Voice */}
@@ -219,27 +161,19 @@ const styles = StyleSheet.create({
     padding: space.lg,
     gap: space.lg,
   },
-  header: {
-    alignItems: 'center',
-    gap: space.md,
+  profileRowItem: {
+    paddingHorizontal: space.md,
     paddingVertical: space.md,
   },
-  headerText: {
-    alignItems: 'center',
-    gap: space.xs,
-  },
-  fingerprintButton: {
-    paddingVertical: space.xs,
-    paddingHorizontal: space.sm,
-  },
-  fingerprint: {
-    fontSize: typography.footnote.fontSize,
-    lineHeight: typography.footnote.lineHeight,
-  },
-  fingerprintContent: {
+  profileRowContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xs,
+    gap: space.md,
+  },
+  profileDetails: {
+    flex: 1,
+    gap: 2,
   },
   section: {
     gap: space.xs,

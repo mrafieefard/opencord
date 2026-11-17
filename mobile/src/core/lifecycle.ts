@@ -7,6 +7,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { getCore, report, setErrorShower, startEventLoop, type EventLoop } from '@/core';
 import { watchAudioEvents } from '@/state/actions/audio';
 import { loadPrefs } from '@/state/actions/prefs';
+import { catchUpAvatar, catchUpPresence } from '@/state/actions/presence';
 import { catchUpName } from '@/state/actions/profile';
 import { loadServers, retryDisconnected } from '@/state/actions/servers';
 import { setAppActive, toast } from '@/state/actions/ui';
@@ -29,6 +30,8 @@ export function startApp(): void {
   setErrorShower((text) => toast(text, 'error'));
   setReadyHook((serverKey) => {
     catchUpName(serverKey);
+    catchUpPresence(serverKey);
+    catchUpAvatar(serverKey);
     report(reloadAfterReady(serverKey), 'reload messages');
   });
   watchAudioEvents();

@@ -11,9 +11,10 @@ import { errorKind } from '@/core/errors';
 import { seedActivity } from './activity';
 import { applyEvents, newServer } from './events';
 import { ReadPositions } from './readPositions';
-import type { AppState } from './types';
+import type { AppState, UserStatus } from './types';
 export { channelKey } from './types';
 
+export const DEFAULT_STATUS: UserStatus = 'online';
 export const DEFAULT_MUSIC = { volume: 0.5, muted: false, duck: false } as const;
 export const DEFAULT_USER_AUDIO = { volume: 1, mutedForMe: false } as const;
 /**
@@ -53,7 +54,7 @@ export function initialState(): AppState {
     voiceSpeed: 1,
     voiceRecording: null,
     micTest: false,
-    prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [], audio: { ...DEFAULT_AUDIO } },
+    prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [], audio: { ...DEFAULT_AUDIO }, status: DEFAULT_STATUS },
     toasts: [],
     editingMessage: null,
   };

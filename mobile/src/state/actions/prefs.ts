@@ -6,12 +6,18 @@ import { NoiseSuppression, type PhoneAudioSettings } from '@opencord/core-native
 import { getCore } from '@/core';
 
 import { DEFAULT_AUDIO, DEFAULT_MUSIC, useAppStore } from '../store';
-import type { MusicListening, Theme } from '../types';
+import type { MusicListening, Theme, UserStatus } from '../types';
 
 const THEME = 'mobile.theme';
 const MUSIC = 'mobile.musicListening';
 const SOUND_FAVORITES = 'mobile.soundFavorites';
 const AUDIO = 'mobile.audio';
+export const STATUS = 'mobile.status';
+
+export function readStatus(text: string | undefined): UserStatus {
+  if (text === 'idle' || text === 'dnd') return text;
+  return 'online';
+}
 
 /** Kept by name: the generated enum's numbers are the bindings', not ours. */
 const SUPPRESSION_NAMES: [NoiseSuppression, string][] = [
@@ -85,8 +91,9 @@ export function loadPrefs(): void {
   const music = readMusic(core.settingsGet(MUSIC));
   const soundFavorites = readFavorites(core.settingsGet(SOUND_FAVORITES));
   const audio = readAudio(core.settingsGet(AUDIO));
+  const status = readStatus(core.settingsGet(STATUS));
   useAppStore.setState({
-    prefs: { theme: theme === 'light' || theme === 'dark' ? theme : 'system', music, soundFavorites, audio },
+    prefs: { theme: theme === 'light' || theme === 'dark' ? theme : 'system', music, soundFavorites, audio, status },
   });
   core.musicSetListening(music.volume, music.muted, music.duck);
   core.audioSettingsApply(audio);

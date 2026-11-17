@@ -139,6 +139,8 @@ export interface MusicListening {
   duck: boolean;
 }
 
+export type UserStatus = 'online' | 'idle' | 'dnd';
+
 export interface Prefs {
   theme: Theme;
   music: MusicListening;
@@ -146,6 +148,8 @@ export interface Prefs {
   soundFavorites: string[];
   /** Noise suppression and the two volumes (Voice & audio), given to the core at boot and on change. */
   audio: PhoneAudioSettings;
+  /** The person's presence status, stored with the other prefs. */
+  status: UserStatus;
 }
 
 export interface Toast {

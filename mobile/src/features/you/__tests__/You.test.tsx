@@ -1,12 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react-native';
-import * as Clipboard from 'expo-clipboard';
-import * as Sharing from 'expo-sharing';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
 
-import { File, Paths } from 'expo-file-system';
 import { NIGHT_OWLS, snapshot } from '@/core/fake/world';
-import { saveIdentity } from '@/core/identity';
 import { onEvents, useAppStore } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 import { NameScreen } from '../NameScreen';
@@ -34,14 +30,14 @@ describe('You tab', () => {
   beforeEach(() => {
     freshStore();
     mockBack.mockClear();
-    (Sharing.shareAsync as jest.Mock).mockClear();
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it('the header shows the name and fingerprint, and a tap copies the fingerprint', async () => {
+  it('the Profile card shows the name and status, and navigates to /you/profile', async () => {
+    mockRouter.push.mockClear();
     useAppStore.setState({
       self: {
         displayName: 'Ava',
@@ -52,14 +48,11 @@ describe('You tab', () => {
 
     await renderScreen(<YouScreen />);
 
-    expect(screen.getAllByText('Ava').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('ab12cd34ef567890')).toBeTruthy();
+    expect(screen.getByText('Ava')).toBeTruthy();
+    expect(screen.getByText('Online')).toBeTruthy();
 
-    await fireEvent.press(screen.getByLabelText('Copy fingerprint'));
-    await settle();
-
-    const clipboardText = await Clipboard.getStringAsync();
-    expect(clipboardText).toBe('ab12cd34ef567890');
+    await fireEvent.press(screen.getByLabelText('Profile'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/you/profile');
   });
 
   it('changing the name saves it and sends it to every connected server', async () => {
@@ -98,26 +91,6 @@ describe('You tab', () => {
       [NIGHT_OWLS, 'Avery'],
       ['server-b', 'Avery'],
     ]);
-  });
-
-  it("backing up writes the file and opens the share sheet: the file's text equals identityBackupEncode's", async () => {
-    const core = freshStore();
-    const secret = new Uint8Array(32).fill(42).buffer;
-    await saveIdentity(core, secret, 'Ava');
-
-    await renderScreen(<YouScreen />);
-
-    await fireEvent.press(screen.getByLabelText('Back up your identity'));
-    await settle();
-
-    const expectedBackup = core.identityBackupEncode(secret);
-    const file = new File(Paths.cache, 'opencord-identity.txt');
-    expect(await file.text()).toBe(expectedBackup);
-
-    expect(Sharing.shareAsync).toHaveBeenCalledWith(
-      file.uri,
-      expect.objectContaining({ dialogTitle: 'Back up your identity' }),
-    );
   });
 
   it('the theme choice is kept and applied', async () => {
