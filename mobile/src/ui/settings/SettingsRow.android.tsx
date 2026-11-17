@@ -71,6 +71,25 @@ export function SettingsRow(props: SettingsRowProps) {
       );
     case 'choice':
       return <ChoiceRow {...props} />;
+    case 'check':
+      return (
+        <Row
+          accessibilityLabel={props.label}
+          accessibilityRole="radio"
+          checked={props.checked}
+          onPress={props.onPress}
+          height={ROW_HEIGHT}
+          style={styles.pad}
+        >
+          <View style={styles.inline}>
+            <Titles title={props.label} summary={props.detail} />
+            {/* Room for the mark on every row, so the labels' wrapping doesn't change with the choice. */}
+            <View testID={props.checked ? 'settings-check' : undefined} style={styles.checkSlot}>
+              {props.checked && <Icon name="check" size={24} color="text" />}
+            </View>
+          </View>
+        </Row>
+      );
     case 'text':
       return <TextRow {...props} />;
     case 'destructive':
@@ -171,6 +190,7 @@ const styles = StyleSheet.create({
   inline: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.lg, paddingVertical: space.sm },
   plain: { minHeight: ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingVertical: space.sm, gap: space.lg },
   fill: { flex: 1 },
+  checkSlot: { width: 24, alignItems: 'center' },
   stacked: { minHeight: ROW_HEIGHT, paddingVertical: space.md, gap: space.xs },
   line: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   field: { paddingVertical: space.xs, paddingHorizontal: 0, borderBottomWidth: StyleSheet.hairlineWidth },

@@ -131,6 +131,17 @@ function SettingsKitPage({ onPage }: { onPage: (index: number) => void }) {
           onChange={(joinMessages) => edit({ joinMessages })}
         />
       </SettingsSection>
+      <SettingsSection title="Notifications" footer="The same choice as the menu above, as checkmark rows.">
+        {NOTIFY_OPTIONS.map((option) => (
+          <SettingsRow
+            key={option.key}
+            kind="check"
+            label={option.label}
+            checked={draft.notify === option.key}
+            onPress={() => edit({ notify: option.key })}
+          />
+        ))}
+      </SettingsSection>
       <SettingsSection title="Uploads">
         <SettingsRow
           kind="slider"

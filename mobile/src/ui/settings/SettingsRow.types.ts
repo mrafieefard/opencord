@@ -50,6 +50,20 @@ export interface ChoiceRowProps {
   onChange: (key: string) => void;
 }
 
+/**
+ * One option of a few, each its own row, the chosen one with a checkmark
+ * (iOS Settings' list of choices). For options worth a line of explanation
+ * each; a `choice` row's menu has no room for one.
+ */
+export interface CheckRowProps {
+  kind: 'check';
+  label: string;
+  /** A line under the label saying what the option does. */
+  detail?: string;
+  checked: boolean;
+  onPress: () => void;
+}
+
 export interface TextRowProps {
   kind: 'text';
   label: string;
@@ -85,6 +99,7 @@ export type SettingsRowProps =
   | SwitchRowProps
   | SliderRowProps
   | ChoiceRowProps
+  | CheckRowProps
   | TextRowProps
   | DestructiveRowProps
   | ActionRowProps

@@ -11,6 +11,7 @@ import { askForNotifications, ensureMicrophone, explainMicrophone } from '@/feat
 
 import { DEFAULT_USER_AUDIO, useAppStore } from '../store';
 import { channelKey, type AppState, type MyVoice, type UserAudio } from '../types';
+import { stopMicTestForCall } from './audio';
 
 /** The notification the service shows, or null while it isn't running. */
 let shown: string | null = null;
@@ -43,6 +44,9 @@ export async function joinVoice(serverKey: string, channelId: string): Promise<b
     return false;
   }
   await askForNotifications();
+  // Before the call's session and engine: the core would carry a running
+  // test into the call (Voice & audio, actions/audio.ts).
+  await stopMicTestForCall();
   await enterVoiceAudio();
   // Started before the join, while the app is in the foreground, as
   // Android 14 requires for a microphone service.

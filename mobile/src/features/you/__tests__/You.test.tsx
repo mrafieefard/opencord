@@ -162,4 +162,14 @@ describe('You tab', () => {
     const lastCall = setListeningCalls[setListeningCalls.length - 1];
     expect(lastCall?.args).toEqual([1.5, true, true]);
   });
+
+  // Fails if the row is missing or opens anything but Voice & audio's route (app/(tabs)/you/voice.tsx).
+  it('the Voice & audio row opens its page', async () => {
+    freshStore();
+    mockRouter.push.mockClear();
+    await renderScreen(<YouScreen />);
+    await fireEvent.press(screen.getByLabelText('Voice & audio'));
+    await fireEvent.press(screen.getByLabelText('Voice & audio'));
+    expect(mockRouter.push.mock.calls).toEqual([['/you/voice'], ['/you/voice']]);
+  });
 });

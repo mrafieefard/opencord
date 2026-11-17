@@ -69,6 +69,32 @@ export function SettingsRow(props: SettingsRowProps) {
       return <SliderRow {...props} />;
     case 'choice':
       return <ChoiceRow {...props} />;
+    case 'check':
+      return (
+        <Row
+          accessibilityLabel={props.label}
+          accessibilityRole="radio"
+          checked={props.checked}
+          onPress={props.onPress}
+          height={ROW_HEIGHT}
+          style={styles.pad}
+        >
+          <View style={[styles.inline, styles.checkLine]}>
+            <View style={styles.label}>
+              <Text variant="body">{props.label}</Text>
+              {props.detail !== undefined && (
+                <Text variant="footnote" color="textMuted">
+                  {props.detail}
+                </Text>
+              )}
+            </View>
+            {/* Room for the mark on every row, so the labels' wrapping doesn't change with the choice. */}
+            <View testID={props.checked ? 'settings-check' : undefined} style={styles.checkSlot}>
+              {props.checked && <Icon name="check" size={17} color="text" />}
+            </View>
+          </View>
+        </Row>
+      );
     case 'text':
       return <TextRow {...props} />;
     case 'destructive':
@@ -201,6 +227,9 @@ const styles = StyleSheet.create({
   // The label keeps at least half the row; a long value is cut short.
   value: { maxWidth: '50%', textAlign: 'right' },
   chevron: { transform: [{ rotate: '180deg' }] },
+  /** A check row with a detail line grows past 44 pt. */
+  checkLine: { paddingVertical: space.sm },
+  checkSlot: { width: 20, alignItems: 'center' },
   slider: { minHeight: ROW_HEIGHT, paddingVertical: space.sm, gap: space.xs },
   line: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   stacked: { minHeight: ROW_HEIGHT, paddingVertical: space.sm, gap: space.xs },

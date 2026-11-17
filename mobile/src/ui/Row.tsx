@@ -13,6 +13,8 @@ export interface RowProps {
   onLongPress?: () => void;
   height?: number;
   selected?: boolean;
+  /** For a row that is one of a set (a checkmark row): told to screen readers, not drawn. */
+  checked?: boolean;
   accessibilityLabel: string;
   accessibilityRole?: AccessibilityRole;
   style?: StyleProp<ViewStyle>;
@@ -24,6 +26,7 @@ export function Row({
   onLongPress,
   height = TOUCH,
   selected = false,
+  checked,
   accessibilityLabel,
   accessibilityRole = 'button',
   style,
@@ -38,7 +41,7 @@ export function Row({
       activeUnderlayOpacity={1}
       style={[styles.row, { minHeight: height }, selected && { backgroundColor: colors.selected, borderRadius: radius.row }, style]}
     >
-      <View accessible accessibilityRole={accessibilityRole} accessibilityLabel={accessibilityLabel} accessibilityState={{ selected }} style={styles.content}>
+      <View accessible accessibilityRole={accessibilityRole} accessibilityLabel={accessibilityLabel} accessibilityState={{ selected, checked }} style={styles.content}>
         {children}
       </View>
     </Touchable>

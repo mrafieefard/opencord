@@ -9,6 +9,7 @@ import type {
   MusicNowPlayingRecord,
   MusicSessionRecord,
   MusicSettingsRecord,
+  PhoneAudioSettings,
   PluginUserRecord,
   ServerEntry,
   ServerSnapshot,
@@ -143,6 +144,8 @@ export interface Prefs {
   music: MusicListening;
   /** Soundboard favourites, by picker.ts's favoriteKey. */
   soundFavorites: string[];
+  /** Noise suppression and the two volumes (Voice & audio), given to the core at boot and on change. */
+  audio: PhoneAudioSettings;
 }
 
 export interface Toast {
@@ -203,6 +206,8 @@ export interface AppState {
   /** Voice messages play at 1, 1.5 or 2 times. */
   voiceSpeed: number;
   voiceRecording: VoiceRecording | null;
+  /** The microphone test (Voice & audio) is on, or asked to be: its button shows Stop test. */
+  micTest: boolean;
   prefs: Prefs;
   toasts: Toast[];
   editingMessage: EditingMessage | null;

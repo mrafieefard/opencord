@@ -1,5 +1,5 @@
-// The You tab (spec §8.8): the person's profile, identity backup, appearance,
-// music listening preferences, and version information.
+// The You tab (spec §8.8): the person's profile, identity backup, Voice &
+// audio, appearance, music listening preferences, and version information.
 import { useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -139,6 +139,27 @@ export function YouScreen() {
         <Text variant="footnote" color="textSecondary" style={styles.sectionFooter}>
           This file is your identity. Anyone who has it can be you. Keep it somewhere safe.
         </Text>
+      </View>
+
+      {/* Voice */}
+      <View style={styles.section}>
+        <Text variant="caption" color="textMuted" style={styles.sectionTitle}>
+          Voice
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Row
+            accessibilityLabel="Voice & audio"
+            onPress={() => router.push('/you/voice')}
+            style={styles.rowItem}
+          >
+            <View style={styles.rowContent}>
+              <Text variant="body">Voice & audio</Text>
+              <View style={styles.chevron}>
+                <Icon name="back" size={14} color="textSecondary" />
+              </View>
+            </View>
+          </Row>
+        </View>
       </View>
 
       {/* Appearance */}

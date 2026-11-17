@@ -433,7 +433,8 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.Notice:
     case MobileEvent_Tags.InputLevel:
     case MobileEvent_Tags.NoiseSuppressionFellBack:
-      // Shown, not kept: store.ts turns these into toasts.
+      // Shown, not kept: store.ts hands them on (toasts; Voice & audio's
+      // level, fallback and microphone problem to actions/audio.ts).
       return state;
     case MobileEvent_Tags.PluginChannelTypesUpdated:
       return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginChannelTypes: event.inner.types }));

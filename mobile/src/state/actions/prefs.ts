@@ -1,14 +1,54 @@
 // The person's preferences, kept in the core's settings: the theme, their
-// music volume, mute and ducking (the core's own defaults), and their
-// soundboard favourites.
+// music volume, mute and ducking (the core's own defaults), their
+// soundboard favourites, and noise suppression and the voice volumes.
+import { NoiseSuppression, type PhoneAudioSettings } from '@opencord/core-native';
+
 import { getCore } from '@/core';
 
-import { DEFAULT_MUSIC, useAppStore } from '../store';
+import { DEFAULT_AUDIO, DEFAULT_MUSIC, useAppStore } from '../store';
 import type { MusicListening, Theme } from '../types';
 
 const THEME = 'mobile.theme';
 const MUSIC = 'mobile.musicListening';
 const SOUND_FAVORITES = 'mobile.soundFavorites';
+const AUDIO = 'mobile.audio';
+
+/** Kept by name: the generated enum's numbers are the bindings', not ours. */
+const SUPPRESSION_NAMES: [NoiseSuppression, string][] = [
+  [NoiseSuppression.Off, 'off'],
+  [NoiseSuppression.Standard, 'standard'],
+  [NoiseSuppression.High, 'high'],
+];
+
+/** 0–2 (200 %); anything that isn't a number is 1, as the facade does. */
+function voiceVolume(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
+  return Math.min(Math.max(value, 0), 2);
+}
+
+function readAudio(text: string | undefined): PhoneAudioSettings {
+  if (text === undefined) return { ...DEFAULT_AUDIO };
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object') {
+      const value = parsed as Partial<Record<keyof PhoneAudioSettings, unknown>>;
+      const suppression = SUPPRESSION_NAMES.find(([, name]) => name === value.noiseSuppression)?.[0];
+      return {
+        noiseSuppression: suppression ?? DEFAULT_AUDIO.noiseSuppression,
+        inputVolume: voiceVolume(value.inputVolume),
+        outputVolume: voiceVolume(value.outputVolume),
+      };
+    }
+  } catch {
+    console.warn('audio settings could not be parsed; using the defaults');
+  }
+  return { ...DEFAULT_AUDIO };
+}
+
+function writeAudio(audio: PhoneAudioSettings): string {
+  const name = SUPPRESSION_NAMES.find(([mode]) => mode === audio.noiseSuppression)?.[1] ?? 'standard';
+  return JSON.stringify({ noiseSuppression: name, inputVolume: audio.inputVolume, outputVolume: audio.outputVolume });
+}
 
 function readFavorites(text: string | undefined): string[] {
   if (text === undefined) return [];
@@ -44,10 +84,26 @@ export function loadPrefs(): void {
   const theme = core.settingsGet(THEME);
   const music = readMusic(core.settingsGet(MUSIC));
   const soundFavorites = readFavorites(core.settingsGet(SOUND_FAVORITES));
+  const audio = readAudio(core.settingsGet(AUDIO));
   useAppStore.setState({
-    prefs: { theme: theme === 'light' || theme === 'dark' ? theme : 'system', music, soundFavorites },
+    prefs: { theme: theme === 'light' || theme === 'dark' ? theme : 'system', music, soundFavorites, audio },
   });
   core.musicSetListening(music.volume, music.muted, music.duck);
+  core.audioSettingsApply(audio);
+}
+
+/** Noise suppression or a volume changed: the core uses it at once, in a call or the microphone test. */
+export function setAudio(change: Partial<PhoneAudioSettings>): void {
+  const merged = { ...useAppStore.getState().prefs.audio, ...change };
+  const audio: PhoneAudioSettings = {
+    noiseSuppression: merged.noiseSuppression,
+    inputVolume: voiceVolume(merged.inputVolume),
+    outputVolume: voiceVolume(merged.outputVolume),
+  };
+  const core = getCore();
+  core.audioSettingsApply(audio);
+  core.settingsSet(AUDIO, writeAudio(audio));
+  useAppStore.setState((state) => ({ prefs: { ...state.prefs, audio } }));
 }
 
 export function setTheme(theme: Theme): void {

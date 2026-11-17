@@ -89,6 +89,27 @@ describe.each(ROWS)('SettingsRow on %s', (system, SettingsRow) => {
     expect(onChange.mock.calls).toEqual([['nobody'], ['everyone']]);
   });
 
+  // Fails if the mark shows on the wrong row, a screen reader isn't told
+  // which is checked, or a press doesn't reach onPress each time.
+  it('a check row marks the chosen option and calls onPress', async () => {
+    const onPress = jest.fn();
+    await draw(
+      <>
+        <SettingsRow kind="check" label="Off" detail="Sends the microphone as it is" checked={false} onPress={onPress} />
+        <SettingsRow kind="check" label="Standard" checked onPress={jest.fn()} />
+      </>,
+    );
+    expect(screen.getByText('Sends the microphone as it is')).toBeTruthy();
+    expect(screen.getAllByTestId('settings-check')).toHaveLength(1);
+    expect(screen.getByRole('radio', { name: 'Standard' }).props.accessibilityState).toMatchObject({ checked: true });
+    expect(screen.getByRole('radio', { name: 'Off' }).props.accessibilityState).toMatchObject({ checked: false });
+    // No chevron: choosing opens nothing.
+    expect(screen.queryByTestId('settings-chevron')).toBeNull();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Off' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Off' }));
+    expect(onPress).toHaveBeenCalledTimes(2);
+  });
+
   it('a destructive row is drawn in the danger colour', async () => {
     const onPress = jest.fn();
     await draw(<SettingsRow kind="destructive" label="Delete server" onPress={onPress} />);
