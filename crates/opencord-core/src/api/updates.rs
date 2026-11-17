@@ -440,6 +440,53 @@ mod tests {
         base
     }
 
+    async fn start_pausing_test_server(
+        notify_req: Arc<tokio::sync::Notify>,
+        notify_wait: Arc<tokio::sync::Notify>,
+    ) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let repo = opencord_update::REPOSITORY;
+        let listing_path = format!("/repos/{repo}/releases");
+        let manifest_path = format!("/{repo}/releases/download/v0.0.2-beta.2/release.json");
+
+        let app = axum::Router::new()
+            .route(
+                &listing_path,
+                axum::routing::get(move || {
+                    let notify_req = notify_req.clone();
+                    let notify_wait = notify_wait.clone();
+                    async move {
+                        notify_req.notify_one();
+                        notify_wait.notified().await;
+                        axum::Json(serde_json::json!([
+                            {"tag_name": "v0.0.2-beta.2"}
+                        ]))
+                    }
+                }),
+            )
+            .route(
+                &manifest_path,
+                axum::routing::get(|| async {
+                    axum::Json(serde_json::json!({
+                        "schema": 1,
+                        "version": "0.0.2-beta.2",
+                        "tag": "v0.0.2-beta.2",
+                        "platforms": {
+                            "client-linux-x64": {
+                                "file": "opencord.tar.gz",
+                                "url": "http://127.0.0.1/assets/opencord.tar.gz",
+                                "size": 100,
+                                "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                            }
+                        }
+                    }))
+                }),
+            );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        base
+    }
+
     #[tokio::test]
     async fn start_updates_checks_after_15_s() {
         // Fails if the first check runs before 15 s (e.g. FIRST_CHECK_DELAY changed from 15 s to 0 s)
@@ -619,31 +666,44 @@ mod tests {
 
     #[tokio::test]
     async fn a_check_from_before_a_track_switch_sends_nothing() {
-        // Fails if deliver does not check Arc::ptr_eq with state.updater
+        // Fails if check_updates_now delivers outcome using current updater rather than the one that ran the check
         let _test_lock = TEST_LOCK.lock().await;
         reset_for_test();
 
-        let base = start_test_server().await;
+        let notify_req = Arc::new(tokio::sync::Notify::new());
+        let notify_wait = Arc::new(tokio::sync::Notify::new());
+        let base = start_pausing_test_server(notify_req.clone(), notify_wait.clone()).await;
+
         let dir = tempdir().unwrap();
+        let layout = Layout::new(dir.path().to_path_buf());
+        let version = Version::parse("0.0.2-beta.2").unwrap();
+        let exe = opencord_update::layout::app_executable(&layout.version_dir(&version));
+        fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        fs::write(exe, b"fake_app").unwrap();
+        layout
+            .write_pending(&Pending {
+                version,
+                track: "beta".to_string(),
+                prepared_at: 100,
+                confirmed_at: Some(100),
+            })
+            .unwrap();
+
         let old_updater = test_updater(dir.path().to_path_buf(), base.clone());
-        let new_updater = test_updater(dir.path().to_path_buf(), base);
+        let new_dir = tempdir().unwrap();
+        let new_updater = test_updater(new_dir.path().to_path_buf(), base);
 
-        start_updates_with_updater(old_updater.clone()).unwrap();
+        start_updates_with_updater(old_updater).unwrap();
 
-        // Simulate switching updater while old updater's outcome arrives
-        {
-            let mut guard = lock_updates();
-            let state = guard.as_mut().unwrap();
-            state.updater = Some(new_updater);
-        }
+        let check_task = tokio::spawn(async { check_updates_now().await });
+        notify_req.notified().await;
 
-        deliver_outcome(
-            Ok(CheckOutcome::AlreadyWaiting(
-                Version::parse("0.0.2-beta.2").unwrap(),
-            )),
-            &old_updater,
-        );
+        // Switch to new updater while old check is in flight
+        start_updates_with_updater(new_updater).unwrap();
+        notify_wait.notify_one();
 
+        let res = check_task.await.unwrap();
+        assert!(res.is_ok(), "check_updates_now should succeed: {res:?}");
         assert!(
             drain_events().is_empty(),
             "outcome from old updater must be discarded after track switch"
@@ -652,7 +712,7 @@ mod tests {
 
     #[tokio::test]
     async fn no_check_runs_while_a_prepare_holds_the_lock() {
-        // Fails if check_updates_now does not check prepare_running under CHECK_LOCK
+        // Fails if check_updates_now checks prepare_running before taking CHECK_LOCK
         let _test_lock = TEST_LOCK.lock().await;
         reset_for_test();
 
@@ -663,6 +723,12 @@ mod tests {
 
         let layout = updater.layout();
         fs::create_dir_all(layout.root()).unwrap();
+
+        let check_guard = CHECK_LOCK.lock().await;
+
+        let check_task = tokio::spawn(async { check_updates_now().await });
+        tokio::task::yield_now().await;
+
         let prepare_lock_file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -672,12 +738,87 @@ mod tests {
             .unwrap();
         prepare_lock_file.lock().unwrap();
 
-        let res = check_updates_now().await;
+        drop(check_guard);
+
+        let res = check_task.await.unwrap();
         assert_eq!(res.unwrap_err(), "prepare is running");
         assert!(
             drain_events().is_empty(),
             "no event should arrive when prepare is running"
         );
+    }
+
+    #[tokio::test]
+    async fn background_loop_skips_check_while_prepare_is_running() {
+        // Fails if background loop runs check while prepare is running (e.g. if true || !prepare_running)
+        let _test_lock = TEST_LOCK.lock().await;
+        reset_for_test();
+
+        let base = start_test_server().await;
+        tokio::time::pause();
+
+        let dir = tempdir().unwrap();
+        let updater = test_updater(dir.path().to_path_buf(), base);
+        let layout = updater.layout();
+        fs::create_dir_all(layout.root()).unwrap();
+
+        let prepare_lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(layout.prepare_lock())
+            .unwrap();
+        prepare_lock_file.lock().unwrap();
+
+        start_updates_with_updater(updater).unwrap();
+        tokio::task::yield_now().await;
+
+        tokio::time::advance(Duration::from_secs(16)).await;
+        for _ in 0..10 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(
+            drain_events().is_empty(),
+            "no event while prepare holds the lock"
+        );
+
+        drop(prepare_lock_file);
+        tokio::time::advance(Duration::from_secs(4 * 60 * 60 + 1)).await;
+        let mut events = Vec::new();
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            events = drain_events();
+            if !events.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(events.len(), 1, "expected 1 event after lock released");
+    }
+
+    #[tokio::test]
+    async fn start_updates_succeeds_and_sets_updater_and_task() {
+        // Fails if start_updates does not call start_updates_with_updater (e.g. returns Ok(()) without starting)
+        let _test_lock = TEST_LOCK.lock().await;
+        reset_for_test();
+
+        tokio::time::pause();
+        let dir = tempdir().unwrap();
+        let res = start_updates(
+            dir.path().to_str().unwrap().to_string(),
+            "beta".to_string(),
+            "0.0.1".to_string(),
+        );
+        assert!(res.is_ok(), "start_updates should succeed: {res:?}");
+
+        {
+            let guard = lock_updates();
+            let state = guard.as_ref().unwrap();
+            assert!(state.updater.is_some(), "state.updater must be set");
+            assert!(state.task.is_some(), "state.task must be set");
+        }
+
+        stop_updates();
     }
 
     #[test]
