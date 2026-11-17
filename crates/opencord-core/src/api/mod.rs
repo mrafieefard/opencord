@@ -6,4 +6,5 @@ pub mod private;
 
 pub mod system;
 pub mod types;
+pub mod updates;
 pub mod views;

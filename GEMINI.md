@@ -2,14 +2,14 @@
 
 ## Current work
 
-You are implementing `docs/superpowers/plans/2026-11-07-plugins-m1.md`: milestone 1 of plugins (the runtime, the resource manager and bots). The design is `docs/superpowers/specs/2026-11-07-plugins-design.md`.
+You are implementing `docs/superpowers/plans/2026-11-15-background-updates.md`: signed releases, then background updates with the update square and the restart animation. The design is `docs/superpowers/specs/2026-11-12-background-updates-design.md`, with two mockups beside it.
 
 - The plan's **Working Rules** and this file apply to everything you do in this repository. Read "How to write code here" before each stage: it grows after every review.
-- **One draft pull request for the whole milestone,** opened after Task 3. It stays a draft until the Stage E review passes. For this plan, that replaces "at the end of each milestone, open a pull request" below.
-- The plan gives behavior, interfaces, names and tests, and the spec gives the numbers and words. You write the code, and the rules below are what the review checks it against.
+- **Two pull requests:** Stage 0 (signing) on `ci/update-signing`, then one draft pull request for Stages A–E on `feat/background-updates`. The plan's Global Constraints say how each is made.
+- The plan gives behavior, interfaces, names and tests, and the design gives the numbers and words. You write the code, and the rules below are what the review checks it against.
 - Tasks marked **Owner: Claude** aren't yours. Hand each one to Claude and wait, as the plan's "Task owners" section says. You still run their checks and keep the ledger.
-- **Keep going through stages A to E without waiting for the owner.** Claude reviews stages D and E; its verdict decides: PASS goes on, FAIL goes back to fixing. The plan's "Stages and their reviews" says how, and when to stop and ask the owner. Stop after Stage E: the owner releases milestone 2.
-- **The decisions entry is Claude's** for this plan, at the last review. Don't write one.
+- **Keep going between stages** unless the plan says to stop: it stops after Stage 0's pull request and at the end of Stage E. At each review, hand it to Claude and wait for its verdict.
+- **The decisions entry is Claude's,** at the last review. Don't write one.
 
 ## Every change is a pull request
 
@@ -259,6 +259,8 @@ Every rule here was broken at least once and caught in review.
   - A test of a retry sees the second attempt. A message printed before the wait proves nothing, and output that piles up already holds earlier matches: wait for a count.
   - A test of what an event does sends the event down the road it takes in the app. A fake's stream that reaches no provider, or a dialog with no route under it to pop, passes with the fix removed.
   - A test of a rule doesn't set up the input that makes the result true anyway. A test of "compact turns a modal into a sheet" leaves `sheet` unset; a test of a mid-drag guard redraws when nothing else (a pending throttled value) would hold the thumb.
+    - When a function has several guards, the test of one sets up everything else to pass, so only that guard decides. Assert the other side too: the same setup with only the guard's input changed gives the opposite answer. A check that runs first (nothing installed, no newer version) or a second rule that keeps the same thing (the newest other version) hides the one under test.
+    - The "fails if" comment names the function and the expression, not a line number: lines move with the next edit.
   - Renderer tests build their batches from what the core sends for that action: copy a fixture from `crates/opencord-plugins/tests/fixtures/patches/` or the core's own output. A removal comes with its `drop`, a move with its `children` op, and prop names come from the schema table in `blocks.rs`. A batch written from memory tests a sender that doesn't exist.
   - An example script and its test feed each other's guesses unless the test sends what the real sender sends: an event's data comes from the wire format's "Event data" table and the block file that sends it (a text input's `change` is `{ value = … }`, not a bare string). Scripts read that one shape; `type(t) == "table" and t.value or t` hides which one is real.
   - A test with several people gives each path its own person. For delivery by role, one person holds the role and isn't the author, one is the author without it, one has neither; a person who is both proves neither path. Fixing such a test keeps every case the plan names: swapping who does what can drop the one the fix was for.

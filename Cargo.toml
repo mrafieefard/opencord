@@ -14,6 +14,7 @@ opencord-media = { path = "crates/opencord-media" }
 opencord-plugins = { path = "crates/opencord-plugins" }
 opencord-proto = { path = "crates/opencord-proto" }
 opencord-server = { path = "crates/opencord-server" }
+opencord-update = { path = "crates/opencord-update" }
 opencord-voice = { path = "crates/opencord-voice" }
 
 aec3 = "0.4.0"

@@ -3,17 +3,18 @@
 //! the others. Nothing installed is touched until the new version is
 //! whole, so a failed update leaves the app as it was.
 
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use semver::Version;
 use sha2::{Digest, Sha256};
 
-use crate::archive;
-use crate::layout::{self, Installed, Layout};
-use crate::release::{Asset, Manifest, ManifestError};
-use crate::track::Track;
+use opencord_update::archive;
+use opencord_update::layout::{self, Installed, Layout};
+use opencord_update::release::{Asset, Manifest, ManifestError};
+use opencord_update::track::Track;
 
 /// Where releases come from.
 pub trait Source {
@@ -35,6 +36,7 @@ pub enum Error {
     /// The file isn't the one `release.json` describes.
     Download(String),
     Install(io::Error),
+    Archive(archive::ArchiveError),
 }
 
 impl std::fmt::Display for Error {
@@ -46,6 +48,7 @@ impl std::fmt::Display for Error {
             Self::Signature => f.write_str("release.json isn't signed by Opencord's key"),
             Self::Download(error) => write!(f, "the download is wrong: {error}"),
             Self::Install(error) => write!(f, "can't install: {error}"),
+            Self::Archive(error) => write!(f, "can't unpack: {error}"),
         }
     }
 }
@@ -53,6 +56,12 @@ impl std::fmt::Display for Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
         Self::Install(error)
+    }
+}
+
+impl From<archive::ArchiveError> for Error {
+    fn from(error: archive::ArchiveError) -> Self {
+        Self::Archive(error)
     }
 }
 
@@ -89,11 +98,7 @@ pub fn update(
 ) -> Result<Option<Version>, Error> {
     report(Status::Checking);
     let current = layout.current();
-    let switching = current.is_some()
-        && layout
-            .read_installed()
-            .track
-            .is_some_and(|installed_for| installed_for != track.name());
+    let switching = switching_tracks(layout, track);
     let manifest = source.latest(track)?;
     let wanted = manifest.version.clone();
     let stays = current.as_ref().is_some_and(|current| {
@@ -116,6 +121,60 @@ pub fn update(
         track: Some(track.name().to_owned()),
     })?;
     Ok(Some(wanted))
+}
+
+/// Whether the user picked another track than the installed one was
+/// installed for, and the launcher hasn't switched yet.
+pub fn switching_tracks(layout: &Layout, track: Track) -> bool {
+    layout.current().is_some()
+        && layout
+            .read_installed()
+            .track
+            .is_some_and(|installed_for| installed_for != track.name())
+}
+
+/// Holds `prepare.lock` until the returned file is dropped, waiting for
+/// whoever holds it first. Preparing, switching, updating and pruning all
+/// change the install folder, so they take turns: none of them sees, or
+/// prunes, a folder another is still unpacking.
+pub fn lock_install(layout: &Layout) -> io::Result<File> {
+    let file = open_install_lock(layout)?;
+    file.lock()?;
+    Ok(file)
+}
+
+/// [`lock_install`], giving up after `wait`: `Ok(None)` when someone else
+/// held the lock all that time.
+pub fn lock_install_within(layout: &Layout, wait: Duration) -> io::Result<Option<File>> {
+    let file = open_install_lock(layout)?;
+    let deadline = Instant::now() + wait;
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(Some(file)),
+            Err(TryLockError::WouldBlock) => {}
+            Err(TryLockError::Error(error)) => return Err(error),
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Ok(None);
+        }
+        std::thread::sleep(left.min(LOCK_POLL));
+    }
+}
+
+/// How often [`lock_install_within`] tries again.
+const LOCK_POLL: Duration = Duration::from_millis(100);
+
+/// `prepare.lock`, which stays in the install folder: only the lock on it
+/// comes and goes.
+fn open_install_lock(layout: &Layout) -> io::Result<File> {
+    fs::create_dir_all(layout.root())?;
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(layout.prepare_lock())
 }
 
 /// Downloads and unpacks `manifest`'s build beside the others.

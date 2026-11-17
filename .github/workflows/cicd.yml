@@ -38,7 +38,7 @@ env:
   # are tested with the server's; opencord-voice with the app's, as its tests
   # call in through the app's media crate and need its native libraries.
   SERVER_CRATES: -p opencord-server -p opencord-common -p opencord-proto -p opencord-plugins -p opencord-plugin-cli
-  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher -p opencord-mobile
+  CLIENT_CRATES: -p opencord_core -p opencord-media -p opencord-voicebot -p opencord-voice -p opencord-launcher -p opencord-update -p opencord-mobile
   FLUTTER_VERSION: 3.44.0
   # Native libraries the app's crates build against on Linux: cpal's PipeWire
   # and ALSA backends (libspa-sys runs bindgen, hence libclang) and the D-Bus
@@ -430,6 +430,9 @@ jobs:
         working-directory: app
         env:
           CORE: ${{ needs.version.outputs.core }}
+          # The core checks the updates it downloads with this key, as the
+          # launcher does (docs/updater.md).
+          OPENCORD_UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
         run: flutter build linux --release ${CORE:+--build-name="$CORE"} --build-number="$GITHUB_RUN_NUMBER"
 
       # The bundle carries its FFmpeg next to libopencord_core.so, which
@@ -585,6 +588,7 @@ jobs:
         working-directory: app
         env:
           CORE: ${{ needs.version.outputs.core }}
+          OPENCORD_UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
         run: flutter build windows --release ${CORE:+--build-name="$CORE"} --build-number="$GITHUB_RUN_NUMBER"
 
       # The Visual C++ runtime goes next to the exe so the zip also runs on
@@ -697,6 +701,7 @@ jobs:
         working-directory: app
         env:
           CORE: ${{ needs.version.outputs.core }}
+          OPENCORD_UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
         run: flutter build macos --release ${CORE:+--build-name="$CORE"} --build-number="$GITHUB_RUN_NUMBER"
 
       - name: Package
@@ -988,12 +993,38 @@ jobs:
     needs: [version, docker-publish, mobile-android, mobile-ios]
     if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
+    # The release environment holds UPDATE_SIGNING_KEY, and only beta,
+    # canary and main may deploy to it. Pull requests never get here:
+    # their release output is false.
+    environment: release
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      # Before anything is released: the signing key and the public key the
+      # launchers are built with are set together, and are one key
+      # (docs/updater.md). With neither set, nothing is signed (see Sign).
+      - name: Update key
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
+        run: |
+          signing=${UPDATE_SIGNING_KEY//[[:space:]]/}
+          public=${UPDATE_PUBLIC_KEY//[[:space:]]/}
+          if [[ -z "$signing" && -z "$public" ]]; then
+            exit 0
+          fi
+          if [[ -z "$signing" || -z "$public" ]]; then
+            echo "::error::UPDATE_SIGNING_KEY and UPDATE_PUBLIC_KEY must be set together"
+            exit 1
+          fi
+          key="$RUNNER_TEMP/update-key-check.pem"
+          trap 'rm -f "$key"' EXIT
+          (umask 077 && printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key")
+          bash .github/release/update-key.sh match "$key" "$UPDATE_PUBLIC_KEY"
 
       # The release files as they are: the zips must stay zips.
       - uses: actions/download-artifact@v8
@@ -1017,11 +1048,14 @@ jobs:
 
       # release.json.sig, which launchers built with UPDATE_PUBLIC_KEY
       # require (docs/updater.md). Without the secret, nothing is signed.
+      # The signature is checked against the secret's own public key, and
+      # then against UPDATE_PUBLIC_KEY, the key the launchers carry.
       - name: Sign
         env:
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
         run: |
-          if [[ -z "$UPDATE_SIGNING_KEY" ]]; then
+          if [[ -z "${UPDATE_SIGNING_KEY//[[:space:]]/}" ]]; then
             echo "::warning::UPDATE_SIGNING_KEY is not set: release.json is not signed"
             exit 0
           fi
@@ -1034,6 +1068,7 @@ jobs:
           openssl base64 -d -A <<< "$(cat dist/release.json.sig)" > "$RUNNER_TEMP/release.sig"
           openssl pkeyutl -verify -pubin -inkey "$RUNNER_TEMP/update-key.pub" -rawin \
             -in dist/release.json -sigfile "$RUNNER_TEMP/release.sig"
+          bash .github/release/update-key.sh verify "$UPDATE_PUBLIC_KEY" dist/release.json dist/release.json.sig
 
       - name: Notes
         env:

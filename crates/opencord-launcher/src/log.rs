@@ -1,7 +1,7 @@
 //! `launcher.log` in the install folder: the last run's story, for when an
 //! update goes wrong. Each run starts it afresh.
 
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 use std::sync::Mutex;
@@ -10,10 +10,26 @@ use std::time::{SystemTime, UNIX_EPOCH};
 static FILE: Mutex<Option<File>> = Mutex::new(None);
 
 pub fn open(path: &Path) {
+    open_with(path, false);
+}
+
+/// Adds to the log the last start began: a prepare runs while the app that
+/// start began is open, and its story is still wanted.
+pub fn append(path: &Path) {
+    open_with(path, true);
+}
+
+fn open_with(path: &Path, append: bool) {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    if let Ok(file) = File::create(path)
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(append)
+        .truncate(!append)
+        .open(path);
+    if let Ok(file) = file
         && let Ok(mut slot) = FILE.lock()
     {
         *slot = Some(file);

@@ -9,16 +9,12 @@ use std::time::Duration;
 
 use ed25519_dalek::VerifyingKey;
 
-use crate::release::{self, Listed, Manifest};
-use crate::signature;
-use crate::track::Track;
-use crate::update::{Error, Source};
+use opencord_update::check;
+use opencord_update::release::{Listed, Manifest};
+use opencord_update::signature;
+use opencord_update::track::Track;
 
-/// The repository releases come from.
-pub const REPOSITORY: &str = match option_env!("OPENCORD_UPDATE_REPOSITORY") {
-    Some(repo) => repo,
-    None => "mrafieefard/opencord",
-};
+use crate::update::{Error, Source};
 
 /// How long the check may take before the installed version starts.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
@@ -93,10 +89,11 @@ impl<H: Http> Source for Github<H> {
             let listing: Vec<Listed> = serde_json::from_slice(&listing).map_err(|error| {
                 Error::Network(format!("the releases list can't be read: {error}"))
             })?;
-            let (_, tag) = release::newest(&listing, track).ok_or(Error::NoRelease)?;
+            let listed = check::newest(&listing, track).ok_or(Error::NoRelease)?;
+            let tag = &listed.tag_name;
             self.manifest(
                 &format!("https://github.com/{repo}/releases/download/{tag}/release.json"),
-                Some(&tag),
+                Some(tag),
             )?
         };
         // A manifest of another track (`latest` is always stable, but a

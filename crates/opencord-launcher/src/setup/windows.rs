@@ -34,7 +34,7 @@ use windows::Win32::UI::WindowsAndMessaging::{IDYES, MB_ICONQUESTION, MB_YESNO, 
 use windows::core::{HSTRING, Interface, PCWSTR};
 
 use super::APP_ID;
-use crate::layout::Layout;
+use opencord_update::layout::Layout;
 
 const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Opencord";
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";

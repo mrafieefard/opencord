@@ -1,0 +1,16 @@
+{
+  "from": "0.0.1",
+  "to": "0.0.2",
+  "at": 1700000000000,
+  "voice": {
+    "server_key": "srv123",
+    "channel_id": 456
+  },
+  "window": {
+    "x": 100,
+    "y": 200,
+    "width": 1280,
+    "height": 720
+  },
+  "cover": true
+}

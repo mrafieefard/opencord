@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update square</title>
+<style>
+  :root { --bg-primary:#f5f5f7; --bg-secondary:#ffffff; --border:#d1d1d6; --text-primary:#1d1d1f; --text-secondary:#86868b; --accent:#0071e3; }
+  @media (prefers-color-scheme: dark) { :root { --bg-primary:#1d1d1f; --bg-secondary:#2d2d2f; --border:#424245; --text-primary:#f5f5f7; --text-secondary:#86868b; --accent:#0a84ff; } }
+  body { margin:0; padding:28px 20px 48px; background:var(--bg-primary); color:var(--text-primary); font-family:Inter, system-ui, -apple-system, sans-serif; }
+  h2 { margin:0 0 6px; } .subtitle { color:var(--text-secondary); margin:0 0 1.25rem; }
+  .card { background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; }
+  code { font-size:.85em; }
+</style>
+</head>
+<body>
+<!-- Approved mockup for docs/superpowers/specs/2026-11-12-background-updates-design.md: the update square, design C3. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0&icon_names=download">
+<style>
+  .uc-list { display: flex; flex-direction: column; gap: 1.25rem; }
+  .uc-card { padding: 16px 18px; }
+  .uc-card h3 { margin: 0 0 4px; }
+  .uc-card p { margin: 0 0 12px; color: var(--text-secondary); font-size: .9rem; }
+  .uc-stages { display: flex; gap: 16px; flex-wrap: wrap; }
+  .uc-stage { position: relative; width: 300px; height: 330px; border-radius: 12px; padding: 8px; box-sizing: border-box; display: flex; gap: 8px; }
+  .uc-stage.dark { background: #0A0A0B; }
+  .uc-stage.light { background: #E9E9EC; }
+  .uc-col { width: 62px; display: flex; flex-direction: column; flex: none; }
+  .uc-float { border-radius: 16px; width: 62px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
+  .dark .uc-float, .dark .uc-side { background: #121214; box-shadow: 0 4px 18px rgba(0,0,0,.25); }
+  .light .uc-float, .light .uc-side { background: #FFFFFF; box-shadow: 0 4px 13px rgba(17,17,20,.12); }
+  .uc-side { flex: 1; border-radius: 16px; opacity: .55; }
+  .uc-rail { flex: 1; padding-top: 8px; gap: 8px; overflow: hidden; }
+  .uc-icon { width: 46px; height: 46px; border-radius: 23px; flex: none; display: flex; align-items: center; justify-content: center; font: 600 15px Inter, system-ui, sans-serif; }
+  .dark .uc-icon { background: #2B2B30; color: #EDEDEF; }
+  .light .uc-icon { background: #D9D9DE; color: #111114; }
+  .uc-icon.active { border-radius: 14px; }
+  .dark .uc-icon.active { background: #3E3E45; }
+  .light .uc-icon.active { background: #C1C1C8; }
+  .uc-sep { width: 32px; height: 1px; flex: none; }
+  .dark .uc-sep { background: #222226; }
+  .light .uc-sep { background: #E3E3E7; }
+
+  /* The update square. */
+  .uc-update { height: 62px; margin-top: 8px; justify-content: center; cursor: pointer; overflow: visible; position: relative; transition: transform .15s ease-out; }
+  .uc-update:active { transform: scale(.96); }
+  .uc-tile { position: relative; width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; transition: background-color .12s ease-out, background-image .12s ease-out; }
+  .dark .uc-tile { background: #1F1F23; }
+  .light .uc-tile { background: #F2F2F4; }
+  .dark .uc-update:hover .uc-tile { background: #27272C; }
+  .light .uc-update:hover .uc-tile { background: #E7E7EA; }
+
+  /* The arrow: the app's own icon, filled with the gradient. */
+  .uc-arrow {
+    font-family: 'Material Symbols Rounded'; font-size: 26px; line-height: 1;
+    font-variation-settings: 'wght' 500, 'opsz' 24, 'FILL' 0;
+    background: linear-gradient(150deg, #3D85F7 15%, #8B5CF6 85%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    transition: transform .2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .uc-update:hover .uc-arrow { transform: translateY(2px); }
+
+  /* Variant 2: a thin gradient ring around the tile. */
+  .v2 .uc-tile::before {
+    content: ""; position: absolute; inset: -3px; border-radius: inherit; padding: 1.5px;
+    background: linear-gradient(150deg, #3D85F7, #8B5CF6);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    transition: border-radius .15s ease-out;
+  }
+  .v2 .uc-update:hover .uc-tile::before { border-radius: 16px; }
+
+  /* Variant 3: the gradient as a faint wash behind the arrow. */
+  .v3 .uc-tile { background-image: linear-gradient(150deg, rgba(61,133,247,.16), rgba(139,92,246,.16)); }
+  .v3 .uc-update:hover .uc-tile { background-image: linear-gradient(150deg, rgba(61,133,247,.24), rgba(139,92,246,.24)); }
+
+  /* The popover beside the rail, as server icons have. */
+  .uc-pop { position: absolute; left: 70px; top: 50%; transform: translate(-4px, -50%); opacity: 0; pointer-events: none; white-space: nowrap;
+    border-radius: 10px; padding: 8px 12px; font-family: Inter, system-ui, sans-serif; z-index: 2;
+    transition: opacity .08s ease-out, transform .08s ease-out; }
+  .uc-update:hover .uc-pop { opacity: 1; transform: translate(0, -50%); }
+  .dark .uc-pop { background: #1F1F23; color: #EDEDEF; box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+  .light .uc-pop { background: #FFFFFF; color: #111114; box-shadow: 0 6px 16px rgba(17,17,20,.14); }
+  .uc-pop b { display: block; font-size: 14px; font-weight: 600; }
+  .uc-pop span { display: block; font-size: 12px; margin-top: 2px; }
+  .dark .uc-pop span { color: #A1A1A8; }
+  .light .uc-pop span { color: #55555C; }
+
+  /* Arrival: the rail makes room, the square rises in, the arrow drops in once. */
+  .play .uc-update { animation: uc-in 560ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+  .play .uc-arrow { animation: uc-drop 700ms cubic-bezier(0.16, 1, 0.3, 1) 380ms backwards; }
+  @keyframes uc-in {
+    0%   { height: 0; margin-top: 0; opacity: 0; transform: translateY(14px); }
+    60%  { opacity: 1; }
+    100% { height: 62px; margin-top: 8px; opacity: 1; transform: translateY(0); }
+  }
+  @keyframes uc-drop {
+    0%   { transform: translateY(-8px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .uc-replay { margin: 0 auto 1rem; display: block; padding: 8px 18px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: .9rem; cursor: pointer; }
+  .uc-common { max-width: 680px; margin: 0 auto 1.25rem; color: var(--text-secondary); font-size: .9rem; }
+  .uc-common li { margin-bottom: .3rem; }
+</style>
+
+<h2>C3, with the earlier corners</h2>
+<p class="subtitle">The tile has its earlier 14 px corners again. The arrival animation is unchanged. Hover the square to see the arrow drop and the popover, and press Replay to watch it arrive.</p>
+<ul class="uc-common">
+  <li><b>Icon:</b> the arrow is the app's own "download" icon, with a blue-to-violet gradient that reads on both dark and light.</li>
+  <li><b>Hover:</b> the wash behind the arrow deepens a little, the arrow drops 2 px, and the server list's popover says what clicking does.</li>
+  <li><b>Arrival:</b> the square rises in as the server list makes room, and the arrow drops in once. Nothing pulses or loops after that.</li>
+</ul>
+<button class="uc-replay" onclick="ucReplay()">▶ Replay arrival</button>
+
+<div class="uc-list" id="uc-list">
+  <div class="card uc-card v3">
+    <h3>C3 · With a soft wash</h3>
+    <p>C1 with a faint wash of the gradient behind the arrow, so the whole tile carries a hint of colour.</p>
+    <div class="uc-stages" data-v="v3"></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var stage = function (theme) {
+      return '<div class="uc-stage ' + theme + '">' +
+        '<div class="uc-col">' +
+          '<div class="uc-float uc-rail">' +
+            '<div class="uc-icon">⌂</div><div class="uc-sep"></div>' +
+            '<div class="uc-icon active">OC</div><div class="uc-icon">GM</div>' +
+            '<div class="uc-icon">RS</div><div class="uc-icon">+</div>' +
+          '</div>' +
+          '<div class="uc-float uc-update">' +
+            '<div class="uc-tile"><span class="uc-arrow">download</span></div>' +
+            '<div class="uc-pop"><b>Update ready</b><span>Click to restart on 0.0.2-beta.6</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="uc-side"></div>' +
+      '</div>';
+    };
+    document.querySelectorAll('.uc-stages').forEach(function (el) {
+      el.innerHTML = stage('dark') + stage('light');
+    });
+    var list = document.getElementById('uc-list');
+    window.ucReplay = function () {
+      list.classList.remove('play');
+      void list.offsetWidth;
+      list.classList.add('play');
+    };
+    window.ucReplay();
+  })();
+</script>
+
+</body>
+</html>

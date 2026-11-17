@@ -1,0 +1,26 @@
+[package]
+name = "opencord-update"
+description = "Opencord's shared update types, manifest verification, and layout"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MPL-2.0"
+publish = false
+
+[dependencies]
+data-encoding.workspace = true
+ed25519-dalek.workspace = true
+flate2 = "1.1.10"
+hex.workspace = true
+semver = { version = "1.0.28", features = ["serde"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tar = "0.4.46"
+zip = { version = "9.1.0", default-features = false, features = ["deflate"] }
+
+[build-dependencies]
+data-encoding.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -15,17 +15,25 @@ use semver::Version;
 /// was installed as.
 pub const LAUNCHER_ENV: &str = "OPENCORD_LAUNCHER";
 pub const VERSION_ENV: &str = "OPENCORD_VERSION";
+/// What this launcher can do for the app, space-separated (design: "Old
+/// launchers"). Without it the app makes no background updates, since an
+/// older launcher would pass `--prepare` on and start a second Opencord.
+pub const FEATURES_ENV: &str = "OPENCORD_LAUNCHER_FEATURES";
+pub const FEATURES: &str = "prepare cover";
 
-/// Starts the app at `executable`, passing on the launcher's own
-/// arguments (a link, `--autostart`).
-pub fn start(
+/// The command that starts the app at `executable`, passing on the
+/// launcher's own arguments (a link, `--autostart`).
+pub fn command(
     executable: &Path,
     args: &[OsString],
     launcher: Option<&Path>,
     version: &Version,
-) -> io::Result<()> {
+) -> Command {
     let mut command = Command::new(executable);
-    command.args(args).env(VERSION_ENV, version.to_string());
+    command
+        .args(args)
+        .env(VERSION_ENV, version.to_string())
+        .env(FEATURES_ENV, FEATURES);
     if let Some(dir) = executable.parent() {
         command.current_dir(dir);
     }
@@ -33,7 +41,7 @@ pub fn start(
         Some(launcher) => command.env(LAUNCHER_ENV, launcher),
         None => command.env_remove(LAUNCHER_ENV),
     };
-    command.spawn().map(drop)
+    command
 }
 
 /// Waits up to `limit` for process `pid` to end: the app asks for a

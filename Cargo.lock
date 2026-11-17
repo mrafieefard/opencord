@@ -4515,6 +4515,7 @@ dependencies = [
  "flate2",
  "hex",
  "libc",
+ "opencord-update",
  "reqwest",
  "rustls",
  "semver",
@@ -4528,7 +4529,6 @@ dependencies = [
  "windows",
  "windows-core",
  "winit",
- "zip",
 ]
 
 [[package]]
@@ -4722,6 +4722,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "opencord-update"
+version = "0.0.1"
+dependencies = [
+ "data-encoding",
+ "ed25519-dalek",
+ "flate2",
+ "hex",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tar",
+ "tempfile",
+ "zip",
+]
+
+[[package]]
 name = "opencord-voice"
 version = "0.0.1"
 dependencies = [
@@ -4775,9 +4792,11 @@ name = "opencord_core"
 version = "0.0.1"
 dependencies = [
  "arboard",
+ "axum",
  "bytes",
  "chacha20poly1305",
  "data-encoding",
+ "ed25519-dalek",
  "flutter_rust_bridge",
  "futures-util",
  "getrandom 0.4.3",
@@ -4795,6 +4814,7 @@ dependencies = [
  "opencord-plugins",
  "opencord-proto",
  "opencord-server",
+ "opencord-update",
  "opus",
  "prost",
  "regex",
@@ -4802,6 +4822,7 @@ dependencies = [
  "rtrb",
  "rustls",
  "rustls-platform-verifier",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.0",

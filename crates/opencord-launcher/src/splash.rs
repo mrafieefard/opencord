@@ -5,8 +5,9 @@
 
 use std::num::NonZeroU32;
 use std::rc::Rc;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
+use std::time::Duration;
 
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use winit::application::ApplicationHandler;
@@ -25,7 +26,7 @@ const HEIGHT: f64 = 180.0;
 /// XRGB, whose top byte compositors should ignore, but some read it as
 /// alpha: KWin on Wayland drew the splash fully transparent, a black box.
 /// Opaque means the same everywhere.
-const OPAQUE: u32 = 0xFF00_0000;
+pub const OPAQUE: u32 = 0xFF00_0000;
 
 // The app's dark theme (app/lib/ui/theme/oc_colors.dart).
 const BACKGROUND: u32 = OPAQUE | 0x0E0E10;
@@ -42,30 +43,70 @@ enum Message {
     Done,
 }
 
-/// Shows the splash while `work` runs on another thread, then returns
-/// what it returned. Without a display (a terminal session), `work` runs
-/// here, its statuses going to the log.
-pub fn show<T: Send + 'static>(work: impl FnOnce(&dyn Fn(Status)) -> T + Send + 'static) -> T {
+/// Runs `work` on another thread and returns what it returned. If it is
+/// still running after `delay`, the splash shows until it ends. Without a
+/// display (a terminal session), its statuses go to the log instead.
+pub fn show_after<T: Send + 'static>(
+    delay: Duration,
+    work: impl FnOnce(&dyn Fn(Status)) -> T + Send + 'static,
+) -> T {
+    let (messages_tx, messages_rx) = mpsc::channel();
+    let (result_tx, result_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        // A send fails only once the splash has gone, when nobody is left
+        // to read a status or the end of the work.
+        let report = |status: Status| {
+            let _ = messages_tx.send(Message::Status(status));
+        };
+        let result = work(&report);
+        let _ = result_tx.send(result);
+        let _ = messages_tx.send(Message::Done);
+    });
+    // The work's panic is the launcher's.
+    let join = |worker: thread::JoinHandle<()>| {
+        if let Err(panic) = worker.join() {
+            std::panic::resume_unwind(panic);
+        }
+    };
+    let finished = |worker, result_rx: mpsc::Receiver<T>| {
+        join(worker);
+        result_rx
+            .recv()
+            .expect("the launcher's work ended without a result")
+    };
+    match result_rx.recv_timeout(delay) {
+        Ok(result) => {
+            join(worker);
+            return result;
+        }
+        Err(RecvTimeoutError::Disconnected) => return finished(worker, result_rx),
+        Err(RecvTimeoutError::Timeout) => {}
+    }
+
     let event_loop = match EventLoop::<Message>::with_user_event().build() {
         Ok(event_loop) => event_loop,
         Err(error) => {
             crate::log::line(format!("no splash ({error})"));
-            return work(&|status| crate::log::line(format!("{status:?}")));
+            for message in messages_rx {
+                match message {
+                    Message::Status(status) => crate::log::line(format!("{status:?}")),
+                    Message::Done => break,
+                }
+            }
+            return finished(worker, result_rx);
         }
     };
-    let proxy = event_loop.create_proxy();
-    let (result_tx, result_rx) = mpsc::channel();
-    let worker = {
-        let proxy: EventLoopProxy<Message> = proxy.clone();
-        thread::spawn(move || {
-            let report = |status: Status| {
-                let _ = proxy.send_event(Message::Status(status));
-            };
-            let result = work(&report);
-            let _ = result_tx.send(result);
-            let _ = proxy.send_event(Message::Done);
-        })
-    };
+    // Passes the work's messages on to the window, the ones sent before
+    // it was made first.
+    let proxy: EventLoopProxy<Message> = event_loop.create_proxy();
+    thread::spawn(move || {
+        for message in messages_rx {
+            let done = matches!(message, Message::Done);
+            if proxy.send_event(message).is_err() || done {
+                break;
+            }
+        }
+    });
     let mut splash = Splash::new();
     if let Err(error) = event_loop.run_app(&mut splash) {
         crate::log::line(format!("the splash ended: {error}"));
@@ -74,15 +115,60 @@ pub fn show<T: Send + 'static>(work: impl FnOnce(&dyn Fn(Status)) -> T + Send + 
         // The work may be mid-download: it is left, and tidied next time.
         std::process::exit(0);
     }
-    let _ = worker.join();
-    result_rx
-        .recv()
-        .expect("the launcher's work ended without a result")
+    finished(worker, result_rx)
+}
+
+/// A window's pixel buffer, drawn by hand (the splash, the cover).
+pub type Surface = softbuffer::Surface<Rc<Window>, Rc<Window>>;
+
+/// A pixel buffer for `window`.
+pub fn surface(window: &Rc<Window>) -> Result<Surface, softbuffer::SoftBufferError> {
+    softbuffer::Context::new(window.clone())
+        .and_then(|context| softbuffer::Surface::new(&context, window.clone()))
+}
+
+/// Why [`paint`] didn't put a frame on the screen.
+#[derive(Debug)]
+pub enum PaintError {
+    /// The window has no size yet.
+    NoRoom,
+    /// The buffer can't be resized or locked: nothing was drawn.
+    Surface(softbuffer::SoftBufferError),
+    /// Drawn, but not presented.
+    Present(softbuffer::SoftBufferError),
+}
+
+impl std::fmt::Display for PaintError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoRoom => f.write_str("the window has no size"),
+            Self::Surface(error) => write!(f, "no pixel buffer: {error}"),
+            Self::Present(error) => write!(f, "can't present: {error}"),
+        }
+    }
+}
+
+/// Draws one frame: sizes `surface` to `window`, lets `draw` fill its
+/// `0RGB` pixels (`width` × `height`, row by row) and presents them.
+pub fn paint(
+    window: &Window,
+    surface: &mut Surface,
+    draw: impl FnOnce(&mut [u32], usize, usize),
+) -> Result<(), PaintError> {
+    let size = window.inner_size();
+    let (Some(width), Some(height)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+    else {
+        return Err(PaintError::NoRoom);
+    };
+    surface.resize(width, height).map_err(PaintError::Surface)?;
+    let mut buffer = surface.buffer_mut().map_err(PaintError::Surface)?;
+    draw(&mut buffer, size.width as usize, size.height as usize);
+    buffer.present().map_err(PaintError::Present)
 }
 
 struct Splash {
     window: Option<Rc<Window>>,
-    surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
+    surface: Option<Surface>,
     status: Status,
     fonts: Fonts,
     shown: bool,
@@ -105,27 +191,16 @@ impl Splash {
         let (Some(window), Some(surface)) = (&self.window, &mut self.surface) else {
             return;
         };
-        let size = window.inner_size();
-        let (Some(width), Some(height)) =
-            (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
-        else {
-            return;
-        };
-        if surface.resize(width, height).is_err() {
-            return;
+        let scale = window.scale_factor() as f32;
+        let painted = paint(window, surface, |buffer, width, height| {
+            draw(buffer, width, height, scale, &self.status, &self.fonts);
+        });
+        match painted {
+            // A frame that didn't reach the screen is drawn again on the
+            // next redraw; the window shows meanwhile, as it always has.
+            Ok(()) | Err(PaintError::Present(_)) => {}
+            Err(PaintError::NoRoom | PaintError::Surface(_)) => return,
         }
-        let Ok(mut buffer) = surface.buffer_mut() else {
-            return;
-        };
-        draw(
-            &mut buffer,
-            size.width as usize,
-            size.height as usize,
-            window.scale_factor() as f32,
-            &self.status,
-            &self.fonts,
-        );
-        let _ = buffer.present();
         // Shown once drawn, so it never flashes white first.
         if !self.shown {
             self.shown = true;
@@ -160,9 +235,7 @@ impl ApplicationHandler<Message> for Splash {
                 return;
             }
         };
-        let surface = softbuffer::Context::new(window.clone())
-            .and_then(|context| softbuffer::Surface::new(&context, window.clone()));
-        match surface {
+        match surface(&window) {
             Ok(surface) => self.surface = Some(surface),
             Err(error) => crate::log::line(format!("no splash surface: {error}")),
         }

@@ -802,6 +802,18 @@ struct Live {
 type Connecting =
     JoinHandle<Result<(VoiceConnection, mpsc::UnboundedReceiver<VoiceEvent>), TransportError>>;
 
+/// Held by a session's task: however the session ends (left, moved to
+/// another server, the task dropped), the update download's throttle
+/// hears the call is over and goes back to full speed.
+struct CallReadings;
+
+impl Drop for CallReadings {
+    fn drop(&mut self) {
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::updates::publish_voice_reading(None);
+    }
+}
+
 /// Keeps one session's connection: connects where the server says,
 /// moves audio between it and the engine, reconnects, reports.
 struct SessionTask {
@@ -830,6 +842,7 @@ impl SessionTask {
         mut frames: mpsc::UnboundedReceiver<EncodedFrame>,
         mut engine_events: mpsc::UnboundedReceiver<EngineEvent>,
     ) {
+        let _readings = CallReadings;
         let mut live: Option<Live> = None;
         let mut connecting: Option<(VoiceServer, Connecting)> = None;
         let mut refresh_at: Option<Instant> = None;
@@ -1127,15 +1140,23 @@ impl SessionTask {
     fn stats(&self, server: &VoiceServer, stats: &ConnectionStats) {
         let (camera_encoder, screen_encoder) = self.video.encoders();
         let percent = |loss: Option<f32>| loss.map(|loss| loss * 100.0);
+        let ping_ms = stats
+            .rtt
+            .map(|rtt| u32::try_from(rtt.as_millis()).unwrap_or(u32::MAX));
+        let loss_in_percent = percent(stats.loss_in);
+        // The update download slows down when it hurts the call.
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::updates::publish_voice_reading(Some(crate::updates::VoiceReading {
+            ping_ms,
+            loss_in_percent,
+        }));
         let _ = self.events.send(MediaEvent::ConnectionStats {
             server_key: server.server_key.clone(),
             channel_id: server.channel_id,
             stats: VoiceStats {
-                ping_ms: stats
-                    .rtt
-                    .map(|rtt| u32::try_from(rtt.as_millis()).unwrap_or(u32::MAX)),
+                ping_ms,
                 jitter_ms: stats.jitter.map(|jitter| jitter.as_secs_f32() * 1000.0),
-                loss_in_percent: percent(stats.loss_in),
+                loss_in_percent,
                 loss_out_percent: percent(stats.loss_out),
                 bitrate_in: stats.bitrate_in,
                 bitrate_out: stats.bitrate_out,
