@@ -45,6 +45,11 @@ export const NativeCore: CoreApi = {
   profileUpdate: (key, name) => native.profileUpdate(key, name),
   presenceUpdate: (key, status) => native.presenceUpdate(key, toPresenceStatus(status)),
   avatarFile: (key, hash) => native.avatarFile(key, hash),
+  avatarSet: (sourcePath) => native.avatarSet(sourcePath),
+  avatarUpload: (key) => native.avatarUpload(key),
+  ownAvatar: () => native.ownAvatar(),
+  cacheSize: () => native.cacheSize(),
+  cacheClear: () => native.cacheClear(),
 
   messagesFetch: (key, channel, before, limit) => native.messagesFetch(key, channel, before, limit),
   messageSend: (key, channel, content, nonce) => native.messageSend(key, channel, content, nonce),
@@ -67,6 +72,11 @@ export const NativeCore: CoreApi = {
   voiceSetDeaf: (deafened) => native.voiceSetDeaf(deafened),
   voiceSetUserVolume: (key, user, volume) => native.voiceSetUserVolume(key, user, volume),
   voiceSetUserLocalMute: (key, user, muted) => native.voiceSetUserLocalMute(key, user, muted),
+
+  audioSettingsApply: (settings) => native.audioSettingsApply(settings),
+  micTestSet: (on) => native.micTestSet(on),
+  levelMeterSet: (on) => native.levelMeterSet(on),
+  cuePlay: (cue, volume) => native.cuePlay(cue, volume),
 
   musicSettings: (key) => native.musicSettings(key),
   musicSubscribe: (key, channel) => native.musicSubscribe(key, channel),

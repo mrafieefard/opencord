@@ -67,7 +67,7 @@ export function user(id: string): UserRecord {
   return { id, displayName: name, fingerprint: `FAKE-${id}-0000-0000` };
 }
 
-function members(): MemberRecord[] {
+export function members(): MemberRecord[] {
   return people.map(([id]) => {
     let roleIds: string[] = [];
     if (id === SELF_ID) roleIds = ['2002'];

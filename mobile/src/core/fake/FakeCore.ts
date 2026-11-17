@@ -15,9 +15,11 @@ import {
   MusicAction,
   MusicPlacement,
   MusicPlayState,
+  NoiseSuppression,
   PlaybackItemRecord,
   PresenceStatus,
   UploadPhaseRecord,
+  VoiceCueKind,
   VoiceLinkState,
   type ActivitySessionRecord,
   type CommandChoiceRecord,
@@ -35,6 +37,8 @@ import {
   type MusicSettingsRecord,
   type NewIdentity,
   type OutgoingFileRecord,
+  type OwnAvatarRecord,
+  type PhoneAudioSettings,
   type ServerEntry,
   type UserRecord,
   type ViewOutputRecord,
@@ -53,6 +57,7 @@ import {
   entries,
   history,
   item,
+  members,
   musicSettings,
   session,
   snapshot,
@@ -89,6 +94,14 @@ function toPresenceStatus(status: PresenceStatusInput): PresenceStatus {
     }
   }
   return status;
+}
+
+function fakeHash(text: string): string {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) {
+    h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+  }
+  return 'fake-avatar-' + Math.abs(h).toString(16).padStart(8, '0');
 }
 
 export type Scenario = 'default' | 'empty';
@@ -372,6 +385,110 @@ export class FakeCore implements CoreApi {
   async avatarFile(serverKey: string, hash: string): Promise<string> {
     this.enter('avatarFile', [serverKey, hash]);
     return `/fake/avatars/${hash}.png`;
+  }
+
+  private ownAvatarPath: string | undefined = undefined;
+  private ownAvatarHashVal: string | undefined = undefined;
+  private cacheSizeBytes = 42 * 1024 * 1024; // 42 MB
+
+  avatarSet(sourcePath: string | undefined): string | undefined {
+    this.enter('avatarSet', [sourcePath]);
+    this.ownAvatarPath = sourcePath;
+    this.ownAvatarHashVal = sourcePath ? fakeHash(sourcePath) : undefined;
+    for (const server of this.servers) {
+      const selfMember = members().find((m) => m.user.id === SELF_ID);
+      const updatedUser: UserRecord = {
+        ...(selfMember?.user ?? user(SELF_ID)),
+        avatarHash: this.ownAvatarHashVal,
+      };
+      const updatedMember = selfMember
+        ? { ...selfMember, user: updatedUser }
+        : {
+            user: updatedUser,
+            roleIds: [],
+            joinedAtMs: 1_791_374_400_000,
+          };
+      this.emit(
+        new MobileEvent.MemberUpserted({
+          serverKey: server.key,
+          member: updatedMember,
+        }),
+      );
+    }
+    return this.ownAvatarHashVal;
+  }
+
+  async avatarUpload(serverKey: string): Promise<UserRecord> {
+    this.enter('avatarUpload', [serverKey]);
+    this.requireConnected(serverKey);
+    return {
+      ...user(SELF_ID),
+      avatarHash: this.ownAvatarHashVal,
+    };
+  }
+
+  ownAvatar(): OwnAvatarRecord {
+    this.enter('ownAvatar', []);
+    return {
+      hash: this.ownAvatarHashVal,
+      file: this.ownAvatarPath,
+    };
+  }
+
+  async cacheSize(): Promise<number> {
+    this.enter('cacheSize', []);
+    return this.cacheSizeBytes;
+  }
+
+  async cacheClear(): Promise<void> {
+    this.enter('cacheClear', []);
+    this.cacheSizeBytes = 0;
+  }
+
+  private micTestOn = false;
+  private levelMeterOn = false;
+  private micTestTimer: ReturnType<typeof setInterval> | null = null;
+  private micTestPhase = 0;
+
+  private updateMicTestTimer(): void {
+    const running = this.micTestOn && this.levelMeterOn;
+    if (running && !this.micTestTimer) {
+      this.micTestTimer = setInterval(() => {
+        this.micTestPhase += 0.2;
+        const dbfs = -35 + 25 * Math.sin(this.micTestPhase);
+        this.emit(new MobileEvent.InputLevel({ dbfs }));
+      }, 100);
+    } else if (!running && this.micTestTimer) {
+      clearInterval(this.micTestTimer);
+      this.micTestTimer = null;
+    }
+  }
+
+  async micTestSet(on: boolean): Promise<void> {
+    this.enter('micTestSet', [on]);
+    this.micTestOn = on;
+    this.updateMicTestTimer();
+  }
+
+  levelMeterSet(on: boolean): void {
+    this.enter('levelMeterSet', [on]);
+    this.levelMeterOn = on;
+    this.updateMicTestTimer();
+  }
+
+  private audioSettings: PhoneAudioSettings = {
+    noiseSuppression: NoiseSuppression.Standard,
+    inputVolume: 1.0,
+    outputVolume: 1.0,
+  };
+
+  audioSettingsApply(settings: PhoneAudioSettings): void {
+    this.enter('audioSettingsApply', [settings]);
+    this.audioSettings = settings;
+  }
+
+  cuePlay(cue: VoiceCueKind, volume: number): void {
+    this.enter('cuePlay', [cue, volume]);
   }
 
   /** What the core sends as it connects: each fake server has its state. */

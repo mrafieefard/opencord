@@ -21,7 +21,10 @@ import type {
   MusicSettingsRecord,
   NewIdentity,
   OutgoingFileRecord,
+  OwnAvatarRecord,
+  PhoneAudioSettings,
   PlaybackItemRecord,
+  VoiceCueKind,
   VoiceDraftRecord,
   ServerEntry,
   UserRecord,
@@ -56,6 +59,11 @@ export interface CoreApi {
   profileUpdate(serverKey: string, displayName: string): Promise<UserRecord>;
   presenceUpdate(serverKey: string, status: PresenceStatusInput): Promise<void>;
   avatarFile(serverKey: string, hash: string): Promise<string>;
+  avatarSet(sourcePath: string | undefined): string | undefined;
+  avatarUpload(serverKey: string): Promise<UserRecord>;
+  ownAvatar(): OwnAvatarRecord;
+  cacheSize(): Promise<number>;
+  cacheClear(): Promise<void>;
 
   messagesFetch(serverKey: string, channelId: string, before: string | undefined, limit: number): Promise<MessageRecord[]>;
   messageSend(serverKey: string, channelId: string, content: string, nonce: string): Promise<MessageRecord>;
@@ -95,6 +103,11 @@ export interface CoreApi {
   voiceSetDeaf(deafened: boolean): void;
   voiceSetUserVolume(serverKey: string, userId: string, volume: number): void;
   voiceSetUserLocalMute(serverKey: string, userId: string, muted: boolean): void;
+
+  audioSettingsApply(settings: PhoneAudioSettings): void;
+  micTestSet(on: boolean): Promise<void>;
+  levelMeterSet(on: boolean): void;
+  cuePlay(cue: VoiceCueKind, volume: number): void;
 
   musicSettings(serverKey: string): Promise<MusicSettingsRecord>;
   musicSubscribe(serverKey: string, channelId: string): Promise<MusicSessionRecord>;

@@ -133,4 +133,86 @@ describe('FakeCore answers as the core does', () => {
     expect(second.ownerId).not.toBe(SELF_ID);
     expect(second.roles).toHaveLength(0);
   });
+
+  // Fails if input level runs when either mic test or level meter is off, or does not emit within [-60, -10] dBFS.
+  it("the fake's level runs only while the meter is on", async () => {
+    jest.useFakeTimers();
+    try {
+      const core = new FakeCore();
+      // Neither on
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      let events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+
+      // Only mic test on
+      jest.useFakeTimers();
+      await core.micTestSet(true);
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+
+      // Both on -> emits InputLevel every 100ms
+      jest.useFakeTimers();
+      core.levelMeterSet(true);
+      await jest.advanceTimersByTimeAsync(400);
+      jest.useRealTimers();
+      events = await drain(core);
+      const levels = events.filter(MobileEvent.InputLevel.instanceOf);
+      expect(levels.length).toBeGreaterThanOrEqual(3);
+      for (const level of levels) {
+        expect(level.inner.dbfs).toBeGreaterThanOrEqual(-60);
+        expect(level.inner.dbfs).toBeLessThanOrEqual(-10);
+      }
+
+      // Turn level meter off -> stops emitting
+      jest.useFakeTimers();
+      core.levelMeterSet(false);
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+
+      // Level meter back on, mic test off -> stops emitting
+      jest.useFakeTimers();
+      core.levelMeterSet(true);
+      await core.micTestSet(false);
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  // Fails if cacheSize does not report 42 MB initially or is not cleared to 0 by cacheClear.
+  it("the fake's cache clears", async () => {
+    const core = new FakeCore();
+    const initial = await core.cacheSize();
+    expect(initial).toBe(42 * 1024 * 1024);
+    await core.cacheClear();
+    const after = await core.cacheSize();
+    expect(after).toBe(0);
+  });
+
+  // Fails if avatarSet does not persist avatar file/hash or does not emit MemberUpserted for self on every server.
+  it('avatarSet stores the path and emits MemberUpserted on every server', async () => {
+    const core = new FakeCore();
+    const hash = core.avatarSet('/path/to/avatar.png');
+    expect(hash).toBeDefined();
+    const own = core.ownAvatar();
+    expect(own.file).toBe('/path/to/avatar.png');
+    expect(own.hash).toBe(hash);
+
+    const events = await drain(core);
+    const memberEvents = events.filter(MobileEvent.MemberUpserted.instanceOf);
+    expect(memberEvents.length).toBeGreaterThanOrEqual(core.serversList().length);
+    for (const event of memberEvents) {
+      if (event.inner.member.user.id === SELF_ID) {
+        expect(event.inner.member.user.avatarHash).toBe(hash);
+      }
+    }
+  });
 });
