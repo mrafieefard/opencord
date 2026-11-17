@@ -248,6 +248,13 @@ uniffi_opencord_mobile_fn_func_soundboard_preview(RustBuffer server_key,
                                                   RustBuffer sound_ref);
 void uniffi_opencord_mobile_fn_func_soundboard_set_listening(
     float volume, int8_t muted, RustCallStatus *uniffi_out_err);
+void uniffi_opencord_mobile_fn_func_audio_settings_apply(
+    RustBuffer settings, RustCallStatus *uniffi_out_err);
+void uniffi_opencord_mobile_fn_func_cue_play(RustBuffer cue, float volume,
+                                             RustCallStatus *uniffi_out_err);
+void uniffi_opencord_mobile_fn_func_level_meter_set(
+    int8_t on, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_mic_test_set(int8_t on);
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_voice_join(RustBuffer server_key,
                                           RustBuffer channel_id);
@@ -462,6 +469,10 @@ uint16_t uniffi_opencord_mobile_checksum_func_soundboard_default_sounds();
 uint16_t uniffi_opencord_mobile_checksum_func_soundboard_play();
 uint16_t uniffi_opencord_mobile_checksum_func_soundboard_preview();
 uint16_t uniffi_opencord_mobile_checksum_func_soundboard_set_listening();
+uint16_t uniffi_opencord_mobile_checksum_func_audio_settings_apply();
+uint16_t uniffi_opencord_mobile_checksum_func_cue_play();
+uint16_t uniffi_opencord_mobile_checksum_func_level_meter_set();
+uint16_t uniffi_opencord_mobile_checksum_func_mic_test_set();
 uint16_t uniffi_opencord_mobile_checksum_func_voice_join();
 uint16_t uniffi_opencord_mobile_checksum_func_voice_leave();
 uint16_t uniffi_opencord_mobile_checksum_func_voice_set_deaf();
@@ -2555,6 +2566,51 @@ NativeOpencordMobile::NativeOpencordMobile(
                 ->cpp_uniffi_opencord_mobile_fn_func_soundboard_set_listening(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_audio_settings_apply"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_audio_settings_apply"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_fn_func_audio_settings_apply(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_cue_play"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_cue_play"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_cue_play(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_level_meter_set"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_level_meter_set"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_level_meter_set(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_mic_test_set"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_mic_test_set"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_mic_test_set(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_voice_join"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3986,6 +4042,53 @@ NativeOpencordMobile::NativeOpencordMobile(
                 ->cpp_uniffi_opencord_mobile_checksum_func_soundboard_set_listening(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_audio_settings_apply"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_audio_settings_apply"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_audio_settings_apply(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_cue_play"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_cue_play"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_cue_play(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_level_meter_set"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_level_meter_set"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_level_meter_set(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_mic_test_set"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_mic_test_set"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_mic_test_set(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_voice_join"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -5273,6 +5376,58 @@ jsi::Value NativeOpencordMobile::
 
   return jsi::Value::undefined();
 }
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_audio_settings_apply(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_opencord_mobile_fn_func_audio_settings_apply(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_cue_play(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_opencord_mobile_fn_func_cue_play(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[1]), &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_level_meter_set(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  uniffi_opencord_mobile_fn_func_level_meter_set(
+      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[0]), &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return jsi::Value::undefined();
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_mic_test_set(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_mic_test_set(
+      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
 jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_voice_join(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
@@ -6539,6 +6694,38 @@ jsi::Value NativeOpencordMobile::
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_soundboard_set_listening();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_audio_settings_apply(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_audio_settings_apply();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_cue_play(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_cue_play();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_level_meter_set(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_level_meter_set();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_mic_test_set(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_mic_test_set();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

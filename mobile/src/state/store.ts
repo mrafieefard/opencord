@@ -73,6 +73,8 @@ function serverOf(event: MobileEvent): string | null {
       return event.inner.snapshot.serverKey;
     case MobileEvent_Tags.AudioProblem:
     case MobileEvent_Tags.SpeakingWhileMuted:
+    case MobileEvent_Tags.InputLevel:
+    case MobileEvent_Tags.NoiseSuppressionFellBack:
     case MobileEvent_Tags.VoiceRecordLevel:
     case MobileEvent_Tags.VoiceRecordStopped:
     case MobileEvent_Tags.Playback:

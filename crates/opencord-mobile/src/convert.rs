@@ -707,6 +707,49 @@ pub(crate) fn action(action: MusicAction) -> core::MusicAction {
     }
 }
 
+/// The phone's three audio choices on top of the core's defaults, which
+/// every phone call ran on before P1: nothing else about a call's audio
+/// changes. Volumes are held to 0–2; one that isn't a number is 1.0.
+pub(crate) fn core_audio_settings(settings: PhoneAudioSettings) -> core::AudioSettings {
+    core::AudioSettings {
+        noise_suppression: core_noise_suppression(settings.noise_suppression),
+        input_volume: volume(settings.input_volume),
+        output_volume: volume(settings.output_volume),
+        ..core::AudioSettings::default()
+    }
+}
+
+fn volume(value: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(0.0, 2.0)
+    } else {
+        1.0
+    }
+}
+
+pub(crate) fn core_noise_suppression(mode: NoiseSuppression) -> core::NoiseSuppressionMode {
+    match mode {
+        NoiseSuppression::Off => core::NoiseSuppressionMode::Off,
+        NoiseSuppression::Standard => core::NoiseSuppressionMode::Standard,
+        NoiseSuppression::High => core::NoiseSuppressionMode::High,
+    }
+}
+
+pub(crate) fn core_cue(cue: VoiceCueKind) -> core::VoiceCue {
+    match cue {
+        VoiceCueKind::Join => core::VoiceCue::Join,
+        VoiceCueKind::Leave => core::VoiceCue::Leave,
+        VoiceCueKind::UserJoin => core::VoiceCue::UserJoin,
+        VoiceCueKind::UserLeave => core::VoiceCue::UserLeave,
+        VoiceCueKind::Mute => core::VoiceCue::Mute,
+        VoiceCueKind::Unmute => core::VoiceCue::Unmute,
+        VoiceCueKind::Deafen => core::VoiceCue::Deafen,
+        VoiceCueKind::Undeafen => core::VoiceCue::Undeafen,
+        VoiceCueKind::StreamStart => core::VoiceCue::StreamStart,
+        VoiceCueKind::StreamStop => core::VoiceCue::StreamStop,
+    }
+}
+
 pub(crate) fn session(session: core::MusicSession) -> MusicSessionRecord {
     MusicSessionRecord {
         channel_id: id(session.channel_id),
@@ -1344,5 +1387,73 @@ mod tests {
         assert_eq!(converted_member.nickname.as_deref(), Some("Ali"));
         assert_eq!(converted_member.role_ids, vec!["1", "2"]);
         assert_eq!(converted_member.joined_at_ms, 1_791_374_400_000.0);
+    }
+
+    fn phone_audio(input_volume: f32, output_volume: f32) -> PhoneAudioSettings {
+        PhoneAudioSettings {
+            noise_suppression: NoiseSuppression::Standard,
+            input_volume,
+            output_volume,
+        }
+    }
+
+    // Fails if the phone's untouched choices change anything about a call's
+    // audio: every phone call ran on the core's defaults before P1.
+    #[test]
+    fn untouched_settings_equal_the_core_default() {
+        assert_eq!(
+            core_audio_settings(phone_audio(1.0, 1.0)),
+            core::AudioSettings::default()
+        );
+    }
+
+    // Fails if a volume past 200 %, below 0 or not a number reaches the
+    // call, or if the three choices don't land where they belong.
+    #[test]
+    fn volumes_clamp() {
+        let high = core_audio_settings(phone_audio(5.0, 2.5));
+        assert_eq!((high.input_volume, high.output_volume), (2.0, 2.0));
+        let low = core_audio_settings(phone_audio(-1.0, -0.1));
+        assert_eq!((low.input_volume, low.output_volume), (0.0, 0.0));
+        let odd = core_audio_settings(phone_audio(f32::NAN, f32::INFINITY));
+        assert_eq!((odd.input_volume, odd.output_volume), (1.0, 1.0));
+        let chosen = core_audio_settings(PhoneAudioSettings {
+            noise_suppression: NoiseSuppression::High,
+            input_volume: 0.5,
+            output_volume: 1.5,
+        });
+        assert_eq!(
+            chosen,
+            core::AudioSettings {
+                noise_suppression: core::NoiseSuppressionMode::High,
+                input_volume: 0.5,
+                output_volume: 1.5,
+                ..core::AudioSettings::default()
+            }
+        );
+        assert_eq!(
+            core_noise_suppression(NoiseSuppression::Off),
+            core::NoiseSuppressionMode::Off
+        );
+    }
+
+    // Fails if a sound plays as another one.
+    #[test]
+    fn every_cue_maps_to_the_core() {
+        let pairs = [
+            (VoiceCueKind::Join, core::VoiceCue::Join),
+            (VoiceCueKind::Leave, core::VoiceCue::Leave),
+            (VoiceCueKind::UserJoin, core::VoiceCue::UserJoin),
+            (VoiceCueKind::UserLeave, core::VoiceCue::UserLeave),
+            (VoiceCueKind::Mute, core::VoiceCue::Mute),
+            (VoiceCueKind::Unmute, core::VoiceCue::Unmute),
+            (VoiceCueKind::Deafen, core::VoiceCue::Deafen),
+            (VoiceCueKind::Undeafen, core::VoiceCue::Undeafen),
+            (VoiceCueKind::StreamStart, core::VoiceCue::StreamStart),
+            (VoiceCueKind::StreamStop, core::VoiceCue::StreamStop),
+        ];
+        for (phone, expected) in pairs {
+            assert_eq!(core_cue(phone), expected, "{phone:?}");
+        }
     }
 }

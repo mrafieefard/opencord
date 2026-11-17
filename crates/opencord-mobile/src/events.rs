@@ -120,6 +120,14 @@ pub enum MobileEvent {
     },
     /// The microphone heard speech while muted (at most every 30 s).
     SpeakingWhileMuted,
+    /// The microphone's level in dBFS while the level meter is on, at the
+    /// core's rate.
+    InputLevel {
+        dbfs: f32,
+    },
+    /// High noise suppression is too heavy for this device; the core uses
+    /// Standard instead.
+    NoiseSuppressionFellBack,
     MusicSession {
         server_key: String,
         session: MusicSessionRecord,
@@ -626,6 +634,8 @@ pub(crate) fn media_event(event: MediaEvent) -> Option<MobileEvent> {
             changes: changes.into_iter().map(convert::speaking).collect(),
         },
         MediaEvent::SpeakingWhileMuted => MobileEvent::SpeakingWhileMuted,
+        MediaEvent::InputLevel { dbfs } => MobileEvent::InputLevel { dbfs },
+        MediaEvent::NoiseSuppressionFellBack => MobileEvent::NoiseSuppressionFellBack,
         MediaEvent::VoiceRecordLevel { level } => MobileEvent::VoiceRecordLevel { level },
         MediaEvent::VoiceRecordStopped { reason } => MobileEvent::VoiceRecordStopped {
             max_length: reason == core::VoiceStopReason::MaxLength,
@@ -651,8 +661,6 @@ pub(crate) fn media_event(event: MediaEvent) -> Option<MobileEvent> {
             message,
         },
         MediaEvent::DevicesChanged(_)
-        | MediaEvent::InputLevel { .. }
-        | MediaEvent::NoiseSuppressionFellBack
         | MediaEvent::HotkeyPressed { .. }
         | MediaEvent::VideoTrackAdded { .. }
         | MediaEvent::VideoTrackRemoved { .. }
@@ -949,6 +957,29 @@ mod tests {
             batch.iter().any(
                 |event| matches!(event, MobileEvent::Typing { user_id, .. } if user_id == "3")
             )
+        );
+    }
+
+    // Fails if the microphone's level is dropped again, or its value is
+    // changed on the way to the level meter.
+    #[tokio::test]
+    async fn input_level_reaches_javascript() {
+        let fed = fed();
+        let generation = fed.pump.attach();
+        fed.media
+            .send(MediaEvent::InputLevel { dbfs: -32.5 })
+            .unwrap();
+        let batch = fed.pump.next(generation, 10).await;
+        assert_eq!(batch, vec![MobileEvent::InputLevel { dbfs: -32.5 }]);
+    }
+
+    // Fails if the fallback from High noise suppression is dropped: the
+    // page would keep showing High while the core runs Standard.
+    #[test]
+    fn a_fallback_reaches_javascript() {
+        assert_eq!(
+            media_event(MediaEvent::NoiseSuppressionFellBack),
+            Some(MobileEvent::NoiseSuppressionFellBack)
         );
     }
 

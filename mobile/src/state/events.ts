@@ -431,6 +431,8 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.SpeakingWhileMuted:
     case MobileEvent_Tags.MusicNotice:
     case MobileEvent_Tags.Notice:
+    case MobileEvent_Tags.InputLevel:
+    case MobileEvent_Tags.NoiseSuppressionFellBack:
       // Shown, not kept: store.ts turns these into toasts.
       return state;
     case MobileEvent_Tags.PluginChannelTypesUpdated:

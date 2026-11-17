@@ -698,6 +698,43 @@ pub enum PlaybackItemRecord {
     },
 }
 
+/// The audio choices the phone offers (P1). Everything else the core's
+/// `AudioSettings` holds stays at its default: the phone runs every call on
+/// those today.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct PhoneAudioSettings {
+    pub noise_suppression: NoiseSuppression,
+    /// Microphone gain, 0–2 (200 %).
+    pub input_volume: f32,
+    /// Everything heard, 0–2 (200 %).
+    pub output_volume: f32,
+}
+
+/// Noise suppression on the microphone: `Standard` is RNNoise, `High`
+/// DeepFilterNet (heavier; the core falls back to `Standard` when the phone
+/// can't keep up).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum NoiseSuppression {
+    Off,
+    Standard,
+    High,
+}
+
+/// A voice event's sound, played on this device only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum VoiceCueKind {
+    Join,
+    Leave,
+    UserJoin,
+    UserLeave,
+    Mute,
+    Unmute,
+    Deafen,
+    Undeafen,
+    StreamStart,
+    StreamStop,
+}
+
 /// A batch for the renderer of one plugin view: the core's id for the view
 /// and the batch as JSON (the plugins plans' "view wire format").
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]

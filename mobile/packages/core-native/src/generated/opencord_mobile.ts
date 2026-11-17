@@ -138,6 +138,20 @@ export async function attachmentFile(serverKey: string, attachmentId: string, va
     }
 
 /**
+ * The user's audio choices, for calls now and later and the microphone
+ * test. Only these three change; the rest stays at the core's defaults.
+ */
+export function audioSettingsApply(settings: PhoneAudioSettings): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_audio_settings_apply(
+        FfiConverterTypePhoneAudioSettings.lower(settings, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
  * The file of the profile picture or server icon named `hash`, fetched
  * from the server unless this device has it.
  */
@@ -301,6 +315,20 @@ export function coreVersion(): string {
     }
 
 /**
+ * Plays a voice event's sound on this device only, at `volume` (0–1).
+ */
+export function cuePlay(cue: VoiceCueKind, volume: number): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_cue_play(
+        FfiConverterTypeVoiceCueKind.lower(cue, nativeModule().rustbuffer_alloc),
+        FfiConverterFloat32.lower(volume, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    }
+
+/**
  * Starts a new event generation; a `next_events` still waiting under an
  * older one returns an empty batch at once. Call once per JavaScript start.
  */
@@ -412,6 +440,19 @@ export function identityLoad(secret: ArrayBuffer, displayName: string): Identity
     } finally {
         nativeModule().rustbuffer_free(__rb);
     }
+    }
+
+/**
+ * Sends `InputLevel` while on, at the core's own rate.
+ */
+export function levelMeterSet(on: boolean): void /*throws*/ {uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_opencord_mobile_fn_func_level_meter_set(
+        FfiConverterBool.lower(on, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
     }
 
 export async function messageDelete(serverKey: string, messageId: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
@@ -598,6 +639,38 @@ export async function messagesFetch(serverKey: string, channelId: string, before
                     nativeModule().rustbuffer_free(__rb);
                 }
             },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
+ * Hear yourself as others would, Opus and all: through the call when in
+ * one, else through an engine of its own that sends nowhere. Outside a
+ * call it opens the microphone, so on iOS the audio session must be on
+ * first. A microphone that can't open comes back as `AudioProblem`.
+ */
+export async function micTestSet(on: boolean, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_mic_test_set(FfiConverterBool.lower(on, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
             /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
@@ -4365,6 +4438,100 @@ const FfiConverterTypeOutgoingFileRecord = (() => {
 })();
 
 /**
+ * Noise suppression on the microphone: `Standard` is RNNoise, `High`
+ * DeepFilterNet (heavier; the core falls back to `Standard` when the phone
+ * can't keep up).
+ */
+export enum NoiseSuppression {
+    Off,
+    Standard,
+    High
+}
+
+const FfiConverterTypeNoiseSuppression = (() => {
+    type TypeName = NoiseSuppression;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return NoiseSuppression.Off;
+                case 2: return NoiseSuppression.Standard;
+                case 3: return NoiseSuppression.High;
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value) {
+                case NoiseSuppression.Off: return c.writeI32(1);
+                case NoiseSuppression.Standard: return c.writeI32(2);
+                case NoiseSuppression.High: return c.writeI32(3);
+            }
+        }
+        allocationSize(value: TypeName): number {
+            return 4;
+        }
+    }
+    return new FFIConverter();
+})();
+
+/**
+ * The audio choices the phone offers (P1). Everything else the core's
+ * `AudioSettings` holds stays at its default: the phone runs every call on
+ * those today.
+ */
+export type PhoneAudioSettings = {
+    noiseSuppression: NoiseSuppression,
+    /**
+     * Microphone gain, 0–2 (200 %).
+     */
+    inputVolume: number,
+    /**
+     * Everything heard, 0–2 (200 %).
+     */
+    outputVolume: number
+}
+
+/**
+ * Generated factory for {@link PhoneAudioSettings} record objects.
+ */
+export const PhoneAudioSettings = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<PhoneAudioSettings, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<PhoneAudioSettings>,
+    });
+})();
+
+const FfiConverterTypePhoneAudioSettings = (() => {
+    type TypeName = PhoneAudioSettings;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                noiseSuppression: FfiConverterTypeNoiseSuppression.readFromCursor(c), 
+                inputVolume: FfiConverterFloat32.readFromCursor(c), 
+                outputVolume: FfiConverterFloat32.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterTypeNoiseSuppression.writeIntoCursor(value.noiseSuppression, c);
+            FfiConverterFloat32.writeIntoCursor(value.inputVolume, c);
+            FfiConverterFloat32.writeIntoCursor(value.outputVolume, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterTypeNoiseSuppression.allocationSize(value.noiseSuppression) +
+             FfiConverterFloat32.allocationSize(value.inputVolume) +
+             FfiConverterFloat32.allocationSize(value.outputVolume);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+/**
  * An activity a running plugin registered (§15.1).
  */
 export type PluginActivityRecord = {
@@ -7240,6 +7407,8 @@ export enum MobileEvent_Tags {
     Speaking = "Speaking",
     AudioProblem = "AudioProblem",
     SpeakingWhileMuted = "SpeakingWhileMuted",
+    InputLevel = "InputLevel",
+    NoiseSuppressionFellBack = "NoiseSuppressionFellBack",
     MusicSession = "MusicSession",
     MusicNowPlaying = "MusicNowPlaying",
     MusicNotice = "MusicNotice",
@@ -7959,6 +8128,69 @@ inner: {output: boolean; fellBack: boolean; message: string }): AudioProblem_ {
 
         static instanceOf(obj: any): obj is SpeakingWhileMuted_ {
             return obj.tag === MobileEvent_Tags.SpeakingWhileMuted;
+        }
+
+    }
+
+    type InputLevel__interface = {
+        tag: MobileEvent_Tags.InputLevel;
+        inner: 
+Readonly<{dbfs: number}>
+    };
+    /**
+     * The microphone's level in dBFS while the level meter is on, at the
+     * core's rate.
+     */
+    class InputLevel_ extends UniffiEnum implements InputLevel__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.InputLevel;
+        readonly inner: 
+Readonly<{dbfs: number}>;
+        constructor(
+inner: {dbfs: number }) {
+            super("MobileEvent", "InputLevel");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {dbfs: number }): InputLevel_ {
+            return new InputLevel_(inner);
+        }
+
+        static instanceOf(obj: any): obj is InputLevel_ {
+            return obj.tag === MobileEvent_Tags.InputLevel;
+        }
+
+    }
+
+    type NoiseSuppressionFellBack__interface = {
+        tag: MobileEvent_Tags.NoiseSuppressionFellBack
+    };
+    /**
+     * High noise suppression is too heavy for this device; the core uses
+     * Standard instead.
+     */
+    class NoiseSuppressionFellBack_ extends UniffiEnum implements NoiseSuppressionFellBack__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.NoiseSuppressionFellBack;
+        constructor() {
+            super("MobileEvent", "NoiseSuppressionFellBack");
+        }
+
+        static new(): NoiseSuppressionFellBack_ {
+            return new NoiseSuppressionFellBack_();
+        }
+
+        static instanceOf(obj: any): obj is NoiseSuppressionFellBack_ {
+            return obj.tag === MobileEvent_Tags.NoiseSuppressionFellBack;
         }
 
     }
@@ -8728,6 +8960,8 @@ inner: {serverKey: string; sessionId: string; channelId: string; reason: Activit
   Speaking: Speaking_, 
   AudioProblem: AudioProblem_, 
   SpeakingWhileMuted: SpeakingWhileMuted_, 
+  InputLevel: InputLevel_, 
+  NoiseSuppressionFellBack: NoiseSuppressionFellBack_, 
   MusicSession: MusicSession_, 
   MusicNowPlaying: MusicNowPlaying_, 
   MusicNotice: MusicNotice_, 
@@ -8755,7 +8989,7 @@ inner: {serverKey: string; sessionId: string; channelId: string; reason: Activit
 
 })();
 export type MobileEvent = InstanceType<
-    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'RoleUpserted' | 'RoleDeleted' | 'PresenceChanged' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated' | 'PluginChannelTypesUpdated' | 'PluginActivitiesUpdated' | 'ActivitySessionCreated' | 'ActivitySessionUpdated' | 'ActivitySessionDeleted']
+    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'RoleUpserted' | 'RoleDeleted' | 'PresenceChanged' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'InputLevel' | 'NoiseSuppressionFellBack' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated' | 'PluginChannelTypesUpdated' | 'PluginActivitiesUpdated' | 'ActivitySessionCreated' | 'ActivitySessionUpdated' | 'ActivitySessionDeleted']
 >;
 
 // FfiConverter for enum MobileEvent
@@ -8786,29 +9020,31 @@ const FfiConverterTypeMobileEvent = (() => {
                 case 20: return new MobileEvent.Speaking({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), changes: FfiConverterSequenceTypeSpeakingChangeRecord.readFromCursor(c) });
                 case 21: return new MobileEvent.AudioProblem({output: FfiConverterBool.readFromCursor(c), fellBack: FfiConverterBool.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
                 case 22: return new MobileEvent.SpeakingWhileMuted();
-                case 23: return new MobileEvent.MusicSession({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeMusicSessionRecord.readFromCursor(c) });
-                case 24: return new MobileEvent.MusicNowPlaying({serverKey: FfiConverterString.readFromCursor(c), nowPlaying: FfiConverterTypeMusicNowPlayingRecord.readFromCursor(c) });
-                case 25: return new MobileEvent.MusicNotice({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), text: FfiConverterString.readFromCursor(c) });
-                case 26: return new MobileEvent.MusicSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeMusicSettingsRecord.readFromCursor(c) });
-                case 27: return new MobileEvent.SoundboardSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c) });
-                case 28: return new MobileEvent.SoundboardSoundUpserted({serverKey: FfiConverterString.readFromCursor(c), sound: FfiConverterTypeSoundboardSoundRecord.readFromCursor(c) });
-                case 29: return new MobileEvent.SoundboardSoundDeleted({serverKey: FfiConverterString.readFromCursor(c), soundId: FfiConverterString.readFromCursor(c) });
-                case 30: return new MobileEvent.VoiceMessageLimitChanged({serverKey: FfiConverterString.readFromCursor(c), maxSeconds: FfiConverterUInt32.readFromCursor(c) });
-                case 31: return new MobileEvent.VoiceRecordLevel({level: FfiConverterFloat32.readFromCursor(c) });
-                case 32: return new MobileEvent.VoiceRecordStopped({maxLength: FfiConverterBool.readFromCursor(c) });
-                case 33: return new MobileEvent.Playback({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), positionMs: FfiConverterUInt32.readFromCursor(c), durationMs: FfiConverterUInt32.readFromCursor(c), playing: FfiConverterBool.readFromCursor(c), buffering: FfiConverterBool.readFromCursor(c) });
-                case 34: return new MobileEvent.PlaybackEnded({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c) });
-                case 35: return new MobileEvent.PlaybackFailed({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
-                case 36: return new MobileEvent.SoundPlayed({serverKey: FfiConverterString.readFromCursor(c), effect: FfiConverterTypeSoundEffectRecord.readFromCursor(c) });
-                case 37: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 38: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
-                case 39: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
-                case 40: return new MobileEvent.PluginUsersUpdated({serverKey: FfiConverterString.readFromCursor(c), pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c) });
-                case 41: return new MobileEvent.PluginChannelTypesUpdated({serverKey: FfiConverterString.readFromCursor(c), types: FfiConverterSequenceTypePluginChannelTypeRecord.readFromCursor(c) });
-                case 42: return new MobileEvent.PluginActivitiesUpdated({serverKey: FfiConverterString.readFromCursor(c), activities: FfiConverterSequenceTypePluginActivityRecord.readFromCursor(c) });
-                case 43: return new MobileEvent.ActivitySessionCreated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
-                case 44: return new MobileEvent.ActivitySessionUpdated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
-                case 45: return new MobileEvent.ActivitySessionDeleted({serverKey: FfiConverterString.readFromCursor(c), sessionId: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), reason: FfiConverterTypeActivityEndReason.readFromCursor(c) });
+                case 23: return new MobileEvent.InputLevel({dbfs: FfiConverterFloat32.readFromCursor(c) });
+                case 24: return new MobileEvent.NoiseSuppressionFellBack();
+                case 25: return new MobileEvent.MusicSession({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeMusicSessionRecord.readFromCursor(c) });
+                case 26: return new MobileEvent.MusicNowPlaying({serverKey: FfiConverterString.readFromCursor(c), nowPlaying: FfiConverterTypeMusicNowPlayingRecord.readFromCursor(c) });
+                case 27: return new MobileEvent.MusicNotice({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), text: FfiConverterString.readFromCursor(c) });
+                case 28: return new MobileEvent.MusicSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeMusicSettingsRecord.readFromCursor(c) });
+                case 29: return new MobileEvent.SoundboardSettingsChanged({serverKey: FfiConverterString.readFromCursor(c), settings: FfiConverterTypeSoundboardSettingsRecord.readFromCursor(c) });
+                case 30: return new MobileEvent.SoundboardSoundUpserted({serverKey: FfiConverterString.readFromCursor(c), sound: FfiConverterTypeSoundboardSoundRecord.readFromCursor(c) });
+                case 31: return new MobileEvent.SoundboardSoundDeleted({serverKey: FfiConverterString.readFromCursor(c), soundId: FfiConverterString.readFromCursor(c) });
+                case 32: return new MobileEvent.VoiceMessageLimitChanged({serverKey: FfiConverterString.readFromCursor(c), maxSeconds: FfiConverterUInt32.readFromCursor(c) });
+                case 33: return new MobileEvent.VoiceRecordLevel({level: FfiConverterFloat32.readFromCursor(c) });
+                case 34: return new MobileEvent.VoiceRecordStopped({maxLength: FfiConverterBool.readFromCursor(c) });
+                case 35: return new MobileEvent.Playback({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), positionMs: FfiConverterUInt32.readFromCursor(c), durationMs: FfiConverterUInt32.readFromCursor(c), playing: FfiConverterBool.readFromCursor(c), buffering: FfiConverterBool.readFromCursor(c) });
+                case 36: return new MobileEvent.PlaybackEnded({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c) });
+                case 37: return new MobileEvent.PlaybackFailed({item: FfiConverterTypePlaybackItemRecord.readFromCursor(c), message: FfiConverterString.readFromCursor(c) });
+                case 38: return new MobileEvent.SoundPlayed({serverKey: FfiConverterString.readFromCursor(c), effect: FfiConverterTypeSoundEffectRecord.readFromCursor(c) });
+                case 39: return new MobileEvent.MusicUpload({serverKey: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), uploadId: FfiConverterString.readFromCursor(c), filename: FfiConverterString.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 40: return new MobileEvent.SendProgress({serverKey: FfiConverterString.readFromCursor(c), nonce: FfiConverterString.readFromCursor(c), index: FfiConverterUInt32.readFromCursor(c), sentBytes: FfiConverterFloat64.readFromCursor(c), totalBytes: FfiConverterFloat64.readFromCursor(c), phase: FfiConverterTypeUploadPhaseRecord.readFromCursor(c) });
+                case 41: return new MobileEvent.Notice({serverKey: FfiConverterString.readFromCursor(c), key: FfiConverterString.readFromCursor(c), title: FfiConverterString.readFromCursor(c), body: FfiConverterString.readFromCursor(c) });
+                case 42: return new MobileEvent.PluginUsersUpdated({serverKey: FfiConverterString.readFromCursor(c), pluginUsers: FfiConverterSequenceTypePluginUserRecord.readFromCursor(c) });
+                case 43: return new MobileEvent.PluginChannelTypesUpdated({serverKey: FfiConverterString.readFromCursor(c), types: FfiConverterSequenceTypePluginChannelTypeRecord.readFromCursor(c) });
+                case 44: return new MobileEvent.PluginActivitiesUpdated({serverKey: FfiConverterString.readFromCursor(c), activities: FfiConverterSequenceTypePluginActivityRecord.readFromCursor(c) });
+                case 45: return new MobileEvent.ActivitySessionCreated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
+                case 46: return new MobileEvent.ActivitySessionUpdated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
+                case 47: return new MobileEvent.ActivitySessionDeleted({serverKey: FfiConverterString.readFromCursor(c), sessionId: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), reason: FfiConverterTypeActivityEndReason.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -8971,22 +9207,32 @@ const FfiConverterTypeMobileEvent = (() => {
                     c.writeI32(22);
                     return;
                 }
-                case MobileEvent_Tags.MusicSession: {
+                case MobileEvent_Tags.InputLevel: {
                     c.writeI32(23);
+                    const inner = value.inner;
+                    FfiConverterFloat32.writeIntoCursor(inner.dbfs, c);
+                    return;
+                }
+                case MobileEvent_Tags.NoiseSuppressionFellBack: {
+                    c.writeI32(24);
+                    return;
+                }
+                case MobileEvent_Tags.MusicSession: {
+                    c.writeI32(25);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeMusicSessionRecord.writeIntoCursor(inner.session, c);
                     return;
                 }
                 case MobileEvent_Tags.MusicNowPlaying: {
-                    c.writeI32(24);
+                    c.writeI32(26);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeMusicNowPlayingRecord.writeIntoCursor(inner.nowPlaying, c);
                     return;
                 }
                 case MobileEvent_Tags.MusicNotice: {
-                    c.writeI32(25);
+                    c.writeI32(27);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -8994,54 +9240,54 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.MusicSettingsChanged: {
-                    c.writeI32(26);
+                    c.writeI32(28);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeMusicSettingsRecord.writeIntoCursor(inner.settings, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundboardSettingsChanged: {
-                    c.writeI32(27);
+                    c.writeI32(29);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeSoundboardSettingsRecord.writeIntoCursor(inner.settings, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundboardSoundUpserted: {
-                    c.writeI32(28);
+                    c.writeI32(30);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeSoundboardSoundRecord.writeIntoCursor(inner.sound, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundboardSoundDeleted: {
-                    c.writeI32(29);
+                    c.writeI32(31);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.soundId, c);
                     return;
                 }
                 case MobileEvent_Tags.VoiceMessageLimitChanged: {
-                    c.writeI32(30);
+                    c.writeI32(32);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterUInt32.writeIntoCursor(inner.maxSeconds, c);
                     return;
                 }
                 case MobileEvent_Tags.VoiceRecordLevel: {
-                    c.writeI32(31);
+                    c.writeI32(33);
                     const inner = value.inner;
                     FfiConverterFloat32.writeIntoCursor(inner.level, c);
                     return;
                 }
                 case MobileEvent_Tags.VoiceRecordStopped: {
-                    c.writeI32(32);
+                    c.writeI32(34);
                     const inner = value.inner;
                     FfiConverterBool.writeIntoCursor(inner.maxLength, c);
                     return;
                 }
                 case MobileEvent_Tags.Playback: {
-                    c.writeI32(33);
+                    c.writeI32(35);
                     const inner = value.inner;
                     FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
                     FfiConverterUInt32.writeIntoCursor(inner.positionMs, c);
@@ -9051,27 +9297,27 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.PlaybackEnded: {
-                    c.writeI32(34);
+                    c.writeI32(36);
                     const inner = value.inner;
                     FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
                     return;
                 }
                 case MobileEvent_Tags.PlaybackFailed: {
-                    c.writeI32(35);
+                    c.writeI32(37);
                     const inner = value.inner;
                     FfiConverterTypePlaybackItemRecord.writeIntoCursor(inner.item, c);
                     FfiConverterString.writeIntoCursor(inner.message, c);
                     return;
                 }
                 case MobileEvent_Tags.SoundPlayed: {
-                    c.writeI32(36);
+                    c.writeI32(38);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeSoundEffectRecord.writeIntoCursor(inner.effect, c);
                     return;
                 }
                 case MobileEvent_Tags.MusicUpload: {
-                    c.writeI32(37);
+                    c.writeI32(39);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.channelId, c);
@@ -9083,7 +9329,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.SendProgress: {
-                    c.writeI32(38);
+                    c.writeI32(40);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.nonce, c);
@@ -9094,7 +9340,7 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.Notice: {
-                    c.writeI32(39);
+                    c.writeI32(41);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.key, c);
@@ -9103,42 +9349,42 @@ const FfiConverterTypeMobileEvent = (() => {
                     return;
                 }
                 case MobileEvent_Tags.PluginUsersUpdated: {
-                    c.writeI32(40);
+                    c.writeI32(42);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypePluginUserRecord.writeIntoCursor(inner.pluginUsers, c);
                     return;
                 }
                 case MobileEvent_Tags.PluginChannelTypesUpdated: {
-                    c.writeI32(41);
+                    c.writeI32(43);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypePluginChannelTypeRecord.writeIntoCursor(inner.types, c);
                     return;
                 }
                 case MobileEvent_Tags.PluginActivitiesUpdated: {
-                    c.writeI32(42);
+                    c.writeI32(44);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterSequenceTypePluginActivityRecord.writeIntoCursor(inner.activities, c);
                     return;
                 }
                 case MobileEvent_Tags.ActivitySessionCreated: {
-                    c.writeI32(43);
+                    c.writeI32(45);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeActivitySessionRecord.writeIntoCursor(inner.session, c);
                     return;
                 }
                 case MobileEvent_Tags.ActivitySessionUpdated: {
-                    c.writeI32(44);
+                    c.writeI32(46);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterTypeActivitySessionRecord.writeIntoCursor(inner.session, c);
                     return;
                 }
                 case MobileEvent_Tags.ActivitySessionDeleted: {
-                    c.writeI32(45);
+                    c.writeI32(47);
                     const inner = value.inner;
                     FfiConverterString.writeIntoCursor(inner.serverKey, c);
                     FfiConverterString.writeIntoCursor(inner.sessionId, c);
@@ -9307,6 +9553,15 @@ const FfiConverterTypeMobileEvent = (() => {
                     return size;
                 }
                 case MobileEvent_Tags.SpeakingWhileMuted: {
+                    return 4;
+                }
+                case MobileEvent_Tags.InputLevel: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterFloat32.allocationSize(inner.dbfs);
+                    return size;
+                }
+                case MobileEvent_Tags.NoiseSuppressionFellBack: {
                     return 4;
                 }
                 case MobileEvent_Tags.MusicSession: {
@@ -9568,6 +9823,61 @@ const FfiConverterTypeMusicPlacement = (() => {
     return new FFIConverter();
 })();
 
+/**
+ * A voice event's sound, played on this device only.
+ */
+export enum VoiceCueKind {
+    Join,
+    Leave,
+    UserJoin,
+    UserLeave,
+    Mute,
+    Unmute,
+    Deafen,
+    Undeafen,
+    StreamStart,
+    StreamStop
+}
+
+const FfiConverterTypeVoiceCueKind = (() => {
+    type TypeName = VoiceCueKind;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return VoiceCueKind.Join;
+                case 2: return VoiceCueKind.Leave;
+                case 3: return VoiceCueKind.UserJoin;
+                case 4: return VoiceCueKind.UserLeave;
+                case 5: return VoiceCueKind.Mute;
+                case 6: return VoiceCueKind.Unmute;
+                case 7: return VoiceCueKind.Deafen;
+                case 8: return VoiceCueKind.Undeafen;
+                case 9: return VoiceCueKind.StreamStart;
+                case 10: return VoiceCueKind.StreamStop;
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value) {
+                case VoiceCueKind.Join: return c.writeI32(1);
+                case VoiceCueKind.Leave: return c.writeI32(2);
+                case VoiceCueKind.UserJoin: return c.writeI32(3);
+                case VoiceCueKind.UserLeave: return c.writeI32(4);
+                case VoiceCueKind.Mute: return c.writeI32(5);
+                case VoiceCueKind.Unmute: return c.writeI32(6);
+                case VoiceCueKind.Deafen: return c.writeI32(7);
+                case VoiceCueKind.Undeafen: return c.writeI32(8);
+                case VoiceCueKind.StreamStart: return c.writeI32(9);
+                case VoiceCueKind.StreamStop: return c.writeI32(10);
+            }
+        }
+        allocationSize(value: TypeName): number {
+            return 4;
+        }
+    }
+    return new FFIConverter();
+})();
+
 // FfiConverter for Array<string>
 const FfiConverterSequenceString = new FfiConverterArray(FfiConverterString);
 
@@ -9707,6 +10017,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_attachment_file() !== 48188) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_attachment_file");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_audio_settings_apply() !== 2312) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_audio_settings_apply");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_avatar_file() !== 4143) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_avatar_file");
     }
@@ -9721,6 +10034,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_core_version() !== 18957) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_core_version");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_cue_play() !== 14304) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_cue_play");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_events_attach() !== 31392) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_events_attach");
@@ -9740,6 +10056,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_identity_load() !== 58229) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_identity_load");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_level_meter_set() !== 26489) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_level_meter_set");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_message_delete() !== 59948) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_message_delete");
     }
@@ -9754,6 +10073,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_messages_fetch() !== 31307) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_messages_fetch");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_mic_test_set() !== 3697) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_mic_test_set");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_music_artwork() !== 34338) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_music_artwork");
@@ -9976,7 +10298,9 @@ export default Object.freeze({
     FfiConverterTypeMusicSettingsRecord,
     FfiConverterTypeMusicTrackRecord,
     FfiConverterTypeNewIdentity,
+    FfiConverterTypeNoiseSuppression,
     FfiConverterTypeOutgoingFileRecord,
+    FfiConverterTypePhoneAudioSettings,
     FfiConverterTypePlaybackItemRecord,
     FfiConverterTypePluginActivityRecord,
     FfiConverterTypePluginChannelRecord,
@@ -9996,6 +10320,7 @@ export default Object.freeze({
     FfiConverterTypeUploadPhaseRecord,
     FfiConverterTypeUserRecord,
     FfiConverterTypeViewOutputRecord,
+    FfiConverterTypeVoiceCueKind,
     FfiConverterTypeVoiceDraftRecord,
     FfiConverterTypeVoiceLinkState,
     FfiConverterTypeVoiceStateRecord,

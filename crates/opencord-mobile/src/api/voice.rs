@@ -4,7 +4,7 @@ use crate::MobileError;
 use crate::convert;
 use crate::ids::parse_id;
 use crate::mobile::{mobile, on_runtime};
-use crate::types::VoiceStateRecord;
+use crate::types::{PhoneAudioSettings, VoiceCueKind, VoiceStateRecord};
 
 /// Joins a voice channel; this device is in one at most, so any other is
 /// left first. The app asks for the microphone before calling this.
@@ -65,5 +65,45 @@ pub fn voice_set_user_local_mute(
     mobile()?
         .client()
         .set_user_local_mute(&server_key, user_id, muted);
+    Ok(())
+}
+
+/// The user's audio choices, for calls now and later and the microphone
+/// test. Only these three change; the rest stays at the core's defaults.
+#[uniffi::export]
+pub fn audio_settings_apply(settings: PhoneAudioSettings) -> Result<(), MobileError> {
+    mobile()?
+        .client()
+        .apply_audio_settings(convert::core_audio_settings(settings));
+    Ok(())
+}
+
+/// Hear yourself as others would, Opus and all: through the call when in
+/// one, else through an engine of its own that sends nowhere. Outside a
+/// call it opens the microphone, so on iOS the audio session must be on
+/// first. A microphone that can't open comes back as `AudioProblem`.
+#[uniffi::export]
+pub async fn mic_test_set(on: bool) -> Result<(), MobileError> {
+    let mobile = mobile()?;
+    // Opening the devices blocks; not on JavaScript's thread.
+    mobile
+        .blocking(move || {
+            mobile.client().set_mic_test(on);
+            Ok(())
+        })
+        .await
+}
+
+/// Sends `InputLevel` while on, at the core's own rate.
+#[uniffi::export]
+pub fn level_meter_set(on: bool) -> Result<(), MobileError> {
+    mobile()?.client().set_level_meter(on);
+    Ok(())
+}
+
+/// Plays a voice event's sound on this device only, at `volume` (0–1).
+#[uniffi::export]
+pub fn cue_play(cue: VoiceCueKind, volume: f32) -> Result<(), MobileError> {
+    mobile()?.client().play_cue(convert::core_cue(cue), volume);
     Ok(())
 }
