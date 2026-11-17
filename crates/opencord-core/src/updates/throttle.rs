@@ -15,10 +15,11 @@
 use std::collections::VecDeque;
 use std::fmt;
 use std::future::Future;
-use std::pin::{Pin, pin};
+use std::pin::Pin;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
+use tokio::pin;
 use tokio::sync::{Notify, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -415,7 +416,8 @@ impl VoiceThrottle {
         let _taking = Taking::begin(&self.shared);
         loop {
             // Listening before looking, so a reading in between still wakes.
-            let mut changed = pin!(self.shared.changed.notified());
+            let changed = self.shared.changed.notified();
+            pin!(changed);
             changed.as_mut().enable();
             let wait = self.shared.lock().bucket.take(bytes, Instant::now());
             match wait {
@@ -423,7 +425,7 @@ impl VoiceThrottle {
                 Err(None) => changed.await,
                 Err(Some(wait)) => {
                     tokio::select! {
-                        () = changed => {}
+                        () = &mut changed => {}
                         () = tokio::time::sleep(wait) => {}
                     }
                 }

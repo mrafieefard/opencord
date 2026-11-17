@@ -157,6 +157,38 @@ impl Updater {
         }
     }
 
+    /// The install layout this updater works inside.
+    pub fn layout(&self) -> &Layout {
+        &self.layout
+    }
+
+    /// For tests: an updater targeting `base_url` instead of GitHub.
+    #[cfg(test)]
+    pub(crate) fn new_with_base_url(
+        root: PathBuf,
+        track: Track,
+        installed: Version,
+        platform: &'static str,
+        http: reqwest::Client,
+        throttle: Arc<dyn Throttle>,
+        base_url: String,
+    ) -> Self {
+        Self {
+            layout: Layout::new(root),
+            track,
+            installed,
+            platform,
+            http,
+            throttle,
+            key: signature::built_in_key(),
+            github: Github {
+                web: base_url.clone(),
+                api: base_url,
+                repository: opencord_update::REPOSITORY.to_owned(),
+            },
+        }
+    }
+
     /// One check: the track's newest build, and if this user takes it,
     /// either the waiting update confirmed or the download made ready for
     /// `--prepare`. Logs its outcome.

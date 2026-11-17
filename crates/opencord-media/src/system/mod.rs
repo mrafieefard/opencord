@@ -94,6 +94,7 @@ fn device_lines(list: &DeviceList) -> (String, String) {
 }
 
 /// `17000000000` → `15.8 GB` (GiB, as systems show memory).
+#[cfg(any(test, target_os = "linux", target_os = "macos", target_os = "windows"))]
 fn gigabytes(bytes: u64) -> String {
     format!("{:.1} GB", bytes as f64 / (1u64 << 30) as f64)
 }

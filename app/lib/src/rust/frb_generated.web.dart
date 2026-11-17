@@ -13,6 +13,7 @@ import 'api/plugins.dart';
 import 'api/private.dart';
 import 'api/system.dart';
 import 'api/types.dart';
+import 'api/updates.dart';
 import 'api/views.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -38,6 +39,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<PrivateEvent> dco_decode_StreamSink_private_event_Sse(
+    dynamic raw,
+  );
+
+  @protected
+  RustStreamSink<UpdateEvent> dco_decode_StreamSink_update_event_Sse(
     dynamic raw,
   );
 
@@ -1121,6 +1127,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  UpdateEvent dco_decode_update_event(dynamic raw);
+
+  @protected
   UploadPhase dco_decode_upload_phase(dynamic raw);
 
   @protected
@@ -1180,6 +1189,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<PrivateEvent> sse_decode_StreamSink_private_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<UpdateEvent> sse_decode_StreamSink_update_event_Sse(
     SseDeserializer deserializer,
   );
 
@@ -2511,6 +2525,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  UpdateEvent sse_decode_update_event(SseDeserializer deserializer);
+
+  @protected
   UploadPhase sse_decode_upload_phase(SseDeserializer deserializer);
 
   @protected
@@ -2580,6 +2597,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_private_event_Sse(
     RustStreamSink<PrivateEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_update_event_Sse(
+    RustStreamSink<UpdateEvent> self,
     SseSerializer serializer,
   );
 
@@ -4295,6 +4318,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_update_event(UpdateEvent self, SseSerializer serializer);
 
   @protected
   void sse_encode_upload_phase(UploadPhase self, SseSerializer serializer);
