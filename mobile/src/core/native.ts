@@ -104,6 +104,7 @@ export const NativeCore: CoreApi = {
   soundboardDefaultSounds: () => native.soundboardDefaultSounds(),
   soundboardPlay: (key, channel, soundRef, external) => native.soundboardPlay(key, channel, soundRef, external),
   soundboardPreview: (key, soundRef) => native.soundboardPreview(key, soundRef),
+  soundboardSetListening: (volume, muted) => native.soundboardSetListening(volume, muted),
 
   voiceRecordStart: (maxSeconds) => native.voiceRecordStart(maxSeconds),
   voiceRecordStop: () => native.voiceRecordStop(),

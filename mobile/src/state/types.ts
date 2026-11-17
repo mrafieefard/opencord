@@ -141,6 +141,18 @@ export interface MusicListening {
 
 export type UserStatus = 'online' | 'idle' | 'dnd';
 
+export type CueGroup =
+  | 'joinLeave'
+  | 'othersJoinLeave'
+  | 'mute'
+  | 'deafen'
+  | 'stream';
+
+export interface SoundboardPrefs {
+  volume: number;
+  muted: boolean;
+}
+
 export interface Prefs {
   theme: Theme;
   music: MusicListening;
@@ -150,6 +162,10 @@ export interface Prefs {
   audio: PhoneAudioSettings;
   /** The person's presence status, stored with the other prefs. */
   status: UserStatus;
+  /** How loud soundboards are on this device, and whether muted. */
+  soundboard: SoundboardPrefs;
+  /** Which voice sound groups are turned off. */
+  cuesOff: CueGroup[];
 }
 
 export interface Toast {

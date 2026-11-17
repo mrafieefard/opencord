@@ -495,6 +495,10 @@ export class FakeCore implements CoreApi {
     this.enter('cuePlay', [cue, volume]);
   }
 
+  soundboardSetListening(volume: number, muted: boolean): void {
+    this.enter('soundboardSetListening', [volume, muted]);
+  }
+
   /** What the core sends as it connects: each fake server has its state. */
   private connect(serverKey: string): void {
     this.emit(new MobileEvent.Connection({ serverKey, state: new ConnectionRecord.Connecting() }));

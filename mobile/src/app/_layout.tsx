@@ -11,6 +11,7 @@ import { BootGate } from '@/features/boot/BootGate';
 import { DETENTS, TWO_COLUMNS } from '@/features/music/sheet';
 import { SHEET_DETENTS } from '@/features/serverMenu/ServerSheet';
 import { CallSheet } from '@/features/voice/CallSheet';
+import { useVoiceCues } from '@/features/voice/useVoiceCues';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui';
 
@@ -21,6 +22,7 @@ import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui'
 LogBox.ignoreLogs([/REMOVE_ROUTES/, /uses presentation.*first screen/, /The action 'PRELOAD'/]);
 
 function Routes() {
+  useVoiceCues();
   const boot = useBoot();
   const { colors, scheme } = useTheme();
   const { width } = useWindowDimensions();

@@ -5,14 +5,16 @@ import { NoiseSuppression, type PhoneAudioSettings } from '@opencord/core-native
 
 import { getCore } from '@/core';
 
-import { DEFAULT_AUDIO, DEFAULT_MUSIC, useAppStore } from '../store';
-import type { MusicListening, Theme, UserStatus } from '../types';
+import { DEFAULT_AUDIO, DEFAULT_CUES_OFF, DEFAULT_MUSIC, DEFAULT_SOUNDBOARD, useAppStore } from '../store';
+import type { CueGroup, MusicListening, SoundboardPrefs, Theme, UserStatus } from '../types';
 
 const THEME = 'mobile.theme';
 const MUSIC = 'mobile.musicListening';
 const SOUND_FAVORITES = 'mobile.soundFavorites';
 const AUDIO = 'mobile.audio';
 export const STATUS = 'mobile.status';
+const SOUNDBOARD = 'mobile.soundboard';
+const CUES_OFF = 'mobile.cuesOff';
 
 export function readStatus(text: string | undefined): UserStatus {
   if (text === 'idle' || text === 'dnd') return text;
@@ -85,6 +87,38 @@ function readMusic(text: string | undefined): MusicListening {
   return { ...DEFAULT_MUSIC };
 }
 
+function readSoundboard(text: string | undefined): SoundboardPrefs {
+  if (text === undefined) return { ...DEFAULT_SOUNDBOARD };
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object') {
+      const value = parsed as Partial<Record<keyof SoundboardPrefs, unknown>>;
+      return {
+        volume: typeof value.volume === 'number' && Number.isFinite(value.volume) ? Math.min(Math.max(value.volume, 0), 100) : DEFAULT_SOUNDBOARD.volume,
+        muted: typeof value.muted === 'boolean' ? value.muted : DEFAULT_SOUNDBOARD.muted,
+      };
+    }
+  } catch {
+    console.warn('soundboard settings could not be parsed; using the defaults');
+  }
+  return { ...DEFAULT_SOUNDBOARD };
+}
+
+const CUE_GROUP_NAMES: CueGroup[] = ['joinLeave', 'othersJoinLeave', 'mute', 'deafen', 'stream'];
+
+function readCuesOff(text: string | undefined): CueGroup[] {
+  if (text === undefined) return [...DEFAULT_CUES_OFF];
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is CueGroup => CUE_GROUP_NAMES.includes(item as CueGroup));
+    }
+  } catch {
+    console.warn('cues off settings could not be parsed; starting with all cues on');
+  }
+  return [...DEFAULT_CUES_OFF];
+}
+
 export function loadPrefs(): void {
   const core = getCore();
   const theme = core.settingsGet(THEME);
@@ -92,11 +126,41 @@ export function loadPrefs(): void {
   const soundFavorites = readFavorites(core.settingsGet(SOUND_FAVORITES));
   const audio = readAudio(core.settingsGet(AUDIO));
   const status = readStatus(core.settingsGet(STATUS));
+  const soundboard = readSoundboard(core.settingsGet(SOUNDBOARD));
+  const cuesOff = readCuesOff(core.settingsGet(CUES_OFF));
   useAppStore.setState({
-    prefs: { theme: theme === 'light' || theme === 'dark' ? theme : 'system', music, soundFavorites, audio, status },
+    prefs: {
+      theme: theme === 'light' || theme === 'dark' ? theme : 'system',
+      music,
+      soundFavorites,
+      audio,
+      status,
+      soundboard,
+      cuesOff,
+    },
   });
   core.musicSetListening(music.volume, music.muted, music.duck);
   core.audioSettingsApply(audio);
+  core.soundboardSetListening(soundboard.volume / 100, soundboard.muted);
+}
+
+export function setSoundboard(change: Partial<SoundboardPrefs>): void {
+  const current = useAppStore.getState().prefs.soundboard;
+  const soundboard: SoundboardPrefs = {
+    volume: typeof change.volume === 'number' && Number.isFinite(change.volume) ? Math.min(Math.max(change.volume, 0), 100) : current.volume,
+    muted: typeof change.muted === 'boolean' ? change.muted : current.muted,
+  };
+  const core = getCore();
+  core.soundboardSetListening(soundboard.volume / 100, soundboard.muted);
+  core.settingsSet(SOUNDBOARD, JSON.stringify(soundboard));
+  useAppStore.setState((state) => ({ prefs: { ...state.prefs, soundboard } }));
+}
+
+export function setCueGroup(group: CueGroup, on: boolean): void {
+  const current = useAppStore.getState().prefs.cuesOff;
+  const cuesOff = on ? current.filter((g) => g !== group) : Array.from(new Set([...current, group]));
+  getCore().settingsSet(CUES_OFF, JSON.stringify(cuesOff));
+  useAppStore.setState((state) => ({ prefs: { ...state.prefs, cuesOff } }));
 }
 
 /** Noise suppression or a volume changed: the core uses it at once, in a call or the microphone test. */

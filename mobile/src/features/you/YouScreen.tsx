@@ -104,6 +104,27 @@ export function YouScreen() {
         </View>
       </View>
 
+      {/* Sounds */}
+      <View style={styles.section}>
+        <Text variant="caption" color="textMuted" style={styles.sectionTitle}>
+          Sounds
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Row
+            accessibilityLabel="Sounds"
+            onPress={() => router.push('/you/sounds')}
+            style={styles.rowItem}
+          >
+            <View style={styles.rowContent}>
+              <Text variant="body">Sounds</Text>
+              <View style={styles.chevron}>
+                <Icon name="back" size={14} color="textSecondary" />
+              </View>
+            </View>
+          </Row>
+        </View>
+      </View>
+
       {/* Appearance */}
       <View style={styles.section}>
         <Text variant="caption" color="textMuted" style={styles.sectionTitle}>

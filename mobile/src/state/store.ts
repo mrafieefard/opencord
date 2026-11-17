@@ -11,7 +11,7 @@ import { errorKind } from '@/core/errors';
 import { seedActivity } from './activity';
 import { applyEvents, newServer } from './events';
 import { ReadPositions } from './readPositions';
-import type { AppState, UserStatus } from './types';
+import type { AppState, CueGroup, SoundboardPrefs, UserStatus } from './types';
 export { channelKey } from './types';
 
 export const DEFAULT_STATUS: UserStatus = 'online';
@@ -26,6 +26,13 @@ export const DEFAULT_AUDIO: Readonly<PhoneAudioSettings> = {
   inputVolume: 1,
   outputVolume: 1,
 };
+
+export const DEFAULT_SOUNDBOARD: Readonly<SoundboardPrefs> = {
+  volume: 100,
+  muted: false,
+};
+
+export const DEFAULT_CUES_OFF: readonly CueGroup[] = [];
 
 export function initialState(): AppState {
   return {
@@ -54,7 +61,15 @@ export function initialState(): AppState {
     voiceSpeed: 1,
     voiceRecording: null,
     micTest: false,
-    prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [], audio: { ...DEFAULT_AUDIO }, status: DEFAULT_STATUS },
+    prefs: {
+      theme: 'system',
+      music: { ...DEFAULT_MUSIC },
+      soundFavorites: [],
+      audio: { ...DEFAULT_AUDIO },
+      status: DEFAULT_STATUS,
+      soundboard: { ...DEFAULT_SOUNDBOARD },
+      cuesOff: [...DEFAULT_CUES_OFF],
+    },
     toasts: [],
     editingMessage: null,
   };

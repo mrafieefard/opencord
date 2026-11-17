@@ -146,6 +146,7 @@ export interface CoreApi {
   soundboardDefaultSounds(): DefaultSoundRecord[];
   soundboardPlay(serverKey: string, channelId: string, soundRef: string, external: ExternalSoundRecord | undefined): Promise<void>;
   soundboardPreview(serverKey: string, soundRef: string): Promise<void>;
+  soundboardSetListening(volume: number, muted: boolean): void;
 
   voiceRecordStart(maxSeconds: number): void;
   voiceRecordStop(): VoiceDraftRecord;
