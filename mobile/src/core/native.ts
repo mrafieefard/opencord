@@ -54,6 +54,8 @@ export const NativeCore: CoreApi = {
   ownAvatar: () => native.ownAvatar(),
   cacheSize: () => native.cacheSize(),
   cacheClear: () => native.cacheClear(),
+  logsExport: async () => native.logsExport(),
+  logsCrashed: async () => native.logsCrashed() ?? null,
 
   messagesFetch: (key, channel, before, limit) => native.messagesFetch(key, channel, before, limit),
   messageSend: (key, channel, content, nonce) => native.messageSend(key, channel, content, nonce),

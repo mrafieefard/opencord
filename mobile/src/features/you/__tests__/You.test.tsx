@@ -145,4 +145,22 @@ describe('You tab', () => {
     await fireEvent.press(screen.getByLabelText('Voice & audio'));
     expect(mockRouter.push.mock.calls).toEqual([['/you/voice'], ['/you/voice']]);
   });
+
+  // Fails if the Sounds row is missing or opens anything but Sounds' route.
+  it('the Sounds row opens its page', async () => {
+    freshStore();
+    mockRouter.push.mockClear();
+    await renderScreen(<YouScreen />);
+    await fireEvent.press(screen.getByLabelText('Sounds'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/you/sounds');
+  });
+
+  // Fails if the Storage and logs row is missing or opens anything but Storage's route.
+  it('the Storage and logs row opens its page', async () => {
+    freshStore();
+    mockRouter.push.mockClear();
+    await renderScreen(<YouScreen />);
+    await fireEvent.press(screen.getByLabelText('Storage and logs'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/you/storage');
+  });
 });

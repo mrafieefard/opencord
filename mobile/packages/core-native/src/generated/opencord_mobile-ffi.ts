@@ -88,6 +88,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_identity_generate(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_identity_load(secret: Uint8Array, displayName: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_level_meter_set(on: number, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_opencord_mobile_fn_func_logs_crashed(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_opencord_mobile_fn_func_logs_export(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_message_delete(serverKey: Uint8Array, messageId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_message_edit(serverKey: Uint8Array, messageId: Uint8Array, content: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_message_send(serverKey: Uint8Array, channelId: Uint8Array, content: Uint8Array, nonce: Uint8Array): bigint;
@@ -175,6 +177,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_identity_generate(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_identity_load(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_level_meter_set(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_logs_crashed(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_logs_export(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_message_delete(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_message_edit(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_message_send(): number;

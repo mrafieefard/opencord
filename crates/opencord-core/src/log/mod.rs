@@ -39,7 +39,7 @@ const FLUSH_EVERY: Duration = Duration::from_secs(1);
 /// What gets in: Opencord's own crates at INFO, its media and connection
 /// code at DEBUG, and other crates' warnings and errors.
 const LEVELS: &str = "warn,opencord_core=info,opencord_media=info,opencord_voice=info,\
-    opencord_common=info,opencord_media::video=debug,opencord_media::share_audio=debug,\
+    opencord_common=info,opencord_mobile=info,opencord_media::video=debug,opencord_media::share_audio=debug,\
     opencord_core::connection=debug,opencord_core::voice=debug,opencord_core::media=debug,\
     opencord_core::video=debug";
 

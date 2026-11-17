@@ -576,6 +576,43 @@ export function levelMeterSet(on: boolean): void /*throws*/ {uniffiCaller.rustCa
     );
     }
 
+/**
+ * The previous session's file path when it ended unexpectedly.
+ */
+export function logsCrashed(): string | undefined {
+    const __rb: Uint8Array = uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_logs_crashed(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterOptionalString.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+
+/**
+ * The current session's file path, flushed first.
+ */
+export function logsExport(): string /*throws*/ {
+    const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_logs_export(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterString.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+
 export async function messageDelete(serverKey: string, messageId: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
@@ -10253,6 +10290,12 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_level_meter_set() !== 26489) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_level_meter_set");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_logs_crashed() !== 53587) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_logs_crashed");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_logs_export() !== 36722) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_logs_export");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_message_delete() !== 59948) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_message_delete");

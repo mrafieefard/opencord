@@ -84,6 +84,8 @@ export interface DestructiveRowProps {
 export interface ActionRowProps {
   kind: 'action';
   label: string;
+  /** A line under the label saying what the action does. */
+  detail?: string;
   onPress: () => void;
 }
 

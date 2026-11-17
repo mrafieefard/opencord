@@ -125,6 +125,27 @@ export function YouScreen() {
         </View>
       </View>
 
+      {/* Storage */}
+      <View style={styles.section}>
+        <Text variant="caption" color="textMuted" style={styles.sectionTitle}>
+          Storage
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Row
+            accessibilityLabel="Storage and logs"
+            onPress={() => router.push('/you/storage')}
+            style={styles.rowItem}
+          >
+            <View style={styles.rowContent}>
+              <Text variant="body">Storage and logs</Text>
+              <View style={styles.chevron}>
+                <Icon name="back" size={14} color="textSecondary" />
+              </View>
+            </View>
+          </Row>
+        </View>
+      </View>
+
       {/* Appearance */}
       <View style={styles.section}>
         <Text variant="caption" color="textMuted" style={styles.sectionTitle}>

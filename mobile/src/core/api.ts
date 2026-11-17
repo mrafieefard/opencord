@@ -64,6 +64,8 @@ export interface CoreApi {
   ownAvatar(): OwnAvatarRecord;
   cacheSize(): Promise<number>;
   cacheClear(): Promise<void>;
+  logsExport(): Promise<string>;
+  logsCrashed(): Promise<string | null>;
 
   messagesFetch(serverKey: string, channelId: string, before: string | undefined, limit: number): Promise<MessageRecord[]>;
   messageSend(serverKey: string, channelId: string, content: string, nonce: string): Promise<MessageRecord>;

@@ -449,6 +449,16 @@ export class FakeCore implements CoreApi {
     this.cacheSizeBytes = 0;
   }
 
+  async logsExport(): Promise<string> {
+    this.enter('logsExport', []);
+    return '/fake/logs/opencord-current.log';
+  }
+
+  async logsCrashed(): Promise<string | null> {
+    this.enter('logsCrashed', []);
+    return null;
+  }
+
   private micTestOn = false;
   private levelMeterOn = false;
   private micTestTimer: ReturnType<typeof setInterval> | null = null;

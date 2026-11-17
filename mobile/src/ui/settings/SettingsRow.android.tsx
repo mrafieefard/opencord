@@ -103,9 +103,7 @@ export function SettingsRow(props: SettingsRowProps) {
     case 'action':
       return (
         <Row accessibilityLabel={props.label} onPress={props.onPress} height={ROW_HEIGHT} style={styles.pad}>
-          <Text variant="body" numberOfLines={1} style={styles.fill}>
-            {props.label}
-          </Text>
+          <Titles title={props.label} summary={props.detail} />
         </Row>
       );
     case 'value':

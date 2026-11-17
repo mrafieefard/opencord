@@ -240,6 +240,10 @@ RustBuffer
 uniffi_opencord_mobile_fn_func_core_version(RustCallStatus *uniffi_out_err);
 uint64_t
 uniffi_opencord_mobile_fn_func_events_attach(RustCallStatus *uniffi_out_err);
+RustBuffer
+uniffi_opencord_mobile_fn_func_logs_crashed(RustCallStatus *uniffi_out_err);
+RustBuffer
+uniffi_opencord_mobile_fn_func_logs_export(RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_next_events(uint64_t generation, uint32_t max);
 RustBuffer
@@ -476,6 +480,8 @@ uint16_t uniffi_opencord_mobile_checksum_func_servers_list();
 uint16_t uniffi_opencord_mobile_checksum_func_core_init();
 uint16_t uniffi_opencord_mobile_checksum_func_core_version();
 uint16_t uniffi_opencord_mobile_checksum_func_events_attach();
+uint16_t uniffi_opencord_mobile_checksum_func_logs_crashed();
+uint16_t uniffi_opencord_mobile_checksum_func_logs_export();
 uint16_t uniffi_opencord_mobile_checksum_func_next_events();
 uint16_t uniffi_opencord_mobile_checksum_func_settings_get();
 uint16_t uniffi_opencord_mobile_checksum_func_settings_set();
@@ -2554,6 +2560,28 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_fn_func_events_attach(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_logs_crashed"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_logs_crashed"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_logs_crashed(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_logs_export"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_logs_export"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_logs_export(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_next_events"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4084,6 +4112,28 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_checksum_func_events_attach(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_logs_crashed"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_logs_crashed"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_logs_crashed(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_logs_export"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_logs_export"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_logs_export(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_next_events"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -5452,6 +5502,31 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_events_attach(
       rt, callInvoker, status, args[count - 1]);
 
   return uniffi_jsi::Bridging<uint64_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_logs_crashed(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_opencord_mobile_fn_func_logs_crashed(&status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::opencord_mobile::Bridging<RustBuffer>::toJs(rt, callInvoker,
+                                                             value);
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_logs_export(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_opencord_mobile_fn_func_logs_export(&status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::opencord_mobile::Bridging<RustBuffer>::toJs(rt, callInvoker,
+                                                             value);
 }
 jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_next_events(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -6856,6 +6931,22 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_events_attach(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_events_attach();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_logs_crashed(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_logs_crashed();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_logs_export(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_logs_export();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

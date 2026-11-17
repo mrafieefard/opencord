@@ -108,9 +108,16 @@ export function SettingsRow(props: SettingsRowProps) {
     case 'action':
       return (
         <Row accessibilityLabel={props.label} onPress={props.onPress} height={ROW_HEIGHT} style={styles.pad}>
-          <Text variant="body" numberOfLines={1} style={styles.label}>
-            {props.label}
-          </Text>
+          <View style={styles.inline}>
+            <Text variant="body" numberOfLines={1} style={styles.label}>
+              {props.label}
+            </Text>
+            {props.detail !== undefined && (
+              <Text variant="callout" color="textMuted" numberOfLines={1} style={styles.value}>
+                {props.detail}
+              </Text>
+            )}
+          </View>
         </Row>
       );
     case 'value':

@@ -25,6 +25,7 @@ export default function YouLayout() {
         <Stack.Screen name="profile" options={{ title: 'Profile', headerLargeTitle: false }} />
         <Stack.Screen name="voice" options={{ title: 'Voice & audio', headerLargeTitle: false }} />
         <Stack.Screen name="sounds" options={{ title: 'Sounds', headerLargeTitle: false }} />
+        <Stack.Screen name="storage" options={{ title: 'Storage and logs', headerLargeTitle: false }} />
       </Stack>
       <TabInsetProbe />
     </>
