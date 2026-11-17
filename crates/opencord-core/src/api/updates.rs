@@ -1,25 +1,40 @@
 //! Desktop update management API for the Flutter app (design: "The app: checking",
 //! plan Task 10).
 
-use std::collections::{HashMap, VecDeque};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use std::collections::HashMap;
+use std::collections::VecDeque;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::fs::{self, File, OpenOptions};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, PoisonError};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use std::sync::Arc;
+use std::sync::{Mutex, PoisonError};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use std::time::Duration;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use flutter_rust_bridge::frb;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use semver::Version;
 use tokio::task::JoinHandle;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use opencord_update::layout::Layout;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use opencord_update::markers::Mark;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use opencord_update::track::Track;
 
 use crate::frb_generated::StreamSink;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::updates::{CheckOutcome, UpdateError, Updater, VoiceThrottle};
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 const FIRST_CHECK_DELAY: Duration = Duration::from_secs(15);
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 const CHECK_INTERVAL: Duration = Duration::from_secs(4 * 60 * 60);
 
 /// Events emitted during background checks and downloads.
@@ -60,6 +75,7 @@ impl UpdateState {
 }
 
 static STATE: Mutex<Option<UpdateState>> = Mutex::new(None);
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 static APP_LOCK: Mutex<Option<HashMap<PathBuf, File>>> = Mutex::new(None);
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 static CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -72,6 +88,7 @@ fn lock_updates() -> std::sync::MutexGuard<'static, Option<UpdateState>> {
     guard
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn lock_app_files() -> std::sync::MutexGuard<'static, Option<HashMap<PathBuf, File>>> {
     let mut guard = APP_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
     if guard.is_none() {
@@ -89,9 +106,12 @@ pub(crate) fn reset_for_test() {
             task.abort();
         }
     }
-    let mut files = lock_app_files();
-    if let Some(files) = files.as_mut() {
-        files.clear();
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let mut files = lock_app_files();
+        if let Some(files) = files.as_mut() {
+            files.clear();
+        }
     }
 }
 
@@ -116,6 +136,7 @@ pub fn update_events(sink: StreamSink<UpdateEvent>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn deliver(event: UpdateEvent) {
     let mut guard = lock_updates();
     let state = guard.as_mut().unwrap();
@@ -129,6 +150,7 @@ fn deliver(event: UpdateEvent) {
     }
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn push_backlog(state: &mut UpdateState, event: UpdateEvent) {
     if state.backlog.len() >= 10 {
         state.backlog.pop_front();
@@ -181,6 +203,7 @@ fn prepare_running(layout: &Layout) -> bool {
     }
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn now_ms() -> u64 {
     let since_epoch = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -308,44 +331,60 @@ pub async fn check_updates_now() -> Result<(), String> {
 /// Writes `started.json` and takes `app.lock`.
 #[frb(sync)]
 pub fn mark_started(root: String, version: String) -> Result<(), String> {
-    let ver = Version::parse(&version).map_err(|e| e.to_string())?;
-    let layout = Layout::new(PathBuf::from(root));
-    fs::create_dir_all(layout.root()).map_err(|e| e.to_string())?;
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let ver = Version::parse(&version).map_err(|e| e.to_string())?;
+        let layout = Layout::new(PathBuf::from(root));
+        fs::create_dir_all(layout.root()).map_err(|e| e.to_string())?;
 
-    let lock_path = layout.app_lock();
-    let mut files_guard = lock_app_files();
-    let files = files_guard.as_mut().unwrap();
+        let lock_path = layout.app_lock();
+        let mut files_guard = lock_app_files();
+        let files = files_guard.as_mut().unwrap();
 
-    if !files.contains_key(&lock_path) {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&lock_path)
-            .map_err(|e| e.to_string())?;
-        if file.try_lock().is_err() {
-            return Err("another Opencord holds the install".to_string());
+        if !files.contains_key(&lock_path) {
+            let file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(&lock_path)
+                .map_err(|e| e.to_string())?;
+            if file.try_lock().is_err() {
+                return Err("another Opencord holds the install".to_string());
+            }
+            files.insert(lock_path, file);
         }
-        files.insert(lock_path, file);
-    }
 
-    let mark = Mark {
-        version: ver,
-        at: now_ms(),
-    };
-    layout.write_started(&mark).map_err(|e| e.to_string())?;
-    Ok(())
+        let mark = Mark {
+            version: ver,
+            at: now_ms(),
+        };
+        layout.write_started(&mark).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = (root, version);
+        Err("updates not supported on mobile".to_string())
+    }
 }
 
 /// Reads the waiting update version from `pending.json`, if any.
 #[frb(sync)]
 pub fn waiting_version(root: String) -> Option<String> {
-    let layout = Layout::new(PathBuf::from(root));
-    layout.read_pending().map(|p| p.version.to_string())
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let layout = Layout::new(PathBuf::from(root));
+        layout.read_pending().map(|p| p.version.to_string())
+    }
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = root;
+        None
+    }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
 mod tests {
     use super::*;
     use opencord_update::pending::Pending;

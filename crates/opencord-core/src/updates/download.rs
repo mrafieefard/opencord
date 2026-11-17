@@ -6,14 +6,14 @@
 //! be hashed in one pass.
 
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Read, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use reqwest::StatusCode;
 use reqwest::header::{CONTENT_RANGE, RANGE, USER_AGENT};
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::time::Instant;
 
 use opencord_update::layout::Layout;
@@ -63,7 +63,8 @@ pub(super) async fn fetch(
 
     let mut file = tokio::fs::OpenOptions::new()
         .create(true)
-        .append(true)
+        .write(true)
+        .truncate(false)
         .open(&part)
         .await?;
     let mut have = file.metadata().await?.len();
@@ -71,6 +72,7 @@ pub(super) async fn fetch(
         file.set_len(0).await?;
         have = 0;
     }
+    file.seek(SeekFrom::Start(have)).await?;
     if have > 0 {
         tracing::info!(version = %note.version, from = have, "resuming the update's download");
     }
@@ -147,6 +149,7 @@ async fn chunk(
                 "the server ignored Range; starting over"
             );
             file.set_len(0).await?;
+            file.seek(SeekFrom::Start(0)).await?;
             let end = append(&mut response, file, 0, note.size, want, deadline, throttle).await?;
             if end < note.size {
                 return Err(UpdateError::Download("the file ended early".to_owned()));
