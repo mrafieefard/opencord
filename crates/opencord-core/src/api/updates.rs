@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File, OpenOptions, TryLockError};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::path::PathBuf;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -137,9 +137,20 @@ pub fn update_events(sink: StreamSink<UpdateEvent>) -> Result<(), String> {
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn deliver(event: UpdateEvent) {
+const BACKLOG_CAPACITY: usize = 10;
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn deliver(event: UpdateEvent, expected: &Arc<Updater>) {
     let mut guard = lock_updates();
     let state = guard.as_mut().unwrap();
+    if !state
+        .updater
+        .as_ref()
+        .is_some_and(|u| Arc::ptr_eq(u, expected))
+    {
+        tracing::info!("discarding update event for superseded updater");
+        return;
+    }
     if let Some(sink) = &state.sink {
         if sink.add(event.clone()).is_err() {
             state.sink = None;
@@ -152,35 +163,44 @@ fn deliver(event: UpdateEvent) {
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn push_backlog(state: &mut UpdateState, event: UpdateEvent) {
-    if state.backlog.len() >= 10 {
+    if state.backlog.len() >= BACKLOG_CAPACITY {
         state.backlog.pop_front();
     }
     state.backlog.push_back(event);
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn deliver_outcome(outcome: Result<CheckOutcome, UpdateError>) {
+fn deliver_outcome(outcome: Result<CheckOutcome, UpdateError>, expected: &Arc<Updater>) {
     match outcome {
         Ok(CheckOutcome::Downloaded {
             version,
             download_json,
         }) => {
-            deliver(UpdateEvent::Downloaded {
-                version: version.to_string(),
-                download_json: download_json.to_string_lossy().into_owned(),
-            });
+            deliver(
+                UpdateEvent::Downloaded {
+                    version: version.to_string(),
+                    download_json: download_json.to_string_lossy().into_owned(),
+                },
+                expected,
+            );
         }
         Ok(CheckOutcome::AlreadyWaiting(version)) => {
-            deliver(UpdateEvent::AlreadyWaiting {
-                version: version.to_string(),
-            });
+            deliver(
+                UpdateEvent::AlreadyWaiting {
+                    version: version.to_string(),
+                },
+                expected,
+            );
         }
         Ok(CheckOutcome::UpToDate) => {}
         Err(error) => {
-            deliver(UpdateEvent::Failed {
-                kind: error.kind().to_string(),
-                message: error.to_string(),
-            });
+            deliver(
+                UpdateEvent::Failed {
+                    kind: error.kind().to_string(),
+                    message: error.to_string(),
+                },
+                expected,
+            );
         }
     }
 }
@@ -273,13 +293,14 @@ pub(crate) fn start_updates_with_updater(updater: Arc<Updater>) -> Result<(), St
     let task = handle.spawn(async move {
         tokio::time::sleep(FIRST_CHECK_DELAY).await;
         loop {
+            let _lock = CHECK_LOCK.lock().await;
             if !prepare_running(updater.layout()) {
-                let _lock = CHECK_LOCK.lock().await;
                 let outcome = updater.check_once().await;
-                deliver_outcome(outcome);
+                deliver_outcome(outcome, &updater);
             } else {
                 tracing::info!("prepare is running, skipping update check");
             }
+            drop(_lock);
             tokio::time::sleep(CHECK_INTERVAL).await;
         }
     });
@@ -310,16 +331,16 @@ pub async fn check_updates_now() -> Result<(), String> {
             let state = guard.as_mut().unwrap();
             state.updater.clone().ok_or("updates not started")?
         };
+        let _lock = CHECK_LOCK.lock().await;
         if prepare_running(updater.layout()) {
             return Err("prepare is running".to_string());
         }
-        let _lock = CHECK_LOCK.lock().await;
         let outcome = updater.check_once().await;
         let res = match &outcome {
             Ok(_) => Ok(()),
             Err(e) => Err(e.to_string()),
         };
-        deliver_outcome(outcome);
+        deliver_outcome(outcome, &updater);
         res
     }
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -349,8 +370,12 @@ pub fn mark_started(root: String, version: String) -> Result<(), String> {
                 .truncate(false)
                 .open(&lock_path)
                 .map_err(|e| e.to_string())?;
-            if file.try_lock().is_err() {
-                return Err("another Opencord holds the install".to_string());
+            match file.try_lock() {
+                Ok(()) => {}
+                Err(TryLockError::WouldBlock) => {
+                    return Err("another Opencord holds the install".to_string());
+                }
+                Err(TryLockError::Error(e)) => return Err(e.to_string()),
             }
             files.insert(lock_path, file);
         }
@@ -417,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn start_updates_checks_after_15_s() {
-        // Fails if FIRST_CHECK_DELAY is changed from 15 s to 30 s
+        // Fails if the first check runs before 15 s (e.g. FIRST_CHECK_DELAY changed from 15 s to 0 s)
         let _test_lock = TEST_LOCK.lock().await;
         reset_for_test();
 
@@ -431,8 +456,10 @@ mod tests {
         tokio::task::yield_now().await;
 
         tokio::time::advance(Duration::from_secs(14)).await;
-        tokio::task::yield_now().await;
-        assert!(drain_events().is_empty());
+        for _ in 0..10 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(drain_events().is_empty(), "no check should run before 15 s");
 
         tokio::time::advance(Duration::from_secs(2)).await;
         let mut events = Vec::new();
@@ -444,6 +471,88 @@ mod tests {
             }
         }
         assert_eq!(events.len(), 1, "expected 1 event after 15s check delay");
+    }
+
+    #[tokio::test]
+    async fn checks_repeat_every_4_h() {
+        // Fails if periodic loop does not repeat every 4 hours (e.g. break after first check)
+        let _test_lock = TEST_LOCK.lock().await;
+        reset_for_test();
+
+        let base = start_test_server().await;
+        tokio::time::pause();
+
+        let dir = tempdir().unwrap();
+        let updater = test_updater(dir.path().to_path_buf(), base);
+
+        start_updates_with_updater(updater).unwrap();
+        tokio::task::yield_now().await;
+
+        // Advance 16 s: first check runs
+        tokio::time::advance(Duration::from_secs(16)).await;
+        let mut events = Vec::new();
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            events = drain_events();
+            if !events.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(events.len(), 1, "expected first event at 15 s");
+
+        // Advance 4 h - 1 min: no second check yet
+        tokio::time::advance(CHECK_INTERVAL - Duration::from_secs(60)).await;
+        for _ in 0..10 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(
+            drain_events().is_empty(),
+            "no check should run before 4 h interval"
+        );
+
+        // Advance another 2 min: second check runs
+        tokio::time::advance(Duration::from_secs(120)).await;
+        let mut second_events = Vec::new();
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            second_events = drain_events();
+            if !second_events.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(
+            second_events.len(),
+            1,
+            "expected second event after 4 h interval"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_second_start_replaces_the_first() {
+        // Fails if a second start_updates does not abort the first task (e.g. omitting task.abort())
+        let _test_lock = TEST_LOCK.lock().await;
+        reset_for_test();
+
+        let base = start_test_server().await;
+        tokio::time::pause();
+
+        let dir = tempdir().unwrap();
+        let updater = test_updater(dir.path().to_path_buf(), base);
+
+        start_updates_with_updater(updater.clone()).unwrap();
+        start_updates_with_updater(updater).unwrap();
+        tokio::task::yield_now().await;
+
+        tokio::time::advance(Duration::from_secs(16)).await;
+        for _ in 0..10 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let events = drain_events();
+        assert_eq!(
+            events.len(),
+            1,
+            "expected exactly 1 event from replaced task"
+        );
     }
 
     #[tokio::test]
@@ -506,6 +615,92 @@ mod tests {
             }
             other => panic!("expected UpdateEvent::Failed, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn a_check_from_before_a_track_switch_sends_nothing() {
+        // Fails if deliver does not check Arc::ptr_eq with state.updater
+        let _test_lock = TEST_LOCK.lock().await;
+        reset_for_test();
+
+        let base = start_test_server().await;
+        let dir = tempdir().unwrap();
+        let old_updater = test_updater(dir.path().to_path_buf(), base.clone());
+        let new_updater = test_updater(dir.path().to_path_buf(), base);
+
+        start_updates_with_updater(old_updater.clone()).unwrap();
+
+        // Simulate switching updater while old updater's outcome arrives
+        {
+            let mut guard = lock_updates();
+            let state = guard.as_mut().unwrap();
+            state.updater = Some(new_updater);
+        }
+
+        deliver_outcome(
+            Ok(CheckOutcome::AlreadyWaiting(
+                Version::parse("0.0.2-beta.2").unwrap(),
+            )),
+            &old_updater,
+        );
+
+        assert!(
+            drain_events().is_empty(),
+            "outcome from old updater must be discarded after track switch"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_check_runs_while_a_prepare_holds_the_lock() {
+        // Fails if check_updates_now does not check prepare_running under CHECK_LOCK
+        let _test_lock = TEST_LOCK.lock().await;
+        reset_for_test();
+
+        let base = start_test_server().await;
+        let dir = tempdir().unwrap();
+        let updater = test_updater(dir.path().to_path_buf(), base);
+        start_updates_with_updater(updater.clone()).unwrap();
+
+        let layout = updater.layout();
+        fs::create_dir_all(layout.root()).unwrap();
+        let prepare_lock_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(layout.prepare_lock())
+            .unwrap();
+        prepare_lock_file.lock().unwrap();
+
+        let res = check_updates_now().await;
+        assert_eq!(res.unwrap_err(), "prepare is running");
+        assert!(
+            drain_events().is_empty(),
+            "no event should arrive when prepare is running"
+        );
+    }
+
+    #[test]
+    fn start_updates_refuses_an_unknown_track_or_version() {
+        // Fails if start_updates does not validate track or version
+        let _test_lock = TEST_LOCK.blocking_lock();
+        reset_for_test();
+
+        let res_track = start_updates(
+            "/tmp".to_string(),
+            "invalid_track".to_string(),
+            "0.0.1".to_string(),
+        );
+        assert!(res_track.is_err(), "unknown track must be refused");
+        assert!(res_track.unwrap_err().contains("unknown track"));
+
+        let res_ver = start_updates(
+            "/tmp".to_string(),
+            "beta".to_string(),
+            "not_a_version".to_string(),
+        );
+        assert!(res_ver.is_err(), "invalid version must be refused");
+        assert!(res_ver.unwrap_err().contains("invalid version"));
     }
 
     #[test]
