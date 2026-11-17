@@ -72,6 +72,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_attachment_file(serverKey: Uint8Array, attachmentId: Uint8Array, variant: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_audio_settings_apply(settings: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_opencord_mobile_fn_func_avatar_file(serverKey: Uint8Array, hash: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_avatar_set(sourcePath: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
+    ubrn_uniffi_opencord_mobile_fn_func_avatar_upload(serverKey: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_cache_clear(): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_cache_size(): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_command_autocomplete(serverKey: Uint8Array, channelId: Uint8Array, name: Uint8Array, source: Uint8Array, option: Uint8Array, value: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_command_execute(serverKey: Uint8Array, channelId: Uint8Array, name: Uint8Array, source: Uint8Array, options: Uint8Array, nonce: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_core_init(dataDir: Uint8Array, cacheDir: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
@@ -107,6 +111,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_music_vote_skip(serverKey: Uint8Array, channelId: Uint8Array, expectedItemId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_next_events(generation: bigint, max: number): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_next_view_outputs(generation: bigint, max: number): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_own_avatar(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_plugin_asset_file(serverKey: Uint8Array, pluginId: Uint8Array, path: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_plugin_image_file(serverKey: Uint8Array, pluginId: Uint8Array, sourceJson: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_presence_update(serverKey: Uint8Array, status: Uint8Array): bigint;
@@ -154,6 +159,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_attachment_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_audio_settings_apply(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_avatar_file(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_avatar_set(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_avatar_upload(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_cache_clear(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_cache_size(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_command_autocomplete(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_command_execute(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_core_init(): number;
@@ -189,6 +198,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_music_vote_skip(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_next_events(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_next_view_outputs(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_own_avatar(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_plugin_asset_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_plugin_image_file(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_presence_update(): number;

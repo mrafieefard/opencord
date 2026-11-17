@@ -17,6 +17,12 @@ pub struct NewIdentity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct OwnAvatarRecord {
+    pub hash: Option<String>,
+    pub file: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct ServerEntry {
     /// `host:port`; names the server in every other call.
     pub key: String,

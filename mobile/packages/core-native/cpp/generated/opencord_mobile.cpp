@@ -123,6 +123,8 @@ uniffi_opencord_mobile_fn_func_typing_start(RustBuffer server_key,
     RustBuffer source, RustBuffer options, RustBuffer nonce);
 /*handle*/ uint64_t uniffi_opencord_mobile_fn_func_attachment_file(
     RustBuffer server_key, RustBuffer attachment_id, RustBuffer variant);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_cache_clear();
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_cache_size();
 RustBuffer uniffi_opencord_mobile_fn_func_identity_backup_decode(
     RustBuffer text, RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_opencord_mobile_fn_func_identity_backup_encode(
@@ -207,6 +209,13 @@ uniffi_opencord_mobile_fn_func_view_upload(RustBuffer view_id, uint64_t node_id,
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_avatar_file(RustBuffer server_key,
                                            RustBuffer hash);
+RustBuffer
+uniffi_opencord_mobile_fn_func_avatar_set(RustBuffer source_path,
+                                          RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t
+uniffi_opencord_mobile_fn_func_avatar_upload(RustBuffer server_key);
+RustBuffer
+uniffi_opencord_mobile_fn_func_own_avatar(RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_presence_update(RustBuffer server_key,
                                                RustBuffer status);
@@ -419,6 +428,8 @@ uint16_t uniffi_opencord_mobile_checksum_func_typing_start();
 uint16_t uniffi_opencord_mobile_checksum_func_command_autocomplete();
 uint16_t uniffi_opencord_mobile_checksum_func_command_execute();
 uint16_t uniffi_opencord_mobile_checksum_func_attachment_file();
+uint16_t uniffi_opencord_mobile_checksum_func_cache_clear();
+uint16_t uniffi_opencord_mobile_checksum_func_cache_size();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_backup_decode();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_backup_encode();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_check();
@@ -452,6 +463,9 @@ uint16_t uniffi_opencord_mobile_checksum_func_view_open_activity();
 uint16_t uniffi_opencord_mobile_checksum_func_view_outputs_attach();
 uint16_t uniffi_opencord_mobile_checksum_func_view_upload();
 uint16_t uniffi_opencord_mobile_checksum_func_avatar_file();
+uint16_t uniffi_opencord_mobile_checksum_func_avatar_set();
+uint16_t uniffi_opencord_mobile_checksum_func_avatar_upload();
+uint16_t uniffi_opencord_mobile_checksum_func_own_avatar();
 uint16_t uniffi_opencord_mobile_checksum_func_presence_update();
 uint16_t uniffi_opencord_mobile_checksum_func_profile_update();
 uint16_t uniffi_opencord_mobile_checksum_func_server_add();
@@ -2010,6 +2024,28 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_fn_func_attachment_file(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_cache_clear"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_cache_clear"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_cache_clear(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_cache_size"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_cache_size"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_cache_size(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_identity_backup_decode"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -2373,6 +2409,39 @@ NativeOpencordMobile::NativeOpencordMobile(
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_opencord_mobile_fn_func_avatar_file(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_avatar_set"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_avatar_set"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_avatar_set(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_avatar_upload"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_avatar_upload"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_avatar_upload(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_own_avatar"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_own_avatar"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_own_avatar(
                 rt, thisVal, args, count);
           });
   props["ubrn_uniffi_opencord_mobile_fn_func_presence_update"] =
@@ -3448,6 +3517,28 @@ NativeOpencordMobile::NativeOpencordMobile(
                 ->cpp_uniffi_opencord_mobile_checksum_func_attachment_file(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_cache_clear"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_cache_clear"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_cache_clear(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_cache_size"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_cache_size"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_cache_size(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_identity_backup_decode"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3845,6 +3936,39 @@ NativeOpencordMobile::NativeOpencordMobile(
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_opencord_mobile_checksum_func_avatar_file(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_avatar_set"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_avatar_set"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_avatar_set(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_avatar_upload"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_avatar_upload"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_avatar_upload(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_own_avatar"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_own_avatar"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_own_avatar(
                 rt, thisVal, args, count);
           });
   props["ubrn_uniffi_opencord_mobile_checksum_func_presence_update"] =
@@ -4642,6 +4766,22 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_attachment_file(
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
 }
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_cache_clear(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_cache_clear();
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_cache_size(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_cache_size();
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
 jsi::Value
 NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_identity_backup_decode(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -5143,6 +5283,44 @@ jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_avatar_file(
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_avatar_set(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_opencord_mobile_fn_func_avatar_set(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      &status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::opencord_mobile::Bridging<RustBuffer>::toJs(rt, callInvoker,
+                                                             value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_avatar_upload(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_avatar_upload(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_own_avatar(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_opencord_mobile_fn_func_own_avatar(&status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::opencord_mobile::Bridging<RustBuffer>::toJs(rt, callInvoker,
+                                                             value);
 }
 jsi::Value
 NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_presence_update(
@@ -6297,6 +6475,22 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_attachment_file(
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_cache_clear(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_cache_clear();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_cache_size(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_cache_size();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
 jsi::Value NativeOpencordMobile::
     cpp_uniffi_opencord_mobile_checksum_func_identity_backup_decode(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -6558,6 +6752,30 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_avatar_file(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_avatar_file();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_avatar_set(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_avatar_set();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_avatar_upload(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_avatar_upload();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_own_avatar(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_own_avatar();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

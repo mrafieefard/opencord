@@ -132,6 +132,12 @@ pub(crate) fn init(data_dir: &Path, cache_dir: &Path) -> Result<(), MobileError>
     if MOBILE.get().is_some() {
         return Ok(());
     }
+    std::fs::create_dir_all(data_dir).map_err(|error| MobileError::Storage {
+        message: error.to_string(),
+    })?;
+    std::fs::create_dir_all(cache_dir).map_err(|error| MobileError::Storage {
+        message: error.to_string(),
+    })?;
     let runtime = match RUNTIME.get() {
         Some(runtime) => runtime,
         None => {

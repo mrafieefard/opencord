@@ -196,6 +196,127 @@ export async function avatarFile(serverKey: string, hash: string, asyncOpts_?: {
     }
 
 /**
+ * Makes this person's profile picture from the file at `source_path`, or
+ * removes it (`None`); returns the new hash, `None` when removed.
+ */
+export function avatarSet(sourcePath: string | undefined): string | undefined /*throws*/ {
+    const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_avatar_set(
+        FfiConverterOptionalString.lower(sourcePath, nativeModule().rustbuffer_alloc),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterOptionalString.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+
+/**
+ * Sends this person's profile picture to a server.
+ */
+export async function avatarUpload(serverKey: string, asyncOpts_?: { signal: AbortSignal }): Promise<UserRecord> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_avatar_upload(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterTypeUserRecord.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+export async function cacheClear(asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_cache_clear(
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+export async function cacheSize(asyncOpts_?: { signal: AbortSignal }): Promise<number> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_cache_size(
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_f64,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_f64,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_f64,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_f64,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            /*liftFunc:*/ FfiConverterFloat64.lift.bind(FfiConverterFloat64),
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+/**
  * Suggestions for a command's option as typed so far.
  */
 export async function commandAutocomplete(serverKey: string, channelId: string, name: string, source: string, option: string, value: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array<CommandChoiceRecord>> /*throws*/ {
@@ -1321,6 +1442,25 @@ export async function nextViewOutputs(generation: bigint, max: number, asyncOpts
             __error.stack = __stack;
         }
         throw __error;
+    }
+    }
+
+/**
+ * This person's profile picture's hash and local file path.
+ */
+export function ownAvatar(): OwnAvatarRecord /*throws*/ {
+    const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_own_avatar(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterTypeOwnAvatarRecord.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
     }
     }
 
@@ -4431,6 +4571,49 @@ const FfiConverterTypeOutgoingFileRecord = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.path) +
              FfiConverterString.allocationSize(value.filename);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+export type OwnAvatarRecord = {
+    hash?: string,
+    file?: string
+}
+
+/**
+ * Generated factory for {@link OwnAvatarRecord} record objects.
+ */
+export const OwnAvatarRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<OwnAvatarRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<OwnAvatarRecord>,
+    });
+})();
+
+const FfiConverterTypeOwnAvatarRecord = (() => {
+    type TypeName = OwnAvatarRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                hash: FfiConverterOptionalString.readFromCursor(c), 
+                file: FfiConverterOptionalString.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterOptionalString.writeIntoCursor(value.hash, c);
+            FfiConverterOptionalString.writeIntoCursor(value.file, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterOptionalString.allocationSize(value.hash) +
+             FfiConverterOptionalString.allocationSize(value.file);
             
         }
     };
@@ -10023,6 +10206,18 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_avatar_file() !== 4143) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_avatar_file");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_avatar_set() !== 37232) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_avatar_set");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_avatar_upload() !== 5534) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_avatar_upload");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_cache_clear() !== 17714) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_cache_clear");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_cache_size() !== 56842) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_cache_size");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_command_autocomplete() !== 4979) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_command_autocomplete");
     }
@@ -10127,6 +10322,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_next_view_outputs() !== 25217) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_next_view_outputs");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_own_avatar() !== 37634) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_own_avatar");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_plugin_asset_file() !== 36368) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_plugin_asset_file");
@@ -10300,6 +10498,7 @@ export default Object.freeze({
     FfiConverterTypeNewIdentity,
     FfiConverterTypeNoiseSuppression,
     FfiConverterTypeOutgoingFileRecord,
+    FfiConverterTypeOwnAvatarRecord,
     FfiConverterTypePhoneAudioSettings,
     FfiConverterTypePlaybackItemRecord,
     FfiConverterTypePluginActivityRecord,

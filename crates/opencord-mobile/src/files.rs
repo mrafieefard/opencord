@@ -104,6 +104,64 @@ pub(crate) fn path_text(path: PathBuf) -> Result<String, MobileError> {
         })
 }
 
+pub(crate) async fn cache_size(cache_dir: &Path) -> Result<f64, MobileError> {
+    let attachments = cache_dir.join("attachments");
+    if !tokio::fs::try_exists(&attachments)
+        .await
+        .map_err(|e| storage(&e))?
+    {
+        return Ok(0.0);
+    }
+    let mut total_bytes: u64 = 0;
+    let mut dirs = vec![attachments];
+    while let Some(dir) = dirs.pop() {
+        let mut entries = tokio::fs::read_dir(&dir).await.map_err(|e| storage(&e))?;
+        while let Some(entry) = entries.next_entry().await.map_err(|e| storage(&e))? {
+            let meta = entry.metadata().await.map_err(|e| storage(&e))?;
+            if meta.is_dir() {
+                dirs.push(entry.path());
+            } else if meta.is_file() {
+                total_bytes += meta.len();
+            }
+        }
+    }
+    Ok(total_bytes as f64)
+}
+
+pub(crate) async fn cache_clear(cache_dir: &Path) -> Result<(), MobileError> {
+    let attachments = cache_dir.join("attachments");
+    if !tokio::fs::try_exists(&attachments)
+        .await
+        .map_err(|e| storage(&e))?
+    {
+        return Ok(());
+    }
+    let mut dirs = vec![attachments.clone()];
+    let mut visited_dirs = Vec::new();
+    while let Some(dir) = dirs.pop() {
+        visited_dirs.push(dir.clone());
+        let mut entries = tokio::fs::read_dir(&dir).await.map_err(|e| storage(&e))?;
+        while let Some(entry) = entries.next_entry().await.map_err(|e| storage(&e))? {
+            let meta = entry.metadata().await.map_err(|e| storage(&e))?;
+            let path = entry.path();
+            if meta.is_dir() {
+                dirs.push(path);
+            } else if meta.is_file() {
+                let is_part = path.extension().and_then(|ext| ext.to_str()) == Some("part");
+                if !is_part {
+                    tokio::fs::remove_file(&path)
+                        .await
+                        .map_err(|e| storage(&e))?;
+                }
+            }
+        }
+    }
+    for dir in visited_dirs.into_iter().rev() {
+        let _ = tokio::fs::remove_dir(&dir).await;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::AtomicBool;
@@ -181,5 +239,37 @@ mod tests {
                 .is_none(),
             "a .part file was left"
         );
+    }
+
+    // Fails if attachments in different server folders aren't counted together.
+    #[tokio::test]
+    async fn the_cache_size_counts_every_server_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let target1 = file_path(dir.path(), "server1", 1, AttachmentVariant::Thumbnail);
+        let target2 = file_path(dir.path(), "server2", 2, AttachmentVariant::Original);
+        std::fs::create_dir_all(target1.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(target2.parent().unwrap()).unwrap();
+        std::fs::write(&target1, vec![1u8; 100]).unwrap();
+        std::fs::write(&target2, vec![2u8; 250]).unwrap();
+
+        let size = cache_size(dir.path()).await.unwrap();
+        assert_eq!(size, 350.0);
+    }
+
+    // Fails if cache_clear removes a .part file in progress or leaves cached files.
+    #[tokio::test]
+    async fn clearing_the_cache_keeps_a_part_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = file_path(dir.path(), "server1", 6, AttachmentVariant::Original);
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(&target, b"whole").unwrap();
+        let part = part_path(&target);
+        std::fs::write(&part, b"partial").unwrap();
+
+        cache_clear(dir.path()).await.unwrap();
+
+        assert!(!target.exists(), "cached file should be removed");
+        assert!(part.exists(), "part file should be kept");
+        assert_eq!(std::fs::read(&part).unwrap(), b"partial");
     }
 }
