@@ -21,6 +21,10 @@ mod download;
 mod github;
 #[cfg(test)]
 mod tests;
+mod throttle;
+
+pub(crate) use throttle::publish_voice_reading;
+pub use throttle::{VoiceReading, VoiceThrottle, voice_readings};
 
 use std::future::Future;
 use std::io;
