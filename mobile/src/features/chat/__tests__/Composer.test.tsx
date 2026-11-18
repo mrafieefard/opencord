@@ -153,6 +153,58 @@ describe('Composer and message actions', () => {
     expect(useAppStore.getState().editingMessage).toBeNull();
   });
 
+  // Fails if mentions are not encoded to tokens on send or decoded to @Name on edit.
+  it('sending encodes mentions to tokens, and editing decodes tokens to @Name', async () => {
+    const sendSpy = jest.spyOn(getCore(), 'messageSend').mockResolvedValueOnce({
+      id: 'msg-mention-1',
+      channelId: CHANNELS.general,
+      authorId: '1000',
+      content: 'hello <@1000> in <#10>',
+      createdAtMs: Date.now(),
+      attachments: [],
+    });
+
+    const { getByPlaceholderText, getByTestId, unmount } = await render(
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
+    );
+
+    const input = getByPlaceholderText('Message #general');
+    await fireEvent.changeText(input, 'hello @Ava in #general');
+    const sendBtn = getByTestId('composer-send');
+    await fireEvent.press(sendBtn);
+
+    expect(sendSpy).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.general, 'hello <@1000> in <#10>', expect.any(String));
+    await settle();
+    await unmount();
+
+    const editSpy = jest.spyOn(getCore(), 'messageEdit').mockResolvedValueOnce({
+      id: 'msg-mention-1',
+      channelId: CHANNELS.general,
+      authorId: '1000',
+      content: 'hello <@1000> in <#10>',
+      createdAtMs: Date.now(),
+      attachments: [],
+    });
+
+    startEditingMessage(NIGHT_OWLS, CHANNELS.general, 'msg-mention-1', 'hello <@1000> in <#10>');
+
+    const second = await render(
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
+    );
+
+    expect(second.getByDisplayValue('hello @Ava in #general')).toBeTruthy();
+    const saveBtn = second.getByTestId('composer-send');
+    await fireEvent.press(saveBtn);
+
+    expect(editSpy).toHaveBeenCalledWith(NIGHT_OWLS, 'msg-mention-1', 'hello <@1000> in <#10>');
+    await settle();
+    await second.unmount();
+  });
+
   it('deleting asks first', async () => {
     const deleteSpy = jest.spyOn(getCore(), 'messageDelete').mockResolvedValueOnce();
     const alertSpy = jest.spyOn(Alert, 'alert');

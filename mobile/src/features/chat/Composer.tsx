@@ -39,6 +39,7 @@ import { SourceIcon } from './commands/SourceIcon';
 import { EMPTY_MARK, useCommandDraft } from './commands/useCommandDraft';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
+import { decodeMentions, encodeMentions } from './mentions';
 import { useTypingNotifier } from './useTypingNotifier';
 
 export interface ComposerProps {
@@ -76,10 +77,29 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const bottom = useDockBottom();
   const { fieldGrowth } = useChatDock();
   const info = useChannelInfo(serverKey, channelId);
+  const snapshot = useAppStore((state) => state.servers[serverKey]?.snapshot);
+  const memberNames = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!snapshot) return map;
+    for (const m of snapshot.members) {
+      map.set(m.user.id, m.nickname ?? m.user.displayName);
+    }
+    return map;
+  }, [snapshot]);
+
+  const channelNames = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!snapshot) return map;
+    for (const c of snapshot.channels) {
+      map.set(c.id, c.name);
+    }
+    return map;
+  }, [snapshot]);
+
   const editing = useAppStore((state) => state.editingMessage);
   const isEditing = editing && editing.serverKey === serverKey && editing.channelId === channelId;
 
-  const [text, setText] = useState(() => (isEditing ? editing.text : ''));
+  const [text, setText] = useState(() => (isEditing ? decodeMentions(editing.text, memberNames, channelNames) : ''));
   const [prevEditingId, setPrevEditingId] = useState<string | null>(() => (isEditing ? editing.messageId : null));
   const [files, setFiles] = useState<PickedFile[]>([]);
   const notifyTyping = useTypingNotifier(serverKey, channelId);
@@ -89,7 +109,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   if (currentEditingId !== prevEditingId) {
     setPrevEditingId(currentEditingId);
     if (isEditing) {
-      setText(editing.text);
+      setText(decodeMentions(editing.text, memberNames, channelNames));
     }
   }
 
@@ -124,7 +144,6 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const canAttach = info ? info.access.attach : true;
   const canVoice = info ? info.access.sendVoiceMessages : true;
 
-  const snapshot = useAppStore((state) => state.servers[serverKey]?.snapshot);
   const commandList = snapshot?.commands;
   const voiceChannelId = useAppStore((state) => (state.myVoice?.serverKey === serverKey ? state.myVoice.channelId : undefined));
   const hasCommands = (commandList?.commands.length ?? 0) > 0;
@@ -266,9 +285,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       const msgId = editing.messageId;
       cancelEditingMessage();
       setText('');
-      await editMessage(serverKey, msgId, currentText);
+      const encoded = encodeMentions(currentText, memberNames, channelNames);
+      await editMessage(serverKey, msgId, encoded);
     } else {
-      const toSendText = currentText;
+      const toSendText = encodeMentions(currentText, memberNames, channelNames);
       const toSendFiles = [...files];
       setText('');
       setFiles([]);
@@ -284,7 +304,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
         await sendMessage(serverKey, channelId, toSendText);
       }
     }
-  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files, commandList]);
+  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files, commandList, memberNames, channelNames]);
 
   if (!canSend) {
     return (
