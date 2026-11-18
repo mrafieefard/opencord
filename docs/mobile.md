@@ -78,6 +78,7 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | Voice & audio settings: noise suppression, volume sliders, microphone test with live LevelMeter | fake world | not run |
 | Sounds settings: soundboard volume and mute toggle, voice sound cues toggles | fake world | not run |
 | Storage and logs: media cache calculation and clear cache, session log export | fake world | not run |
+| Voice cue timing: deafening and undeafening each play one sound against a real server | fake world | not run |
 
 ## Using the app
 
@@ -141,7 +142,7 @@ The upload button sends audio files from the phone for the server to play, with 
   - **Voice sounds:** toggle individual voice sound cue groups heard only by you: *Joining and leaving*, *Others joining and leaving*, *Mute and unmute*, and *Deafen and undeafen*.
 - **Storage and logs:**
   - **Media cache:** calculates the total size of cached thumbnails, pictures and voice messages kept on device. Tap destructive **Clear media cache** (confirmed with a prompt) to wipe cached files while preserving active downloads.
-  - **Logs:** view the current session's diagnostic log and tap **Export this session's log** to share it via the platform share sheet (never containing passwords, keys, or messages). If the previous session crashed, an option to **Export the last session's log** is provided.
+  - **Logs:** **Export this session's log** shares it through the system share sheet (never containing passwords, keys, or messages; the device model shows as `unknown` until the core init signature accepts device metadata). If the previous session ended unexpectedly, an option to **Export the last session's log** is provided.
 - **Appearance & Music:** switch theme (**System**, **Light**, or **Dark**); under Music preferences, set your personal music volume, **Mute music**, and **Lower music while people talk**; and view the app and core versions.
 
 ### Not there yet
@@ -246,6 +247,7 @@ Certain features require manual verification on physical iOS hardware:
 - **Microphone test with audio routing:** verify the microphone loopback test works through the built-in speaker/earpiece, and test switching between AirPods or Bluetooth audio devices (audio session activation and switching).
 - **High noise suppression on older iPhones:** verify audio performance and frame latency with High noise suppression on older hardware (e.g., iPhone 11), ensuring graceful fallback to Standard if audio threads lag.
 - **Voice cue sounds:** confirm Join, Leave, Mute, Unmute, and Deafen cues play audibly with headphones and that Leave does not clip before audio session deactivation.
+- **Voice cue timing against a real server:** confirm that deafening and undeafening each play one single sound on both iPhone and Android against a real server, verifying that the 50 ms / 100 ms debounce hold prevents double sounds.
 
 ### Android's minimum is 8.0
 
