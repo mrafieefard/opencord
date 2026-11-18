@@ -5,12 +5,13 @@
 import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { type Href, router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { type LayoutChangeEvent, Modal, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { report } from '@/core';
+import { ChatPane } from '@/features/chat/ChatPane';
 import { useMusicSettingsLoader } from '@/features/music/useMusicSettingsLoader';
 import { showActivitiesButton } from '@/features/plugins/ActivityPicker';
 import { ActivityTile } from '@/features/plugins/ActivityTile';
@@ -51,10 +52,13 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isTablet = windowWidth >= 768;
+  const [chatOpen, setChatOpen] = useState(false);
   // The grid's room, as it lays out: the tiles fill it.
   const [room, setRoom] = useState({ width: windowWidth, height: windowHeight / 2 });
 
   const info = useChannelInfo(serverKey, channelId);
+  const hasTextInVoice = info?.channel.textInVoice ?? false;
   useMusicSettingsLoader(serverKey);
   const musicSettings = useMusicSettings(serverKey);
   const myVoice = useMyVoice();
@@ -160,8 +164,17 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
         }
         rightElement={
           // In the call, the sound output (iOS: speaker, iPhone, AirPods…) beside Music.
-          (here && hasAudioRouteButton) || showMusic ? (
+          (here && hasAudioRouteButton) || showMusic || hasTextInVoice ? (
             <>
+              {hasTextInVoice && (
+                <IconButton
+                  icon="chat"
+                  label="Chat"
+                  active={chatOpen}
+                  testID="voice-chat-button"
+                  onPress={() => setChatOpen((prev) => !prev)}
+                />
+              )}
               {here && hasAudioRouteButton && <AudioRouteButton testID="control-output" tint={colors.text} style={styles.route} />}
               {showMusic && <IconButton icon="music" label="Music" onPress={openMusic} />}
             </>
@@ -222,38 +235,68 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
         header
       )}
       {here && <LinkBanner link={here.link} onRejoin={join} />}
-      {gridDrag ? (
-        <GestureDetector gesture={gridDrag}>{tiles}</GestureDetector>
-      ) : (
-        tiles
-      )}
-      {here ? (
-        <View style={{ paddingBottom: bottom }}>
-          <ControlBar
-            muted={here.muted}
-            deafened={here.deafened}
-            onToggleMute={() => setMuted(!here.muted)}
-            onToggleDeafen={() => setDeafened(!here.deafened)}
-            onOpenSoundboard={openSoundboard}
-            onOpenActivities={canOpenActivities ? openActivities : undefined}
-            activityActive={current !== undefined}
-            activityMenu={activityMenu}
-            onActivityAction={onActivityAction}
-            onLeave={leave}
-          />
-        </View>
-      ) : (
-        <>
-          <View style={styles.join}>
-            <Button title={reason ?? 'Join voice'} variant="voice" disabled={reason !== null} onPress={join} />
-          </View>
-          {/* iOS shows the call above the tab bar instead (chrome.ts). */}
-          {onOpenChannel && myVoice && chrome.serversVoiceBar ? (
-            <ConnectedBar serverKey={serverKey} channelId={channelId} />
+      <View style={styles.contentRow}>
+        <View style={styles.mainStage}>
+          {gridDrag ? (
+            <GestureDetector gesture={gridDrag}>{tiles}</GestureDetector>
           ) : (
-            <View style={{ height: insets.bottom }} />
+            tiles
           )}
-        </>
+          {here ? (
+            <View style={{ paddingBottom: bottom }}>
+              <ControlBar
+                muted={here.muted}
+                deafened={here.deafened}
+                onToggleMute={() => setMuted(!here.muted)}
+                onToggleDeafen={() => setDeafened(!here.deafened)}
+                onOpenSoundboard={openSoundboard}
+                onOpenActivities={canOpenActivities ? openActivities : undefined}
+                activityActive={current !== undefined}
+                activityMenu={activityMenu}
+                onActivityAction={onActivityAction}
+                onLeave={leave}
+              />
+            </View>
+          ) : (
+            <>
+              <View style={styles.join}>
+                <Button title={reason ?? 'Join voice'} variant="voice" disabled={reason !== null} onPress={join} />
+              </View>
+              {/* iOS shows the call above the tab bar instead (chrome.ts). */}
+              {onOpenChannel && myVoice && chrome.serversVoiceBar ? (
+                <ConnectedBar serverKey={serverKey} channelId={channelId} />
+              ) : (
+                <View style={{ height: insets.bottom }} />
+              )}
+            </>
+          )}
+        </View>
+        {isTablet && chatOpen && (
+          <View style={[styles.tabletChatSlot, { borderLeftColor: colors.border, backgroundColor: colors.chat }]}>
+            <ChatPane
+              serverKey={serverKey}
+              channelId={channelId}
+              onClose={() => setChatOpen(false)}
+            />
+          </View>
+        )}
+      </View>
+      {!isTablet && chatOpen && (
+        <Modal
+          visible={chatOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setChatOpen(false)}
+          testID="voice-chat-sheet"
+        >
+          <View style={[styles.chatSheet, { backgroundColor: colors.chat }]}>
+            <ChatPane
+              serverKey={serverKey}
+              channelId={channelId}
+              onClose={() => setChatOpen(false)}
+            />
+          </View>
+        </Modal>
       )}
     </View>
   );
@@ -266,4 +309,8 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   join: { padding: space.md },
   route: { width: 44, height: 44 },
+  contentRow: { flex: 1, flexDirection: 'row' },
+  mainStage: { flex: 1 },
+  tabletChatSlot: { width: 360, borderLeftWidth: StyleSheet.hairlineWidth },
+  chatSheet: { flex: 1 },
 });

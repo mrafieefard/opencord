@@ -151,6 +151,7 @@ export function buildChannelSections(
     if (channel.kind === ChannelKind.Voice) {
       const members = buildVoiceMembers(server, channel.id, speaking[channelKey(server.key, channel.id)] ?? []);
       const nowPlaying: MusicNowPlayingRecord | null = server.nowPlaying[channel.id] ?? null;
+      const activity = server.activity[channel.id];
       return {
         kind: 'voice',
         channel,
@@ -159,6 +160,8 @@ export function buildChannelSections(
         nowPlaying: nowPlaying && !nowPlaying.ended ? nowPlaying : null,
         count: members.length,
         limit: channel.userLimit,
+        unread: activity?.unread ?? 0,
+        mentions: activity?.mentions ?? 0,
       };
     }
     if (channel.kind === ChannelKind.Plugin && channel.plugin) {

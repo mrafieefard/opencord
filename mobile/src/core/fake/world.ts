@@ -158,7 +158,7 @@ function nightOwlsChannels(): ChannelRecord[] {
     pluginChannel(CHANNELS.helpDesk, 'help-desk', 1, CHANNELS.textCategory, 'tickets', PluginChannelState.Available),
     pluginChannel(CHANNELS.oldBoard, 'old-board', 2, CHANNELS.textCategory, 'board', PluginChannelState.PluginStopped),
     channel(CHANNELS.voiceCategory, ChannelKind.Category, 'Voice', 3),
-    channel(CHANNELS.lounge, ChannelKind.Voice, 'Lounge', 0, CHANNELS.voiceCategory),
+    { ...channel(CHANNELS.lounge, ChannelKind.Voice, 'Lounge', 0, CHANNELS.voiceCategory), textInVoice: true },
     channel(CHANNELS.quiet, ChannelKind.Voice, 'Quiet room', 1, CHANNELS.voiceCategory),
   ];
 }

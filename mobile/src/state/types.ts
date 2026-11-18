@@ -276,6 +276,8 @@ export type ChannelItem =
       nowPlaying: MusicNowPlayingRecord | null;
       count: number;
       limit: number;
+      unread: number;
+      mentions: number;
     }
   | {
       kind: 'plugin';

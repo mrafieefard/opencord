@@ -125,6 +125,8 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
               channel={item.item.channel}
               count={item.item.count}
               limit={item.item.limit}
+              unread={item.item.unread}
+              mentions={item.item.mentions}
               selected={item.item.channel.id === highlighted}
               onSelect={onSelect}
             />

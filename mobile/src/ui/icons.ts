@@ -22,6 +22,7 @@ export const icons = {
   search: { ios: 'magnifyingglass', android: 'search' },
   people: { ios: 'person.2', android: 'group' },
   personAdd: { ios: 'person.badge.plus', android: 'person_add' },
+  chat: { ios: 'bubble.left', android: 'chat' },
   send: { ios: 'arrow.up', android: 'arrow_upward' },
   photo: { ios: 'photo', android: 'image' },
   file: { ios: 'doc', android: 'description' },

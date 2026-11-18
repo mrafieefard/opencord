@@ -1,6 +1,7 @@
 // A text channel's pane (spec §8.5): its header, then the messages, with
 // the dock (the voice bar and the composer) floating over their bottom as
 // Telegram's, the messages scrolling under it.
+import { ChannelKind } from '@opencord/core-native';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
@@ -29,9 +30,11 @@ export interface ChatPaneProps {
    * its room so the messages don't move, and comes back when the chat does.
    */
   covered?: boolean;
+  /** When opened as a sheet/side slot from a voice channel, a button to close it. */
+  onClose?: () => void;
 }
 
-export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel, onOpenChannel, covered = false }: ChatPaneProps) {
+export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel, onOpenChannel, covered = false, onClose }: ChatPaneProps) {
   const { colors } = useTheme();
   const info = useChannelInfo(serverKey, channelId);
   const isStale = useChatStale(serverKey);
@@ -60,20 +63,32 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
     transform: [{ translateY: away.get() * AWAY_DROP }],
   }));
 
+  const isVoice = info?.channel.kind === ChannelKind.Voice;
+
   return (
     <View style={[styles.pane, { backgroundColor: colors.chat }]}>
       <PaneHeader
-        title={info?.channel.name ?? ''}
-        titleIcon="textChannel"
+        title={isVoice ? `Chat · ${info?.channel.name ?? ''}` : (info?.channel.name ?? '')}
+        titleIcon={isVoice ? 'voiceChannel' : 'textChannel'}
         subtitle={info?.channel.topic}
-        left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
-        right={[
-          {
-            icon: 'people',
-            label: 'Members',
-            onPress: () => router.push(`/server/${serverKey}/members`),
-          },
-        ]}
+        left={
+          onClose
+            ? { icon: 'close', label: 'Close', onPress: onClose }
+            : onOpenSidebar
+              ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar }
+              : undefined
+        }
+        right={
+          onClose
+            ? undefined
+            : [
+                {
+                  icon: 'people',
+                  label: 'Members',
+                  onPress: () => router.push(`/server/${serverKey}/members`),
+                },
+              ]
+        }
       />
       <ConnectionBanner serverKey={serverKey} />
       <ChatDockContext.Provider value={dock}>
