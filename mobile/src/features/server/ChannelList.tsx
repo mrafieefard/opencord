@@ -1,12 +1,14 @@
 // A server's channels (spec §8.4), full screen in `channels` and as the
 // sidebar beside a channel. Only this server's channels: never servers.
 import { FlashList } from '@shopify/flash-list';
-import type { ChannelRecord, MusicNowPlayingRecord } from '@opencord/core-native';
-import { useCallback, useMemo } from 'react';
+import { ConnectionRecord_Tags, FailureKind, type ChannelRecord, type MusicNowPlayingRecord } from '@opencord/core-native';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useListEndRoom } from '@/features/voice/callPosition';
 import { useChannelSections } from '@/state/selectors';
+import { useAppStore } from '@/state/store';
 import type { ChannelItem, VoiceMember } from '@/state/types';
 import { useTheme } from '@/ui';
 
@@ -38,6 +40,24 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
   const endRoom = useListEndRoom();
   const sections = useChannelSections(serverKey);
   const highlighted = variant === 'sidebar' ? selectedId : undefined;
+
+  const server = useAppStore((state) => state.servers[serverKey]);
+  const connection = server?.connection;
+  const lastFingerprint = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      connection &&
+      connection.tag === ConnectionRecord_Tags.Failed &&
+      connection.inner.reason === FailureKind.FingerprintChanged
+    ) {
+      const presented = connection.inner.presentedFingerprint ?? 'unknown';
+      if (lastFingerprint.current !== presented) {
+        lastFingerprint.current = presented;
+        router.push(`/server/${serverKey}/identity-changed`);
+      }
+    }
+  }, [connection, serverKey]);
 
   const items = useMemo(() => {
     const result: ListItem[] = [];

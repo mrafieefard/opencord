@@ -2,8 +2,9 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
 import { Image } from 'expo-image';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import { AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
+
+import { useVideoPlayer, VideoView } from './videoPlayer';
 
 import { report } from '@/core';
 import { Icon, IconButton, Text, radius, space, useTheme } from '@/ui';

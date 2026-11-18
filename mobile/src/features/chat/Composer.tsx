@@ -48,6 +48,7 @@ import { useTypingNotifier } from './useTypingNotifier';
 export interface ComposerProps {
   serverKey: string;
   channelId: string;
+  disabled?: boolean;
 }
 
 /** Just after the invisible character an empty command field holds. */
@@ -75,7 +76,7 @@ export function attachMenuActions(canAttach: boolean, hasCommands: boolean): Men
   ];
 }
 
-export function Composer({ serverKey, channelId }: ComposerProps) {
+export function Composer({ serverKey, channelId, disabled = false }: ComposerProps) {
   const { colors } = useTheme();
   const bottom = useDockBottom();
   const { fieldGrowth } = useChatDock();
@@ -325,9 +326,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const showCounter = text.length >= COUNTER_THRESHOLD;
 
   const canSubmit =
-    isEditing
+    !disabled &&
+    (isEditing
       ? text.trim().length > 0 && !isOverLimit
-      : (text.trim().length > 0 || files.length > 0) && !isOverLimit;
+      : (text.trim().length > 0 || files.length > 0) && !isOverLimit);
 
   const { run: runDraft } = draft;
   const handleSubmit = useCallback(async () => {
@@ -482,6 +484,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 ref={input}
                 style={[typography.body, styles.input, { color: colors.text }]}
                 placeholder={placeholder}
+                editable={!disabled}
                 placeholderTextColor="transparent"
                 value={draft.spec ? draft.fieldValue : text}
                 // After the mark, or Backspace would have nothing to delete.

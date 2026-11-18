@@ -134,6 +134,14 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/identity-changed"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.chat },
+            }}
+          />
+          <Stack.Screen
             name="server/[serverKey]/activity/[sessionId]"
             options={{
               // Over the call (iOS draws modals above it): the activity's own page.

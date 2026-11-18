@@ -7,10 +7,11 @@ import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { useChannelInfo } from '@/state/selectors';
+import { useChannelInfo, useChatStale } from '@/state/selectors';
 import { PaneHeader, useTheme } from '@/ui';
 
 import { ChatVoicePill } from './ChatVoicePill';
+import { ConnectionBanner } from './ConnectionBanner';
 import { Composer } from './Composer';
 import { AWAY_DROP, ChatDockContext, useDockLift } from './dock';
 import { MessageList } from './MessageList';
@@ -33,6 +34,7 @@ export interface ChatPaneProps {
 export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel, onOpenChannel, covered = false }: ChatPaneProps) {
   const { colors } = useTheme();
   const info = useChannelInfo(serverKey, channelId);
+  const isStale = useChatStale(serverKey);
   const lift = useDockLift();
   const padding = useSharedValue(0);
   const [height, setHeight] = useState(0);
@@ -73,16 +75,19 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
           },
         ]}
       />
+      <ConnectionBanner serverKey={serverKey} />
       <ChatDockContext.Provider value={dock}>
         <View style={styles.body} onLayout={(event) => setBodyHeight(Math.round(event.nativeEvent.layout.height))}>
-          <MessageList serverKey={serverKey} channelId={channelId} onSelectChannel={onSelectChannel} />
+          <View testID="chat-messages-container" style={[{ flex: 1 }, isStale && { opacity: 0.6 }]}>
+            <MessageList serverKey={serverKey} channelId={channelId} onSelectChannel={onSelectChannel} />
+          </View>
           {/* The dock rides the keyboard: it stands on its bottom margin, so it
               rises by the keyboard's height less that margin, and the list
               lifts by the same (MessageList's ChatScrollView). */}
           <KeyboardStickyView offset={{ closed: 0, opened: lift }} style={styles.dock} pointerEvents="box-none">
             <Animated.View onLayout={onDockLayout} pointerEvents={covered ? 'none' : 'box-none'} style={awayStyle}>
               {onOpenChannel && <ChatVoicePill covered={covered} />}
-              <Composer serverKey={serverKey} channelId={channelId} />
+              <Composer serverKey={serverKey} channelId={channelId} disabled={isStale} />
             </Animated.View>
           </KeyboardStickyView>
         </View>

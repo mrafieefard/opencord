@@ -4,11 +4,13 @@ import {
   AttachmentKind,
   ChannelKind,
   ConnectionRecord_Tags,
+  FailureKind,
   PluginChannelState,
   PresenceStatus,
   type ActivitySessionRecord,
   type ChannelAccess,
   type ChannelRecord,
+  type ConnectionRecord,
   type MusicNowPlayingRecord,
   type MusicSessionRecord,
   type MusicSettingsRecord,
@@ -436,4 +438,25 @@ export function usePresence(serverKey: string, userId: string): PresenceStatus {
 
 export function useMemberColor(serverKey: string, userId: string): number | null {
   return useAppStore((state) => memberColor(state.servers[serverKey]?.snapshot, userId));
+}
+
+/**
+ * Whether the chat shows the last cached state greyed out with the
+ * banner (§4.13): while reconnecting, or after a failure other than a
+ * changed identity, which has its own full-screen page.
+ */
+export function isChatStale(connection: ConnectionRecord | undefined): boolean {
+  if (!connection) return false;
+  if (connection.tag === ConnectionRecord_Tags.Reconnecting) return true;
+  if (connection.tag === ConnectionRecord_Tags.Failed) {
+    return connection.inner.reason !== FailureKind.FingerprintChanged;
+  }
+  return false;
+}
+
+export function useChatStale(serverKey: string): boolean {
+  return useAppStore((state) => {
+    const server = state.servers[serverKey];
+    return isChatStale(server?.connection);
+  });
 }
