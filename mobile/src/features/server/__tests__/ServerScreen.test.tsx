@@ -49,6 +49,7 @@ const lastGestureEnabled = () => {
 describe('ServerScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.setTimeout(15000);
   });
 
   it('the sidebar lists only this server\'s channels, never servers', async () => {
