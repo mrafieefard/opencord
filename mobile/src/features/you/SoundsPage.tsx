@@ -2,6 +2,7 @@
 // soundboard listening volume and mute, and voice sounds preferences.
 import { useState } from 'react';
 
+import { getCore } from '@/core';
 import { CUE_GROUPS } from '@/features/voice/voiceCues';
 import { setCueGroup, setSoundboard } from '@/state/actions/prefs';
 import { usePrefs } from '@/state/selectors';
@@ -30,7 +31,11 @@ export function SoundsPage() {
           format={percent}
           onChange={(val) => {
             setVolumeMoving(val);
-            setSoundboard({ volume: val });
+            try {
+              getCore().soundboardSetListening(val / 100, soundboard.muted);
+            } catch (e) {
+              console.warn(`failed to update listening volume: ${e}`);
+            }
           }}
           onDone={(val) => {
             setSoundboard({ volume: val });

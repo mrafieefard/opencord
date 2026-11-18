@@ -300,12 +300,17 @@ pub(crate) mod tests {
     fn events_and_app_lines_reach_the_file() {
         let session = test_session();
         tracing::info!(target: "opencord_core::connection", step = "tls", "connecting");
+        tracing::info!(target: "opencord_mobile::api", "facade initialized");
         tracing::debug!(target: "hyper::proto", "chatter from another crate");
         write_app(Level::WARN, "share", "picked a source");
         flush();
         let text = std::fs::read_to_string(&session.current).unwrap();
         assert!(
             text.contains("INFO  core::connection  connecting  step=tls"),
+            "{text}"
+        );
+        assert!(
+            text.contains("INFO  mobile::api  facade initialized"),
             "{text}"
         );
         assert!(text.contains("WARN  app::share  picked a source"), "{text}");

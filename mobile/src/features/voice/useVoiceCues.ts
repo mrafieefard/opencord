@@ -1,11 +1,12 @@
 // Plays voice cues as the scene changes in the store (spec §3 P1, spec §6.3).
 import { useEffect } from 'react';
 
+import { VoiceCueKind } from '@opencord/core-native';
 import { getCore } from '@/core';
 import { useAppStore } from '@/state/store';
 import type { AppState } from '@/state/types';
 
-import { playVoiceCues, type CueScene } from './voiceCues';
+import { consumeLeaveCueHandled, playVoiceCues, type CueScene } from './voiceCues';
 
 export function buildCueScene(state: AppState): CueScene {
   const myVoice = state.myVoice;
@@ -35,11 +36,38 @@ export function buildCueScene(state: AppState): CueScene {
 export function useVoiceCues(): void {
   useEffect(() => {
     let prevScene: CueScene = buildCueScene(useAppStore.getState());
+    let pendingMuteTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    return useAppStore.subscribe((state) => {
+    const unsubscribe = useAppStore.subscribe((state) => {
       const nextScene = buildCueScene(state);
       const cuesOff = state.prefs.cuesOff;
+      const skipLeave = !nextScene.channelId && prevScene.channelId && consumeLeaveCueHandled();
+
       playVoiceCues(prevScene, nextScene, cuesOff, (cue) => {
+        if (cue === VoiceCueKind.Leave && skipLeave) {
+          return;
+        }
+
+        if (cue === VoiceCueKind.Mute) {
+          if (pendingMuteTimeout) clearTimeout(pendingMuteTimeout);
+          pendingMuteTimeout = setTimeout(() => {
+            pendingMuteTimeout = null;
+            try {
+              getCore().cuePlay(VoiceCueKind.Mute, 1);
+            } catch (error: unknown) {
+              console.warn(`failed to play voice cue: ${error}`);
+            }
+          }, 50);
+          return;
+        }
+
+        if (cue === VoiceCueKind.Deafen) {
+          if (pendingMuteTimeout) {
+            clearTimeout(pendingMuteTimeout);
+            pendingMuteTimeout = null;
+          }
+        }
+
         try {
           getCore().cuePlay(cue, 1);
         } catch (error: unknown) {
@@ -48,5 +76,10 @@ export function useVoiceCues(): void {
       });
       prevScene = nextScene;
     });
+
+    return () => {
+      if (pendingMuteTimeout) clearTimeout(pendingMuteTimeout);
+      unsubscribe();
+    };
   }, []);
 }

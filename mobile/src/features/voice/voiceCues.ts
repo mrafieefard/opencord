@@ -26,6 +26,18 @@ export interface CueScene {
   readonly live?: ReadonlySet<string | number>;
 }
 
+let leaveCueHandled = false;
+
+export function markLeaveCueHandled(): void {
+  leaveCueHandled = true;
+}
+
+export function consumeLeaveCueHandled(): boolean {
+  const handled = leaveCueHandled;
+  leaveCueHandled = false;
+  return handled;
+}
+
 /**
  * Returns the voice sounds that transitioning from `before` to `after` produces,
  * matching desktop cuesBetween exactly.

@@ -127,16 +127,9 @@ mod tests {
     // Fails if setting an avatar doesn't compute and return its sha256 hash or update own_avatar.
     #[test]
     fn an_avatar_set_returns_its_hash() {
-        let dir = tempfile::tempdir().unwrap();
-        let data_dir = dir.path().join("data");
-        let cache_dir = dir.path().join("cache");
-        std::fs::create_dir_all(&data_dir).unwrap();
-        std::fs::create_dir_all(&cache_dir).unwrap();
-        let _ = crate::api::setup::core_init(
-            data_dir.to_string_lossy().into_owned(),
-            cache_dir.to_string_lossy().into_owned(),
-        );
-        let png_path = dir.path().join("test_avatar.png");
+        crate::test_support::init_once();
+        let (data_dir, _) = crate::test_support::test_dirs();
+        let png_path = std::path::Path::new(&data_dir).join("test_avatar.png");
         std::fs::write(&png_path, png_2x2()).unwrap();
 
         let hash = avatar_set(Some(png_path.to_string_lossy().into_owned())).unwrap();

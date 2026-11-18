@@ -33,21 +33,36 @@ export function formatFileSize(bytes: number): string {
 export function StoragePage({ core = getCore() }: { core?: CoreApi }) {
   const [size, setSize] = useState<number | null>(null);
   const [crashed, setCrashed] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    core.cacheSize().then((bytes) => {
-      if (mounted) setSize(bytes);
-    });
-    core.logsCrashed().then((path) => {
-      if (mounted) setCrashed(path);
-    });
+    core
+      .cacheSize()
+      .then((bytes) => {
+        if (mounted) setSize(bytes);
+      })
+      .catch((e: unknown) => {
+        if (mounted) {
+          const msg = e instanceof Error && e.message ? e.message : describeError(e);
+          setError(msg);
+        }
+      });
+    core
+      .logsCrashed()
+      .then((path) => {
+        if (mounted) setCrashed(path);
+      })
+      .catch((e) => {
+        console.warn('failed to check crashed logs', e);
+      });
     return () => {
       mounted = false;
     };
   }, [core]);
 
   const handleClear = useCallback(() => {
+    if (size === null || size === 0 || error !== null) return;
     confirm({
       title: 'Clear media cache?',
       message: 'This removes downloaded pictures, thumbnails and voice messages from your device.',
@@ -64,7 +79,7 @@ export function StoragePage({ core = getCore() }: { core?: CoreApi }) {
         }
       },
     });
-  }, [core]);
+  }, [size, error, core]);
 
   const handleExportCurrent = useCallback(async () => {
     try {
@@ -89,16 +104,17 @@ export function StoragePage({ core = getCore() }: { core?: CoreApi }) {
     <SettingsList>
       <SettingsSection
         title="Media cache"
-        footer="Thumbnails, pictures and voice messages you have seen, kept encrypted on this device, up to 1 GB. Saved files are not in it."
+        footer="Thumbnails, pictures and voice messages you have seen, kept on this device. Saved files are not in it."
       >
         <SettingsRow
           kind="value"
           label="Size"
-          value={size !== null ? formatFileSize(size) : 'Calculating…'}
+          value={error ? error : size !== null ? formatFileSize(size) : 'Calculating…'}
         />
         <SettingsRow
           kind="destructive"
           label="Clear media cache"
+          disabled={size === null || size === 0 || error !== null}
           onPress={handleClear}
         />
       </SettingsSection>

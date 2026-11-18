@@ -1,4 +1,4 @@
-import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
+import { ConnectionRecord, MobileEvent, VoiceCueKind } from '@opencord/core-native';
 import { VoiceService } from '@opencord/voice-service';
 import { PermissionStatus, type PermissionResponse } from 'expo';
 import * as Audio from 'expo-audio';
@@ -121,6 +121,9 @@ describe('voice', () => {
     await pump(core);
 
     expect(core.calls.some((call) => call.method === 'voiceLeave')).toBe(true);
+    // Leaving plays cuePlay(Leave) before setIsAudioActiveAsync(false)
+    expect(core.calls.some((call) => call.method === 'cuePlay' && call.args[0] === VoiceCueKind.Leave)).toBe(true);
+    expect(audio.setIsAudioActiveAsync).toHaveBeenCalledWith(false);
     expect(Haptics.impactAsync).toHaveBeenCalledTimes(2);
     expect(service.stop).toHaveBeenCalled();
     expect(useAppStore.getState().myVoice).toBeNull();

@@ -84,16 +84,12 @@ function toPresenceStatus(status: PresenceStatusInput): PresenceStatus {
   if (typeof status === 'string') {
     switch (status) {
       case 'Online':
-      case 'online':
         return PresenceStatus.Online;
       case 'Idle':
-      case 'idle':
         return PresenceStatus.Idle;
       case 'Dnd':
-      case 'dnd':
         return PresenceStatus.Dnd;
       case 'Offline':
-      case 'offline':
         return PresenceStatus.Offline;
     }
   }

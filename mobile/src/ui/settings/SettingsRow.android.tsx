@@ -94,36 +94,36 @@ export function SettingsRow(props: SettingsRowProps) {
       return <TextRow {...props} />;
     case 'destructive':
       return (
-        <Row accessibilityLabel={props.label} onPress={props.onPress} height={ROW_HEIGHT} style={styles.pad}>
-          <Text variant="body" color="recording" numberOfLines={1} style={styles.fill}>
+        <Row accessibilityLabel={props.label} disabled={props.disabled} onPress={props.disabled ? undefined : props.onPress} height={ROW_HEIGHT} style={styles.pad}>
+          <Text variant="body" color={props.disabled ? 'textMuted' : 'recording'} numberOfLines={1} style={styles.fill}>
             {props.label}
           </Text>
         </Row>
       );
     case 'action':
       return (
-        <Row accessibilityLabel={props.label} onPress={props.onPress} height={ROW_HEIGHT} style={styles.pad}>
-          <Titles title={props.label} summary={props.detail} />
+        <Row accessibilityLabel={props.label} disabled={props.disabled} onPress={props.disabled ? undefined : props.onPress} height={ROW_HEIGHT} style={styles.pad}>
+          <Titles title={props.label} summary={props.detail} disabled={props.disabled} />
         </Row>
       );
     case 'value':
       return (
         <View accessible accessibilityLabel={`${props.label}, ${props.value}`} style={[styles.plain, styles.pad]}>
-          <Titles title={props.label} summary={props.value} />
+          <Titles title={props.label} summary={props.value} mono={props.mono} />
         </View>
       );
   }
 }
 
 /** The title, and under it the summary when there is one. */
-function Titles({ title, summary }: { title: string; summary?: string }) {
+function Titles({ title, summary, mono, disabled }: { title: string; summary?: string; mono?: boolean; disabled?: boolean }) {
   return (
     <View style={styles.fill}>
-      <Text variant="body" numberOfLines={2}>
+      <Text variant="body" color={disabled ? 'textMuted' : 'text'} numberOfLines={2}>
         {title}
       </Text>
       {summary !== undefined && (
-        <Text variant="callout" color="textMuted" numberOfLines={2}>
+        <Text variant={mono ? 'mono' : 'callout'} color="textMuted" numberOfLines={2}>
           {summary}
         </Text>
       )}

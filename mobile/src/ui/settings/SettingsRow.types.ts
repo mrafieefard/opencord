@@ -78,6 +78,7 @@ export interface DestructiveRowProps {
   kind: 'destructive';
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 }
 
 /** A row that does something at once (Mark as read): no chevron, nothing opens. */
@@ -87,6 +88,7 @@ export interface ActionRowProps {
   /** A line under the label saying what the action does. */
   detail?: string;
   onPress: () => void;
+  disabled?: boolean;
 }
 
 /** A row that only says what is so, and can't be pressed (Hosting: Open on a computer). */
@@ -94,6 +96,7 @@ export interface ValueRowProps {
   kind: 'value';
   label: string;
   value: string;
+  mono?: boolean;
 }
 
 export type SettingsRowProps =

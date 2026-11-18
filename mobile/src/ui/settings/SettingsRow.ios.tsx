@@ -99,17 +99,17 @@ export function SettingsRow(props: SettingsRowProps) {
       return <TextRow {...props} />;
     case 'destructive':
       return (
-        <Row accessibilityLabel={props.label} onPress={props.onPress} height={ROW_HEIGHT} style={styles.pad}>
-          <Text variant="body" color="recording" numberOfLines={1} style={styles.label}>
+        <Row accessibilityLabel={props.label} disabled={props.disabled} onPress={props.disabled ? undefined : props.onPress} height={ROW_HEIGHT} style={styles.pad}>
+          <Text variant="body" color={props.disabled ? 'textMuted' : 'recording'} numberOfLines={1} style={styles.label}>
             {props.label}
           </Text>
         </Row>
       );
     case 'action':
       return (
-        <Row accessibilityLabel={props.label} onPress={props.onPress} height={ROW_HEIGHT} style={styles.pad}>
+        <Row accessibilityLabel={props.label} disabled={props.disabled} onPress={props.disabled ? undefined : props.onPress} height={ROW_HEIGHT} style={styles.pad}>
           <View style={styles.inline}>
-            <Text variant="body" numberOfLines={1} style={styles.label}>
+            <Text variant="body" color={props.disabled ? 'textMuted' : 'text'} numberOfLines={1} style={styles.label}>
               {props.label}
             </Text>
             {props.detail !== undefined && (
@@ -126,7 +126,7 @@ export function SettingsRow(props: SettingsRowProps) {
           <Text variant="body" numberOfLines={1} style={styles.label}>
             {props.label}
           </Text>
-          <Text variant="body" color="textMuted" numberOfLines={1} style={styles.value}>
+          <Text variant={props.mono ? 'mono' : 'body'} color="textMuted" numberOfLines={1} style={styles.value}>
             {props.value}
           </Text>
         </View>

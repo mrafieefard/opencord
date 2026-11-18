@@ -72,7 +72,7 @@ export async function catchUpAvatar(serverKey: string): Promise<void> {
   } catch (error: unknown) {
     if (!MobileError.NotConnected.instanceOf(error)) {
       const name = snapshot.name ?? server.entry.name;
-      toast(`${name} kept your old picture: ${describeError(error)}`);
+      toast(`${name} kept your old picture: ${describeError(error)}`, 'error');
     }
   }
 }
@@ -113,6 +113,6 @@ export async function setAvatar(sourcePath: string | undefined): Promise<void> {
 
   if (firstRefusal) {
     const { name, error } = firstRefusal;
-    toast(`${name} kept your old picture: ${describeError(error)}`);
+    toast(`${name} kept your old picture: ${describeError(error)}`, 'error');
   }
 }

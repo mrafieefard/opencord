@@ -41,8 +41,12 @@ describe('SoundsPage', () => {
     await act(async () => {
       fireEvent(volumeSlider, 'onChange', 50);
     });
-    expect(useAppStore.getState().prefs.soundboard.volume).toBe(50);
+    // While moving, listening volume updates immediately but prefs wait for onDone
     expect(core.calls.some((c) => c.method === 'soundboardSetListening' && c.args[0] === 0.5 && c.args[1] === false)).toBe(true);
+    await act(async () => {
+      fireEvent(volumeSlider, 'onDone', 50);
+    });
+    expect(useAppStore.getState().prefs.soundboard.volume).toBe(50);
 
     // 2. Mute all soundboards switch
     const muteSwitch = screen.getByLabelText('Mute all soundboards');

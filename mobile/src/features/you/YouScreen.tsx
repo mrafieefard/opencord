@@ -1,6 +1,6 @@
 // The You tab (spec §8.8): the person's profile, identity backup, Voice &
 // audio, appearance, music listening preferences, and version information.
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
@@ -46,7 +46,11 @@ export function YouScreen() {
     setTheme(chosen);
   }, []);
 
-  const ownAvatar = getCore().ownAvatar();
+  const avatarHash = self?.avatarHash;
+  const ownAvatar = useMemo(() => {
+    void avatarHash;
+    return getCore().ownAvatar();
+  }, [avatarHash]);
   const appVersion = Constants.expoConfig?.version ?? '0.0.1';
   const coreVersion = getCore().coreVersion();
 

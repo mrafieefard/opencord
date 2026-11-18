@@ -1,5 +1,5 @@
 // Profile page (spec §6.2): picture, display name, status, and identity.
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { File, Paths } from 'expo-file-system';
@@ -30,7 +30,11 @@ export function ProfilePage() {
   const [savingAvatar, setSavingAvatar] = useState(false);
 
   const core = getCore();
-  const ownAvatar = core.ownAvatar();
+  const avatarHash = self?.avatarHash;
+  const ownAvatar = useMemo(() => {
+    void avatarHash;
+    return core.ownAvatar();
+  }, [avatarHash, core]);
   const hasAvatar = Boolean(ownAvatar.hash || ownAvatar.file);
 
   const handleEditPhoto = useCallback(async () => {
@@ -137,7 +141,7 @@ export function ProfilePage() {
         title="Your identity"
         footer="This file is your identity. Anyone who has it can be you. Keep it somewhere safe."
       >
-        <SettingsRow kind="value" label="Fingerprint" value={self?.fingerprint ?? ''} />
+        <SettingsRow kind="value" label="Fingerprint" value={self?.fingerprint ?? ''} mono />
         <SettingsRow
           kind="action"
           label="Copy public key"

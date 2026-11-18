@@ -111,4 +111,24 @@ describe('StoragePage', () => {
       expect(Sharing.shareAsync).toHaveBeenCalledWith('/fake/logs/crashed.log');
     });
   });
+
+  // Fails if an error loading cache size leaves Calculating forever or if clear button isn't disabled when size is 0.
+  it('shows error if cache size fails and disables clear when size is 0', async () => {
+    core.cacheSize = jest.fn().mockRejectedValue(new Error('disk failure'));
+
+    await act(async () => {
+      render(<StoragePage core={core} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('disk failure')).toBeTruthy();
+    });
+
+    const clearButton = screen.getByText('Clear media cache');
+    await act(async () => {
+      fireEvent.press(clearButton);
+    });
+    // confirm is not called because button is disabled
+    expect(confirm).not.toHaveBeenCalled();
+  });
 });

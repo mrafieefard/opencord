@@ -33,7 +33,7 @@ import type {
   PresenceStatus,
 } from '@opencord/core-native';
 
-export type PresenceStatusInput = PresenceStatus | 'Online' | 'Idle' | 'Dnd' | 'Offline' | 'online' | 'idle' | 'dnd' | 'offline';
+export type PresenceStatusInput = PresenceStatus | 'Online' | 'Idle' | 'Dnd' | 'Offline';
 
 export type * from '@opencord/core-native';
 

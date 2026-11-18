@@ -95,29 +95,12 @@ pub fn settings_set(key: String, value: Option<String>) -> Result<(), MobileErro
 
 #[cfg(test)]
 mod tests {
-    use std::sync::OnceLock;
-
     use super::*;
-
-    static TEST_DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
-
-    fn test_dirs() -> (String, String) {
-        let dir = TEST_DIR.get_or_init(|| tempfile::tempdir().unwrap());
-        let data = dir.path().join("data");
-        let cache = dir.path().join("cache");
-        let _ = std::fs::create_dir_all(&data);
-        let _ = std::fs::create_dir_all(&cache);
-        (
-            data.to_string_lossy().into_owned(),
-            cache.to_string_lossy().into_owned(),
-        )
-    }
 
     // Fails if core_init does not start a session log or logs_export does not return its path.
     #[test]
     fn a_session_log_starts_at_init() {
-        let (data, cache) = test_dirs();
-        core_init(data, cache).unwrap();
+        crate::test_support::init_once();
 
         let exported = logs_export().unwrap();
         assert!(
@@ -133,8 +116,7 @@ mod tests {
     // Fails if logs_export does not flush pending log lines to disk before returning.
     #[test]
     fn export_flushes_first() {
-        let (data, cache) = test_dirs();
-        core_init(data, cache).unwrap();
+        crate::test_support::init_once();
 
         let unique = "test-flush-line-12345";
         tracing::info!("{unique}");

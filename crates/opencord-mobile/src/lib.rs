@@ -22,6 +22,9 @@ mod mobile;
 mod types;
 mod views;
 
+#[cfg(test)]
+pub mod test_support;
+
 pub use error::MobileError;
 pub use events::MobileEvent;
 pub use ids::{id, parse_id};

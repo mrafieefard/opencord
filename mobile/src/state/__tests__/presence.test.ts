@@ -88,5 +88,38 @@ describe('presence and avatar catch-up', () => {
 
     const toasts = useAppStore.getState().toasts;
     expect(toasts.some((t) => t.text.includes('Night Owls kept your old picture: That file is bigger than this server allows.'))).toBe(true);
+    expect(toasts.some((t) => t.tone === 'error')).toBe(true);
+  });
+
+  // Fails if a server that was offline (NotConnected) shows an error toast or does not receive avatarUpload after its next Ready.
+  it('an offline server produces no toast on setAvatar and gets uploaded on its next Ready', async () => {
+    const core = freshStore();
+    setReadyHook((serverKey) => {
+      catchUpPresence(serverKey);
+      catchUpAvatar(serverKey);
+    });
+
+    // Make avatarUpload fail with NotConnected
+    core.failNext('avatarUpload', new MobileError.NotConnected());
+
+    await setAvatar('/local/offline_test.png');
+
+    // No error toast for NotConnected
+    const toasts = useAppStore.getState().toasts;
+    expect(toasts.filter((t) => t.tone === 'error')).toHaveLength(0);
+
+    // Later when the server connects and sends Ready with old avatar hash:
+    core.calls.length = 0;
+    const oldSnapshot = {
+      ...snapshot(NIGHT_OWLS),
+      selfUser: { ...user(SELF_ID), avatarHash: undefined },
+    };
+    onEvents([new MobileEvent.Ready({ snapshot: oldSnapshot })]);
+    await settle();
+
+    const uploads = core.calls
+      .filter((call) => call.method === 'avatarUpload')
+      .map((call) => call.args);
+    expect(uploads).toEqual([[NIGHT_OWLS]]);
   });
 });
