@@ -201,7 +201,7 @@ function MemberRowItem({
   onPress: () => void;
 }) {
   const avatarFile = useImageFile(item.serverKey, item.avatarHash);
-  const subtitle = item.nickname ? `@${item.nickname}` : 'Member';
+  const subtitle = item.nickname && item.accountName ? `@${item.accountName}` : 'Member';
 
   return (
     <Row

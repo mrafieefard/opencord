@@ -174,4 +174,32 @@ describe('Switcher results (Task 9)', () => {
     const bob = rankSwitcher(memberItems, '@bob');
     expect(names(bob)).toEqual(['Bob']);
   });
+
+  // Fails if member row shows nickname instead of account name when nickname is set (Round 2 Finding 5).
+  it('member row shows account name when nickname is set', async () => {
+    freshStore();
+    const snap = snapshot(NIGHT_OWLS);
+    onEvents([
+      new MobileEvent.Connection({ serverKey: NIGHT_OWLS, state: new ConnectionRecord.Connected() }),
+      new MobileEvent.Ready({
+        snapshot: {
+          ...snap,
+          members: [
+            {
+              user: { id: '101', displayName: 'Robert Smith', fingerprint: 'fp101' },
+              nickname: 'Bob',
+              roleIds: [],
+              joinedAtMs: 0,
+            },
+          ],
+        },
+      }),
+    ]);
+    await settle();
+
+    await draw(<SearchResults query="Bob" />);
+
+    expect(screen.getByText('Bob')).toBeTruthy();
+    expect(screen.getByText('@Robert Smith')).toBeTruthy();
+  });
 });

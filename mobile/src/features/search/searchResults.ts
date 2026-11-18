@@ -24,6 +24,7 @@ export interface SwitcherMemberItem {
   userId: string;
   name: string;
   nickname?: string;
+  accountName?: string;
   avatarHash?: string;
 }
 
@@ -181,6 +182,7 @@ export function collectSwitcherItems(state: {
         userId: member.user.id,
         name: member.nickname ?? member.user.displayName,
         nickname: member.nickname,
+        accountName: member.user.displayName,
         avatarHash: member.user.avatarHash,
       });
     }
