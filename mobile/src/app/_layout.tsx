@@ -19,7 +19,7 @@ import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui'
 // - useClearGuardedRoutes, set off by Stack.Protected guards during initial redirect.
 // - formSheet warning when deep-linking directly into a modal sheet as the initial screen.
 // - tab preloading action warning during deep link navigation.
-LogBox.ignoreLogs([/REMOVE_ROUTES/, /uses presentation.*first screen/, /The action 'PRELOAD'/]);
+LogBox.ignoreLogs([/REMOVE_ROUTES/, /uses presentation.*first screen/, /The action 'PRELOAD'/, /ROUTE_NAMES_CHANGED/]);
 
 function Routes() {
   useVoiceCues();
@@ -59,6 +59,17 @@ function Routes() {
             options={{
               presentation: 'formSheet',
               sheetAllowedDetents: SHEET_DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
+            name="server/[serverKey]/invite"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: [0.75, 1],
               sheetInitialDetentIndex: 0,
               sheetGrabberVisible: true,
               sheetCornerRadius: sheetLook.cornerRadius,

@@ -21,6 +21,7 @@ export const icons = {
   settings: { ios: 'gearshape', android: 'settings' },
   search: { ios: 'magnifyingglass', android: 'search' },
   people: { ios: 'person.2', android: 'group' },
+  personAdd: { ios: 'person.badge.plus', android: 'person_add' },
   send: { ios: 'arrow.up', android: 'arrow_upward' },
   photo: { ios: 'photo', android: 'image' },
   file: { ios: 'doc', android: 'description' },

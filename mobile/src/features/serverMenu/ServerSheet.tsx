@@ -14,7 +14,7 @@ import { useAppStore } from '@/state/store';
 import type { ServerRow } from '@/state/types';
 import { ServerIcon, SettingsList, SettingsRow, SettingsSection, SheetHeader, space } from '@/ui';
 
-import { useServerSheetRows } from './serverRows';
+import { canInvite, useServerSheetRows } from './serverRows';
 
 /** Medium, as the design asks; a page pushed in the sheet grows it to large. */
 export const SHEET_DETENTS = [0.5, 1];
@@ -65,6 +65,13 @@ function ServerSheetContent({ row }: { row: ServerRow }) {
       <SettingsList>
         {/* P2 adds Invite people above this, P8 Mute server under it. */}
         <SettingsSection>
+          {canInvite(snapshot) && (
+            <SettingsRow
+              kind="link"
+              label="Invite people"
+              onPress={() => router.push(`/server/${row.key}/invite`)}
+            />
+          )}
           <SettingsRow kind="action" label="Mark as read" onPress={markRead} />
         </SettingsSection>
         {pages.length > 0 && (

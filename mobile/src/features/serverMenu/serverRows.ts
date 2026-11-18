@@ -37,6 +37,12 @@ export function registerServerPage(key: ServerRowKey, page: ServerPage): void {
 // the row says where to go, and opens nothing.
 registerServerPage('hosting', { label: 'Hosting', route: null, value: 'Open on a computer' });
 
+/** Whether this snapshot's user may invite people to the server (§8.6). */
+export function canInvite(snapshot: ServerSnapshot | null | undefined): boolean {
+  if (!snapshot) return false;
+  return Boolean(snapshot.serverAccess.createInvite || snapshot.serverAccess.manageServer);
+}
+
 /** The rows this snapshot's user may open, in the desktop's order; null without a snapshot. */
 export function serverSheetRows(snapshot: ServerSnapshot | null | undefined): ServerSheetRow[] | null {
   if (!snapshot) return null;
