@@ -49,7 +49,6 @@ const lastGestureEnabled = () => {
 describe('ServerScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.setTimeout(15000);
   });
 
   it('the sidebar lists only this server\'s channels, never servers', async () => {
@@ -65,7 +64,7 @@ describe('ServerScreen', () => {
     expect(screen.getByRole('button', { name: 'general' }).props.accessibilityState).toMatchObject({ selected: true });
     expect(screen.queryByText('Rust Club')).toBeNull();
     expect(screen.queryByText('Weekend Raid')).toBeNull();
-  });
+  }, 15000);
 
   it('the stack\'s swipe back is on only in channels', async () => {
     windowWidth(412);
@@ -97,7 +96,7 @@ describe('ServerScreen', () => {
     expect(lastGestureEnabled()).toBe(false);
     await act(async () => void holdSwipeBack(owner, false));
     expect(lastGestureEnabled()).toBe(true);
-  });
+  }, 15000);
 
   it('the tab bar steps aside only while a text channel fills the screen', async () => {
     windowWidth(412);
