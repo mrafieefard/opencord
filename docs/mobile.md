@@ -74,6 +74,10 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | Member profile: avatar with presence, role chips, member-since date, identity key, copy fingerprint, volume and mute | fake world | not run |
 | The server button: header button on Android, search tab bar slot on iOS while inside a server | fake world | not run |
 | Server settings sheet: member and online counts, Hosting row ("Open on a computer"), Leave server | fake world | not run |
+| Profile page: avatar photo picker and square crop, display name, status picker (Online, Idle, DND) | fake world | not run |
+| Voice & audio settings: noise suppression, volume sliders, microphone test with live LevelMeter | fake world | not run |
+| Sounds settings: soundboard volume and mute toggle, voice sound cues toggles | fake world | not run |
+| Storage and logs: media cache calculation and clear cache, session log export | fake world | not run |
 
 ## Using the app
 
@@ -123,7 +127,22 @@ The upload button sends audio files from the phone for the server to play, with 
 
 ### The You tab
 
-Your display name, **Back up your identity**, the theme (System, Light or Dark), and under Music your own music volume, **Mute music** and **Lower music while people talk**, then the app's version.
+- **Your profile:** tap the top card to open the **Profile** page:
+  - **Profile picture:** your avatar at 96 pt with **Edit** to take a new square photo or pick one from the library (with crop), or remove it. When updated, the picture uploads to each connected server, catching up offline servers on their next connect.
+  - **Status:** choose between **Online** (*Shown as online*), **Idle** (*Away for now*), or **Do not disturb** (*No notifications*). Your status badge updates everywhere and syncs across servers.
+  - **Display name:** change your public name across all servers.
+  - **Your identity:** view your key's monospace fingerprint with **Copy public key**, and back up your identity key to a passphrase-encrypted file.
+- **Voice & audio:**
+  - **Noise suppression:** choose between **Off** (*Sends the microphone as it is*), **Standard** (*Removes steady noise; very light*), or **High** (*Also keyboards and dogs; heavier*). On lower-end hardware, if High noise suppression drops frames, it automatically falls back to Standard with a notification.
+  - **Volume:** adjust **Input volume** (microphone gain) and **Output volume** sliders from 0 % to 200 %.
+  - **Microphone test:** tap **Test** to hear your microphone loopback and observe the live accent-colored **LevelMeter** bar (−60 to 0 dBFS). Audio routing automatically configures for recording, and the test safely stops when joining a call, leaving the page, or backgrounding the app.
+- **Sounds:**
+  - **Soundboard volume:** control how loud soundboard sounds and previews play (0 % to 100 %), with a toggle to **Mute all soundboards**.
+  - **Voice sounds:** toggle individual voice sound cue groups heard only by you: *Joining and leaving*, *Others joining and leaving*, *Mute and unmute*, and *Deafen and undeafen*.
+- **Storage and logs:**
+  - **Media cache:** calculates the total size of cached thumbnails, pictures and voice messages kept on device. Tap destructive **Clear media cache** (confirmed with a prompt) to wipe cached files while preserving active downloads.
+  - **Logs:** view the current session's diagnostic log and tap **Export this session's log** to share it via the platform share sheet (never containing passwords, keys, or messages). If the previous session crashed, an option to **Export the last session's log** is provided.
+- **Appearance & Music:** switch theme (**System**, **Light**, or **Dark**); under Music preferences, set your personal music volume, **Mute music**, and **Lower music while people talk**; and view the app and core versions.
 
 ### Not there yet
 
@@ -219,6 +238,14 @@ Run one on this machine with `cargo run -p opencord-server`. The emulator reache
 - **Weekend Raid:** refused.
 
 `EXPO_PUBLIC_FAKE_SCENARIO=empty` starts with no identity and no servers.
+
+### iPhone hand checks
+
+Certain features require manual verification on physical iOS hardware:
+- **Photo picker and crop:** select a picture from the camera and Photos library, verify the 1:1 square crop interface, and check that the resulting avatar uploads and scales correctly.
+- **Microphone test with audio routing:** verify the microphone loopback test works through the built-in speaker/earpiece, and test switching between AirPods or Bluetooth audio devices (audio session activation and switching).
+- **High noise suppression on older iPhones:** verify audio performance and frame latency with High noise suppression on older hardware (e.g., iPhone 11), ensuring graceful fallback to Standard if audio threads lag.
+- **Voice cue sounds:** confirm Join, Leave, Mute, Unmute, and Deafen cues play audibly with headphones and that Leave does not clip before audio session deactivation.
 
 ### Android's minimum is 8.0
 
