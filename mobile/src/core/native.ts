@@ -53,6 +53,10 @@ export const NativeCore: CoreApi = {
   logsExport: async () => native.logsExport(),
   logsCrashed: async () => native.logsCrashed() ?? null,
 
+  inviteCreate: (serverKey, maxUses, expiresInS) => native.inviteCreate(serverKey, maxUses, expiresInS),
+  invitesFetch: (serverKey) => native.invitesFetch(serverKey),
+  inviteRevoke: (serverKey, code) => native.inviteRevoke(serverKey, code),
+
   messagesFetch: (key, channel, before, limit) => native.messagesFetch(key, channel, before, limit),
   messageSend: (key, channel, content, nonce) => native.messageSend(key, channel, content, nonce),
   messageSendFiles: (key, channel, content, nonce, files) =>

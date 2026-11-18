@@ -47,6 +47,19 @@ pub enum AddServerResult {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct InviteRecord {
+    pub code: String,
+    pub link: String,
+    pub web_link: Option<String>,
+    pub domain_id: Option<String>,
+    pub created_by: Option<String>,
+    pub created_at_ms: f64,
+    pub max_uses: Option<u32>,
+    pub uses: u32,
+    pub expires_at_ms: Option<f64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum FailureKind {
     /// Not a member, a bad invite or claim token, or banned before joining.

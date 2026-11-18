@@ -135,6 +135,13 @@ RustBuffer uniffi_opencord_mobile_fn_func_identity_generate(
     RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_opencord_mobile_fn_func_identity_load(
     RustBuffer secret, RustBuffer display_name, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_opencord_mobile_fn_func_invite_create(
+    RustBuffer server_key, RustBuffer max_uses, RustBuffer expires_in_s);
+/*handle*/ uint64_t
+uniffi_opencord_mobile_fn_func_invite_revoke(RustBuffer server_key,
+                                             RustBuffer code);
+/*handle*/ uint64_t
+uniffi_opencord_mobile_fn_func_invites_fetch(RustBuffer server_key);
 /*handle*/ uint64_t uniffi_opencord_mobile_fn_func_music_artwork(
     RustBuffer server_key, RustBuffer artwork_id, uint32_t size);
 void uniffi_opencord_mobile_fn_func_music_cancel_song(
@@ -439,6 +446,9 @@ uint16_t uniffi_opencord_mobile_checksum_func_identity_backup_encode();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_check();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_generate();
 uint16_t uniffi_opencord_mobile_checksum_func_identity_load();
+uint16_t uniffi_opencord_mobile_checksum_func_invite_create();
+uint16_t uniffi_opencord_mobile_checksum_func_invite_revoke();
+uint16_t uniffi_opencord_mobile_checksum_func_invites_fetch();
 uint16_t uniffi_opencord_mobile_checksum_func_music_artwork();
 uint16_t uniffi_opencord_mobile_checksum_func_music_cancel_song();
 uint16_t uniffi_opencord_mobile_checksum_func_music_enqueue();
@@ -2109,6 +2119,39 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_fn_func_identity_load(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_invite_create"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_invite_create"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_invite_create(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_invite_revoke"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_invite_revoke"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_invite_revoke(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_fn_func_invites_fetch"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_invites_fetch"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_fn_func_invites_fetch(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_music_artwork"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3627,6 +3670,39 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_checksum_func_identity_load(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_invite_create"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_invite_create"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_invite_create(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_invite_revoke"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_invite_revoke"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_invite_revoke(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_invites_fetch"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_checksum_func_invites_fetch"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_opencord_mobile_checksum_func_invites_fetch(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_music_artwork"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4912,6 +4988,45 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_identity_load(
 
   return uniffi::opencord_mobile::Bridging<RustBuffer>::toJs(rt, callInvoker,
                                                              value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_invite_create(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_invite_create(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[2]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_invite_revoke(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_invite_revoke(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]),
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_invites_fetch(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_fn_func_invites_fetch(
+      uniffi::opencord_mobile::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                            args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
 }
 jsi::Value
 NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_music_artwork(
@@ -6603,6 +6718,30 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_identity_load(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_identity_load();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_invite_create(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_invite_create();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_invite_revoke(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_invite_revoke();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_invites_fetch(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_invites_fetch();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

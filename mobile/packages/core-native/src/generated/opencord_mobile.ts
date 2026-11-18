@@ -563,6 +563,112 @@ export function identityLoad(secret: ArrayBuffer, displayName: string): Identity
     }
     }
 
+export async function inviteCreate(serverKey: string, maxUses: number | undefined, expiresInS: number | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<InviteRecord> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_invite_create(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterOptionalUInt32.lower(maxUses, nativeModule().rustbuffer_alloc),FfiConverterOptionalUInt32.lower(expiresInS, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterTypeInviteRecord.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+export async function inviteRevoke(serverKey: string, code: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_invite_revoke(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc),FfiConverterString.lower(code, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
+export async function invitesFetch(serverKey: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array<InviteRecord>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_invites_fetch(FfiConverterString.lower(serverKey, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_opencord_mobile_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterSequenceTypeInviteRecord.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+
 /**
  * Sends `InputLevel` while on, at the core's own rate.
  */
@@ -3705,6 +3811,77 @@ const FfiConverterTypeIdentityInfo = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.publicKeyHex) +
              FfiConverterString.allocationSize(value.fingerprint);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+export type InviteRecord = {
+    code: string,
+    link: string,
+    webLink?: string,
+    domainId?: string,
+    createdBy?: string,
+    createdAtMs: number,
+    maxUses?: number,
+    uses: number,
+    expiresAtMs?: number
+}
+
+/**
+ * Generated factory for {@link InviteRecord} record objects.
+ */
+export const InviteRecord = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<InviteRecord, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        create,
+        new: create,
+        defaults: () => Object.freeze(defaults()) as Partial<InviteRecord>,
+    });
+})();
+
+const FfiConverterTypeInviteRecord = (() => {
+    type TypeName = InviteRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            return {
+                code: FfiConverterString.readFromCursor(c), 
+                link: FfiConverterString.readFromCursor(c), 
+                webLink: FfiConverterOptionalString.readFromCursor(c), 
+                domainId: FfiConverterOptionalString.readFromCursor(c), 
+                createdBy: FfiConverterOptionalString.readFromCursor(c), 
+                createdAtMs: FfiConverterFloat64.readFromCursor(c), 
+                maxUses: FfiConverterOptionalUInt32.readFromCursor(c), 
+                uses: FfiConverterUInt32.readFromCursor(c), 
+                expiresAtMs: FfiConverterOptionalFloat64.readFromCursor(c)
+            };
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            FfiConverterString.writeIntoCursor(value.code, c);
+            FfiConverterString.writeIntoCursor(value.link, c);
+            FfiConverterOptionalString.writeIntoCursor(value.webLink, c);
+            FfiConverterOptionalString.writeIntoCursor(value.domainId, c);
+            FfiConverterOptionalString.writeIntoCursor(value.createdBy, c);
+            FfiConverterFloat64.writeIntoCursor(value.createdAtMs, c);
+            FfiConverterOptionalUInt32.writeIntoCursor(value.maxUses, c);
+            FfiConverterUInt32.writeIntoCursor(value.uses, c);
+            FfiConverterOptionalFloat64.writeIntoCursor(value.expiresAtMs, c);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.code) +
+             FfiConverterString.allocationSize(value.link) +
+             FfiConverterOptionalString.allocationSize(value.webLink) +
+             FfiConverterOptionalString.allocationSize(value.domainId) +
+             FfiConverterOptionalString.allocationSize(value.createdBy) +
+             FfiConverterFloat64.allocationSize(value.createdAtMs) +
+             FfiConverterOptionalUInt32.allocationSize(value.maxUses) +
+             FfiConverterUInt32.allocationSize(value.uses) +
+             FfiConverterOptionalFloat64.allocationSize(value.expiresAtMs);
             
         }
     };
@@ -10182,6 +10359,9 @@ const FfiConverterSequenceTypeSpeakingChangeRecord = new FfiConverterArray(FfiCo
 // FfiConverter for Array<CommandOptionValueRecord>
 const FfiConverterSequenceTypeCommandOptionValueRecord = new FfiConverterArray(FfiConverterTypeCommandOptionValueRecord);
 
+// FfiConverter for Array<InviteRecord>
+const FfiConverterSequenceTypeInviteRecord = new FfiConverterArray(FfiConverterTypeInviteRecord);
+
 // FfiConverter for Array<OutgoingFileRecord>
 const FfiConverterSequenceTypeOutgoingFileRecord = new FfiConverterArray(FfiConverterTypeOutgoingFileRecord);
 
@@ -10287,6 +10467,15 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_identity_load() !== 58229) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_identity_load");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_invite_create() !== 19828) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_invite_create");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_invite_revoke() !== 42011) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_invite_revoke");
+    }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_invites_fetch() !== 56745) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_invites_fetch");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_level_meter_set() !== 26489) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_level_meter_set");
@@ -10521,6 +10710,7 @@ export default Object.freeze({
     FfiConverterTypeExternalSoundRecord,
     FfiConverterTypeFailureKind,
     FfiConverterTypeIdentityInfo,
+    FfiConverterTypeInviteRecord,
     FfiConverterTypeMemberRecord,
     FfiConverterTypeMessageInteractionRecord,
     FfiConverterTypeMessageRecord,

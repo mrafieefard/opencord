@@ -29,6 +29,7 @@ import {
   type VoiceDraftRecord,
   type ExternalSoundRecord,
   type IdentityInfo,
+  type InviteRecord,
   type MessageRecord,
   type MusicQueueItemRecord,
   type MusicRepeat,
@@ -181,6 +182,7 @@ export class FakeCore implements CoreApi {
   private settings = new Map<string, string>();
   private servers: ServerEntry[];
   private trusted = new Set<string>();
+  private invites = new Map<string, InviteRecord[]>();
   private messages = new Map<string, MessageRecord[]>();
   private sessions = new Map<string, MusicSessionRecord>();
   private uploads = new Map<string, Upload>();
@@ -453,6 +455,45 @@ export class FakeCore implements CoreApi {
   async logsCrashed(): Promise<string | null> {
     this.enter('logsCrashed', []);
     return null;
+  }
+
+  async inviteCreate(
+    serverKey: string,
+    maxUses?: number,
+    expiresInS?: number,
+  ): Promise<InviteRecord> {
+    this.enter('inviteCreate', [serverKey, maxUses, expiresInS]);
+    const code = 'AbC123';
+    const now = this.now();
+    const invite: InviteRecord = {
+      code,
+      link: 'opencord://fake.invite/AbC123',
+      webLink: 'https://fake.invite/AbC123',
+      domainId: undefined,
+      createdBy: SELF_ID,
+      createdAtMs: now,
+      maxUses: maxUses ?? undefined,
+      uses: 0,
+      expiresAtMs: expiresInS ? now + expiresInS * 1000 : undefined,
+    };
+    const list = this.invites.get(serverKey) ?? [];
+    list.push(invite);
+    this.invites.set(serverKey, list);
+    return invite;
+  }
+
+  async invitesFetch(serverKey: string): Promise<InviteRecord[]> {
+    this.enter('invitesFetch', [serverKey]);
+    return [...(this.invites.get(serverKey) ?? [])];
+  }
+
+  async inviteRevoke(serverKey: string, code: string): Promise<void> {
+    this.enter('inviteRevoke', [serverKey, code]);
+    const list = this.invites.get(serverKey) ?? [];
+    this.invites.set(
+      serverKey,
+      list.filter((inv) => inv.code !== code),
+    );
   }
 
   private micTestOn = false;

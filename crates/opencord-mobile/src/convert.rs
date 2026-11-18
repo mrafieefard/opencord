@@ -817,6 +817,20 @@ pub(crate) fn search_results(results: core::MusicSearchResults) -> MusicSearchRe
     }
 }
 
+pub(crate) fn invite(invite: core::Invite) -> InviteRecord {
+    InviteRecord {
+        code: invite.code,
+        link: invite.link,
+        web_link: invite.web_link,
+        domain_id: opt_id(invite.domain_id),
+        created_by: opt_id(invite.created_by),
+        created_at_ms: number(invite.created_at_ms),
+        max_uses: invite.max_uses,
+        uses: invite.uses,
+        expires_at_ms: invite.expires_at_ms.map(number),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1455,5 +1469,54 @@ mod tests {
         for (phone, expected) in pairs {
             assert_eq!(core_cue(phone), expected, "{phone:?}");
         }
+    }
+
+    // Fails if `invite` drops the link or does not map the fields.
+    #[test]
+    fn an_invite_crosses_with_its_link() {
+        let record = invite(core::Invite {
+            code: "AbC123xyz".to_string(),
+            link: "opencord://chat.example.org:7711/invite/AbC123xyz#fp=abcdef".to_string(),
+            web_link: Some("https://chat.example.org/invite/AbC123xyz".to_string()),
+            domain_id: Some(42),
+            created_by: Some(101),
+            created_at_ms: 1_700_000_000_123,
+            max_uses: Some(5),
+            uses: 1,
+            expires_at_ms: Some(1_700_100_000_456),
+        });
+        assert_eq!(record.code, "AbC123xyz");
+        assert_eq!(
+            record.link,
+            "opencord://chat.example.org:7711/invite/AbC123xyz#fp=abcdef"
+        );
+        assert_eq!(
+            record.web_link.as_deref(),
+            Some("https://chat.example.org/invite/AbC123xyz")
+        );
+        assert_eq!(record.domain_id.as_deref(), Some("42"));
+        assert_eq!(record.created_by.as_deref(), Some("101"));
+        assert_eq!(record.created_at_ms, 1_700_000_000_123.0);
+        assert_eq!(record.max_uses, Some(5));
+        assert_eq!(record.uses, 1);
+        assert_eq!(record.expires_at_ms, Some(1_700_100_000_456.0));
+    }
+
+    // Fails if `domain_id` or `created_by` are not converted to decimal strings.
+    #[test]
+    fn ids_in_an_invite_are_strings() {
+        let record = invite(core::Invite {
+            code: "code".to_string(),
+            link: "link".to_string(),
+            web_link: None,
+            domain_id: Some(9_000_000_000_000_000_001),
+            created_by: Some(9_000_000_000_000_000_002),
+            created_at_ms: 0,
+            max_uses: None,
+            uses: 0,
+            expires_at_ms: None,
+        });
+        assert_eq!(record.domain_id.as_deref(), Some("9000000000000000001"));
+        assert_eq!(record.created_by.as_deref(), Some("9000000000000000002"));
     }
 }

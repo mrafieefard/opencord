@@ -215,4 +215,23 @@ describe('FakeCore answers as the core does', () => {
       }
     }
   });
+
+  // Fails if inviteCreate does not return the expected link or does not add to the invites list.
+  it('the fake returns an invite link and keeps a list of invites', async () => {
+    const core = new FakeCore();
+    const created = await core.inviteCreate(NIGHT_OWLS, 5, 86400);
+    expect(created.link).toBe('opencord://fake.invite/AbC123');
+    expect(created.code).toBe('AbC123');
+    expect(created.maxUses).toBe(5);
+    expect(created.uses).toBe(0);
+    expect(created.expiresAtMs).toBeGreaterThan(created.createdAtMs);
+
+    const list = await core.invitesFetch(NIGHT_OWLS);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toEqual(created);
+
+    await core.inviteRevoke(NIGHT_OWLS, 'AbC123');
+    const afterRevoke = await core.invitesFetch(NIGHT_OWLS);
+    expect(afterRevoke).toHaveLength(0);
+  });
 });

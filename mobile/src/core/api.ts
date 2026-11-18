@@ -11,6 +11,7 @@ import type {
   DefaultSoundRecord,
   ExternalSoundRecord,
   IdentityInfo,
+  InviteRecord,
   MessageRecord,
   MobileEvent,
   MusicAction,
@@ -66,6 +67,10 @@ export interface CoreApi {
   cacheClear(): Promise<void>;
   logsExport(): Promise<string>;
   logsCrashed(): Promise<string | null>;
+
+  inviteCreate(serverKey: string, maxUses?: number, expiresInS?: number): Promise<InviteRecord>;
+  invitesFetch(serverKey: string): Promise<InviteRecord[]>;
+  inviteRevoke(serverKey: string, code: string): Promise<void>;
 
   messagesFetch(serverKey: string, channelId: string, before: string | undefined, limit: number): Promise<MessageRecord[]>;
   messageSend(serverKey: string, channelId: string, content: string, nonce: string): Promise<MessageRecord>;
