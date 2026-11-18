@@ -166,6 +166,8 @@ export interface Prefs {
   soundboard: SoundboardPrefs;
   /** Which voice sound groups are turned off. */
   cuesOff: CueGroup[];
+  /** Recent emoji characters (at most 24), kept in settings. */
+  recentEmoji: string[];
 }
 
 export interface Toast {

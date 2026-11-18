@@ -69,6 +69,7 @@ export function initialState(): AppState {
       status: DEFAULT_STATUS,
       soundboard: { ...DEFAULT_SOUNDBOARD },
       cuesOff: [...DEFAULT_CUES_OFF],
+      recentEmoji: [],
     },
     toasts: [],
     editingMessage: null,

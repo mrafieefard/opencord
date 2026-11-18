@@ -60,6 +60,16 @@ export const icons = {
   jumpDown: { ios: 'chevron.down', android: 'keyboard_arrow_down' },
   arrowUp: { ios: 'arrow.up', android: 'arrow_upward' },
   arrowDown: { ios: 'arrow.down', android: 'arrow_downward' },
+  smiley: { ios: 'face.smiling', android: 'mood' },
+  categorySmileys: { ios: 'face.smiling', android: 'mood' },
+  categoryPeople: { ios: 'person', android: 'emoji_people' },
+  categoryNature: { ios: 'leaf', android: 'emoji_nature' },
+  categoryFood: { ios: 'fork.knife', android: 'emoji_food_beverage' },
+  categoryActivities: { ios: 'trophy', android: 'emoji_events' },
+  categoryTravel: { ios: 'car', android: 'emoji_transportation' },
+  categoryObjects: { ios: 'lightbulb', android: 'emoji_objects' },
+  categorySymbols: { ios: 'number', android: 'emoji_symbols' },
+  categoryFlags: { ios: 'flag', android: 'flag' },
 } satisfies Record<string, Pair>;
 
 export type IconName = keyof typeof icons;

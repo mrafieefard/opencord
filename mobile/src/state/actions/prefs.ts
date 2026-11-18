@@ -15,6 +15,7 @@ const AUDIO = 'mobile.audio';
 export const STATUS = 'mobile.status';
 const SOUNDBOARD = 'mobile.soundboard';
 const CUES_OFF = 'mobile.cuesOff';
+const RECENT_EMOJI = 'mobile.recentEmoji';
 
 export function readStatus(text: string | undefined): UserStatus {
   if (text === 'idle' || text === 'dnd') return text;
@@ -65,6 +66,17 @@ function readFavorites(text: string | undefined): string[] {
     if (Array.isArray(parsed)) return parsed.filter((item): item is string => typeof item === 'string');
   } catch {
     console.warn('soundboard favourites could not be parsed; starting without');
+  }
+  return [];
+}
+
+function readRecentEmoji(text: string | undefined): string[] {
+  if (text === undefined) return [];
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed.filter((item): item is string => typeof item === 'string').slice(0, 24);
+  } catch {
+    console.warn('recent emoji could not be parsed; starting without');
   }
   return [];
 }
@@ -128,6 +140,7 @@ export function loadPrefs(): void {
   const status = readStatus(core.settingsGet(STATUS));
   const soundboard = readSoundboard(core.settingsGet(SOUNDBOARD));
   const cuesOff = readCuesOff(core.settingsGet(CUES_OFF));
+  const recentEmoji = readRecentEmoji(core.settingsGet(RECENT_EMOJI));
   useAppStore.setState({
     prefs: {
       theme: theme === 'light' || theme === 'dark' ? theme : 'system',
@@ -137,6 +150,7 @@ export function loadPrefs(): void {
       status,
       soundboard,
       cuesOff,
+      recentEmoji,
     },
   });
   core.musicSetListening(music.volume, music.muted, music.duck);
@@ -197,4 +211,12 @@ export function toggleSoundFavorite(key: string): void {
   const soundFavorites = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
   getCore().settingsSet(SOUND_FAVORITES, JSON.stringify(soundFavorites));
   useAppStore.setState((state) => ({ prefs: { ...state.prefs, soundFavorites } }));
+}
+
+/** Records an emoji as recently used, putting it first and capping at 24. */
+export function recordEmojiUsed(char: string): void {
+  const current = useAppStore.getState().prefs.recentEmoji;
+  const recentEmoji = [char, ...current.filter((item) => item !== char)].slice(0, 24);
+  getCore().settingsSet(RECENT_EMOJI, JSON.stringify(recentEmoji));
+  useAppStore.setState((state) => ({ prefs: { ...state.prefs, recentEmoji } }));
 }

@@ -39,6 +39,7 @@ import { SourceIcon } from './commands/SourceIcon';
 import { EMPTY_MARK, useCommandDraft } from './commands/useCommandDraft';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
+import { EmojiPicker } from '@/features/emoji/EmojiPicker';
 import { decodeMentions, encodeMentions } from './mentions';
 import { useTypingNotifier } from './useTypingNotifier';
 
@@ -102,6 +103,8 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const [text, setText] = useState(() => (isEditing ? decodeMentions(editing.text, memberNames, channelNames) : ''));
   const [prevEditingId, setPrevEditingId] = useState<string | null>(() => (isEditing ? editing.messageId : null));
   const [files, setFiles] = useState<PickedFile[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selection, setSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const notifyTyping = useTypingNotifier(serverKey, channelId);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
 
@@ -139,6 +142,31 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     },
     [hasDraft, changeField, isEditing, notifyTyping],
   );
+
+  const handlePickEmoji = useCallback(
+    (char: string) => {
+      if (hasDraft) {
+        const fieldVal = draft.fieldValue;
+        const pos = Math.min(selection.start, fieldVal.length);
+        const next = fieldVal.slice(0, pos) + char + fieldVal.slice(pos);
+        changeField(next);
+        setSelection({ start: pos + char.length, end: pos + char.length });
+      } else {
+        setText((prev) => {
+          const pos = Math.min(selection.start, prev.length);
+          const next = prev.slice(0, pos) + char + prev.slice(pos);
+          setSelection({ start: pos + char.length, end: pos + char.length });
+          return next;
+        });
+      }
+    },
+    [hasDraft, draft.fieldValue, changeField, selection.start],
+  );
+
+  const handleCloseEmojiPicker = useCallback(() => {
+    setShowEmojiPicker(false);
+    input.current?.focus();
+  }, []);
 
   const canSend = info ? info.access.send : true;
   const canAttach = info ? info.access.attach : true;
@@ -366,6 +394,14 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               </GlassSurface>
             )}
 
+            <GlassSurface interactive style={styles.round}>
+              <Touchable onPress={() => setShowEmojiPicker(true)} style={styles.control}>
+                <View style={styles.center} accessible accessibilityRole="button" accessibilityLabel="Emoji" testID="composer-emoji">
+                  <Icon name="smiley" size={22} color="text" />
+                </View>
+              </Touchable>
+            </GlassSurface>
+
             {/* A one-line slot: the field grows up out of it, over the
                 messages, so the dock's size (and the list) never moves. */}
             <View style={styles.fieldSlot}>
@@ -415,6 +451,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
                 // After the mark, or Backspace would have nothing to delete.
                 selection={draft.spec && draft.fieldText === '' ? MARK_END : undefined}
                 onChangeText={handleChangeText}
+                onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
                 scrollEnabled
                 multiline
                 maxFontSizeMultiplier={MAX_FONT_SCALE}
@@ -498,6 +535,11 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
           </View>
         ) : null}
       </View>
+      <EmojiPicker
+        visible={showEmojiPicker}
+        onPick={handlePickEmoji}
+        onClose={handleCloseEmojiPicker}
+      />
     </View>
   );
 }
