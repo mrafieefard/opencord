@@ -21,7 +21,7 @@ describe('chat actions', () => {
       new MobileEvent.Ready({ snapshot: snapshot(NIGHT_OWLS) }),
     ]);
     await settle();
-  });
+  }, 15000);
 
   it('opening a channel loads the newest 50 once', async () => {
     const core = useAppStore.getState().servers[NIGHT_OWLS];

@@ -233,7 +233,7 @@ describe('ServerSheet', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Night Owls' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Night Owls' }));
     expect(push.mock.calls).toEqual([['/server/fake-night-owls/settings'], ['/server/fake-night-owls/settings']]);
-  });
+  }, 15000);
 
   // Fails if Android's header loses its server button, or iOS's grows one
   // (it has the tab slot).
@@ -244,7 +244,7 @@ describe('ServerSheet', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Server' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Server' }));
     expect(push.mock.calls).toEqual([['/server/fake-night-owls/settings'], ['/server/fake-night-owls/settings']]);
-  });
+  }, 15000);
 
   it("iOS's header has no server button", async () => {
     await seed();

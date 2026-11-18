@@ -258,7 +258,7 @@ export function EmojiPicker({ onPick, onClose, visible }: EmojiPickerProps) {
       animationType="slide"
       onRequestClose={onClose}
     >
-      <GestureHandlerRootView style={styles.modalOverlay}>
+      <GestureHandlerRootView style={[styles.modalOverlay, { backgroundColor: colors.scrim }]}>
         <Touchable
           onPress={onClose}
           style={StyleSheet.absoluteFill}
@@ -274,7 +274,6 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   sheet: {
     borderTopLeftRadius: radius.sheet,

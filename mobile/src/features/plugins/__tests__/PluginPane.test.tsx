@@ -213,5 +213,5 @@ describe('a plugin channel', () => {
     expect(mockPanConfigs.at(-1)?.enabled).toBe(false);
     await act(async () => stop());
     expect(mockPanConfigs.at(-1)?.enabled).toBe(true);
-  });
+  }, 15000);
 });

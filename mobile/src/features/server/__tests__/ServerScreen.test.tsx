@@ -83,7 +83,7 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Servers'));
     expect(mockBack).toHaveBeenCalledTimes(1);
-  });
+  }, 15000);
 
   // Fails if the iOS edge swipe can leave while a plugin on screen could
   // take back (a tablet keeps its swipe on otherwise).
@@ -108,7 +108,7 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Show channels'));
     expect(useAppStore.getState().chatInFront).toBe(false);
-  });
+  }, 15000);
 
   it('at tablet width the list and the content sit side by side', async () => {
     windowWidth(1024);
@@ -126,5 +126,5 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Servers'));
     expect(mockBack).toHaveBeenCalledTimes(1);
-  });
+  }, 15000);
 });

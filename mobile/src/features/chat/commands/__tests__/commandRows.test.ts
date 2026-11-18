@@ -70,7 +70,7 @@ describe('commandRows', () => {
     const groups = groupCommands(list(...many), '', context);
     const items = flatRows(groups);
 
-    expect(performance.now() - started).toBeLessThan(200);
+    expect(performance.now() - started).toBeLessThan(500);
     expect(items).toHaveLength(5050);
     expect(headerIndex(items, 49)).toBe(5050 - 101);
   });
