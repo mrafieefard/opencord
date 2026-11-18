@@ -9,6 +9,7 @@ import { onEvents } from '@/state/store';
 import { freshStore, settle } from '@/test/store';
 
 import {
+  collectSwitcherItems,
   rankSwitcher,
   type SwitcherChannelItem,
   type SwitcherItem,
@@ -133,5 +134,44 @@ describe('Switcher results (Task 9)', () => {
     });
 
     expect(router.push).toHaveBeenCalledWith(`/servers/${NIGHT_OWLS}?channel=10`);
+  });
+
+  // Fails if a member with a nickname cannot be found by their nickname (Item 9).
+  it('a member can be found by their nickname', () => {
+    const snap = snapshot(NIGHT_OWLS);
+    const memberItems = collectSwitcherItems({
+      servers: {
+        'test-srv': {
+          key: 'test-srv',
+          entry: { key: 'test-srv', name: 'Test Server', host: '127.0.0.1', port: 4433 },
+          connection: new ConnectionRecord.Connected(),
+          snapshot: {
+            ...snap,
+            serverKey: 'test-srv',
+            name: 'Test Server',
+            members: [
+              {
+                user: { id: '101', displayName: 'Robert Smith', fingerprint: 'fp101' },
+                nickname: 'Bob',
+                roleIds: [],
+                joinedAtMs: 0,
+              },
+            ],
+          },
+          seeding: false,
+          readyCount: 1,
+          held: [],
+          activity: {},
+          typing: {},
+          voice: {},
+          nowPlaying: {},
+          musicSettings: null,
+        },
+      },
+      order: ['test-srv'],
+    });
+
+    const bob = rankSwitcher(memberItems, '@bob');
+    expect(names(bob)).toEqual(['Bob']);
   });
 });

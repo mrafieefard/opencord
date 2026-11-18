@@ -113,60 +113,68 @@ export const FileAttachment = memo(function FileAttachment({ serverKey, attachme
   const kindText = formatAttachmentKind(attachment.kind, attachment.durationMs);
 
   return (
-    <Touchable
-      testID={`file-attachment-${attachment.id}`}
-      onPress={open}
-      onLongPress={openMenu}
-      style={[styles.card, { width: Math.min(CARD_MAX, maxWidth) }]}
-    >
-      <View
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel={`${attachment.filename}, ${sizeText}, ${kindText}`}
-        style={styles.content}
+    <View style={[styles.card, { width: Math.min(CARD_MAX, maxWidth) }]}>
+      <Touchable
+        testID={`file-attachment-${attachment.id}`}
+        onPress={open}
+        onLongPress={openMenu}
+        style={styles.mainTouchable}
       >
-        <View style={[styles.iconCircle, { backgroundColor: colors.mentionBg }]}>
-          {downloading ? (
-            <ActivityIndicator size="small" color={colors.text} />
-          ) : (
-            <Icon name={attachmentIcon(attachment.kind)} size={20} color="text" />
-          )}
+        <View
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={`${attachment.filename}, ${sizeText}, ${kindText}`}
+          style={styles.content}
+        >
+          <View style={[styles.iconCircle, { backgroundColor: colors.mentionBg }]}>
+            {downloading ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : (
+              <Icon name={attachmentIcon(attachment.kind)} size={20} color="text" />
+            )}
+          </View>
+          <View style={styles.info}>
+            <Text variant="subhead" numberOfLines={1} ellipsizeMode="middle">
+              {attachment.filename}
+            </Text>
+            <Text variant="footnote" color="textMuted" numberOfLines={1} tabular>
+              {sizeText} · {kindText}
+            </Text>
+          </View>
         </View>
-        <View style={styles.info}>
-          <Text variant="subhead" numberOfLines={1} ellipsizeMode="middle">
-            {attachment.filename}
-          </Text>
-          <Text variant="footnote" color="textMuted" numberOfLines={1} tabular>
-            {sizeText} · {kindText}
-          </Text>
-        </View>
-        {canPreview && (
-          <Touchable
-            testID={`file-preview-${attachment.id}`}
-            onPress={openPreview}
-            hitSlop={4}
-            style={[styles.previewButton, { backgroundColor: colors.hover }]}
+      </Touchable>
+      {canPreview && (
+        <Touchable
+          testID={`file-preview-${attachment.id}`}
+          onPress={openPreview}
+          hitSlop={4}
+          style={[styles.previewButton, { backgroundColor: colors.hover }]}
+        >
+          <View
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={`Preview ${attachment.filename}`}
+            style={styles.previewButtonContent}
           >
-            <View
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel={`Preview ${attachment.filename}`}
-              style={styles.previewButtonContent}
-            >
-              <Text variant="caption" color="text">
-                Preview
-              </Text>
-            </View>
-          </Touchable>
-        )}
-      </View>
-    </Touchable>
+            <Text variant="caption" color="text">
+              Preview
+            </Text>
+          </View>
+        </Touchable>
+      )}
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
   card: {
     paddingVertical: space.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+  },
+  mainTouchable: {
+    flex: 1,
   },
   content: {
     flexDirection: 'row',

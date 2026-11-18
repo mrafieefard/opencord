@@ -4,7 +4,6 @@ import {
   AttachmentKind,
   ChannelKind,
   ConnectionRecord_Tags,
-  FailureKind,
   PluginChannelState,
   PresenceStatus,
   type ActivitySessionRecord,
@@ -445,16 +444,16 @@ export function useMemberColor(serverKey: string, userId: string): number | null
 
 /**
  * Whether the chat shows the last cached state greyed out with the
- * banner (§4.13): while reconnecting, or after a failure other than a
- * changed identity, which has its own full-screen page.
+ * banner (§4.13, Review Focus 5): while reconnecting, or after a failure
+ * (including a changed identity, where the chat stays readable, greyed,
+ * with the banner and disabled composer).
  */
 export function isChatStale(connection: ConnectionRecord | undefined): boolean {
   if (!connection) return false;
-  if (connection.tag === ConnectionRecord_Tags.Reconnecting) return true;
-  if (connection.tag === ConnectionRecord_Tags.Failed) {
-    return connection.inner.reason !== FailureKind.FingerprintChanged;
-  }
-  return false;
+  return (
+    connection.tag === ConnectionRecord_Tags.Reconnecting ||
+    connection.tag === ConnectionRecord_Tags.Failed
+  );
 }
 
 export function useChatStale(serverKey: string): boolean {

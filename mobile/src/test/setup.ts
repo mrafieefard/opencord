@@ -135,7 +135,10 @@ class MockAudioPlayer {
     };
   });
   remove = jest.fn();
-  replace = jest.fn();
+  source: unknown = null;
+  replace = jest.fn((source: unknown) => {
+    this.source = source;
+  });
 
   emit() {
     for (const listener of this.listeners) {

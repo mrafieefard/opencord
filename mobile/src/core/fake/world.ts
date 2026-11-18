@@ -517,6 +517,46 @@ export function history(channelId: string, count: number, now: number, firstId: 
         },
       ];
     }
+    if (index === count - 1) {
+      message.authorId = '1001';
+      message.content = 'Here are the media files from the demo:';
+      message.attachments = [
+        {
+          id: '50010',
+          filename: 'intro.mp4',
+          contentType: 'video/mp4',
+          sizeBytes: 30_567,
+          kind: AttachmentKind.Video,
+          width: 640,
+          height: 360,
+          durationMs: 5_000,
+          hasThumbnail: false,
+          animated: true,
+          waveform: [],
+        },
+        {
+          id: '50011',
+          filename: 'song.mp3',
+          contentType: 'audio/mpeg',
+          sizeBytes: 6_430,
+          kind: AttachmentKind.Audio,
+          durationMs: 4_000,
+          hasThumbnail: false,
+          animated: false,
+          waveform: [],
+        },
+        {
+          id: '50012',
+          filename: 'notes.txt',
+          contentType: 'text/plain',
+          sizeBytes: 39,
+          kind: AttachmentKind.File,
+          hasThumbnail: false,
+          animated: false,
+          waveform: [],
+        },
+      ];
+    }
     return message;
   });
 }

@@ -3,10 +3,11 @@
 import { FlashList } from '@shopify/flash-list';
 import { ConnectionRecord_Tags, FailureKind, type ChannelRecord, type MusicNowPlayingRecord } from '@opencord/core-native';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useListEndRoom } from '@/features/voice/callPosition';
+import { markFingerprintShown } from '@/state/actions/servers';
 import { useChannelSections } from '@/state/selectors';
 import { useAppStore } from '@/state/store';
 import type { ChannelItem, VoiceMember } from '@/state/types';
@@ -43,7 +44,7 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
 
   const server = useAppStore((state) => state.servers[serverKey]);
   const connection = server?.connection;
-  const lastFingerprint = useRef<string | null>(null);
+  const shownFingerprint = server?.shownFingerprint;
 
   useEffect(() => {
     if (
@@ -52,12 +53,12 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
       connection.inner.reason === FailureKind.FingerprintChanged
     ) {
       const presented = connection.inner.presentedFingerprint ?? 'unknown';
-      if (lastFingerprint.current !== presented) {
-        lastFingerprint.current = presented;
+      if (shownFingerprint !== presented) {
+        markFingerprintShown(serverKey, presented);
         router.push(`/server/${serverKey}/identity-changed`);
       }
     }
-  }, [connection, serverKey]);
+  }, [connection, serverKey, shownFingerprint]);
 
   const items = useMemo(() => {
     const result: ListItem[] = [];

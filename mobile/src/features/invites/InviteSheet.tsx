@@ -6,7 +6,7 @@ import { Share, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getCore } from '@/core';
+import { getCore, report } from '@/core';
 import { toast } from '@/state/actions/ui';
 import { useAppStore } from '@/state/store';
 import {
@@ -57,6 +57,7 @@ export function InviteSheet({ serverKey }: InviteSheetProps) {
   const [maxUses, setMaxUses] = useState<number | undefined>(undefined);
 
   const mountedRef = useRef(true);
+  const latestRequestId = useRef(0);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -65,48 +66,55 @@ export function InviteSheet({ serverKey }: InviteSheetProps) {
   }, []);
 
   const create = useCallback(
-    async (exp?: number, limit?: number) => {
+    (exp?: number, limit?: number) => {
+      const requestId = ++latestRequestId.current;
       setBusy(true);
       setError(null);
-      try {
-        const record = await getCore().inviteCreate(serverKey, limit, exp);
-        if (!mountedRef.current) return;
-        setInvite(record);
-      } catch (err: unknown) {
-        if (!mountedRef.current) return;
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (mountedRef.current) {
-          setBusy(false);
-        }
-      }
+      const promise = getCore()
+        .inviteCreate(serverKey, limit, exp)
+        .then((record) => {
+          if (!mountedRef.current || requestId !== latestRequestId.current) return;
+          setInvite(record);
+        })
+        .catch((err: unknown) => {
+          if (!mountedRef.current || requestId !== latestRequestId.current) return;
+          setError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (mountedRef.current && requestId === latestRequestId.current) {
+            setBusy(false);
+          }
+        });
+      report(promise, 'create invite link');
     },
     [serverKey],
   );
 
   useEffect(() => {
-    let cancelled = false;
-    getCore()
+    const requestId = ++latestRequestId.current;
+    const promise = getCore()
       .inviteCreate(serverKey, undefined, DEFAULT_EXPIRY_S)
       .then((record) => {
-        if (!cancelled) setInvite(record);
+        if (!mountedRef.current || requestId !== latestRequestId.current) return;
+        setInvite(record);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!mountedRef.current || requestId !== latestRequestId.current) return;
+        setError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => {
-        if (!cancelled) setBusy(false);
+        if (mountedRef.current && requestId === latestRequestId.current) {
+          setBusy(false);
+        }
       });
-    return () => {
-      cancelled = true;
-    };
+    report(promise, 'create invite link');
   }, [serverKey]);
 
   const handleExpiryChange = useCallback(
     (key: string) => {
       const newExpiry = key === 'never' ? undefined : Number(key);
       setExpiry(newExpiry);
-      void create(newExpiry, maxUses);
+      create(newExpiry, maxUses);
     },
     [create, maxUses],
   );
@@ -115,7 +123,7 @@ export function InviteSheet({ serverKey }: InviteSheetProps) {
     (key: string) => {
       const newMaxUses = key === 'none' ? undefined : Number(key);
       setMaxUses(newMaxUses);
-      void create(expiry, newMaxUses);
+      create(expiry, newMaxUses);
     },
     [create, expiry],
   );
@@ -124,7 +132,7 @@ export function InviteSheet({ serverKey }: InviteSheetProps) {
     (textToCopy?: string) => {
       const link = textToCopy ?? invite?.link;
       if (!link) return;
-      void Clipboard.setStringAsync(link);
+      report(Clipboard.setStringAsync(link), 'copy invite link');
       toast('Invite link copied');
     },
     [invite],
@@ -132,7 +140,7 @@ export function InviteSheet({ serverKey }: InviteSheetProps) {
 
   const handleShare = useCallback(() => {
     if (!invite?.link) return;
-    void Share.share({ message: invite.link });
+    report(Share.share({ message: invite.link }), 'share invite link');
   }, [invite]);
 
   const expiryKey = expiry === undefined ? 'never' : String(expiry);

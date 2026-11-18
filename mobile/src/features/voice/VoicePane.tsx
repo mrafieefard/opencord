@@ -6,7 +6,7 @@ import { AudioRouteButton, hasAudioRouteButton } from '@opencord/voice-service';
 import { type Href, router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, Modal, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -289,13 +289,15 @@ export function VoicePane({ serverKey, channelId, onOpenSidebar, onOpenChannel, 
           onRequestClose={() => setChatOpen(false)}
           testID="voice-chat-sheet"
         >
-          <View style={[styles.chatSheet, { backgroundColor: colors.chat }]}>
-            <ChatPane
-              serverKey={serverKey}
-              channelId={channelId}
-              onClose={() => setChatOpen(false)}
-            />
-          </View>
+          <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+            <View style={[styles.chatSheet, { backgroundColor: colors.chat, paddingBottom: insets.bottom }]}>
+              <ChatPane
+                serverKey={serverKey}
+                channelId={channelId}
+                onClose={() => setChatOpen(false)}
+              />
+            </View>
+          </GestureHandlerRootView>
         </Modal>
       )}
     </View>

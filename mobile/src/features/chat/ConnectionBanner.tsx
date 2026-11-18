@@ -1,7 +1,9 @@
 import { router } from 'expo-router';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Touchable } from 'react-native-gesture-handler';
 import { ConnectionRecord_Tags, FailureKind } from '@opencord/core-native';
 
+import { report } from '@/core';
 import { connectionText } from '@/features/servers/connectionText';
 import { retryServer } from '@/state/actions/servers';
 import { useAppStore } from '@/state/store';
@@ -45,13 +47,12 @@ export function ConnectionBanner({ serverKey }: ConnectionBannerProps) {
   };
 
   const handleRetry = () => {
-    void retryServer(serverKey);
+    report(retryServer(serverKey), 'retry server');
   };
 
   return (
-    <TouchableOpacity
-      activeOpacity={isFingerprintChanged ? 0.7 : 1}
-      onPress={handlePress}
+    <Touchable
+      onPress={isFingerprintChanged ? handlePress : undefined}
       testID="connection-banner"
       style={[
         styles.banner,
@@ -68,7 +69,7 @@ export function ConnectionBanner({ serverKey }: ConnectionBannerProps) {
         </Text>
       </View>
       {canRetry && (
-        <TouchableOpacity
+        <Touchable
           onPress={handleRetry}
           style={[styles.retryButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           testID="retry-now-button"
@@ -76,14 +77,14 @@ export function ConnectionBanner({ serverKey }: ConnectionBannerProps) {
           <Text variant="caption" style={{ color: colors.text }}>
             Retry now
           </Text>
-        </TouchableOpacity>
+        </Touchable>
       )}
       {isFingerprintChanged && (
         <Text variant="caption" style={{ color: colors.textSecondary }}>
           Review
         </Text>
       )}
-    </TouchableOpacity>
+    </Touchable>
   );
 }
 

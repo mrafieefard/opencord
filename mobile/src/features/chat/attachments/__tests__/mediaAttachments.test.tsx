@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AttachmentKind, AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
+import { useVideoPlayer } from 'expo-video';
 import { router } from 'expo-router';
 
 import { setCore } from '@/core';
@@ -124,6 +125,8 @@ describe('Media attachments and previews (Task 5)', () => {
       waveform: [],
     };
 
+    (useVideoPlayer as unknown as jest.Mock).mockClear();
+
     const { getByTestId, queryByTestId } = await render(
       <GestureHandlerRootView>
         <AttachmentView maxWidth={300} serverKey={serverKey} attachment={video1} />
@@ -136,6 +139,7 @@ describe('Media attachments and previews (Task 5)', () => {
     expect(getByTestId('video-play-vid-play-2')).toBeTruthy();
     expect(queryByTestId('video-player-modal-vid-play-1')).toBeNull();
     expect(queryByTestId('video-player-modal-vid-play-2')).toBeNull();
+    expect(useVideoPlayer).toHaveBeenCalledTimes(0);
 
     // Tap video 1 to play
     fireEvent.press(getByTestId('video-play-vid-play-1'));
@@ -146,7 +150,8 @@ describe('Media attachments and previews (Task 5)', () => {
       },
       { timeout: 5000 },
     );
-    // Video 2 still has NO player
+    // Only video 1 has instantiated a player (exactly 1 player)
+    expect(useVideoPlayer).toHaveBeenCalledTimes(1);
     expect(queryByTestId('video-player-modal-vid-play-2')).toBeNull();
   });
 
@@ -262,13 +267,14 @@ describe('Media attachments and previews (Task 5)', () => {
     // Tap play
     fireEvent.press(playBtn);
     await waitFor(() => {
+      expect(mockAudioPlayer.replace).toHaveBeenCalledWith({ uri: 'file:///fake/attachments/song.mp3' });
       expect(mockAudioPlayer.play).toHaveBeenCalledTimes(1);
     });
 
-    // Seek scrubber to 15s (0.25 of 60s)
+    // Seek scrubber through real accessibility action
     const scrubber = getByTestId('audio-scrubber-aud-1');
     expect(scrubber).toBeTruthy();
-    fireEvent(scrubber, 'seek', 15);
-    expect(mockAudioPlayer.seekTo).toHaveBeenCalledWith(15);
+    fireEvent(scrubber, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    expect(mockAudioPlayer.seekTo).toHaveBeenCalledWith(5);
   });
 });

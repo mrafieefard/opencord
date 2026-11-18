@@ -738,6 +738,15 @@ export class FakeCore implements CoreApi {
   async attachmentFile(serverKey: string, attachmentId: string, variant: AttachmentVariant): Promise<string> {
     this.enter('attachmentFile', [serverKey, attachmentId, variant]);
     if (this.files) return this.files(attachmentId, variant);
+    if (attachmentId.endsWith('.mp4') || attachmentId === '50010' || attachmentId.includes('mp4')) {
+      return '/data/user/0/dev.opencord.mobile/cache/demo.mp4';
+    }
+    if (attachmentId.endsWith('.mp3') || attachmentId === '50011' || attachmentId.includes('mp3')) {
+      return '/data/user/0/dev.opencord.mobile/cache/song.mp3';
+    }
+    if (attachmentId.endsWith('.txt') || attachmentId === '50012' || attachmentId.includes('txt')) {
+      return '/data/user/0/dev.opencord.mobile/cache/sample.txt';
+    }
     if (attachmentId.endsWith('1') || attachmentId.endsWith('8')) {
       return '/data/user/0/dev.opencord.mobile/cache/aurora.png';
     }

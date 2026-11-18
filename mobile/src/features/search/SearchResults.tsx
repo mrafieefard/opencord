@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
 import { useImageFile } from '@/features/servers/useImageFile';
+import { useListEndRoom } from '@/features/voice/callPosition';
 import { useAppStore } from '@/state/store';
 import {
   Avatar,
@@ -34,10 +35,11 @@ export interface SearchResultsProps {
 
 export function SearchResults({ query, onSelect }: SearchResultsProps) {
   const { colors } = useTheme();
+  const endRoom = useListEndRoom();
   const servers = useAppStore((state) => state.servers);
   const order = useAppStore((state) => state.order);
   const serverInFront = useAppStore((state) => state.serverInFront);
-  const messages = useAppStore((state) => state.messages);
+  const recentChannels = useAppStore((state) => state.recentChannels);
 
   const items = useMemo(
     () => collectSwitcherItems({ servers, order, serverInFront }),
@@ -45,8 +47,8 @@ export function SearchResults({ query, onSelect }: SearchResultsProps) {
   );
 
   const recent = useMemo(
-    () => collectRecentChannels({ messages }),
-    [messages],
+    () => collectRecentChannels({ recentChannels }),
+    [recentChannels],
   );
 
   const results = useMemo(
@@ -86,7 +88,7 @@ export function SearchResults({ query, onSelect }: SearchResultsProps) {
     <ScrollView
       testID="search-results-list"
       style={[styles.container, { backgroundColor: colors.sidebar }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: endRoom }]}
       keyboardShouldPersistTaps="handled"
     >
       {results.map((item) => {

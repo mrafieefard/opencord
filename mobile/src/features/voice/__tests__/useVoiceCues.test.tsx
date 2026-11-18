@@ -163,6 +163,7 @@ describe('useVoiceCues', () => {
         }),
       }),
     ]);
+    await settle();
 
     // Update 2: self deaf arrives shortly after
     onEvents([

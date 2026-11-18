@@ -52,14 +52,11 @@ export interface RecentChannelVisit {
 }
 
 export function collectRecentChannels(state: {
-  messages: AppState['messages'];
+  recentChannels?: { serverKey: string; channelId: string }[];
 }): RecentChannelVisit[] {
   const visits: RecentChannelVisit[] = [];
-  for (const key of Object.keys(state.messages)) {
-    const [server, channel] = key.split('/');
-    if (server && channel) {
-      visits.push({ server, channel });
-    }
+  for (const visit of state.recentChannels ?? []) {
+    visits.push({ server: visit.serverKey, channel: visit.channelId });
   }
   return visits;
 }
@@ -182,7 +179,7 @@ export function collectSwitcherItems(state: {
         kind: 'member',
         serverKey: activeSnapshot.serverKey,
         userId: member.user.id,
-        name: member.user.displayName,
+        name: member.nickname ?? member.user.displayName,
         nickname: member.nickname,
         avatarHash: member.user.avatarHash,
       });

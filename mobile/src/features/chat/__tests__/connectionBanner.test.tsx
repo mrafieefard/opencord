@@ -193,4 +193,91 @@ describe('The reconnecting banner and a changed identity (Task 7)', () => {
     expect(useAppStore.getState().servers[NIGHT_OWLS]).toBeUndefined();
     expect(router.back).toHaveBeenCalled();
   });
+
+  // Fails if an identity change leaves the chat enabled or fails to grey it out (Review Focus 5).
+  it('an identity change greys the chat and disables composer (Review Focus 5)', async () => {
+    await act(async () => {
+      onEvents([
+        new MobileEvent.Connection({
+          serverKey: NIGHT_OWLS,
+          state: new ConnectionRecord.Failed({
+            reason: FailureKind.FingerprintChanged,
+            message: 'fingerprint mismatch',
+            expectedFingerprint: 'AA11BB22',
+            presentedFingerprint: 'CC33DD44',
+          }),
+        }),
+      ]);
+    });
+    await settle();
+
+    // 1. Chat must be stale
+    const hook = await renderHook(() => useChatStale(NIGHT_OWLS));
+    expect(hook.result.current).toBe(true);
+
+    // 2. ChatPane rendered with messages at 0.6 opacity and composer disabled
+    const { getByTestId } = await render(
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ChatPane serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
+    );
+    const messagesContainer = getByTestId('chat-messages-container');
+    expect(messagesContainer.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ opacity: 0.6 })]),
+    );
+
+    const composerInput = getByTestId('composer-input');
+    expect(composerInput.props.editable).toBe(false);
+
+    // 3. Banner displays identity changed and tap navigates
+    const banner = getByTestId('connection-banner');
+    expect(banner).toBeTruthy();
+    router.push = jest.fn();
+    fireEvent.press(banner);
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/identity-changed`);
+  });
+
+  // Fails if remounting ChannelList re-triggers identity screen navigation (Item 4).
+  it('remounting ChannelList does not reopen identity screen (Item 4)', async () => {
+    await act(async () => {
+      onEvents([
+        new MobileEvent.Connection({
+          serverKey: NIGHT_OWLS,
+          state: new ConnectionRecord.Failed({
+            reason: FailureKind.FingerprintChanged,
+            message: 'fingerprint mismatch',
+            expectedFingerprint: 'AA11BB22',
+            presentedFingerprint: 'CC33DD44',
+          }),
+        }),
+      ]);
+    });
+    await settle();
+
+    router.push = jest.fn();
+
+    // First mount
+    const view1 = await render(
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ChannelList serverKey={NIGHT_OWLS} variant="full" onSelect={jest.fn()} />
+      </GestureHandlerRootView>,
+    );
+    await settle();
+    expect(router.push).toHaveBeenCalledTimes(1);
+
+    // Unmount view1
+    view1.unmount();
+    await settle();
+
+    // Second mount (fresh mount of ChannelList)
+    await render(
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ChannelList serverKey={NIGHT_OWLS} variant="full" onSelect={jest.fn()} />
+      </GestureHandlerRootView>,
+    );
+    await settle();
+
+    // Must NOT have called push again
+    expect(router.push).toHaveBeenCalledTimes(1);
+  });
 });

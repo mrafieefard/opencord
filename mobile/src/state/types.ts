@@ -51,6 +51,8 @@ export interface ServerState {
   pluginUsers?: Record<string, PluginUserRecord>;
   /** Replies only this device sees, by channel; never stored. */
   ephemeral?: Record<string, EphemeralNote[]>;
+  /** The presented fingerprint of a changed server identity already presented once. */
+  shownFingerprint?: string;
 }
 
 export interface EphemeralNote extends EphemeralNoteRecord {
@@ -233,6 +235,8 @@ export interface AppState {
   prefs: Prefs;
   toasts: Toast[];
   editingMessage: EditingMessage | null;
+  /** Recent channel visits in order of most recent visit (§4.9). */
+  recentChannels: { serverKey: string; channelId: string }[];
 }
 
 /** A row of the server list (design §8.2). */

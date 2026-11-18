@@ -6,7 +6,7 @@ import { AttachmentVariant, type AttachmentRecord } from '@opencord/core-native'
 
 import { report } from '@/core';
 import { clock, voiceWidth } from '@/features/chat/attachments/VoiceMessageAttachment';
-import { Icon, Scrubber, Text, radius, space, useTheme } from '@/ui';
+import { Icon, Scrubber, Text, onHue, radius, space, useTheme } from '@/ui';
 import { fetchAttachmentFile } from './useAttachmentFile';
 
 export interface AudioFileAttachmentProps {
@@ -26,7 +26,7 @@ export const AudioFileAttachment = memo(function AudioFileAttachment({
   const [downloading, setDownloading] = useState(false);
   const [localUri, setLocalUri] = useState<string | null>(null);
 
-  const player = useAudioPlayer(localUri ? { uri: localUri } : null);
+  const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
 
   const durationSec =
@@ -54,6 +54,7 @@ export const AudioFileAttachment = memo(function AudioFileAttachment({
     const fetch = fetchAttachmentFile(serverKey, attachment.id, AttachmentVariant.Original)
       .then((uri) => {
         setLocalUri(uri);
+        player.replace({ uri });
         player.play();
       })
       .finally(() => {
@@ -91,9 +92,9 @@ export const AudioFileAttachment = memo(function AudioFileAttachment({
           style={styles.center}
         >
           {downloading ? (
-            <ActivityIndicator size="small" color={colors.onAccent} />
+            <ActivityIndicator size="small" color={onHue} />
           ) : (
-            <Icon name={isPlaying ? 'pause' : 'play'} size={16} color="onAccent" />
+            <Icon name={isPlaying ? 'pause' : 'play'} size={16} tint={onHue} />
           )}
         </View>
       </Touchable>
@@ -103,23 +104,18 @@ export const AudioFileAttachment = memo(function AudioFileAttachment({
           {attachment.filename}
         </Text>
 
-        <View
+        <Scrubber
           testID={`audio-scrubber-${attachment.id}`}
-          // Expose onSeek for testing fireEvent(scrubber, 'seek', val)
-          {...({ onSeek: seek } as Record<string, unknown>)}
-        >
-          <Scrubber
-            value={currentSec}
-            min={0}
-            max={durationSec}
-            step={0.5}
-            accessibilityStep={5}
-            onChange={() => {}}
-            onCommit={seek}
-            accessibilityLabel="Audio progress"
-            accessibilityValue={`${clock(currentSec * 1000)} of ${clock(durationMs)}`}
-          />
-        </View>
+          value={currentSec}
+          min={0}
+          max={durationSec}
+          step={0.5}
+          accessibilityStep={5}
+          onChange={() => {}}
+          onCommit={seek}
+          accessibilityLabel="Audio progress"
+          accessibilityValue={`${clock(currentSec * 1000)} of ${clock(durationMs)}`}
+        />
 
         <View style={styles.meta}>
           <Text variant="caption" color="textSecondary" tabular>

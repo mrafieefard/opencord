@@ -5,6 +5,7 @@ import { ConnectionRecord_Tags, FailureKind } from '@opencord/core-native';
 
 import { leaveServer } from '@/state/actions/servers';
 import { useAppStore } from '@/state/store';
+import { report } from '@/core';
 import { Button, PaneHeader, Text, useTheme } from '@/ui';
 import { radius, space } from '@/ui/theme/space';
 
@@ -36,9 +37,11 @@ export function IdentityChangedScreen({ serverKey }: IdentityChangedScreenProps)
 
   const serverName = server?.entry.name ?? serverKey;
 
-  const handleForget = async () => {
-    await leaveServer(serverKey);
-    router.back();
+  const handleForget = () => {
+    const promise = leaveServer(serverKey).then(() => {
+      router.back();
+    });
+    report(promise, 'forget server');
   };
 
   const handleDisconnect = () => {

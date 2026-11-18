@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { Share } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
+import type { InviteRecord } from '@opencord/core-native';
 
 import { getCore } from '@/core';
 import { NIGHT_OWLS, RUST_CLUB, snapshot } from '@/core/fake/world';
@@ -144,5 +145,63 @@ describe('Invite people (Task 8)', () => {
     await draw(<ChannelListHeader serverKey={RUST_CLUB} backLabel="Servers" onBack={onBack} />);
 
     expect(screen.queryByTestId('invite-button')).toBeNull();
+  });
+
+  // Fails if an older out-of-order response overwrites a newer choice (Item 5 / Lesson 4).
+  it('an out-of-order invite reply does not overwrite a newer choice', async () => {
+    let resolveFirst: ((record: InviteRecord) => void) | null = null;
+    let resolveSecond: ((record: InviteRecord) => void) | null = null;
+
+    let callCount = 0;
+    jest.spyOn(getCore(), 'inviteCreate').mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Promise<InviteRecord>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return new Promise<InviteRecord>((resolve) => {
+        resolveSecond = resolve;
+      });
+    });
+
+    await draw(<InviteSheet serverKey={NIGHT_OWLS} />);
+
+    // First request is in flight (callCount === 1)
+    // User changes max uses to trigger request 2
+    const maxUsesMenu = screen.getByTestId('settings-choice-Max uses');
+    await act(async () => {
+      fireEvent(maxUsesMenu, 'action', '5');
+    });
+
+    expect(callCount).toBe(2);
+
+    // Reply 2 arrives first!
+    await act(async () => {
+      resolveSecond?.({
+        code: 'NEW_LINK',
+        link: 'opencord://fake.invite/NEW_LINK',
+        createdAtMs: Date.now(),
+        uses: 0,
+      });
+      await settle();
+    });
+
+    expect(screen.getByText('opencord://fake.invite/NEW_LINK')).toBeTruthy();
+
+    // Reply 1 arrives late (out of order)!
+    await act(async () => {
+      resolveFirst?.({
+        code: 'OLD_LINK',
+        link: 'opencord://fake.invite/OLD_LINK',
+        createdAtMs: Date.now(),
+        uses: 0,
+      });
+      await settle();
+    });
+
+    // Must STILL show NEW_LINK, not OLD_LINK!
+    expect(screen.getByText('opencord://fake.invite/NEW_LINK')).toBeTruthy();
+    expect(screen.queryByText('opencord://fake.invite/OLD_LINK')).toBeNull();
   });
 });

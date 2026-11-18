@@ -73,6 +73,7 @@ export function initialState(): AppState {
     },
     toasts: [],
     editingMessage: null,
+    recentChannels: [],
   };
 }
 

@@ -31,7 +31,18 @@ export async function reloadAfterReady(serverKey: string): Promise<void> {
   if (open?.serverKey === serverKey) await openChannel(serverKey, open.channelId);
 }
 
+export function recordChannelVisit(serverKey: string, channelId: string): void {
+  useAppStore.setState((state) => {
+    const prev = state.recentChannels ?? [];
+    const filtered = prev.filter((v) => v.serverKey !== serverKey || v.channelId !== channelId);
+    return {
+      recentChannels: [{ serverKey, channelId }, ...filtered].slice(0, 50),
+    };
+  });
+}
+
 export async function openChannel(serverKey: string, channelId: string): Promise<void> {
+  recordChannelVisit(serverKey, channelId);
   const currentOpen = useAppStore.getState().openChannel;
   if (!currentOpen || currentOpen.serverKey !== serverKey || currentOpen.channelId !== channelId) {
     useAppStore.setState({

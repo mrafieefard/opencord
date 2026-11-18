@@ -1,10 +1,9 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
-import { Touchable } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, Touchable } from 'react-native-gesture-handler';
 import { Image } from 'expo-image';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
-
-import { useVideoPlayer, VideoView } from './videoPlayer';
 
 import { report } from '@/core';
 import { Icon, IconButton, Text, radius, space, useTheme } from '@/ui';
@@ -32,6 +31,45 @@ function setActiveVideoKey(key: string | null) {
   }
 }
 
+interface ActiveVideoModalProps {
+  uri: string;
+  attachmentId: string;
+  onClose: () => void;
+}
+
+function ActiveVideoModal({ uri, attachmentId, onClose }: ActiveVideoModalProps) {
+  const player = useVideoPlayer({ uri }, (p) => {
+    p.loop = false;
+    p.play();
+  });
+
+  return (
+    <Modal
+      visible
+      animationType="fade"
+      transparent={false}
+      onRequestClose={onClose}
+      testID={`video-player-modal-${attachmentId}`}
+    >
+      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+        <View style={styles.playerContainer}>
+          <VideoView
+            testID={`video-player-view-${attachmentId}`}
+            player={player}
+            style={StyleSheet.absoluteFill}
+            allowsPictureInPicture
+            nativeControls
+            contentFit="contain"
+          />
+          <View style={styles.modalHeader}>
+            <IconButton icon="close" label="Close" onPress={onClose} size={44} tone="plain" />
+          </View>
+        </View>
+      </GestureHandlerRootView>
+    </Modal>
+  );
+}
+
 export const VideoAttachment = memo(function VideoAttachment({
   serverKey,
   attachment,
@@ -45,22 +83,20 @@ export const VideoAttachment = memo(function VideoAttachment({
   const [localUri, setLocalUri] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Thumbnail poster if available
-  const thumb = useAttachmentFile(serverKey, attachment.id, AttachmentVariant.Thumbnail);
-  const posterUri = thumb.path;
+  // Thumbnail poster only if attachment.hasThumbnail is true
+  const thumb = useAttachmentFile(
+    serverKey,
+    attachment.hasThumbnail ? attachment.id : undefined,
+    AttachmentVariant.Thumbnail,
+  );
+  const posterUri = attachment.hasThumbnail ? thumb.path : null;
 
   const size = fitSize(attachment.width ?? 0, attachment.height ?? 0, Math.min(260, maxWidth));
-
-  const player = useVideoPlayer(localUri ? { uri: localUri } : null, (p) => {
-    p.loop = false;
-    p.play();
-  });
 
   // When another video becomes active, pause and dismiss this one
   useEffect(() => {
     const onActiveChange = (activeKey: string | null) => {
       if (activeKey !== videoKey && isPlaying) {
-        player.pause();
         setIsPlaying(false);
       }
     };
@@ -68,7 +104,7 @@ export const VideoAttachment = memo(function VideoAttachment({
     return () => {
       listeners.delete(onActiveChange);
     };
-  }, [videoKey, isPlaying, player]);
+  }, [videoKey, isPlaying]);
 
   const handlePlayPress = useCallback(() => {
     if (downloading) return;
@@ -77,7 +113,6 @@ export const VideoAttachment = memo(function VideoAttachment({
     if (localUri) {
       setActiveVideoKey(videoKey);
       setIsPlaying(true);
-      player.play();
       return;
     }
 
@@ -97,15 +132,14 @@ export const VideoAttachment = memo(function VideoAttachment({
       });
 
     report(fetch, 'download video');
-  }, [downloading, localUri, serverKey, attachment.id, videoKey, player]);
+  }, [downloading, localUri, serverKey, attachment.id, videoKey]);
 
   const handleClose = useCallback(() => {
-    player.pause();
     setIsPlaying(false);
     if (currentActiveVideoKey === videoKey) {
       setActiveVideoKey(null);
     }
-  }, [player, videoKey]);
+  }, [videoKey]);
 
   return (
     <View style={[styles.container, { width: size.width, height: size.height }]}>
@@ -118,20 +152,25 @@ export const VideoAttachment = memo(function VideoAttachment({
           accessibilityLabel={attachment.filename}
         />
       ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} pointerEvents="none" />
       )}
 
       {/* Dim overlay for contrast */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }]} pointerEvents="none" />
 
-      {/* Center play / loading / retry button */}
+      {/* Center play / loading progress / retry button */}
       <View style={styles.centerSlot}>
         {downloading ? (
-          <ActivityIndicator
-            size="large"
-            color={colors.text}
-            testID={`video-loading-${attachment.id}`}
-          />
+          <View style={[styles.progressBox, { backgroundColor: colors.scrim }]}>
+            <ActivityIndicator
+              size="small"
+              color={colors.text}
+              testID={`video-loading-${attachment.id}`}
+            />
+            <Text variant="caption" color="text">
+              Downloading…
+            </Text>
+          </View>
         ) : downloadFailed ? (
           <Touchable
             onPress={handlePlayPress}
@@ -166,29 +205,13 @@ export const VideoAttachment = memo(function VideoAttachment({
         </View>
       )}
 
-      {/* Full screen video player modal */}
-      {isPlaying && (
-        <Modal
-          visible={isPlaying}
-          animationType="fade"
-          transparent={false}
-          onRequestClose={handleClose}
-          testID={`video-player-modal-${attachment.id}`}
-        >
-          <View style={styles.playerContainer}>
-            <VideoView
-              testID={`video-player-view-${attachment.id}`}
-              player={player}
-              style={StyleSheet.absoluteFill}
-              allowsPictureInPicture
-              nativeControls
-              contentFit="contain"
-            />
-            <View style={styles.modalHeader}>
-              <IconButton icon="close" label="Close" onPress={handleClose} size={44} tone="plain" />
-            </View>
-          </View>
-        </Modal>
+      {/* Full screen video player modal — only instantiated while active (Review Focus 4) */}
+      {isPlaying && localUri && (
+        <ActiveVideoModal
+          uri={localUri}
+          attachmentId={attachment.id}
+          onClose={handleClose}
+        />
       )}
     </View>
   );
@@ -205,6 +228,14 @@ const styles = StyleSheet.create({
   centerSlot: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  progressBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+    borderRadius: radius.pill,
   },
   playButton: {
     width: PLAY_BUTTON_SIZE,
