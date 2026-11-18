@@ -78,7 +78,7 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | Voice & audio settings: noise suppression, volume sliders, microphone test with live LevelMeter | fake world | not run |
 | Sounds settings: soundboard volume and mute toggle, voice sound cues toggles | fake world | not run |
 | Storage and logs: media cache calculation and clear cache, session log export | fake world | not run |
-| Voice cue timing: deafening and undeafening each play one sound against a real server | fake world | not run |
+| Voice cue timing: deafening and undeafening each play one sound against a real server | not run | not run |
 
 ## Using the app
 
