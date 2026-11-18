@@ -32,6 +32,10 @@ export function markLeaveCueHandled(): void {
   leaveCueHandled = true;
 }
 
+export function clearLeaveCueHandled(): void {
+  leaveCueHandled = false;
+}
+
 export function consumeLeaveCueHandled(): boolean {
   const handled = leaveCueHandled;
   leaveCueHandled = false;

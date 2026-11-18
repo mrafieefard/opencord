@@ -189,6 +189,176 @@ describe('useVoiceCues', () => {
     expect(cues).toEqual([VoiceCueKind.Deafen]);
   });
 
+  // Fails if a plain mute held for 50ms does not play Mute.
+  it('a plain mute plays Mute after 80ms', async () => {
+    const snap = snapshot(NIGHT_OWLS);
+    const selfUser = user(SELF_ID);
+    onEvents([
+      new MobileEvent.Ready({
+        snapshot: {
+          ...snap,
+          selfUser,
+          voiceStates: [],
+        },
+      }),
+      new MobileEvent.VoiceStateChanged({
+        serverKey: NIGHT_OWLS,
+        state: makeVoiceState({
+          userId: SELF_ID,
+          channelId: CHANNELS.lounge,
+          thisDevice: true,
+          selfMute: false,
+          selfDeaf: false,
+        }),
+      }),
+    ]);
+    await settle();
+
+    unmountHook = (await renderHook(() => useVoiceCues())).unmount;
+    core.calls.length = 0;
+
+    // Self mutes
+    onEvents([
+      new MobileEvent.VoiceStateChanged({
+        serverKey: NIGHT_OWLS,
+        state: makeVoiceState({
+          userId: SELF_ID,
+          channelId: CHANNELS.lounge,
+          thisDevice: true,
+          selfMute: true,
+          selfDeaf: false,
+        }),
+      }),
+    ]);
+    await settle();
+
+    // Fast-forward debounce timer (50ms)
+    await new Promise((r) => setTimeout(r, 80));
+
+    const cues = core.calls
+      .filter((c) => c.method === 'cuePlay')
+      .map((c) => c.args[0]);
+    expect(cues).toEqual([VoiceCueKind.Mute]);
+  });
+
+  // Fails if a plain unmute held for 50ms does not play Unmute.
+  it('a plain unmute plays Unmute after 80ms', async () => {
+    const snap = snapshot(NIGHT_OWLS);
+    const selfUser = user(SELF_ID);
+    onEvents([
+      new MobileEvent.Ready({
+        snapshot: {
+          ...snap,
+          selfUser,
+          voiceStates: [],
+        },
+      }),
+      new MobileEvent.VoiceStateChanged({
+        serverKey: NIGHT_OWLS,
+        state: makeVoiceState({
+          userId: SELF_ID,
+          channelId: CHANNELS.lounge,
+          thisDevice: true,
+          selfMute: true,
+          selfDeaf: false,
+        }),
+      }),
+    ]);
+    await settle();
+
+    unmountHook = (await renderHook(() => useVoiceCues())).unmount;
+    core.calls.length = 0;
+
+    // Self unmutes
+    onEvents([
+      new MobileEvent.VoiceStateChanged({
+        serverKey: NIGHT_OWLS,
+        state: makeVoiceState({
+          userId: SELF_ID,
+          channelId: CHANNELS.lounge,
+          thisDevice: true,
+          selfMute: false,
+          selfDeaf: false,
+        }),
+      }),
+    ]);
+    await settle();
+
+    await new Promise((r) => setTimeout(r, 80));
+
+    const cues = core.calls
+      .filter((c) => c.method === 'cuePlay')
+      .map((c) => c.args[0]);
+    expect(cues).toEqual([VoiceCueKind.Unmute]);
+  });
+
+  // Fails if undeafening arriving as two updates (self deaf false, then self mute false) plays Unmute after Undeafen.
+  it('undeafening arriving as two updates plays only Undeafen', async () => {
+    const snap = snapshot(NIGHT_OWLS);
+    const selfUser = user(SELF_ID);
+    // Initial: self in lounge muted and deafened
+    onEvents([
+      new MobileEvent.Ready({
+        snapshot: {
+          ...snap,
+          selfUser,
+          voiceStates: [],
+        },
+      }),
+      new MobileEvent.VoiceStateChanged({
+        serverKey: NIGHT_OWLS,
+        state: makeVoiceState({
+          userId: SELF_ID,
+          channelId: CHANNELS.lounge,
+          thisDevice: true,
+          selfMute: true,
+          selfDeaf: true,
+        }),
+      }),
+    ]);
+    await settle();
+
+    unmountHook = (await renderHook(() => useVoiceCues())).unmount;
+    core.calls.length = 0;
+
+    // Update 1: self undeaf arrives
+    onEvents([
+      new MobileEvent.VoiceStateChanged({
+        serverKey: NIGHT_OWLS,
+        state: makeVoiceState({
+          userId: SELF_ID,
+          channelId: CHANNELS.lounge,
+          thisDevice: true,
+          selfMute: true,
+          selfDeaf: false,
+        }),
+      }),
+    ]);
+    await settle();
+
+    // Update 2: self unmute arrives shortly after
+    onEvents([
+      new MobileEvent.VoiceStateChanged({
+        serverKey: NIGHT_OWLS,
+        state: makeVoiceState({
+          userId: SELF_ID,
+          channelId: CHANNELS.lounge,
+          thisDevice: true,
+          selfMute: false,
+          selfDeaf: false,
+        }),
+      }),
+    ]);
+    await settle();
+
+    await new Promise((r) => setTimeout(r, 80));
+
+    const cues = core.calls
+      .filter((c) => c.method === 'cuePlay')
+      .map((c) => c.args[0]);
+    expect(cues).toEqual([VoiceCueKind.Undeafen]);
+  });
+
   // Fails if a cue group in cuesOff plays its cues.
   it('a group in cuesOff plays nothing', async () => {
     unmountHook = (await renderHook(() => useVoiceCues())).unmount;

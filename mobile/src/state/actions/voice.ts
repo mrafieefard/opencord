@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 
 import { getCore } from '@/core';
 import { enterVoiceAudio, leaveVoiceAudio } from '@/features/voice/audioSession';
-import { markLeaveCueHandled } from '@/features/voice/voiceCues';
+import { clearLeaveCueHandled, markLeaveCueHandled } from '@/features/voice/voiceCues';
 import { askForNotifications, ensureMicrophone, explainMicrophone } from '@/features/voice/micPermission';
 
 import { DEFAULT_USER_AUDIO, useAppStore } from '../store';
@@ -82,6 +82,9 @@ export async function leaveVoice(): Promise<void> {
   }
   try {
     await getCore().voiceLeave();
+  } catch (error) {
+    clearLeaveCueHandled();
+    throw error;
   } finally {
     stopService();
     await new Promise((resolve) => setTimeout(resolve, 500));

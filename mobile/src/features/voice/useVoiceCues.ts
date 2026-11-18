@@ -37,6 +37,8 @@ export function useVoiceCues(): void {
   useEffect(() => {
     let prevScene: CueScene = buildCueScene(useAppStore.getState());
     let pendingMuteTimeout: ReturnType<typeof setTimeout> | null = null;
+    let pendingUnmuteTimeout: ReturnType<typeof setTimeout> | null = null;
+    let lastUndeafenAt = 0;
 
     const unsubscribe = useAppStore.subscribe((state) => {
       const nextScene = buildCueScene(state);
@@ -68,6 +70,35 @@ export function useVoiceCues(): void {
           }
         }
 
+        if (cue === VoiceCueKind.Unmute) {
+          if (Date.now() - lastUndeafenAt < 100) {
+            return;
+          }
+          if (pendingUnmuteTimeout) clearTimeout(pendingUnmuteTimeout);
+          pendingUnmuteTimeout = setTimeout(() => {
+            pendingUnmuteTimeout = null;
+            if (Date.now() - lastUndeafenAt < 100) return;
+            try {
+              getCore().cuePlay(VoiceCueKind.Unmute, 1);
+            } catch (error: unknown) {
+              console.warn(`failed to play voice cue: ${error}`);
+            }
+          }, 50);
+          return;
+        }
+
+        if (cue === VoiceCueKind.Undeafen) {
+          lastUndeafenAt = Date.now();
+          if (pendingUnmuteTimeout) {
+            clearTimeout(pendingUnmuteTimeout);
+            pendingUnmuteTimeout = null;
+          }
+          if (pendingMuteTimeout) {
+            clearTimeout(pendingMuteTimeout);
+            pendingMuteTimeout = null;
+          }
+        }
+
         try {
           getCore().cuePlay(cue, 1);
         } catch (error: unknown) {
@@ -79,6 +110,7 @@ export function useVoiceCues(): void {
 
     return () => {
       if (pendingMuteTimeout) clearTimeout(pendingMuteTimeout);
+      if (pendingUnmuteTimeout) clearTimeout(pendingUnmuteTimeout);
       unsubscribe();
     };
   }, []);
