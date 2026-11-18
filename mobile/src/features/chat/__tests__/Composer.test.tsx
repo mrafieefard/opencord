@@ -519,4 +519,45 @@ describe('Composer and message actions', () => {
       expect(view.queryByTestId('command-list')).toBeNull();
     });
   });
+
+  describe('suggestions', () => {
+    const composer = () =>
+      render(
+        <GestureHandlerRootView>
+          <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+        </GestureHandlerRootView>,
+      );
+
+    it('commands win while the text starts with a slash', async () => {
+      // Fails if typing a slash still shows autocomplete suggestions instead of commands.
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      // Typing '/' triggers command list, not suggestion list
+      await fireEvent.changeText(input, '/');
+      expect(view.getByTestId('command-list')).toBeTruthy();
+      expect(view.queryByTestId('suggestion-list')).toBeNull();
+
+      // Even with '@' inside slash command name '/@kai'
+      await fireEvent.changeText(input, '/@kai');
+      expect(view.queryByTestId('suggestion-list')).toBeNull();
+    });
+
+    it('a tap replaces the token', async () => {
+      // Fails if tapping a suggestion does not replace the active token in the input.
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      // Typing '@kai' triggers suggestions list
+      await fireEvent.changeText(input, '@kai');
+      expect(view.getByTestId('suggestion-list')).toBeTruthy();
+
+      // Tap suggestion for Kai (user id 1001)
+      await fireEvent.press(view.getByTestId('suggestion-member-1001'));
+
+      // Token '@kai' is replaced by '@Kai '
+      expect(view.queryByTestId('suggestion-list')).toBeNull();
+      expect(input.props.value).toBe('@Kai ');
+    });
+  });
 });

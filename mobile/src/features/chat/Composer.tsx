@@ -40,7 +40,9 @@ import { EMPTY_MARK, useCommandDraft } from './commands/useCommandDraft';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
 import { EmojiPicker } from '@/features/emoji/EmojiPicker';
-import { decodeMentions, encodeMentions } from './mentions';
+import { activeToken, decodeMentions, encodeMentions } from './mentions';
+import { applySuggestion, suggest, type Suggestion } from './suggestions';
+import { SuggestionList } from './SuggestionList';
 import { useTypingNotifier } from './useTypingNotifier';
 
 export interface ComposerProps {
@@ -136,6 +138,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
         return;
       }
       setText(nextText);
+      setSelection({ start: nextText.length, end: nextText.length });
       if (nextText.length > 0 && !isEditing) {
         notifyTyping();
       }
@@ -194,6 +197,32 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     [query, commandList, channelId, snapshot?.access, snapshot?.pluginUsers, voiceChannelId],
   );
   const dismissList = useCallback(() => setDismissedAt(text), [text]);
+
+  // Suggestions for @, #, or :. Commands win while text starts with "/".
+  const [dismissedSuggestionsAt, setDismissedSuggestionsAt] = useState<string | null>(null);
+  const token = draft.spec || text.startsWith('/') ? null : activeToken(text, selection.start);
+  const suggestions = useMemo<Suggestion[]>(() => {
+    if (!token || dismissedSuggestionsAt === text) return [];
+    return suggest(snapshot, channelId, token);
+  }, [token, dismissedSuggestionsAt, text, snapshot, channelId]);
+  const dismissSuggestions = useCallback(() => setDismissedSuggestionsAt(text), [text]);
+
+  const handleSelectSuggestion = useCallback(
+    (item: Suggestion) => {
+      if (!token) return;
+      const { text: newText, caret: newCaret } = applySuggestion(
+        text,
+        selection.start,
+        token,
+        item,
+      );
+      setText(newText);
+      setSelection({ start: newCaret, end: newCaret });
+      input.current?.focus();
+    },
+    [token, text, selection.start],
+  );
+
   const { pick: pickDraft, pickChoice, closeChoices } = draft;
   const pickRow = useCallback(
     (row: CommandRow) => {
@@ -364,6 +393,13 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
           emptyText={`No commands match /${query}`}
           onPick={pickRow}
           onDismiss={dismissList}
+        />
+      )}
+      {suggestions.length > 0 && (
+        <SuggestionList
+          items={suggestions}
+          onSelect={handleSelectSuggestion}
+          onDismiss={dismissSuggestions}
         />
       )}
       {draft.spec && draft.spec.options.length > 0 && (
