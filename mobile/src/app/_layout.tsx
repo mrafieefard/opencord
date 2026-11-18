@@ -145,6 +145,10 @@ function Routes() {
             name="viewer"
             options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
           />
+          <Stack.Screen
+            name="text-preview"
+            options={{ presentation: 'modal', headerShown: false }}
+          />
         </Stack.Protected>
         <Stack.Screen name="dev/gallery" />
         <Stack.Screen name="dev/plugin-area" />

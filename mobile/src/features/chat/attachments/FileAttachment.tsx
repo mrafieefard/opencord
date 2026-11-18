@@ -1,13 +1,15 @@
 import { memo, useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
+import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { AttachmentKind, AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
 
 import { report } from '@/core';
-import { Icon, type IconName, Text, space, useMenuOpener, useTheme } from '@/ui';
+import { Icon, type IconName, Text, radius, space, useMenuOpener, useTheme } from '@/ui';
 
 import { fetchAttachmentFile } from './useAttachmentFile';
+import { isTextPreviewable } from './previewable';
 
 export interface FileAttachmentProps {
   serverKey: string;
@@ -94,6 +96,19 @@ export const FileAttachment = memo(function FileAttachment({ serverKey, attachme
     report(done, 'open file');
   }, [serverKey, attachment.id]);
 
+  const canPreview = isTextPreviewable(attachment.filename, attachment.sizeBytes);
+
+  const openPreview = useCallback(() => {
+    router.push({
+      pathname: '/text-preview',
+      params: {
+        serverKey,
+        attachmentId: attachment.id,
+        filename: attachment.filename,
+      },
+    });
+  }, [serverKey, attachment.id, attachment.filename]);
+
   const sizeText = formatFileSize(attachment.sizeBytes);
   const kindText = formatAttachmentKind(attachment.kind, attachment.durationMs);
 
@@ -125,6 +140,25 @@ export const FileAttachment = memo(function FileAttachment({ serverKey, attachme
             {sizeText} · {kindText}
           </Text>
         </View>
+        {canPreview && (
+          <Touchable
+            testID={`file-preview-${attachment.id}`}
+            onPress={openPreview}
+            hitSlop={4}
+            style={[styles.previewButton, { backgroundColor: colors.hover }]}
+          >
+            <View
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={`Preview ${attachment.filename}`}
+              style={styles.previewButtonContent}
+            >
+              <Text variant="caption" color="text">
+                Preview
+              </Text>
+            </View>
+          </Touchable>
+        )}
       </View>
     </Touchable>
   );
@@ -148,6 +182,14 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    gap: 2,
+  },
+  previewButton: {
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+    borderRadius: radius.pill,
+  },
+  previewButtonContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

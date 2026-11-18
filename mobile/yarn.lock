@@ -4116,6 +4116,11 @@ expo-system-ui@~58.0.6:
     "@react-native/normalize-colors" "0.88.0"
     debug "^4.3.2"
 
+expo-video@~58.0.14:
+  version "58.0.14"
+  resolved "https://registry.yarnpkg.com/expo-video/-/expo-video-58.0.14.tgz#6d083f8c23d9b6c090de02c43626babc8fd69378"
+  integrity sha512-PYB85kvyvTN8E40TUOgHTI+nucp9O2aFYf4IULZUE71l0iW+YmXIAcp+ZwsLuMSYtdt5QRPqdpdvbyXWeEZLPw==
+
 expo@~58.0.19:
   version "58.0.19"
   resolved "https://registry.yarnpkg.com/expo/-/expo-58.0.19.tgz#e2d60f2c6dee689cabe89160473ada060a31eee8"
@@ -4555,6 +4560,11 @@ hermes-parser@^0.25.1:
   integrity sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==
   dependencies:
     hermes-estree "0.25.1"
+
+highlight.js@^11.12.0:
+  version "11.12.0"
+  resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-11.12.0.tgz#470d918fd556a76debc40fe5e4b540b6b9cb9890"
+  integrity sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg==
 
 hosted-git-info@^7.0.0:
   version "7.0.2"
