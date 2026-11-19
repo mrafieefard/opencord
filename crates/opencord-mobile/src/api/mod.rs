@@ -8,6 +8,7 @@ pub mod identity;
 pub mod invites;
 pub mod music;
 pub mod plugins;
+pub mod private;
 pub mod servers;
 pub mod setup;
 pub mod soundboard;

@@ -4,6 +4,7 @@ use opencord_common::permissions::Permissions;
 use opencord_core::api::types as core;
 
 use crate::ids::id;
+use crate::private_types::*;
 use crate::types::*;
 
 fn opt_id(value: Option<i64>) -> Option<String> {
@@ -831,6 +832,149 @@ pub(crate) fn invite(invite: core::Invite) -> InviteRecord {
     }
 }
 
+// Private messages (phone P3). Each enum maps variant for variant, by name,
+// both ways.
+
+macro_rules! same_variants {
+    ($name:ident { $($variant:ident),+ $(,)? }) => {
+        impl From<core::$name> for $name {
+            fn from(value: core::$name) -> Self {
+                match value {
+                    $(core::$name::$variant => Self::$variant,)+
+                }
+            }
+        }
+
+        impl From<$name> for core::$name {
+            fn from(value: $name) -> Self {
+                match value {
+                    $($name::$variant => Self::$variant,)+
+                }
+            }
+        }
+    };
+}
+
+same_variants!(FriendStatus {
+    None,
+    Outgoing,
+    Incoming,
+    Friends
+});
+same_variants!(ConversationStatus {
+    None,
+    Request,
+    Accepted
+});
+same_variants!(PrivateVerification {
+    Unverified,
+    Verified,
+    Mismatch
+});
+same_variants!(PrivateMessageKind {
+    Text,
+    Divider,
+    Moved,
+    Undecryptable,
+    KeysChanged,
+    NewDevice,
+    UnacceptedKeys
+});
+same_variants!(PrivateSendState {
+    Received,
+    Sending,
+    Sent,
+    Failed
+});
+same_variants!(OwnDeviceState { Other, Offering });
+
+pub(crate) fn private_opened(opened: core::PrivateOpened) -> PrivateOpenedRecord {
+    PrivateOpenedRecord {
+        started_fresh: opened.started_fresh,
+        keys_reset: opened.keys_reset,
+    }
+}
+
+pub(crate) fn private_contact(contact: core::PrivateContact) -> PrivateContactRecord {
+    PrivateContactRecord {
+        peer: contact.peer,
+        name: contact.name,
+        friend: contact.friend.into(),
+        request_spam: contact.request_spam,
+        blocked: contact.blocked,
+        conversation: contact.conversation.into(),
+        relay_server_key: contact.relay_server_key,
+        last_activity_ms: contact.last_activity_ms.map(number),
+        unread: contact.unread,
+        muted: contact.muted,
+        hidden: contact.hidden,
+        preview: contact.preview,
+        verification: contact.verification.into(),
+        new_keys: contact.new_keys,
+        reachable: contact.reachable,
+    }
+}
+
+pub(crate) fn private_message(message: core::PrivateMessage) -> PrivateMessageRecord {
+    PrivateMessageRecord {
+        id: message.id,
+        peer: message.peer,
+        outgoing: message.outgoing,
+        kind: message.kind.into(),
+        content: message.content,
+        server_key: message.server_key,
+        sent_at_ms: number(message.sent_at_ms),
+        edited_at_ms: message.edited_at_ms.map(number),
+        state: message.state.into(),
+    }
+}
+
+pub(crate) fn key_words(words: core::KeyWords) -> KeyWordsRecord {
+    KeyWordsRecord {
+        words: words.words,
+        keys: words.keys,
+    }
+}
+
+pub(crate) fn own_device(device: core::OwnDevice) -> OwnDeviceRecord {
+    OwnDeviceRecord {
+        device_id: device.device_id,
+        state: device.state.into(),
+    }
+}
+
+pub(crate) fn own_devices(devices: Vec<core::OwnDevice>, has_chats: bool) -> OwnDevicesRecord {
+    OwnDevicesRecord {
+        devices: devices.into_iter().map(own_device).collect(),
+        has_chats,
+    }
+}
+
+pub(crate) fn shared_server(server: core::SharedServer) -> SharedServerRecord {
+    SharedServerRecord {
+        server_key: server.server_key,
+        name: server.name,
+        connected: server.connected,
+        private_messages: server.private_messages,
+        friends_only: server.friends_only,
+        peer_user_id: id(server.peer_user_id),
+    }
+}
+
+pub(crate) fn privacy_settings(settings: core::PrivacySettingsData) -> PrivacySettingsRecord {
+    PrivacySettingsRecord {
+        allow_friend_requests: settings.allow_friend_requests,
+        allow_message_requests: settings.allow_message_requests,
+    }
+}
+
+pub(crate) fn core_privacy_settings(settings: PrivacySettingsRecord) -> core::PrivacySettingsData {
+    core::PrivacySettingsData {
+        allow_friend_requests: settings.allow_friend_requests,
+        allow_message_requests: settings.allow_message_requests,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1518,5 +1662,182 @@ mod tests {
         });
         assert_eq!(record.domain_id.as_deref(), Some("9000000000000000001"));
         assert_eq!(record.created_by.as_deref(), Some("9000000000000000002"));
+    }
+
+    fn round_trips<C, M>(pairs: &[(C, M)])
+    where
+        C: Copy + PartialEq + std::fmt::Debug + From<M>,
+        M: Copy + PartialEq + std::fmt::Debug + From<C>,
+    {
+        for &(core_value, mobile_value) in pairs {
+            assert_eq!(M::from(core_value), mobile_value);
+            assert_eq!(C::from(mobile_value), core_value);
+        }
+    }
+
+    // Fails if a private enum's variant maps to another variant, either way:
+    // a contact shown as verified when it isn't, or a failed send shown as
+    // sent.
+    #[test]
+    fn every_private_enum_round_trips() {
+        round_trips(&[
+            (core::FriendStatus::None, FriendStatus::None),
+            (core::FriendStatus::Outgoing, FriendStatus::Outgoing),
+            (core::FriendStatus::Incoming, FriendStatus::Incoming),
+            (core::FriendStatus::Friends, FriendStatus::Friends),
+        ]);
+        round_trips(&[
+            (core::ConversationStatus::None, ConversationStatus::None),
+            (
+                core::ConversationStatus::Request,
+                ConversationStatus::Request,
+            ),
+            (
+                core::ConversationStatus::Accepted,
+                ConversationStatus::Accepted,
+            ),
+        ]);
+        round_trips(&[
+            (
+                core::PrivateVerification::Unverified,
+                PrivateVerification::Unverified,
+            ),
+            (
+                core::PrivateVerification::Verified,
+                PrivateVerification::Verified,
+            ),
+            (
+                core::PrivateVerification::Mismatch,
+                PrivateVerification::Mismatch,
+            ),
+        ]);
+        round_trips(&[
+            (core::PrivateMessageKind::Text, PrivateMessageKind::Text),
+            (
+                core::PrivateMessageKind::Divider,
+                PrivateMessageKind::Divider,
+            ),
+            (core::PrivateMessageKind::Moved, PrivateMessageKind::Moved),
+            (
+                core::PrivateMessageKind::Undecryptable,
+                PrivateMessageKind::Undecryptable,
+            ),
+            (
+                core::PrivateMessageKind::KeysChanged,
+                PrivateMessageKind::KeysChanged,
+            ),
+            (
+                core::PrivateMessageKind::NewDevice,
+                PrivateMessageKind::NewDevice,
+            ),
+            (
+                core::PrivateMessageKind::UnacceptedKeys,
+                PrivateMessageKind::UnacceptedKeys,
+            ),
+        ]);
+        round_trips(&[
+            (core::PrivateSendState::Received, PrivateSendState::Received),
+            (core::PrivateSendState::Sending, PrivateSendState::Sending),
+            (core::PrivateSendState::Sent, PrivateSendState::Sent),
+            (core::PrivateSendState::Failed, PrivateSendState::Failed),
+        ]);
+        round_trips(&[
+            (core::OwnDeviceState::Other, OwnDeviceState::Other),
+            (core::OwnDeviceState::Offering, OwnDeviceState::Offering),
+        ]);
+
+        // And inside the records that carry them.
+        let contact = private_contact(core::PrivateContact {
+            peer: "ab".repeat(32),
+            name: Some("Kai".to_owned()),
+            friend: core::FriendStatus::Incoming,
+            request_spam: true,
+            blocked: false,
+            conversation: core::ConversationStatus::Request,
+            relay_server_key: Some("a.example:7700".to_owned()),
+            last_activity_ms: Some(1_700_000_000_123),
+            unread: 3,
+            muted: true,
+            hidden: false,
+            preview: Some("hi".to_owned()),
+            verification: core::PrivateVerification::Mismatch,
+            new_keys: true,
+            reachable: false,
+        });
+        assert_eq!(
+            contact,
+            PrivateContactRecord {
+                peer: "ab".repeat(32),
+                name: Some("Kai".to_owned()),
+                friend: FriendStatus::Incoming,
+                request_spam: true,
+                blocked: false,
+                conversation: ConversationStatus::Request,
+                relay_server_key: Some("a.example:7700".to_owned()),
+                last_activity_ms: Some(1_700_000_000_123.0),
+                unread: 3,
+                muted: true,
+                hidden: false,
+                preview: Some("hi".to_owned()),
+                verification: PrivateVerification::Mismatch,
+                new_keys: true,
+                reachable: false,
+            }
+        );
+        let message = private_message(core::PrivateMessage {
+            id: "0f".repeat(16),
+            peer: "ab".repeat(32),
+            outgoing: true,
+            kind: core::PrivateMessageKind::KeysChanged,
+            content: String::new(),
+            server_key: None,
+            sent_at_ms: 1_700_000_000_456,
+            edited_at_ms: Some(1_700_000_000_789),
+            state: core::PrivateSendState::Failed,
+        });
+        assert_eq!(message.kind, PrivateMessageKind::KeysChanged);
+        assert_eq!(message.state, PrivateSendState::Failed);
+        assert_eq!(message.sent_at_ms, 1_700_000_000_456.0);
+        assert_eq!(message.edited_at_ms, Some(1_700_000_000_789.0));
+        assert_eq!(message.id, "0f".repeat(16));
+        let devices = own_devices(
+            vec![core::OwnDevice {
+                device_id: "cd".repeat(16),
+                state: core::OwnDeviceState::Offering,
+            }],
+            true,
+        );
+        assert_eq!(
+            devices,
+            OwnDevicesRecord {
+                devices: vec![OwnDeviceRecord {
+                    device_id: "cd".repeat(16),
+                    state: OwnDeviceState::Offering,
+                }],
+                has_chats: true,
+            }
+        );
+        let settings = PrivacySettingsRecord {
+            allow_friend_requests: false,
+            allow_message_requests: true,
+        };
+        assert_eq!(privacy_settings(core_privacy_settings(settings)), settings);
+    }
+
+    // Fails if a peer's user id crosses as a number, which JavaScript reads
+    // as a `bigint` (or loses digits of).
+    #[test]
+    fn a_shared_server_user_id_is_a_string() {
+        let record = shared_server(core::SharedServer {
+            server_key: "a.example:7700".to_owned(),
+            name: "Home".to_owned(),
+            connected: true,
+            private_messages: true,
+            friends_only: false,
+            peer_user_id: 9_000_000_000_000_000_003,
+        });
+        assert_eq!(record.peer_user_id, "9000000000000000003");
+        assert_eq!(record.server_key, "a.example:7700");
+        assert!(record.private_messages && !record.friends_only);
     }
 }
