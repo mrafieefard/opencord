@@ -72,7 +72,7 @@ export const ChatList = memo(function ChatList({ onSelectChat, activePeer }: Cha
         <Touchable
           testID="message-requests-row"
           onPress={handleOpenRequests}
-          style={[styles.requestsRow, { backgroundColor: colors.sidebar }]}
+          style={[styles.requestsRow, { backgroundColor: colors.sidebar, borderBottomColor: colors.border }]}
         >
           <View style={styles.requestsContent}>
             <View style={[styles.requestsIcon, { backgroundColor: colors.surface }]}>
@@ -156,7 +156,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(128, 128, 128, 0.2)',
   },
   requestsContent: {
     flexDirection: 'row',
