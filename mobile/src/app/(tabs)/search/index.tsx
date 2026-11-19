@@ -1,7 +1,30 @@
-// The tab bar's search tab (iOS): the servers, filtered by the system's
-// search field. The voice connection shows above the tab bar here.
-import { ServerListScreen } from '@/features/servers/ServerListScreen';
+// The tab bar's search tab (iOS): channels, servers, and members ranked by
+// switcher rules (§4.9).
+import { useNavigation } from 'expo-router';
+import { useLayoutEffect, useState } from 'react';
+import type { NativeSyntheticEvent } from 'react-native';
+
+import { SearchResults } from '@/features/search/SearchResults';
 
 export default function SearchScreen() {
-  return <ServerListScreen searchable voiceBar={false} />;
+  const [query, setQuery] = useState('');
+  const navigation = useNavigation();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerSearchBarOptions: {
+        placeholder: 'Search',
+        hideWhenScrolling: false,
+        onChangeText: (event: NativeSyntheticEvent<{ text: string }>) => {
+          setQuery(event.nativeEvent.text);
+        },
+        onCancelButtonPress: () => {
+          setQuery('');
+        },
+      },
+    });
+  }, [navigation]);
+
+  return <SearchResults query={query} />;
 }
+

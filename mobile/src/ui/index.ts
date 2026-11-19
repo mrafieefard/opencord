@@ -1,4 +1,5 @@
 export { Avatar, initials, nameHash } from './Avatar';
+export { showActionSheet, type ActionSheetAction, type ActionSheetOptions } from './actionSheet';
 export { Badge, badgeText } from './Badge';
 export { Banner } from './Banner';
 export { Button } from './Button';
@@ -13,6 +14,7 @@ export type { IconName } from './icons';
 export { Menu, useMenuOpener, type MenuAction, type MenuHandle } from './Menu';
 export { nativeHeaderLook } from './nativeHeader';
 export { PaneHeader, type HeaderAction } from './PaneHeader';
+export { PresenceDot, presenceLabel, type PresenceDotProps } from './PresenceDot';
 export { ProgressBar } from './ProgressBar';
 export { Row } from './Row';
 export { SearchField } from './SearchField';
@@ -22,6 +24,16 @@ export { SheetGrabber, SheetHeader } from './SheetHeader';
 export { sheetLook } from './sheetLook';
 export { useSheetBottomInset } from './sheetInset';
 export { ServerIcon } from './ServerIcon';
+export {
+  SettingsList,
+  SettingsRow,
+  SettingsSection,
+  useSaveButton,
+  type ChoiceOption,
+  type SaveButtonOptions,
+  type SettingsRowProps,
+  type SettingsSectionProps,
+} from './settings';
 export { Slider } from './Slider';
 export { Switch } from './Switch';
 export { Text } from './Text';

@@ -1,8 +1,27 @@
 // The real core: the generated bindings, as they are. They throw the
 // generated MobileError, which describeError reads.
 import * as native from '@opencord/core-native';
+import { PresenceStatus } from '@opencord/core-native';
 
-import type { CoreApi } from './api';
+import type { CoreApi, PresenceStatusInput } from './api';
+
+export { PresenceStatus } from '@opencord/core-native';
+
+function toPresenceStatus(status: PresenceStatusInput): PresenceStatus {
+  if (typeof status === 'string') {
+    switch (status) {
+      case 'Online':
+        return PresenceStatus.Online;
+      case 'Idle':
+        return PresenceStatus.Idle;
+      case 'Dnd':
+        return PresenceStatus.Dnd;
+      case 'Offline':
+        return PresenceStatus.Offline;
+    }
+  }
+  return status;
+}
 
 export const NativeCore: CoreApi = {
   coreInit: (dataDir, cacheDir) => native.coreInit(dataDir, cacheDir),
@@ -24,7 +43,19 @@ export const NativeCore: CoreApi = {
   serverRetryNow: (key) => native.serverRetryNow(key),
   serverRemove: (key) => native.serverRemove(key),
   profileUpdate: (key, name) => native.profileUpdate(key, name),
+  presenceUpdate: (key, status) => native.presenceUpdate(key, toPresenceStatus(status)),
   avatarFile: (key, hash) => native.avatarFile(key, hash),
+  avatarSet: (sourcePath) => native.avatarSet(sourcePath),
+  avatarUpload: (key) => native.avatarUpload(key),
+  ownAvatar: () => native.ownAvatar(),
+  cacheSize: () => native.cacheSize(),
+  cacheClear: () => native.cacheClear(),
+  logsExport: async () => native.logsExport(),
+  logsCrashed: async () => native.logsCrashed() ?? null,
+
+  inviteCreate: (serverKey, maxUses, expiresInS) => native.inviteCreate(serverKey, maxUses, expiresInS),
+  invitesFetch: (serverKey) => native.invitesFetch(serverKey),
+  inviteRevoke: (serverKey, code) => native.inviteRevoke(serverKey, code),
 
   messagesFetch: (key, channel, before, limit) => native.messagesFetch(key, channel, before, limit),
   messageSend: (key, channel, content, nonce) => native.messageSend(key, channel, content, nonce),
@@ -48,6 +79,11 @@ export const NativeCore: CoreApi = {
   voiceSetUserVolume: (key, user, volume) => native.voiceSetUserVolume(key, user, volume),
   voiceSetUserLocalMute: (key, user, muted) => native.voiceSetUserLocalMute(key, user, muted),
 
+  audioSettingsApply: (settings) => native.audioSettingsApply(settings),
+  micTestSet: (on) => native.micTestSet(on),
+  levelMeterSet: (on) => native.levelMeterSet(on),
+  cuePlay: (cue, volume) => native.cuePlay(cue, volume),
+
   musicSettings: (key) => native.musicSettings(key),
   musicSubscribe: (key, channel) => native.musicSubscribe(key, channel),
   musicUnsubscribe: (key, channel) => native.musicUnsubscribe(key, channel),
@@ -70,6 +106,7 @@ export const NativeCore: CoreApi = {
   soundboardDefaultSounds: () => native.soundboardDefaultSounds(),
   soundboardPlay: (key, channel, soundRef, external) => native.soundboardPlay(key, channel, soundRef, external),
   soundboardPreview: (key, soundRef) => native.soundboardPreview(key, soundRef),
+  soundboardSetListening: (volume, muted) => native.soundboardSetListening(volume, muted),
 
   voiceRecordStart: (maxSeconds) => native.voiceRecordStart(maxSeconds),
   voiceRecordStop: () => native.voiceRecordStop(),
@@ -95,4 +132,39 @@ export const NativeCore: CoreApi = {
   viewUpload: (view, node, path) => native.viewUpload(view, node, path),
   activityStart: (key, channel, plugin, activity) => native.activityStart(key, channel, plugin, activity),
   activityEnd: (key, session) => native.activityEnd(key, session),
+
+  privateKeyGenerate: () => native.privateKeyGenerate(),
+  privateOpen: (key) => native.privateOpen(key),
+  privateContacts: () => native.privateContacts(),
+  privateMessages: (peer, before, limit) => native.privateMessages(peer, before, limit ?? 50),
+  privateSend: (peer, content) => native.privateSend(peer, content),
+  privateEdit: (peer, messageId, content) => native.privateEdit(peer, messageId, content),
+  privateDelete: (peer, messageId) => native.privateDelete(peer, messageId),
+  privateRetry: (messageId) => native.privateRetry(messageId),
+  friendRequestSend: (serverKey, userId) => native.friendRequestSend(serverKey, userId),
+  friendRequestAnswer: (peer, accept) => native.friendRequestAnswer(peer, accept),
+  friendRequestCancel: (peer) => native.friendRequestCancel(peer),
+  friendRemove: (peer) => native.friendRemove(peer),
+  messageRequestAccept: (peer) => native.messageRequestAccept(peer),
+  messageRequestIgnore: (peer) => native.messageRequestIgnore(peer),
+  privateBlock: (peer) => native.privateBlock(peer),
+  privateUnblock: (peer) => native.privateUnblock(peer),
+  privacySettings: () => native.privacySettings(),
+  privacySettingsSet: (settings) => native.privacySettingsSet(settings),
+  privateOpenConversation: (serverKey, userId) => native.privateOpenConversation(serverKey, userId),
+  privateSharedServers: (peer) => native.privateSharedServers(peer),
+  privateMove: (peer, serverKey) => native.privateMove(peer, serverKey),
+  privateMoveToo: (peer, messageId) => native.privateMoveToo(peer, messageId),
+  privateTyping: (peer) => native.privateTyping(peer),
+  privateMarkRead: (peer) => native.privateMarkRead(peer),
+  privateSetMuted: (peer, muted) => native.privateSetMuted(peer, muted),
+  privateHide: (peer) => native.privateHide(peer),
+  privateOwnDevices: () => native.privateOwnDevices(),
+  privatePairingWords: (deviceId) => native.privatePairingWords(deviceId),
+  privateApproveDevice: (deviceId, keys) => native.privateApproveDevice(deviceId, keys),
+  privateAcceptKeysFrom: (deviceId, matched, keys) => native.privateAcceptKeysFrom(deviceId, matched, keys),
+  privateWords: (peer, newKeys) => native.privateWords(peer, newKeys),
+  privateVerify: (peer, newKeys, matched, keys) => native.privateVerify(peer, newKeys, matched, keys),
+  privateAcceptNewKeys: (peer) => native.privateAcceptNewKeys(peer),
+  privateRejectDevice: (deviceId) => native.privateRejectDevice(deviceId),
 };

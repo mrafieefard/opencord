@@ -70,6 +70,29 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | The tablet: the channel list beside a plugin screen; an activity at tablet width | not run | not run |
 | A call from another app arrives while an activity is open | not run | not run |
 | The app killed in the background, reopened on a plugin channel | not run | not run |
+| The members sheet (chat header on phone, 3rd column on tablet): search, presence indicators, role groupings | fake world | not run |
+| Member profile: avatar with presence, role chips, member-since date, identity key, copy fingerprint, volume and mute | fake world | not run |
+| The server button: header button on Android, search tab bar slot on iOS while inside a server | fake world | not run |
+| Server settings sheet: member and online counts, Hosting row ("Open on a computer"), Leave server | fake world | not run |
+| Profile page: avatar photo picker and square crop, display name, status picker (Online, Idle, DND) | fake world | not run |
+| Voice & audio settings: noise suppression, volume sliders, microphone test with live LevelMeter | fake world | not run |
+| Sounds settings: soundboard volume and mute toggle, voice sound cues toggles | fake world | not run |
+| Storage and logs: media cache calculation and clear cache, session log export | fake world | not run |
+| Voice cue timing: deafening and undeafening each play one sound against a real server | not run | not run |
+| Full-screen video playback with native controls | fake world | not run |
+| Audio file playback with seek scrubber | fake world | not run |
+| Text file preview modal up to 256 KB | not run | not run |
+| Autocomplete for text channels (`#`) | fake world | not run |
+| Autocomplete for members (`@`) and emoji (`:`) | not run | not run |
+| Emoji picker sheet with categories and search | fake world | not run |
+| Syntax highlighted code blocks in common languages | not run | not run |
+| Reconnecting banner with `Retry now` and disabled composer | not run | not run |
+| Server identity changed screen with fingerprint comparison | fake world | not run |
+| Invite sheet with copy link | fake world | not run |
+| The system share sheet opened from an invite | not run | not run |
+| Switcher search across channels, servers, and members | not run | not run |
+| Text chat in a voice channel, open as a sheet | fake world | not run |
+| Multi-client chat sync against a real server with desktop beside it | not run | not run |
 
 ## Using the app
 
@@ -96,7 +119,22 @@ The first screen offers **Create an identity**, which asks only what people shou
   - The clip button attaches photos and files.
   - Long-press a message to **Copy text**. On your own messages you can also **Edit** it, and **Delete** it, which people with the Manage messages permission can do to anyone's.
   - Scrolling down closes the keyboard. **Jump to latest** brings you back to the newest messages.
+  - **Syntax highlighted code blocks:** fenced code blocks (` ```lang `) render with syntax highlighting for common languages using highlight.js with dark and light themes (blocks over 400 lines or 20 KB stay plain).
+  - **Autocomplete:** typing `@` suggests matching server members (up to 8 matches); typing `#` autocompletes text channels; typing `:` suggests emoji.
+  - **Emojis:** the smiley button opens the emoji picker sheet with Unicode emojis, organized by categories with quick search and recently used emojis.
+  - **Media & Previews:**
+    - **Videos:** MP4 and common video attachments show a video player tile with playback duration. Tapping downloads the file and opens one full-screen `VideoView` in a modal with native controls.
+    - **Audio files:** audio files (MP3, OGG, M4A, WAV, FLAC) download on tap, then play directly in the chat row with play/pause, position timer, and an interactive seek scrubber.
+    - **Text previews:** text files from the desktop's preview list, up to 256 KB, offer an in-app selectable monospace text preview modal with share.
+  - **Text in voice channels:** voice channels with text enabled display a **Chat** button in the call header, opening the channel's chat pane as a sheet over the call on phones and as a side column on tablets.
+  - **Reconnecting & Identity changes:**
+    - When a server is reconnecting or has failed with `Incompatible`, a connection banner appears above messages with a **Retry now** button (no retry after a rejection, kick or ban); messages remain visible at 60% opacity with composer disabled.
+    - If a server's identity key changes, chat is greyed out and a full-screen **Server identity changed** warning opens showing trusted vs present fingerprints, with buttons to **Disconnect** or destructive **Forget server**.
+  - **Invites:** generate instant invite links with custom expiration (1 hour, 1 day, 7 days, Never) and max uses (1, 5, 10, 25, 100, No limit), with quick **Share** via the system share sheet and **Copy** to clipboard.
+  - **Switcher / Search:** tap search to find channels on every server, the servers, and members of the last opened server, ranked by prefix, then word prefix, then substring, instantly navigating on tap.
 - **Voice messages:** hold the mic beside the field to record, and let go to send. Slide left to cancel, or slide up to lock the recording and keep both hands free; a locked recording can be stopped and heard before it is sent. Voice messages play in the chat at 1×, 1.5× or 2×.
+- **Members:** tap the people button in the chat header (or view the 280 pt right column on tablet width ≥ 1000 pt). Members are grouped with voice participants first (`In this voice channel`), followed by hoisted roles in hierarchy order, then `Online` and `Offline` (collapsed after 30). Tapping a member opens their profile with their avatar, status badge, role chips, `Member since` date, identity key fingerprint with copy button, and local volume and mute controls.
+- **The server button and settings:** on Android, tap the three-dots menu button in the header (or tap the server's name in the channel list). On iOS, while inside a server, the tab bar's Search tab transforms into the `Server` tab. Both open the server settings sheet with server icon, name, member and online counts, the Hosting row (`Open on a computer` for the owner, or, with voice on, a member who can manage the server or the music; later plans register additional admin rows), and `Leave server`.
 
 ### Voice
 
@@ -117,7 +155,22 @@ The upload button sends audio files from the phone for the server to play, with 
 
 ### The You tab
 
-Your display name, **Back up your identity**, the theme (System, Light or Dark), and under Music your own music volume, **Mute music** and **Lower music while people talk**, then the app's version.
+- **Your profile:** tap the top card to open the **Profile** page:
+  - **Profile picture:** your avatar at 96 pt with **Edit** to take a new square photo or pick one from the library (with crop), or remove it. When updated, the picture uploads to each connected server, catching up offline servers on their next connect.
+  - **Status:** choose between **Online** (*Shown as online*), **Idle** (*Away for now*), or **Do not disturb** (*No notifications*). Your status badge updates everywhere and syncs across servers.
+  - **Display name:** change your public name across all servers.
+  - **Your identity:** view your key's monospace fingerprint with **Copy public key**, and back up your identity key to a passphrase-encrypted file.
+- **Voice & audio:**
+  - **Noise suppression:** choose between **Off** (*Sends the microphone as it is*), **Standard** (*Removes steady noise; very light*), or **High** (*Also keyboards and dogs; heavier*). On lower-end hardware, if High noise suppression drops frames, it automatically falls back to Standard with a notification.
+  - **Volume:** adjust **Input volume** (microphone gain) and **Output volume** sliders from 0 % to 200 %.
+  - **Microphone test:** tap **Test** to hear your microphone loopback and observe the live accent-colored **LevelMeter** bar (−60 to 0 dBFS). Audio routing automatically configures for recording, and the test safely stops when joining a call, leaving the page, or backgrounding the app.
+- **Sounds:**
+  - **Soundboard volume:** control how loud soundboard sounds and previews play (0 % to 100 %), with a toggle to **Mute all soundboards**.
+  - **Voice sounds:** toggle individual voice sound cue groups heard only by you: *Joining and leaving*, *Others joining and leaving*, *Mute and unmute*, and *Deafen and undeafen*.
+- **Storage and logs:**
+  - **Media cache:** calculates the total size of cached thumbnails, pictures and voice messages kept on device. Tap destructive **Clear media cache** (confirmed with a prompt) to wipe cached files while preserving active downloads.
+  - **Logs:** **Export this session's log** shares it through the system share sheet (never containing passwords, keys, or messages; the device model shows as `unknown` until the core init signature accepts device metadata). If the previous session ended unexpectedly, an option to **Export the last session's log** is provided.
+- **Appearance & Music:** switch theme (**System**, **Light**, or **Dark**); under Music preferences, set your personal music volume, **Mute music**, and **Lower music while people talk**; and view the app and core versions.
 
 ### Not there yet
 
@@ -126,10 +179,9 @@ Your display name, **Back up your identity**, the theme (System, Light or Dark),
 | Camera, screen sharing, watching streams | The next phone plan: it needs the phones' video codecs. |
 | Private messages and friends | A later plan. The core has them; the phone needs their screens. |
 | Notifications when the app is closed | A later plan, with a push relay on the server. |
-| Server administration: channels, roles, invites, settings | The desktop app does it. |
-| Chat commands such as `/play` | Later. |
+| Server administration: managing channels, roles, bans | Later plans (P4 settings). P0 added the server button and sheet, P2 added invites. |
 | A list of your own uploaded songs | Later: the server can't list a member's uploads yet. |
-| Trusting a server again after its certificate changed | Later. Until then, leave the server (long-press it) and add it again. |
+| Trusting a server again after its certificate changed | Later. Until then, forget the server from the identity changed warning and add it again. |
 
 ## Developing
 
@@ -214,6 +266,18 @@ Run one on this machine with `cargo run -p opencord-server`. The emulator reache
 - **Weekend Raid:** refused.
 
 `EXPO_PUBLIC_FAKE_SCENARIO=empty` starts with no identity and no servers.
+
+### iPhone hand checks
+
+Certain features require manual verification on physical iOS hardware:
+- **Photo picker and crop:** select a picture from the camera and Photos library, verify the 1:1 square crop interface, and check that the resulting avatar uploads and scales correctly.
+- **Microphone test with audio routing:** verify the microphone loopback test works through the built-in speaker/earpiece, and test switching between AirPods or Bluetooth audio devices (audio session activation and switching).
+- **High noise suppression on older iPhones:** verify audio performance and frame latency with High noise suppression on older hardware (e.g., iPhone 11), ensuring graceful fallback to Standard if audio threads lag.
+- **Voice cue sounds:** confirm Join, Leave, Mute, Unmute, and Deafen cues play audibly with headphones and that Leave does not clip before audio session deactivation.
+- **Voice cue timing against a real server:** confirm that deafening and undeafening each play one single sound on both iPhone and Android against a real server, verifying that the 50 ms / 100 ms debounce hold prevents double sounds.
+- **Video player & Picture in Picture:** open a video attachment from chat into the full-screen player, verify playback controls and audio track playback, and test Picture-in-Picture transitions when swiping to background.
+- **Share sheet with invite:** open the Invite sheet, tap **Share**, and verify the native iOS `UIActivityViewController` opens with the server link and recipient options.
+- **Emoji sheet with keyboard interaction:** open the emoji sheet from the composer, verify smooth sheet presentation without layout jumps, and ensure seamless transition when tapping into the text input to raise the iOS keyboard.
 
 ### Android's minimum is 8.0
 

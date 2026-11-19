@@ -4,6 +4,7 @@ use opencord_common::permissions::Permissions;
 use opencord_core::api::types as core;
 
 use crate::ids::id;
+use crate::private_types::*;
 use crate::types::*;
 
 fn opt_id(value: Option<i64>) -> Option<String> {
@@ -88,6 +89,7 @@ pub(crate) fn user(user: core::User) -> UserRecord {
         display_name: user.display_name,
         avatar_hash: user.avatar_hash,
         fingerprint: user.fingerprint,
+        public_key_hex: user.public_key_hex,
     }
 }
 
@@ -96,6 +98,7 @@ pub(crate) fn member(member: core::Member) -> MemberRecord {
         user: user(member.user),
         nickname: member.nickname,
         role_ids: member.role_ids.into_iter().map(id).collect(),
+        joined_at_ms: number(member.joined_at_ms),
     }
 }
 
@@ -225,6 +228,73 @@ pub(crate) fn access_list(channels: Vec<core::ChannelPermissions>) -> Vec<Channe
         .collect()
 }
 
+pub(crate) fn server_access(bits: i64) -> ServerAccess {
+    let granted = permissions(bits);
+    let admin = granted.contains(Permissions::ADMINISTRATOR);
+    let has = |flag: Permissions| admin || granted.contains(flag);
+    ServerAccess {
+        manage_server: has(Permissions::MANAGE_SERVER),
+        manage_channels: has(Permissions::MANAGE_CHANNELS),
+        manage_roles: has(Permissions::MANAGE_ROLES),
+        kick_members: has(Permissions::KICK_MEMBERS),
+        ban_members: has(Permissions::BAN_MEMBERS),
+        create_invite: has(Permissions::CREATE_INVITE),
+        manage_nicknames: has(Permissions::MANAGE_NICKNAMES),
+        change_nickname: has(Permissions::CHANGE_NICKNAME),
+        manage_messages: has(Permissions::MANAGE_MESSAGES),
+        mention_everyone: has(Permissions::MENTION_EVERYONE),
+        manage_plugins: has(Permissions::MANAGE_PLUGINS),
+        manage_soundboard: has(Permissions::MANAGE_SOUNDBOARD),
+        music_manage: has(Permissions::MUSIC_MANAGE),
+        mute_members: has(Permissions::MUTE_MEMBERS),
+        deafen_members: has(Permissions::DEAFEN_MEMBERS),
+        move_members: has(Permissions::MOVE_MEMBERS),
+        priority_speaker: has(Permissions::PRIORITY_SPEAKER),
+        video: has(Permissions::VIDEO),
+        screenshare: has(Permissions::SCREENSHARE),
+        administrator: granted.contains(Permissions::ADMINISTRATOR),
+    }
+}
+
+pub(crate) fn role(r: core::Role) -> RoleRecord {
+    RoleRecord {
+        id: id(r.id),
+        name: r.name,
+        color: r.color,
+        position: r.position,
+        hoist: r.hoist,
+        mentionable: r.mentionable,
+        max_upload_bytes: r.max_upload_bytes.map(unsigned),
+        plugin_id: r.plugin_id,
+        access: server_access(r.permissions),
+    }
+}
+
+pub(crate) fn presence_status(s: core::PresenceStatus) -> PresenceStatus {
+    match s {
+        core::PresenceStatus::Online => PresenceStatus::Online,
+        core::PresenceStatus::Idle => PresenceStatus::Idle,
+        core::PresenceStatus::Dnd => PresenceStatus::Dnd,
+        core::PresenceStatus::Offline => PresenceStatus::Offline,
+    }
+}
+
+pub(crate) fn presence_status_to_core(s: PresenceStatus) -> core::PresenceStatus {
+    match s {
+        PresenceStatus::Online => core::PresenceStatus::Online,
+        PresenceStatus::Idle => core::PresenceStatus::Idle,
+        PresenceStatus::Dnd => core::PresenceStatus::Dnd,
+        PresenceStatus::Offline => core::PresenceStatus::Offline,
+    }
+}
+
+pub(crate) fn presence(p: core::Presence) -> PresenceRecord {
+    PresenceRecord {
+        user_id: id(p.user_id),
+        status: presence_status(p.status),
+    }
+}
+
 pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> ServerSnapshot {
     ServerSnapshot {
         server_key,
@@ -235,6 +305,9 @@ pub(crate) fn snapshot(server_key: String, ready: core::ReadySnapshot) -> Server
         icon_hash: ready.server.icon_hash,
         channels: ready.channels.into_iter().filter_map(channel).collect(),
         access: access_list(ready.channel_permissions),
+        roles: ready.roles.into_iter().map(role).collect(),
+        presences: ready.presences.into_iter().map(presence).collect(),
+        server_access: server_access(ready.server_permissions),
         members: ready.members.into_iter().map(member).collect(),
         voice_states: ready.voice_states.into_iter().map(voice_state).collect(),
         voice_enabled: ready.voice_enabled,
@@ -636,6 +709,49 @@ pub(crate) fn action(action: MusicAction) -> core::MusicAction {
     }
 }
 
+/// The phone's three audio choices on top of the core's defaults, which
+/// every phone call ran on before P1: nothing else about a call's audio
+/// changes. Volumes are held to 0–2; one that isn't a number is 1.0.
+pub(crate) fn core_audio_settings(settings: PhoneAudioSettings) -> core::AudioSettings {
+    core::AudioSettings {
+        noise_suppression: core_noise_suppression(settings.noise_suppression),
+        input_volume: volume(settings.input_volume),
+        output_volume: volume(settings.output_volume),
+        ..core::AudioSettings::default()
+    }
+}
+
+fn volume(value: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(0.0, 2.0)
+    } else {
+        1.0
+    }
+}
+
+pub(crate) fn core_noise_suppression(mode: NoiseSuppression) -> core::NoiseSuppressionMode {
+    match mode {
+        NoiseSuppression::Off => core::NoiseSuppressionMode::Off,
+        NoiseSuppression::Standard => core::NoiseSuppressionMode::Standard,
+        NoiseSuppression::High => core::NoiseSuppressionMode::High,
+    }
+}
+
+pub(crate) fn core_cue(cue: VoiceCueKind) -> core::VoiceCue {
+    match cue {
+        VoiceCueKind::Join => core::VoiceCue::Join,
+        VoiceCueKind::Leave => core::VoiceCue::Leave,
+        VoiceCueKind::UserJoin => core::VoiceCue::UserJoin,
+        VoiceCueKind::UserLeave => core::VoiceCue::UserLeave,
+        VoiceCueKind::Mute => core::VoiceCue::Mute,
+        VoiceCueKind::Unmute => core::VoiceCue::Unmute,
+        VoiceCueKind::Deafen => core::VoiceCue::Deafen,
+        VoiceCueKind::Undeafen => core::VoiceCue::Undeafen,
+        VoiceCueKind::StreamStart => core::VoiceCue::StreamStart,
+        VoiceCueKind::StreamStop => core::VoiceCue::StreamStop,
+    }
+}
+
 pub(crate) fn session(session: core::MusicSession) -> MusicSessionRecord {
     MusicSessionRecord {
         channel_id: id(session.channel_id),
@@ -700,6 +816,163 @@ pub(crate) fn search_results(results: core::MusicSearchResults) -> MusicSearchRe
             name: playlist.name,
             result_ids: playlist.result_ids,
         }),
+    }
+}
+
+pub(crate) fn invite(invite: core::Invite) -> InviteRecord {
+    InviteRecord {
+        code: invite.code,
+        link: invite.link,
+        web_link: invite.web_link,
+        domain_id: opt_id(invite.domain_id),
+        created_by: opt_id(invite.created_by),
+        created_at_ms: number(invite.created_at_ms),
+        max_uses: invite.max_uses,
+        uses: invite.uses,
+        expires_at_ms: invite.expires_at_ms.map(number),
+    }
+}
+
+// Private messages (phone P3). Each enum maps variant for variant, by name,
+// both ways.
+
+macro_rules! same_variants {
+    ($name:ident { $($variant:ident),+ $(,)? }) => {
+        impl From<core::$name> for $name {
+            fn from(value: core::$name) -> Self {
+                match value {
+                    $(core::$name::$variant => Self::$variant,)+
+                }
+            }
+        }
+
+        impl From<$name> for core::$name {
+            fn from(value: $name) -> Self {
+                match value {
+                    $($name::$variant => Self::$variant,)+
+                }
+            }
+        }
+    };
+}
+
+same_variants!(FriendStatus {
+    None,
+    Outgoing,
+    Incoming,
+    Friends
+});
+same_variants!(ConversationStatus {
+    None,
+    Request,
+    Accepted
+});
+same_variants!(PrivateVerification {
+    Unverified,
+    Verified,
+    Mismatch
+});
+same_variants!(PrivateMessageKind {
+    Text,
+    Divider,
+    Moved,
+    Undecryptable,
+    KeysChanged,
+    NewDevice,
+    UnacceptedKeys
+});
+same_variants!(PrivateSendState {
+    Received,
+    Sending,
+    Sent,
+    Failed
+});
+same_variants!(OwnDeviceState { Other, Offering });
+
+pub(crate) fn private_opened(opened: core::PrivateOpened) -> PrivateOpenedRecord {
+    PrivateOpenedRecord {
+        started_fresh: opened.started_fresh,
+        keys_reset: opened.keys_reset,
+    }
+}
+
+pub(crate) fn private_contact(contact: core::PrivateContact) -> PrivateContactRecord {
+    PrivateContactRecord {
+        peer: contact.peer,
+        name: contact.name,
+        friend: contact.friend.into(),
+        request_spam: contact.request_spam,
+        blocked: contact.blocked,
+        conversation: contact.conversation.into(),
+        relay_server_key: contact.relay_server_key,
+        last_activity_ms: contact.last_activity_ms.map(number),
+        unread: contact.unread,
+        muted: contact.muted,
+        hidden: contact.hidden,
+        preview: contact.preview,
+        verification: contact.verification.into(),
+        new_keys: contact.new_keys,
+        reachable: contact.reachable,
+    }
+}
+
+pub(crate) fn private_message(message: core::PrivateMessage) -> PrivateMessageRecord {
+    PrivateMessageRecord {
+        id: message.id,
+        peer: message.peer,
+        outgoing: message.outgoing,
+        kind: message.kind.into(),
+        content: message.content,
+        server_key: message.server_key,
+        sent_at_ms: number(message.sent_at_ms),
+        edited_at_ms: message.edited_at_ms.map(number),
+        state: message.state.into(),
+    }
+}
+
+pub(crate) fn key_words(words: core::KeyWords) -> KeyWordsRecord {
+    KeyWordsRecord {
+        words: words.words,
+        keys: words.keys,
+    }
+}
+
+pub(crate) fn own_device(device: core::OwnDevice) -> OwnDeviceRecord {
+    OwnDeviceRecord {
+        device_id: device.device_id,
+        state: device.state.into(),
+    }
+}
+
+pub(crate) fn own_devices(devices: Vec<core::OwnDevice>, has_chats: bool) -> OwnDevicesRecord {
+    OwnDevicesRecord {
+        devices: devices.into_iter().map(own_device).collect(),
+        has_chats,
+    }
+}
+
+pub(crate) fn shared_server(server: core::SharedServer) -> SharedServerRecord {
+    SharedServerRecord {
+        server_key: server.server_key,
+        name: server.name,
+        connected: server.connected,
+        private_messages: server.private_messages,
+        friends_only: server.friends_only,
+        peer_user_id: id(server.peer_user_id),
+    }
+}
+
+pub(crate) fn privacy_settings(settings: core::PrivacySettingsData) -> PrivacySettingsRecord {
+    PrivacySettingsRecord {
+        allow_friend_requests: settings.allow_friend_requests,
+        allow_message_requests: settings.allow_message_requests,
+    }
+}
+
+pub(crate) fn core_privacy_settings(settings: PrivacySettingsRecord) -> core::PrivacySettingsData {
+    core::PrivacySettingsData {
+        allow_friend_requests: settings.allow_friend_requests,
+        allow_message_requests: settings.allow_message_requests,
     }
 }
 
@@ -785,6 +1058,205 @@ mod tests {
 
     fn bits(flags: Permissions) -> i64 {
         i64::from_ne_bytes(flags.bits().to_ne_bytes())
+    }
+
+    // Fails if ADMINISTRATOR doesn't grant every server-wide permission flag.
+    #[test]
+    fn administrator_grants_every_server_flag() {
+        let access = server_access(bits(Permissions::ADMINISTRATOR));
+        assert!(
+            access.manage_server
+                && access.manage_channels
+                && access.manage_roles
+                && access.kick_members
+                && access.ban_members
+                && access.create_invite
+                && access.manage_nicknames
+                && access.change_nickname
+                && access.manage_messages
+                && access.mention_everyone
+                && access.manage_plugins
+                && access.manage_soundboard
+                && access.music_manage
+                && access.mute_members
+                && access.deafen_members
+                && access.move_members
+                && access.priority_speaker
+                && access.video
+                && access.screenshare
+                && access.administrator
+        );
+    }
+
+    // Fails if server_access doesn't map permission bits to the right fields, or leaks administrator.
+    #[test]
+    fn server_access_follows_the_permission_bits() {
+        let access = server_access(bits(Permissions::KICK_MEMBERS | Permissions::MANAGE_ROLES));
+        assert!(access.kick_members);
+        assert!(access.manage_roles);
+        assert!(
+            !access.manage_server
+                && !access.manage_channels
+                && !access.ban_members
+                && !access.create_invite
+                && !access.manage_nicknames
+                && !access.change_nickname
+                && !access.manage_messages
+                && !access.mention_everyone
+                && !access.manage_plugins
+                && !access.manage_soundboard
+                && !access.music_manage
+                && !access.mute_members
+                && !access.deafen_members
+                && !access.move_members
+                && !access.priority_speaker
+                && !access.video
+                && !access.screenshare
+                && !access.administrator
+        );
+    }
+
+    // Fails if a role loses its permissions, id as a string, or server access mapping.
+    #[test]
+    fn a_role_crosses_with_its_bits() {
+        let role = core::Role {
+            id: 42,
+            name: "Moderator".to_owned(),
+            color: 0x5865f2,
+            position: 3,
+            permissions: bits(Permissions::BAN_MEMBERS),
+            hoist: true,
+            mentionable: true,
+            max_upload_bytes: Some(25_000_000),
+            plugin_id: Some("moderation".to_owned()),
+        };
+        let record = super::role(role);
+        assert_eq!(record.id, "42");
+        assert_eq!(record.name, "Moderator");
+        assert_eq!(record.color, 0x5865f2);
+        assert_eq!(record.position, 3);
+        assert!(record.hoist);
+        assert!(record.mentionable);
+        assert_eq!(record.max_upload_bytes, Some(25_000_000.0));
+        assert_eq!(record.plugin_id.as_deref(), Some("moderation"));
+        assert!(record.access.ban_members);
+        assert!(
+            !record.access.manage_server
+                && !record.access.manage_channels
+                && !record.access.manage_roles
+                && !record.access.kick_members
+                && !record.access.create_invite
+                && !record.access.administrator
+        );
+    }
+
+    // Fails if ReadySnapshot drops roles, presences, or server_access when converting to ServerSnapshot.
+    #[test]
+    fn the_snapshot_carries_roles_presences_and_server_access() {
+        let ready = core::ReadySnapshot {
+            self_user: core::User {
+                id: 1,
+                public_key_hex: "01".repeat(32),
+                display_name: "Self".to_owned(),
+                avatar_hash: None,
+                fingerprint: "ABCD-EFGH-IJKL-MNOP".to_owned(),
+            },
+            server: core::ServerInfo {
+                server_id_hex: "02".repeat(16),
+                name: "Test Guild".to_owned(),
+                description: "Guild desc".to_owned(),
+                owner_id: Some(1),
+                open_join: false,
+                everyone_role_id: 1,
+                icon_hash: None,
+            },
+            channels: Vec::new(),
+            roles: vec![
+                core::Role {
+                    id: 10,
+                    name: "Moderator".to_owned(),
+                    color: 0x5865f2,
+                    position: 1,
+                    permissions: bits(Permissions::KICK_MEMBERS),
+                    hoist: true,
+                    mentionable: true,
+                    max_upload_bytes: Some(10_000_000),
+                    plugin_id: None,
+                },
+                core::Role {
+                    id: 11,
+                    name: "Admin".to_owned(),
+                    color: 0,
+                    position: 2,
+                    permissions: bits(Permissions::ADMINISTRATOR),
+                    hoist: false,
+                    mentionable: false,
+                    max_upload_bytes: None,
+                    plugin_id: None,
+                },
+            ],
+            members: Vec::new(),
+            presences: vec![core::Presence {
+                user_id: 1,
+                status: core::PresenceStatus::Online,
+            }],
+            server_permissions: bits(Permissions::MANAGE_SERVER),
+            channel_permissions: Vec::new(),
+            voice_enabled: false,
+            voice_states: Vec::new(),
+            streams: Vec::new(),
+            voice_settings: core::VoiceSettings {
+                screen_share_max_resolution: core::ScreenShareResolution::P1080,
+                screen_share_max_fps: 30,
+                max_stream_viewers: 10,
+                camera_allowed: true,
+                max_camera_participants: 10,
+                max_voice_bitrate: 64_000,
+                afk_channel_id: None,
+                afk_timeout_s: 300,
+                soundboard_enabled: true,
+                allow_default_sounds: false,
+                allow_external_sounds: true,
+                sound_cooldown_s: 3,
+                max_sounds: 48,
+            },
+            soundboard_sounds: Vec::new(),
+            addresses: core::ServerAddresses {
+                primary: None,
+                domains: Vec::new(),
+                ip: None,
+            },
+            commands: core::CommandList {
+                commands: Vec::new(),
+                results_public: false,
+            },
+            upload_settings: core::UploadSettings {
+                blocked_extensions: Vec::new(),
+                voice_message_max_seconds: 60,
+                max_file_bytes: 10_000_000,
+                max_attachments: 10,
+            },
+            private_messages: false,
+            private_settings: core::PrivateSettings {
+                enabled: false,
+                friends_only: false,
+                allowed_by_config: true,
+            },
+            plugin_users: Vec::new(),
+            plugin_channel_types: Vec::new(),
+            plugin_activities: Vec::new(),
+            activity_sessions: Vec::new(),
+        };
+
+        let snapshot = snapshot("srv".to_owned(), ready);
+        assert_eq!(snapshot.roles.len(), 2);
+        assert_eq!(snapshot.roles[0].id, "10");
+        assert_eq!(snapshot.roles[1].id, "11");
+        assert_eq!(snapshot.presences.len(), 1);
+        assert_eq!(snapshot.presences[0].user_id, "1");
+        assert_eq!(snapshot.presences[0].status, PresenceStatus::Online);
+        assert!(snapshot.server_access.manage_server);
+        assert!(!snapshot.server_access.administrator);
     }
 
     #[test]
@@ -1056,5 +1528,317 @@ mod tests {
 
         assert_eq!(track(core_track(0)).local_song_id, None);
         assert_eq!(track(core_track(7)).local_song_id, Some("7".to_owned()));
+
+        let core_member = core::Member {
+            user: core::User {
+                id: 42,
+                public_key_hex: "PK".to_owned(),
+                display_name: "Alice".to_owned(),
+                avatar_hash: None,
+                fingerprint: "FP".to_owned(),
+            },
+            nickname: Some("Ali".to_owned()),
+            role_ids: vec![1, 2],
+            joined_at_ms: 1_791_374_400_000,
+        };
+        let converted_member = member(core_member);
+        assert_eq!(converted_member.user.id, "42");
+        assert_eq!(converted_member.nickname.as_deref(), Some("Ali"));
+        assert_eq!(converted_member.role_ids, vec!["1", "2"]);
+        assert_eq!(converted_member.joined_at_ms, 1_791_374_400_000.0);
+    }
+
+    fn phone_audio(input_volume: f32, output_volume: f32) -> PhoneAudioSettings {
+        PhoneAudioSettings {
+            noise_suppression: NoiseSuppression::Standard,
+            input_volume,
+            output_volume,
+        }
+    }
+
+    // Fails if the phone's untouched choices change anything about a call's
+    // audio: every phone call ran on the core's defaults before P1.
+    #[test]
+    fn untouched_settings_equal_the_core_default() {
+        assert_eq!(
+            core_audio_settings(phone_audio(1.0, 1.0)),
+            core::AudioSettings::default()
+        );
+    }
+
+    // Fails if a volume past 200 %, below 0 or not a number reaches the
+    // call, or if the three choices don't land where they belong.
+    #[test]
+    fn volumes_clamp() {
+        let high = core_audio_settings(phone_audio(5.0, 2.5));
+        assert_eq!((high.input_volume, high.output_volume), (2.0, 2.0));
+        let low = core_audio_settings(phone_audio(-1.0, -0.1));
+        assert_eq!((low.input_volume, low.output_volume), (0.0, 0.0));
+        let odd = core_audio_settings(phone_audio(f32::NAN, f32::INFINITY));
+        assert_eq!((odd.input_volume, odd.output_volume), (1.0, 1.0));
+        let chosen = core_audio_settings(PhoneAudioSettings {
+            noise_suppression: NoiseSuppression::High,
+            input_volume: 0.5,
+            output_volume: 1.5,
+        });
+        assert_eq!(
+            chosen,
+            core::AudioSettings {
+                noise_suppression: core::NoiseSuppressionMode::High,
+                input_volume: 0.5,
+                output_volume: 1.5,
+                ..core::AudioSettings::default()
+            }
+        );
+        assert_eq!(
+            core_noise_suppression(NoiseSuppression::Off),
+            core::NoiseSuppressionMode::Off
+        );
+    }
+
+    // Fails if a sound plays as another one.
+    #[test]
+    fn every_cue_maps_to_the_core() {
+        let pairs = [
+            (VoiceCueKind::Join, core::VoiceCue::Join),
+            (VoiceCueKind::Leave, core::VoiceCue::Leave),
+            (VoiceCueKind::UserJoin, core::VoiceCue::UserJoin),
+            (VoiceCueKind::UserLeave, core::VoiceCue::UserLeave),
+            (VoiceCueKind::Mute, core::VoiceCue::Mute),
+            (VoiceCueKind::Unmute, core::VoiceCue::Unmute),
+            (VoiceCueKind::Deafen, core::VoiceCue::Deafen),
+            (VoiceCueKind::Undeafen, core::VoiceCue::Undeafen),
+            (VoiceCueKind::StreamStart, core::VoiceCue::StreamStart),
+            (VoiceCueKind::StreamStop, core::VoiceCue::StreamStop),
+        ];
+        for (phone, expected) in pairs {
+            assert_eq!(core_cue(phone), expected, "{phone:?}");
+        }
+    }
+
+    // Fails if `invite` drops the link or does not map the fields.
+    #[test]
+    fn an_invite_crosses_with_its_link() {
+        let record = invite(core::Invite {
+            code: "AbC123xyz".to_string(),
+            link: "opencord://chat.example.org:7711/invite/AbC123xyz#fp=abcdef".to_string(),
+            web_link: Some("https://chat.example.org/invite/AbC123xyz".to_string()),
+            domain_id: Some(42),
+            created_by: Some(101),
+            created_at_ms: 1_700_000_000_123,
+            max_uses: Some(5),
+            uses: 1,
+            expires_at_ms: Some(1_700_100_000_456),
+        });
+        assert_eq!(record.code, "AbC123xyz");
+        assert_eq!(
+            record.link,
+            "opencord://chat.example.org:7711/invite/AbC123xyz#fp=abcdef"
+        );
+        assert_eq!(
+            record.web_link.as_deref(),
+            Some("https://chat.example.org/invite/AbC123xyz")
+        );
+        assert_eq!(record.domain_id.as_deref(), Some("42"));
+        assert_eq!(record.created_by.as_deref(), Some("101"));
+        assert_eq!(record.created_at_ms, 1_700_000_000_123.0);
+        assert_eq!(record.max_uses, Some(5));
+        assert_eq!(record.uses, 1);
+        assert_eq!(record.expires_at_ms, Some(1_700_100_000_456.0));
+    }
+
+    // Fails if `domain_id` or `created_by` are not converted to decimal strings.
+    #[test]
+    fn ids_in_an_invite_are_strings() {
+        let record = invite(core::Invite {
+            code: "code".to_string(),
+            link: "link".to_string(),
+            web_link: None,
+            domain_id: Some(9_000_000_000_000_000_001),
+            created_by: Some(9_000_000_000_000_000_002),
+            created_at_ms: 0,
+            max_uses: None,
+            uses: 0,
+            expires_at_ms: None,
+        });
+        assert_eq!(record.domain_id.as_deref(), Some("9000000000000000001"));
+        assert_eq!(record.created_by.as_deref(), Some("9000000000000000002"));
+    }
+
+    fn round_trips<C, M>(pairs: &[(C, M)])
+    where
+        C: Copy + PartialEq + std::fmt::Debug + From<M>,
+        M: Copy + PartialEq + std::fmt::Debug + From<C>,
+    {
+        for &(core_value, mobile_value) in pairs {
+            assert_eq!(M::from(core_value), mobile_value);
+            assert_eq!(C::from(mobile_value), core_value);
+        }
+    }
+
+    // Fails if a private enum's variant maps to another variant, either way:
+    // a contact shown as verified when it isn't, or a failed send shown as
+    // sent.
+    #[test]
+    fn every_private_enum_round_trips() {
+        round_trips(&[
+            (core::FriendStatus::None, FriendStatus::None),
+            (core::FriendStatus::Outgoing, FriendStatus::Outgoing),
+            (core::FriendStatus::Incoming, FriendStatus::Incoming),
+            (core::FriendStatus::Friends, FriendStatus::Friends),
+        ]);
+        round_trips(&[
+            (core::ConversationStatus::None, ConversationStatus::None),
+            (
+                core::ConversationStatus::Request,
+                ConversationStatus::Request,
+            ),
+            (
+                core::ConversationStatus::Accepted,
+                ConversationStatus::Accepted,
+            ),
+        ]);
+        round_trips(&[
+            (
+                core::PrivateVerification::Unverified,
+                PrivateVerification::Unverified,
+            ),
+            (
+                core::PrivateVerification::Verified,
+                PrivateVerification::Verified,
+            ),
+            (
+                core::PrivateVerification::Mismatch,
+                PrivateVerification::Mismatch,
+            ),
+        ]);
+        round_trips(&[
+            (core::PrivateMessageKind::Text, PrivateMessageKind::Text),
+            (
+                core::PrivateMessageKind::Divider,
+                PrivateMessageKind::Divider,
+            ),
+            (core::PrivateMessageKind::Moved, PrivateMessageKind::Moved),
+            (
+                core::PrivateMessageKind::Undecryptable,
+                PrivateMessageKind::Undecryptable,
+            ),
+            (
+                core::PrivateMessageKind::KeysChanged,
+                PrivateMessageKind::KeysChanged,
+            ),
+            (
+                core::PrivateMessageKind::NewDevice,
+                PrivateMessageKind::NewDevice,
+            ),
+            (
+                core::PrivateMessageKind::UnacceptedKeys,
+                PrivateMessageKind::UnacceptedKeys,
+            ),
+        ]);
+        round_trips(&[
+            (core::PrivateSendState::Received, PrivateSendState::Received),
+            (core::PrivateSendState::Sending, PrivateSendState::Sending),
+            (core::PrivateSendState::Sent, PrivateSendState::Sent),
+            (core::PrivateSendState::Failed, PrivateSendState::Failed),
+        ]);
+        round_trips(&[
+            (core::OwnDeviceState::Other, OwnDeviceState::Other),
+            (core::OwnDeviceState::Offering, OwnDeviceState::Offering),
+        ]);
+
+        // And inside the records that carry them.
+        let contact = private_contact(core::PrivateContact {
+            peer: "ab".repeat(32),
+            name: Some("Kai".to_owned()),
+            friend: core::FriendStatus::Incoming,
+            request_spam: true,
+            blocked: false,
+            conversation: core::ConversationStatus::Request,
+            relay_server_key: Some("a.example:7700".to_owned()),
+            last_activity_ms: Some(1_700_000_000_123),
+            unread: 3,
+            muted: true,
+            hidden: false,
+            preview: Some("hi".to_owned()),
+            verification: core::PrivateVerification::Mismatch,
+            new_keys: true,
+            reachable: false,
+        });
+        assert_eq!(
+            contact,
+            PrivateContactRecord {
+                peer: "ab".repeat(32),
+                name: Some("Kai".to_owned()),
+                friend: FriendStatus::Incoming,
+                request_spam: true,
+                blocked: false,
+                conversation: ConversationStatus::Request,
+                relay_server_key: Some("a.example:7700".to_owned()),
+                last_activity_ms: Some(1_700_000_000_123.0),
+                unread: 3,
+                muted: true,
+                hidden: false,
+                preview: Some("hi".to_owned()),
+                verification: PrivateVerification::Mismatch,
+                new_keys: true,
+                reachable: false,
+            }
+        );
+        let message = private_message(core::PrivateMessage {
+            id: "0f".repeat(16),
+            peer: "ab".repeat(32),
+            outgoing: true,
+            kind: core::PrivateMessageKind::KeysChanged,
+            content: String::new(),
+            server_key: None,
+            sent_at_ms: 1_700_000_000_456,
+            edited_at_ms: Some(1_700_000_000_789),
+            state: core::PrivateSendState::Failed,
+        });
+        assert_eq!(message.kind, PrivateMessageKind::KeysChanged);
+        assert_eq!(message.state, PrivateSendState::Failed);
+        assert_eq!(message.sent_at_ms, 1_700_000_000_456.0);
+        assert_eq!(message.edited_at_ms, Some(1_700_000_000_789.0));
+        assert_eq!(message.id, "0f".repeat(16));
+        let devices = own_devices(
+            vec![core::OwnDevice {
+                device_id: "cd".repeat(16),
+                state: core::OwnDeviceState::Offering,
+            }],
+            true,
+        );
+        assert_eq!(
+            devices,
+            OwnDevicesRecord {
+                devices: vec![OwnDeviceRecord {
+                    device_id: "cd".repeat(16),
+                    state: OwnDeviceState::Offering,
+                }],
+                has_chats: true,
+            }
+        );
+        let settings = PrivacySettingsRecord {
+            allow_friend_requests: false,
+            allow_message_requests: true,
+        };
+        assert_eq!(privacy_settings(core_privacy_settings(settings)), settings);
+    }
+
+    // Fails if a peer's user id crosses as a number, which JavaScript reads
+    // as a `bigint` (or loses digits of).
+    #[test]
+    fn a_shared_server_user_id_is_a_string() {
+        let record = shared_server(core::SharedServer {
+            server_key: "a.example:7700".to_owned(),
+            name: "Home".to_owned(),
+            connected: true,
+            private_messages: true,
+            friends_only: false,
+            peer_user_id: 9_000_000_000_000_000_003,
+        });
+        assert_eq!(record.peer_user_id, "9000000000000000003");
+        assert_eq!(record.server_key, "a.example:7700");
+        assert!(record.private_messages && !record.friends_only);
     }
 }

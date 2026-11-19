@@ -1,15 +1,18 @@
 // A text channel's pane (spec §8.5): its header, then the messages, with
 // the dock (the voice bar and the composer) floating over their bottom as
 // Telegram's, the messages scrolling under it.
-import { useEffect, useMemo, useState } from 'react';
+import { ChannelKind } from '@opencord/core-native';
+import { router } from 'expo-router';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { useChannelInfo } from '@/state/selectors';
+import { useChannelInfo, useChatStale } from '@/state/selectors';
 import { PaneHeader, useTheme } from '@/ui';
 
 import { ChatVoicePill } from './ChatVoicePill';
+import { ConnectionBanner } from './ConnectionBanner';
 import { Composer } from './Composer';
 import { AWAY_DROP, ChatDockContext, useDockLift } from './dock';
 import { MessageList } from './MessageList';
@@ -27,11 +30,74 @@ export interface ChatPaneProps {
    * its room so the messages don't move, and comes back when the chat does.
    */
   covered?: boolean;
+  /** When opened as a sheet/side slot from a voice channel, a button to close it. */
+  onClose?: () => void;
 }
 
-export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel, onOpenChannel, covered = false }: ChatPaneProps) {
+export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel, onOpenChannel, covered = false, onClose }: ChatPaneProps) {
   const { colors } = useTheme();
   const info = useChannelInfo(serverKey, channelId);
+  const isStale = useChatStale(serverKey);
+
+  const isVoice = info?.channel.kind === ChannelKind.Voice;
+
+  return (
+    <View style={[styles.pane, { backgroundColor: colors.chat }]}>
+      <PaneHeader
+        title={isVoice ? `Chat · ${info?.channel.name ?? ''}` : (info?.channel.name ?? '')}
+        titleIcon={isVoice ? 'voiceChannel' : 'textChannel'}
+        subtitle={info?.channel.topic}
+        left={
+          onClose
+            ? { icon: 'close', label: 'Close', onPress: onClose }
+            : onOpenSidebar
+              ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar }
+              : undefined
+        }
+        right={
+          onClose
+            ? undefined
+            : [
+                {
+                  icon: 'people',
+                  label: 'Members',
+                  onPress: () => router.push(`/server/${serverKey}/members`),
+                },
+              ]
+        }
+      />
+      <ConnectionBanner serverKey={serverKey} />
+      <ChatBody
+        covered={covered}
+        dimmed={isStale}
+        list={<MessageList serverKey={serverKey} channelId={channelId} onSelectChannel={onSelectChannel} />}
+        dock={
+          <>
+            {onOpenChannel && <ChatVoicePill covered={covered} />}
+            <Composer serverKey={serverKey} channelId={channelId} disabled={isStale} />
+          </>
+        }
+      />
+    </View>
+  );
+}
+
+export interface ChatBodyProps {
+  /** The messages: a ChatList. */
+  list: ReactNode;
+  /** What floats over the messages' bottom on the keyboard: the composer, or what stands in for it. */
+  dock: ReactNode;
+  /** The sidebar is over the chat: the dock steps aside (ChatPaneProps.covered). */
+  covered?: boolean;
+  /** The messages are out of date (the server is reconnecting). */
+  dimmed?: boolean;
+}
+
+/**
+ * A chat under its header: the messages, with the dock floating over their
+ * bottom and riding the keyboard, the list lifting by the same amount.
+ */
+export function ChatBody({ list, dock: dockContent, covered = false, dimmed = false }: ChatBodyProps) {
   const lift = useDockLift();
   const padding = useSharedValue(0);
   const [height, setHeight] = useState(0);
@@ -58,28 +124,21 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
   }));
 
   return (
-    <View style={[styles.pane, { backgroundColor: colors.chat }]}>
-      <PaneHeader
-        title={info?.channel.name ?? ''}
-        titleIcon="textChannel"
-        subtitle={info?.channel.topic}
-        left={onOpenSidebar ? { icon: 'sidebar', label: 'Show channels', onPress: onOpenSidebar } : undefined}
-      />
-      <ChatDockContext.Provider value={dock}>
-        <View style={styles.body} onLayout={(event) => setBodyHeight(Math.round(event.nativeEvent.layout.height))}>
-          <MessageList serverKey={serverKey} channelId={channelId} onSelectChannel={onSelectChannel} />
-          {/* The dock rides the keyboard: it stands on its bottom margin, so it
-              rises by the keyboard's height less that margin, and the list
-              lifts by the same (MessageList's ChatScrollView). */}
-          <KeyboardStickyView offset={{ closed: 0, opened: lift }} style={styles.dock} pointerEvents="box-none">
-            <Animated.View onLayout={onDockLayout} pointerEvents={covered ? 'none' : 'box-none'} style={awayStyle}>
-              {onOpenChannel && <ChatVoicePill covered={covered} />}
-              <Composer serverKey={serverKey} channelId={channelId} />
-            </Animated.View>
-          </KeyboardStickyView>
+    <ChatDockContext.Provider value={dock}>
+      <View style={styles.body} onLayout={(event) => setBodyHeight(Math.round(event.nativeEvent.layout.height))}>
+        <View testID="chat-messages-container" style={[{ flex: 1 }, dimmed && { opacity: 0.6 }]}>
+          {list}
         </View>
-      </ChatDockContext.Provider>
-    </View>
+        {/* The dock rides the keyboard: it stands on its bottom margin, so it
+            rises by the keyboard's height less that margin, and the list
+            lifts by the same (MessageList's ChatScrollView). */}
+        <KeyboardStickyView offset={{ closed: 0, opened: lift }} style={styles.dock} pointerEvents="box-none">
+          <Animated.View onLayout={onDockLayout} pointerEvents={covered ? 'none' : 'box-none'} style={awayStyle}>
+            {dockContent}
+          </Animated.View>
+        </KeyboardStickyView>
+      </View>
+    </ChatDockContext.Provider>
   );
 }
 

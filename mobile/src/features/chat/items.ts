@@ -21,6 +21,8 @@ export interface MessageBubbleItem {
   id: string;
   message: MessageRecord;
   pending?: PendingSend;
+  /** A private message's own state; a server channel's comes from `pending`. */
+  sendState?: 'sending' | 'failed';
   position: GroupPosition;
   own: boolean;
   showAuthor: boolean;
@@ -36,10 +38,16 @@ export interface EphemeralItem {
 
 export type ChatItem = DaySeparatorItem | NewMessagesDividerItem | MessageBubbleItem | EphemeralItem;
 
-const GROUP_WINDOW_MS = 5 * 60 * 1000;
+/** Messages by one author closer than this join one group. */
+export const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
-function dayKey(date: Date): string {
+export function dayKey(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+/** Where the i-th of a group of `count` sits. */
+export function groupPosition(index: number, count: number): GroupPosition {
+  return count === 1 ? 'single' : index === 0 ? 'first' : index === count - 1 ? 'last' : 'middle';
 }
 
 export interface BuildChatItemsOpts {
@@ -93,8 +101,7 @@ export function buildChatItems(
       const entry = currentGroup[i];
       if (!entry) continue;
       const own = entry.message.authorId === opts.selfId;
-      const position: GroupPosition =
-        count === 1 ? 'single' : i === 0 ? 'first' : i === count - 1 ? 'last' : 'middle';
+      const position = groupPosition(i, count);
       const showAuthor = (position === 'first' || position === 'single') && !own;
       const showAvatar = (position === 'last' || position === 'single') && !own;
       const mentionsMe = entry.message.content.includes(`<@${opts.selfId}>`);

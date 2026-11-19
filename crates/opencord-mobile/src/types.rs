@@ -17,6 +17,12 @@ pub struct NewIdentity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct OwnAvatarRecord {
+    pub hash: Option<String>,
+    pub file: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct ServerEntry {
     /// `host:port`; names the server in every other call.
     pub key: String,
@@ -39,6 +45,19 @@ pub enum AddServerResult {
         address: String,
         fingerprint: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct InviteRecord {
+    pub code: String,
+    pub link: String,
+    pub web_link: Option<String>,
+    pub domain_id: Option<String>,
+    pub created_by: Option<String>,
+    pub created_at_ms: f64,
+    pub max_uses: Option<u32>,
+    pub uses: u32,
+    pub expires_at_ms: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -77,13 +96,15 @@ pub struct UserRecord {
     /// For `avatar_file`; `None` without a picture.
     pub avatar_hash: Option<String>,
     pub fingerprint: String,
+    pub public_key_hex: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct MemberRecord {
     pub user: UserRecord,
     pub nickname: Option<String>,
     pub role_ids: Vec<String>,
+    pub joined_at_ms: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -203,6 +224,58 @@ pub struct ChannelAccess {
     pub manage_channel: bool,
 }
 
+/// What this user or a role may do across a server, from its permission bits.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ServerAccess {
+    pub manage_server: bool,
+    pub manage_channels: bool,
+    pub manage_roles: bool,
+    pub kick_members: bool,
+    pub ban_members: bool,
+    pub create_invite: bool,
+    pub manage_nicknames: bool,
+    pub change_nickname: bool,
+    pub manage_messages: bool,
+    pub mention_everyone: bool,
+    pub manage_plugins: bool,
+    pub manage_soundboard: bool,
+    pub music_manage: bool,
+    pub mute_members: bool,
+    pub deafen_members: bool,
+    pub move_members: bool,
+    pub priority_speaker: bool,
+    pub video: bool,
+    pub screenshare: bool,
+    pub administrator: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct RoleRecord {
+    pub id: String,
+    pub name: String,
+    pub color: u32,
+    pub position: i32,
+    pub hoist: bool,
+    pub mentionable: bool,
+    pub max_upload_bytes: Option<f64>,
+    pub plugin_id: Option<String>,
+    pub access: ServerAccess,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum PresenceStatus {
+    Online,
+    Idle,
+    Dnd,
+    Offline,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PresenceRecord {
+    pub user_id: String,
+    pub status: PresenceStatus,
+}
+
 /// Everything a `Ready` says about a server; it replaces what came before.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct ServerSnapshot {
@@ -214,6 +287,9 @@ pub struct ServerSnapshot {
     pub icon_hash: Option<String>,
     pub channels: Vec<ChannelRecord>,
     pub access: Vec<ChannelAccess>,
+    pub roles: Vec<RoleRecord>,
+    pub presences: Vec<PresenceRecord>,
+    pub server_access: ServerAccess,
     pub members: Vec<MemberRecord>,
     pub voice_states: Vec<VoiceStateRecord>,
     pub voice_enabled: bool,
@@ -640,6 +716,43 @@ pub enum PlaybackItemRecord {
     Draft {
         draft_id: f64,
     },
+}
+
+/// The audio choices the phone offers (P1). Everything else the core's
+/// `AudioSettings` holds stays at its default: the phone runs every call on
+/// those today.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct PhoneAudioSettings {
+    pub noise_suppression: NoiseSuppression,
+    /// Microphone gain, 0–2 (200 %).
+    pub input_volume: f32,
+    /// Everything heard, 0–2 (200 %).
+    pub output_volume: f32,
+}
+
+/// Noise suppression on the microphone: `Standard` is RNNoise, `High`
+/// DeepFilterNet (heavier; the core falls back to `Standard` when the phone
+/// can't keep up).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum NoiseSuppression {
+    Off,
+    Standard,
+    High,
+}
+
+/// A voice event's sound, played on this device only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum VoiceCueKind {
+    Join,
+    Leave,
+    UserJoin,
+    UserLeave,
+    Mute,
+    Unmute,
+    Deafen,
+    Undeafen,
+    StreamStart,
+    StreamStop,
 }
 
 /// A batch for the renderer of one plugin view: the core's id for the view

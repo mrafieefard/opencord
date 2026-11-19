@@ -8,6 +8,11 @@ const MAX_CACHE_ENTRIES = 200;
 const pathCache = new Map<string, string>();
 const inFlight = new Map<string, Promise<string>>();
 
+export function clearAttachmentCache(): void {
+  pathCache.clear();
+  inFlight.clear();
+}
+
 export function attachmentKey(serverKey: string, attachmentId: string, variant: AttachmentVariant): string {
   return `${serverKey}:${attachmentId}:${variant}`;
 }

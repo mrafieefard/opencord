@@ -9,6 +9,7 @@ import type {
   MusicNowPlayingRecord,
   MusicSessionRecord,
   MusicSettingsRecord,
+  PhoneAudioSettings,
   PluginUserRecord,
   ServerEntry,
   ServerSnapshot,
@@ -18,6 +19,7 @@ import type {
 } from '@opencord/core-native';
 
 import type { SelfInfo } from '@/core/boot';
+import type { PrivateState } from './private';
 
 export interface ChannelActivity {
   /** The newest message known. */
@@ -50,6 +52,8 @@ export interface ServerState {
   pluginUsers?: Record<string, PluginUserRecord>;
   /** Replies only this device sees, by channel; never stored. */
   ephemeral?: Record<string, EphemeralNote[]>;
+  /** The presented fingerprint of a changed server identity already presented once. */
+  shownFingerprint?: string;
 }
 
 export interface EphemeralNote extends EphemeralNoteRecord {
@@ -138,11 +142,35 @@ export interface MusicListening {
   duck: boolean;
 }
 
+export type UserStatus = 'online' | 'idle' | 'dnd';
+
+export type CueGroup =
+  | 'joinLeave'
+  | 'othersJoinLeave'
+  | 'mute'
+  | 'deafen'
+  | 'stream';
+
+export interface SoundboardPrefs {
+  volume: number;
+  muted: boolean;
+}
+
 export interface Prefs {
   theme: Theme;
   music: MusicListening;
   /** Soundboard favourites, by picker.ts's favoriteKey. */
   soundFavorites: string[];
+  /** Noise suppression and the two volumes (Voice & audio), given to the core at boot and on change. */
+  audio: PhoneAudioSettings;
+  /** The person's presence status, stored with the other prefs. */
+  status: UserStatus;
+  /** How loud soundboards are on this device, and whether muted. */
+  soundboard: SoundboardPrefs;
+  /** Which voice sound groups are turned off. */
+  cuesOff: CueGroup[];
+  /** Recent emoji characters (at most 24), kept in settings. */
+  recentEmoji: string[];
 }
 
 export interface Toast {
@@ -188,6 +216,8 @@ export interface AppState {
   voicePlayback: VoicePlayback | null;
   /** A text or plugin channel fills a phone's screen: the tab bar (and the floating voice bar, but in a chat's room for it) steps aside. */
   chatInFront: boolean;
+  /** The server whose screen is in front, if one is: iOS's search slot becomes its server button. */
+  serverInFront: string | null;
   /** The tab bar's room at the foot of a tab's screen (its bottom inset there); 0 unknown. */
   tabInset: number;
   /** Where a chat keeps room for the floating voice pill (iOS), if one does now. */
@@ -201,9 +231,14 @@ export interface AppState {
   /** Voice messages play at 1, 1.5 or 2 times. */
   voiceSpeed: number;
   voiceRecording: VoiceRecording | null;
+  /** The microphone test (Voice & audio) is on, or asked to be: its button shows Stop test. */
+  micTest: boolean;
   prefs: Prefs;
   toasts: Toast[];
   editingMessage: EditingMessage | null;
+  /** Recent channel visits in order of most recent visit (§4.9). */
+  recentChannels: { serverKey: string; channelId: string }[];
+  private: PrivateState;
 }
 
 /** A row of the server list (design §8.2). */
@@ -247,6 +282,8 @@ export type ChannelItem =
       nowPlaying: MusicNowPlayingRecord | null;
       count: number;
       limit: number;
+      unread: number;
+      mentions: number;
     }
   | {
       kind: 'plugin';

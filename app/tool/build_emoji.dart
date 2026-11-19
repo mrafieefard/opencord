@@ -17,6 +17,7 @@ const upstreamCommit = '2771d0b1b3af25c069086e68e38f901c3dda8bdf';
 const maxVersion = 15.0;
 
 const dartOutput = 'lib/ui/emoji/emoji_data.dart';
+const mobileJsonOutput = '../mobile/src/features/emoji/emojiData.json';
 const licenseOutput = 'assets/licenses/emoji-data-MIT.txt';
 
 /// Upstream category → `EmojiCategory` value.
@@ -74,7 +75,26 @@ ${lines.join('\n')}
   await Process.run(Platform.resolvedExecutable, ['format', dartOutput]);
   await license.copy(licenseOutput);
   stdout.writeln('${entries.length} emoji written to $dartOutput');
+
+  final jsonLines = [
+    for (final entry in entries)
+      '  ${jsonEncode({
+        'e': char(entry['unified']! as String),
+        'n': name(entry),
+        's': (entry['short_names']! as List).cast<String>(),
+        'c': categories[entry['category']],
+      })}',
+  ];
+  final mobileFile = File(mobileJsonOutput);
+  await mobileFile.parent.create(recursive: true);
+  await mobileFile.writeAsString('[\n${jsonLines.join(',\n')}\n]\n');
+  stdout.writeln('${entries.length} emoji written to $mobileJsonOutput');
 }
+
+/// '1F44D' or '2764-FE0F' → actual unicode emoji string.
+String char(String unified) => String.fromCharCodes(
+      unified.split('-').map((hex) => int.parse(hex, radix: 16)),
+    );
 
 /// `1F44D` or `2764-FE0F` → `\u{1F44D}` or `\u{2764}\u{FE0F}`.
 String escape(String unified) =>

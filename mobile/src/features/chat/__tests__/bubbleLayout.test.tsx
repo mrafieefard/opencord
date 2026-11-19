@@ -1,10 +1,14 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
+import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
+import { router } from 'expo-router';
 
-import { NIGHT_OWLS } from '@/core/fake/world';
-import { freshStore } from '@/test/store';
+import { CHANNELS, NIGHT_OWLS, snapshot } from '@/core/fake/world';
+import { freshStore, settle } from '@/test/store';
+import { onEvents } from '@/state/store';
 
 import { MarkdownText } from '../MarkdownText';
-import { bubbleCorners } from '../MessageBubble';
+import { MessageBubble, bubbleCorners } from '../MessageBubble';
+import type { MessageBubbleItem } from '../items';
 
 /** The text reserving the time's room: an em space, then the time. */
 const ROOM = ' 9:41';
@@ -50,5 +54,46 @@ describe('bubble layout', () => {
 
     const none = await render(<MarkdownText content="plain" serverKey={NIGHT_OWLS} />);
     expect(blocks(none.toJSON())).toEqual([['plain']]);
+  });
+
+  // Fails if tapping author name or author avatar does not navigate to member profile.
+  it('tapping author name and avatar navigates to member profile', async () => {
+    onEvents([
+      new MobileEvent.Connection({ serverKey: NIGHT_OWLS, state: new ConnectionRecord.Connected() }),
+      new MobileEvent.Ready({ snapshot: snapshot(NIGHT_OWLS) }),
+    ]);
+    await settle();
+
+    const item: MessageBubbleItem = {
+      type: 'message',
+      id: '1',
+      message: {
+        id: '1',
+        channelId: CHANNELS.general,
+        authorId: '1001',
+        content: 'Hello from Kai',
+        createdAtMs: 1761500000000,
+        attachments: [],
+        editedAtMs: undefined,
+        nonce: undefined,
+      },
+      position: 'single',
+      own: false,
+      showAuthor: true,
+      showAvatar: true,
+      mentionsMe: false,
+    };
+
+    const { getByText, getByLabelText } = await render(
+      <MessageBubble item={item} serverKey={NIGHT_OWLS} maxWidth={400} />,
+    );
+
+    const nameBtn = getByText('Kai');
+    fireEvent.press(nameBtn);
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/member/1001`);
+
+    const avatarBtn = getByLabelText('Kai avatar');
+    fireEvent.press(avatarBtn);
+    expect(router.push).toHaveBeenCalledWith(`/server/${NIGHT_OWLS}/member/1001`);
   });
 });

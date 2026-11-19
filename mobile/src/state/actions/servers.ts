@@ -94,3 +94,19 @@ export function markServerRead(serverKey: string): void {
     if (activity.last) markChannelRead(serverKey, channelId, activity.last.id);
   }
 }
+
+export function markFingerprintShown(serverKey: string, fingerprint: string): void {
+  useAppStore.setState((state) => {
+    const server = state.servers[serverKey];
+    if (!server) return state;
+    return {
+      servers: {
+        ...state.servers,
+        [serverKey]: {
+          ...server,
+          shownFingerprint: fingerprint,
+        },
+      },
+    };
+  });
+}

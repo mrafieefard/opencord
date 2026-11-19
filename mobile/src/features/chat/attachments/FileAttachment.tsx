@@ -1,13 +1,15 @@
 import { memo, useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Touchable } from 'react-native-gesture-handler';
+import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { AttachmentKind, AttachmentVariant, type AttachmentRecord } from '@opencord/core-native';
 
 import { report } from '@/core';
-import { Icon, type IconName, Text, space, useMenuOpener, useTheme } from '@/ui';
+import { Icon, type IconName, Text, radius, space, useMenuOpener, useTheme } from '@/ui';
 
 import { fetchAttachmentFile } from './useAttachmentFile';
+import { isTextPreviewable } from './previewable';
 
 export interface FileAttachmentProps {
   serverKey: string;
@@ -94,45 +96,85 @@ export const FileAttachment = memo(function FileAttachment({ serverKey, attachme
     report(done, 'open file');
   }, [serverKey, attachment.id]);
 
+  const canPreview = isTextPreviewable(attachment.filename, attachment.sizeBytes);
+
+  const openPreview = useCallback(() => {
+    router.push({
+      pathname: '/text-preview',
+      params: {
+        serverKey,
+        attachmentId: attachment.id,
+        filename: attachment.filename,
+      },
+    });
+  }, [serverKey, attachment.id, attachment.filename]);
+
   const sizeText = formatFileSize(attachment.sizeBytes);
   const kindText = formatAttachmentKind(attachment.kind, attachment.durationMs);
 
   return (
-    <Touchable
-      testID={`file-attachment-${attachment.id}`}
-      onPress={open}
-      onLongPress={openMenu}
-      style={[styles.card, { width: Math.min(CARD_MAX, maxWidth) }]}
-    >
-      <View
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel={`${attachment.filename}, ${sizeText}, ${kindText}`}
-        style={styles.content}
+    <View style={[styles.card, { width: Math.min(CARD_MAX, maxWidth) }]}>
+      <Touchable
+        testID={`file-attachment-${attachment.id}`}
+        onPress={open}
+        onLongPress={openMenu}
+        style={styles.mainTouchable}
       >
-        <View style={[styles.iconCircle, { backgroundColor: colors.mentionBg }]}>
-          {downloading ? (
-            <ActivityIndicator size="small" color={colors.text} />
-          ) : (
-            <Icon name={attachmentIcon(attachment.kind)} size={20} color="text" />
-          )}
+        <View
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={`${attachment.filename}, ${sizeText}, ${kindText}`}
+          style={styles.content}
+        >
+          <View style={[styles.iconCircle, { backgroundColor: colors.mentionBg }]}>
+            {downloading ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : (
+              <Icon name={attachmentIcon(attachment.kind)} size={20} color="text" />
+            )}
+          </View>
+          <View style={styles.info}>
+            <Text variant="subhead" numberOfLines={1} ellipsizeMode="middle">
+              {attachment.filename}
+            </Text>
+            <Text variant="footnote" color="textMuted" numberOfLines={1} tabular>
+              {sizeText} · {kindText}
+            </Text>
+          </View>
         </View>
-        <View style={styles.info}>
-          <Text variant="subhead" numberOfLines={1} ellipsizeMode="middle">
-            {attachment.filename}
-          </Text>
-          <Text variant="footnote" color="textMuted" numberOfLines={1} tabular>
-            {sizeText} · {kindText}
-          </Text>
-        </View>
-      </View>
-    </Touchable>
+      </Touchable>
+      {canPreview && (
+        <Touchable
+          testID={`file-preview-${attachment.id}`}
+          onPress={openPreview}
+          hitSlop={4}
+          style={[styles.previewButton, { backgroundColor: colors.hover }]}
+        >
+          <View
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={`Preview ${attachment.filename}`}
+            style={styles.previewButtonContent}
+          >
+            <Text variant="caption" color="text">
+              Preview
+            </Text>
+          </View>
+        </Touchable>
+      )}
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
   card: {
     paddingVertical: space.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+  },
+  mainTouchable: {
+    flex: 1,
   },
   content: {
     flexDirection: 'row',
@@ -148,6 +190,14 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    gap: 2,
+  },
+  previewButton: {
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+    borderRadius: radius.pill,
+  },
+  previewButtonContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -158,6 +158,7 @@ export function watchVoiceNoteAudio(): () => void {
   return useAppStore.subscribe((state, previous) => {
     const wasPlaying = previous.voicePlayback?.playing ?? false;
     const playing = state.voicePlayback?.playing ?? false;
-    if (wasPlaying && !playing && state.voiceRecording === null && state.myVoice === null) void leaveVoiceAudio();
+    // The microphone test (actions/audio.ts) holds the session too, and gives it back when it stops.
+    if (wasPlaying && !playing && state.voiceRecording === null && state.myVoice === null && !state.micTest) void leaveVoiceAudio();
   });
 }

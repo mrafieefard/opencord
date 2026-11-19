@@ -4599,6 +4599,7 @@ dependencies = [
 name = "opencord-mobile"
 version = "0.0.1"
 dependencies = [
+ "getrandom 0.4.3",
  "hex",
  "image",
  "jni-sys 0.3.1",

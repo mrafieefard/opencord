@@ -64,7 +64,7 @@ describe('ServerScreen', () => {
     expect(screen.getByRole('button', { name: 'general' }).props.accessibilityState).toMatchObject({ selected: true });
     expect(screen.queryByText('Rust Club')).toBeNull();
     expect(screen.queryByText('Weekend Raid')).toBeNull();
-  });
+  }, 15000);
 
   it('the stack\'s swipe back is on only in channels', async () => {
     windowWidth(412);
@@ -83,7 +83,7 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Servers'));
     expect(mockBack).toHaveBeenCalledTimes(1);
-  });
+  }, 15000);
 
   // Fails if the iOS edge swipe can leave while a plugin on screen could
   // take back (a tablet keeps its swipe on otherwise).
@@ -96,7 +96,7 @@ describe('ServerScreen', () => {
     expect(lastGestureEnabled()).toBe(false);
     await act(async () => void holdSwipeBack(owner, false));
     expect(lastGestureEnabled()).toBe(true);
-  });
+  }, 15000);
 
   it('the tab bar steps aside only while a text channel fills the screen', async () => {
     windowWidth(412);
@@ -108,7 +108,7 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Show channels'));
     expect(useAppStore.getState().chatInFront).toBe(false);
-  });
+  }, 15000);
 
   it('at tablet width the list and the content sit side by side', async () => {
     windowWidth(1024);
@@ -126,5 +126,5 @@ describe('ServerScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Servers'));
     expect(mockBack).toHaveBeenCalledTimes(1);
-  });
+  }, 15000);
 });

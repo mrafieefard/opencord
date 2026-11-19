@@ -4,8 +4,12 @@ import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
+import type { PresenceStatus } from '@/core/native';
+import { PresenceDot } from './PresenceDot';
+
 import { Text } from './Text';
 import { motion } from './theme/space';
+import type { ColorToken } from './theme/tokens';
 import { useTheme } from './theme/useTheme';
 
 export function nameHash(name: string): number {
@@ -27,11 +31,14 @@ export interface AvatarProps {
   file?: string | null;
   size: number;
   speaking?: boolean;
+  presence?: PresenceStatus;
+  ringColor?: ColorToken;
 }
 
-export function Avatar({ name, file, size, speaking = false }: AvatarProps) {
+export function Avatar({ name, file, size, speaking = false, presence, ringColor }: AvatarProps) {
   const { colors } = useTheme();
   const ring = size >= 64 ? 3 : 2;
+  const dotSize = size >= 64 ? 16 : size >= 32 ? 10 : 8;
   const shade = colors.avatarShades[nameHash(name) % colors.avatarShades.length];
   const round = { width: size, height: size, borderRadius: size / 2 };
   return (
@@ -59,10 +66,16 @@ export function Avatar({ name, file, size, speaking = false }: AvatarProps) {
           </Text>
         )}
       </View>
+      {presence !== undefined && (
+        <View style={[styles.presence, { right: 0, bottom: 0 }]}>
+          <PresenceDot presence={presence} size={dotSize} ringColor={ringColor} />
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   face: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  presence: { position: 'absolute' },
 });

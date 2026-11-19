@@ -6,6 +6,7 @@ import {
   AttachmentKind,
   ChannelKind,
   PluginChannelState,
+  PresenceStatus,
   CommandOptionKindRecord,
   MusicPlayState,
   MusicRepeat,
@@ -26,6 +27,9 @@ import {
   type SoundboardSoundRecord,
   type UserRecord,
   type VoiceStateRecord,
+  type ServerAccess,
+  type RoleRecord,
+  type PresenceRecord,
 } from '@opencord/core-native';
 
 export const SELF_ID = '1000';
@@ -58,13 +62,24 @@ const people: [string, string][] = [
   ['1007', 'Leo'],
 ];
 
+import { KAI_PEER, MIRA_PEER } from './privateWorld';
+
 export function user(id: string): UserRecord {
   const name = people.find(([personId]) => personId === id)?.[1] ?? `Person ${id}`;
-  return { id, displayName: name, fingerprint: `FAKE-${id}-0000-0000` };
+  let publicKeyHex = `fake-peer-${id}`;
+  if (id === '1001') publicKeyHex = KAI_PEER;
+  else if (id === '1002') publicKeyHex = MIRA_PEER;
+  else if (id === SELF_ID) publicKeyHex = 'self-peer';
+  return { id, displayName: name, fingerprint: `FAKE-${id}-0000-0000`, publicKeyHex };
 }
 
-function members(): MemberRecord[] {
-  return people.map(([id]) => ({ user: user(id), roleIds: [] }));
+export function members(): MemberRecord[] {
+  return people.map(([id]) => {
+    let roleIds: string[] = [];
+    if (id === SELF_ID) roleIds = ['2002'];
+    else if (id === '1001') roleIds = ['2001'];
+    return { user: user(id), roleIds, joinedAtMs: 1_791_374_400_000 };
+  });
 }
 
 function channel(
@@ -149,7 +164,7 @@ function nightOwlsChannels(): ChannelRecord[] {
     pluginChannel(CHANNELS.helpDesk, 'help-desk', 1, CHANNELS.textCategory, 'tickets', PluginChannelState.Available),
     pluginChannel(CHANNELS.oldBoard, 'old-board', 2, CHANNELS.textCategory, 'board', PluginChannelState.PluginStopped),
     channel(CHANNELS.voiceCategory, ChannelKind.Category, 'Voice', 3),
-    channel(CHANNELS.lounge, ChannelKind.Voice, 'Lounge', 0, CHANNELS.voiceCategory),
+    { ...channel(CHANNELS.lounge, ChannelKind.Voice, 'Lounge', 0, CHANNELS.voiceCategory), textInVoice: true },
     channel(CHANNELS.quiet, ChannelKind.Voice, 'Quiet room', 1, CHANNELS.voiceCategory),
   ];
 }
@@ -166,6 +181,96 @@ function voiceState(userId: string, channelId: string, selfMute = false): VoiceS
   };
 }
 
+export function emptyServerAccess(): ServerAccess {
+  return {
+    manageServer: false,
+    manageChannels: false,
+    manageRoles: false,
+    kickMembers: false,
+    banMembers: false,
+    createInvite: false,
+    manageNicknames: false,
+    changeNickname: false,
+    manageMessages: false,
+    mentionEveryone: false,
+    managePlugins: false,
+    manageSoundboard: false,
+    musicManage: false,
+    muteMembers: false,
+    deafenMembers: false,
+    moveMembers: false,
+    prioritySpeaker: false,
+    video: false,
+    screenshare: false,
+    administrator: false,
+  };
+}
+
+export function nightOwlsRoles(): RoleRecord[] {
+  return [
+    {
+      id: '2001',
+      name: 'Moderators',
+      color: 0x5865f2,
+      position: 1,
+      hoist: true,
+      mentionable: true,
+      maxUploadBytes: undefined,
+      pluginId: undefined,
+      access: {
+        ...emptyServerAccess(),
+        kickMembers: true,
+        manageMessages: true,
+      },
+    },
+    {
+      id: '2002',
+      name: 'Owner',
+      color: 0,
+      position: 2,
+      hoist: true,
+      mentionable: true,
+      maxUploadBytes: undefined,
+      pluginId: undefined,
+      access: {
+        manageServer: true,
+        manageChannels: true,
+        manageRoles: true,
+        kickMembers: true,
+        banMembers: true,
+        createInvite: true,
+        manageNicknames: true,
+        changeNickname: true,
+        manageMessages: true,
+        mentionEveryone: true,
+        managePlugins: true,
+        manageSoundboard: true,
+        musicManage: true,
+        muteMembers: true,
+        deafenMembers: true,
+        moveMembers: true,
+        prioritySpeaker: true,
+        video: true,
+        screenshare: true,
+        administrator: true,
+      },
+    },
+  ];
+}
+
+export function memberPresences(): PresenceRecord[] {
+  const statuses = [
+    PresenceStatus.Online,
+    PresenceStatus.Idle,
+    PresenceStatus.Dnd,
+    PresenceStatus.Offline,
+  ];
+  return people.map(([id], idx) => ({
+    userId: id,
+    status: statuses[idx % statuses.length] ?? PresenceStatus.Offline,
+  }));
+}
+
 export function snapshot(serverKey: string): ServerSnapshot {
   const channels = serverKey === NIGHT_OWLS ? nightOwlsChannels() : [];
   return {
@@ -173,9 +278,36 @@ export function snapshot(serverKey: string): ServerSnapshot {
     selfUser: user(SELF_ID),
     name: entries().find((entry) => entry.key === serverKey)?.name ?? serverKey,
     description: '',
-    ownerId: '1001',
+    ownerId: serverKey === NIGHT_OWLS ? SELF_ID : '1001',
     channels,
     access: channels.map((entry) => fullAccess(entry.id)),
+    roles: serverKey === NIGHT_OWLS ? nightOwlsRoles() : [],
+    presences: memberPresences(),
+    serverAccess:
+      serverKey === NIGHT_OWLS
+        ? {
+            manageServer: true,
+            manageChannels: true,
+            manageRoles: true,
+            kickMembers: true,
+            banMembers: true,
+            createInvite: true,
+            manageNicknames: true,
+            changeNickname: true,
+            manageMessages: true,
+            mentionEveryone: true,
+            managePlugins: true,
+            manageSoundboard: true,
+            musicManage: true,
+            muteMembers: true,
+            deafenMembers: true,
+            moveMembers: true,
+            prioritySpeaker: true,
+            video: true,
+            screenshare: true,
+            administrator: true,
+          }
+        : emptyServerAccess(),
     members: members(),
     voiceStates:
       serverKey === NIGHT_OWLS
@@ -384,6 +516,46 @@ export function history(channelId: string, count: number, now: number, firstId: 
           filename: 'client-spec.pdf',
           contentType: 'application/pdf',
           sizeBytes: 2_450_000,
+          kind: AttachmentKind.File,
+          hasThumbnail: false,
+          animated: false,
+          waveform: [],
+        },
+      ];
+    }
+    if (index === count - 1) {
+      message.authorId = '1001';
+      message.content = 'Here are the media files from the demo:';
+      message.attachments = [
+        {
+          id: '50010',
+          filename: 'intro.mp4',
+          contentType: 'video/mp4',
+          sizeBytes: 30_567,
+          kind: AttachmentKind.Video,
+          width: 640,
+          height: 360,
+          durationMs: 5_000,
+          hasThumbnail: false,
+          animated: true,
+          waveform: [],
+        },
+        {
+          id: '50011',
+          filename: 'song.mp3',
+          contentType: 'audio/mpeg',
+          sizeBytes: 6_430,
+          kind: AttachmentKind.Audio,
+          durationMs: 4_000,
+          hasThumbnail: false,
+          animated: false,
+          waveform: [],
+        },
+        {
+          id: '50012',
+          filename: 'notes.txt',
+          contentType: 'text/plain',
+          sizeBytes: 39,
           kind: AttachmentKind.File,
           hasThumbnail: false,
           animated: false,

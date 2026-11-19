@@ -3,7 +3,7 @@
 // button once there is something to send, else the mic for a voice
 // message (held to record; useVoiceRecorder). Each is its own glass (iOS)
 // or raised surface (Android). ChatPane keeps it on the keyboard.
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode, type RefObject } from 'react';
 import { type LayoutChangeEvent, StyleSheet, Text as NativeText, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import * as DocumentPicker from 'expo-document-picker';
@@ -39,11 +39,16 @@ import { SourceIcon } from './commands/SourceIcon';
 import { EMPTY_MARK, useCommandDraft } from './commands/useCommandDraft';
 import { useChatDock, useDockBottom } from './dock';
 import { EditingBar } from './EditingBar';
+import { EmojiPicker } from '@/features/emoji/EmojiPicker';
+import { activeToken, decodeMentions, encodeMentions } from './mentions';
+import { applySuggestion, suggest, type Suggestion } from './suggestions';
+import { SuggestionList } from './SuggestionList';
 import { useTypingNotifier } from './useTypingNotifier';
 
 export interface ComposerProps {
   serverKey: string;
   channelId: string;
+  disabled?: boolean;
 }
 
 /** Just after the invisible character an empty command field holds. */
@@ -71,17 +76,37 @@ export function attachMenuActions(canAttach: boolean, hasCommands: boolean): Men
   ];
 }
 
-export function Composer({ serverKey, channelId }: ComposerProps) {
+export function Composer({ serverKey, channelId, disabled = false }: ComposerProps) {
   const { colors } = useTheme();
   const bottom = useDockBottom();
-  const { fieldGrowth } = useChatDock();
   const info = useChannelInfo(serverKey, channelId);
+  const snapshot = useAppStore((state) => state.servers[serverKey]?.snapshot);
+  const memberNames = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!snapshot) return map;
+    for (const m of snapshot.members) {
+      map.set(m.user.id, m.nickname ?? m.user.displayName);
+    }
+    return map;
+  }, [snapshot]);
+
+  const channelNames = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!snapshot) return map;
+    for (const c of snapshot.channels) {
+      map.set(c.id, c.name);
+    }
+    return map;
+  }, [snapshot]);
+
   const editing = useAppStore((state) => state.editingMessage);
   const isEditing = editing && editing.serverKey === serverKey && editing.channelId === channelId;
 
-  const [text, setText] = useState(() => (isEditing ? editing.text : ''));
+  const [text, setText] = useState(() => (isEditing ? decodeMentions(editing.text, memberNames, channelNames) : ''));
   const [prevEditingId, setPrevEditingId] = useState<string | null>(() => (isEditing ? editing.messageId : null));
   const [files, setFiles] = useState<PickedFile[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selection, setSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const notifyTyping = useTypingNotifier(serverKey, channelId);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
 
@@ -89,7 +114,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   if (currentEditingId !== prevEditingId) {
     setPrevEditingId(currentEditingId);
     if (isEditing) {
-      setText(editing.text);
+      setText(decodeMentions(editing.text, memberNames, channelNames));
     }
   }
 
@@ -113,6 +138,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
         return;
       }
       setText(nextText);
+      setSelection({ start: nextText.length, end: nextText.length });
       if (nextText.length > 0 && !isEditing) {
         notifyTyping();
       }
@@ -120,11 +146,35 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     [hasDraft, changeField, isEditing, notifyTyping],
   );
 
+  const handlePickEmoji = useCallback(
+    (char: string) => {
+      if (hasDraft) {
+        const fieldVal = draft.fieldValue;
+        const pos = Math.min(selection.start, fieldVal.length);
+        const next = fieldVal.slice(0, pos) + char + fieldVal.slice(pos);
+        changeField(next);
+        setSelection({ start: pos + char.length, end: pos + char.length });
+      } else {
+        setText((prev) => {
+          const pos = Math.min(selection.start, prev.length);
+          const next = prev.slice(0, pos) + char + prev.slice(pos);
+          setSelection({ start: pos + char.length, end: pos + char.length });
+          return next;
+        });
+      }
+    },
+    [hasDraft, draft.fieldValue, changeField, selection.start],
+  );
+
+  const handleCloseEmojiPicker = useCallback(() => {
+    setShowEmojiPicker(false);
+    input.current?.focus();
+  }, []);
+
   const canSend = info ? info.access.send : true;
   const canAttach = info ? info.access.attach : true;
   const canVoice = info ? info.access.sendVoiceMessages : true;
 
-  const snapshot = useAppStore((state) => state.servers[serverKey]?.snapshot);
   const commandList = snapshot?.commands;
   const voiceChannelId = useAppStore((state) => (state.myVoice?.serverKey === serverKey ? state.myVoice.channelId : undefined));
   const hasCommands = (commandList?.commands.length ?? 0) > 0;
@@ -147,6 +197,32 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
     [query, commandList, channelId, snapshot?.access, snapshot?.pluginUsers, voiceChannelId],
   );
   const dismissList = useCallback(() => setDismissedAt(text), [text]);
+
+  // Suggestions for @, #, or :. Commands win while text starts with "/".
+  const [dismissedSuggestionsAt, setDismissedSuggestionsAt] = useState<string | null>(null);
+  const token = draft.spec || text.startsWith('/') ? null : activeToken(text, selection.start);
+  const suggestions = useMemo<Suggestion[]>(() => {
+    if (!token || dismissedSuggestionsAt === text) return [];
+    return suggest(snapshot, channelId, token);
+  }, [token, dismissedSuggestionsAt, text, snapshot, channelId]);
+  const dismissSuggestions = useCallback(() => setDismissedSuggestionsAt(text), [text]);
+
+  const handleSelectSuggestion = useCallback(
+    (item: Suggestion) => {
+      if (!token) return;
+      const { text: newText, caret: newCaret } = applySuggestion(
+        text,
+        selection.start,
+        token,
+        item,
+      );
+      setText(newText);
+      setSelection({ start: newCaret, end: newCaret });
+      input.current?.focus();
+    },
+    [token, text, selection.start],
+  );
+
   const { pick: pickDraft, pickChoice, closeChoices } = draft;
   const pickRow = useCallback(
     (row: CommandRow) => {
@@ -181,20 +257,6 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   }, [draft.spec, snapshot?.pluginUsers]);
   const recorder = useVoiceRecorder(serverKey, channelId);
 
-  // The field's height follows its text, eased rather than jumping. An
-  // unseen copy of the text, as wide as the field's, says how tall the text
-  // is: a field of fixed height doesn't report its content's size on iOS.
-  const fieldHeight = useSharedValue(CONTROL);
-  const onMirrorLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      const next = Math.min(Math.max(Math.ceil(event.nativeEvent.layout.height) + FIELD_PAD_V * 2, CONTROL), FIELD_MAX);
-      if (next === fieldHeight.get()) return;
-      fieldHeight.set(withTiming(next, { duration: GROW_MS }));
-      fieldGrowth?.set(withTiming(next - CONTROL, { duration: GROW_MS }));
-    },
-    [fieldHeight, fieldGrowth],
-  );
-  const fieldStyle = useAnimatedStyle(() => ({ height: fieldHeight.get() }));
   // The lock hint rises with the finger and fades as it reaches the lock.
   // Only the shared value goes to the UI thread, not the recorder.
   const { dragY } = recorder;
@@ -249,9 +311,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
   const showCounter = text.length >= COUNTER_THRESHOLD;
 
   const canSubmit =
-    isEditing
+    !disabled &&
+    (isEditing
       ? text.trim().length > 0 && !isOverLimit
-      : (text.trim().length > 0 || files.length > 0) && !isOverLimit;
+      : (text.trim().length > 0 || files.length > 0) && !isOverLimit);
 
   const { run: runDraft } = draft;
   const handleSubmit = useCallback(async () => {
@@ -266,9 +329,10 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
       const msgId = editing.messageId;
       cancelEditingMessage();
       setText('');
-      await editMessage(serverKey, msgId, currentText);
+      const encoded = encodeMentions(currentText, memberNames, channelNames);
+      await editMessage(serverKey, msgId, encoded);
     } else {
-      const toSendText = currentText;
+      const toSendText = encodeMentions(currentText, memberNames, channelNames);
       const toSendFiles = [...files];
       setText('');
       setFiles([]);
@@ -284,7 +348,7 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
         await sendMessage(serverKey, channelId, toSendText);
       }
     }
-  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files, commandList]);
+  }, [hasDraft, runDraft, canSubmit, text, isEditing, editing, serverKey, channelId, files, commandList, memberNames, channelNames]);
 
   if (!canSend) {
     return (
@@ -318,6 +382,13 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
           onDismiss={dismissList}
         />
       )}
+      {suggestions.length > 0 && (
+        <SuggestionList
+          items={suggestions}
+          onSelect={handleSelectSuggestion}
+          onDismiss={dismissSuggestions}
+        />
+      )}
       {draft.spec && draft.spec.options.length > 0 && (
         <GlassSurface style={styles.card}>
           <CommandChips options={draft.spec.options} values={draft.values} active={draft.active?.name} onPress={editOption} />
@@ -346,79 +417,39 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
               </GlassSurface>
             )}
 
-            {/* A one-line slot: the field grows up out of it, over the
-                messages, so the dock's size (and the list) never moves. */}
-            <View style={styles.fieldSlot}>
-            <Animated.View style={[styles.fieldBox, fieldStyle]}>
-            <GlassSurface style={styles.field}>
-              {draft.spec && (
-                <Touchable onPress={focusField} style={styles.chipWrap}>
-                  <View
-                    testID="command-chip"
-                    accessible
-                    accessibilityRole="button"
-                    accessibilityLabel={`/${draft.spec.name}`}
-                    style={[styles.chip, { backgroundColor: colors.accent }]}
-                  >
-                    {commandSource && <SourceIcon serverKey={serverKey} source={commandSource} size={16} radius={5} />}
-                    <Text variant="subhead" color="onAccent" numberOfLines={1}>
-                      {`/${draft.spec.name}`}
-                    </Text>
-                  </View>
-                </Touchable>
-              )}
-              <View style={styles.inputWrap}>
-              {/* One line, cut with "…": a multiline field wraps its own
-                  placeholder, which stays for VoiceOver, unseen. */}
-              <NativeText
-                style={[typography.body, styles.mirror]}
-                maxFontSizeMultiplier={MAX_FONT_SCALE}
-                onLayout={onMirrorLayout}
-                aria-hidden
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                {/* A last empty line is measured only with something on it. */}
-                {shownInMirror.endsWith('\n') || shownInMirror === '' ? `${shownInMirror} ` : shownInMirror}
-              </NativeText>
-              {fieldIsEmpty && (
-                <Text variant="body" color="textMuted" numberOfLines={1} style={styles.placeholder} testID="composer-placeholder">
-                  {placeholder}
-                </Text>
-              )}
-              <TextInput
-                ref={input}
-                style={[typography.body, styles.input, { color: colors.text }]}
-                placeholder={placeholder}
-                placeholderTextColor="transparent"
-                value={draft.spec ? draft.fieldValue : text}
-                // After the mark, or Backspace would have nothing to delete.
-                selection={draft.spec && draft.fieldText === '' ? MARK_END : undefined}
-                onChangeText={handleChangeText}
-                scrollEnabled
-                multiline
-                maxFontSizeMultiplier={MAX_FONT_SCALE}
-                textAlignVertical="center"
-                cursorColor={colors.text}
-                selectionColor={colors.selected}
-                accessibilityLabel={placeholder}
-                testID="composer-input"
-              />
-              </View>
-              {showCounter && (
-                <Text
-                  variant="footnote"
-                  color={isOverLimit ? 'recording' : 'textMuted'}
-                  tabular
-                  style={styles.counter}
-                  testID="composer-counter"
-                >
-                  {String(remainingChars)}
-                </Text>
-              )}
-            </GlassSurface>
-            </Animated.View>
-            </View>
+            <EmojiButton onPress={() => setShowEmojiPicker(true)} />
+
+            <ComposerField
+              inputRef={input}
+              leading={
+                draft.spec && (
+                  <Touchable onPress={focusField} style={styles.chipWrap}>
+                    <View
+                      testID="command-chip"
+                      accessible
+                      accessibilityRole="button"
+                      accessibilityLabel={`/${draft.spec.name}`}
+                      style={[styles.chip, { backgroundColor: colors.accent }]}
+                    >
+                      {commandSource && <SourceIcon serverKey={serverKey} source={commandSource} size={16} radius={5} />}
+                      <Text variant="subhead" color="onAccent" numberOfLines={1}>
+                        {`/${draft.spec.name}`}
+                      </Text>
+                    </View>
+                  </Touchable>
+                )
+              }
+              shown={shownInMirror}
+              showPlaceholder={fieldIsEmpty}
+              placeholder={placeholder}
+              editable={!disabled}
+              value={draft.spec ? draft.fieldValue : text}
+              // After the mark, or Backspace would have nothing to delete.
+              selection={draft.spec && draft.fieldText === '' ? MARK_END : undefined}
+              onChangeText={handleChangeText}
+              onSelectionChange={setSelection}
+              remaining={showCounter ? remainingChars : undefined}
+            />
           </>
         ) : (
           <>
@@ -478,6 +509,272 @@ export function Composer({ serverKey, channelId }: ComposerProps) {
           </View>
         ) : null}
       </View>
+      <EmojiPicker
+        visible={showEmojiPicker}
+        onPick={handlePickEmoji}
+        onClose={handleCloseEmojiPicker}
+      />
+    </View>
+  );
+}
+
+function EmojiButton({ onPress }: { onPress: () => void }) {
+  return (
+    <GlassSurface interactive style={styles.round}>
+      <Touchable onPress={onPress} style={styles.control}>
+        <View style={styles.center} accessible accessibilityRole="button" accessibilityLabel="Emoji" testID="composer-emoji">
+          <Icon name="smiley" size={22} color="text" />
+        </View>
+      </Touchable>
+    </GlassSurface>
+  );
+}
+
+interface ComposerFieldProps {
+  inputRef: RefObject<ComponentRef<typeof TextInput> | null>;
+  /** Before the text, inside the pill: a command's chip. */
+  leading?: ReactNode;
+  /** The text as the user sees it, measured for the field's height. */
+  shown: string;
+  showPlaceholder: boolean;
+  placeholder: string;
+  editable: boolean;
+  value: string;
+  selection?: { start: number; end: number };
+  onChangeText: (text: string) => void;
+  onSelectionChange: (selection: { start: number; end: number }) => void;
+  /** Characters left, shown near the limit; below 0 is over it. */
+  remaining?: number;
+}
+
+/**
+ * The pill the text goes in. A one-line slot: the field grows up out of it,
+ * over the messages, so the dock's size (and the list) never moves.
+ */
+function ComposerField({
+  inputRef,
+  leading,
+  shown,
+  showPlaceholder,
+  placeholder,
+  editable,
+  value,
+  selection,
+  onChangeText,
+  onSelectionChange,
+  remaining,
+}: ComposerFieldProps) {
+  const { colors } = useTheme();
+  const { fieldGrowth } = useChatDock();
+  // The field's height follows its text, eased rather than jumping. An
+  // unseen copy of the text, as wide as the field's, says how tall the text
+  // is: a field of fixed height doesn't report its content's size on iOS.
+  const fieldHeight = useSharedValue(CONTROL);
+  const onMirrorLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const next = Math.min(Math.max(Math.ceil(event.nativeEvent.layout.height) + FIELD_PAD_V * 2, CONTROL), FIELD_MAX);
+      if (next === fieldHeight.get()) return;
+      fieldHeight.set(withTiming(next, { duration: GROW_MS }));
+      fieldGrowth?.set(withTiming(next - CONTROL, { duration: GROW_MS }));
+    },
+    [fieldHeight, fieldGrowth],
+  );
+  const fieldStyle = useAnimatedStyle(() => ({ height: fieldHeight.get() }));
+
+  return (
+    <View style={styles.fieldSlot}>
+      <Animated.View style={[styles.fieldBox, fieldStyle]}>
+        <GlassSurface style={styles.field}>
+          {leading}
+          <View style={styles.inputWrap}>
+            {/* One line, cut with "…": a multiline field wraps its own
+                placeholder, which stays for VoiceOver, unseen. */}
+            <NativeText
+              style={[typography.body, styles.mirror]}
+              maxFontSizeMultiplier={MAX_FONT_SCALE}
+              onLayout={onMirrorLayout}
+              aria-hidden
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {/* A last empty line is measured only with something on it. */}
+              {shown.endsWith('\n') || shown === '' ? `${shown} ` : shown}
+            </NativeText>
+            {showPlaceholder && (
+              <Text variant="body" color="textMuted" numberOfLines={1} style={styles.placeholder} testID="composer-placeholder">
+                {placeholder}
+              </Text>
+            )}
+            <TextInput
+              ref={inputRef}
+              style={[typography.body, styles.input, { color: colors.text }]}
+              placeholder={placeholder}
+              editable={editable}
+              placeholderTextColor="transparent"
+              value={value}
+              selection={selection}
+              onChangeText={onChangeText}
+              onSelectionChange={(e) => onSelectionChange(e.nativeEvent.selection)}
+              scrollEnabled
+              multiline
+              maxFontSizeMultiplier={MAX_FONT_SCALE}
+              textAlignVertical="center"
+              cursorColor={colors.text}
+              selectionColor={colors.selected}
+              accessibilityLabel={placeholder}
+              testID="composer-input"
+            />
+          </View>
+          {remaining !== undefined && (
+            <Text
+              variant="footnote"
+              color={remaining < 0 ? 'recording' : 'textMuted'}
+              tabular
+              style={styles.counter}
+              testID="composer-counter"
+            >
+              {String(remaining)}
+            </Text>
+          )}
+        </GlassSurface>
+      </Animated.View>
+    </View>
+  );
+}
+
+export interface TextComposerProps {
+  placeholder: string;
+  /** Sends the text; a failure puts it back in an empty field and rejects. */
+  send: (text: string) => Promise<void>;
+  /** The user typed: the caller throttles and says so. */
+  onTyping?: () => void;
+  /** The message being edited, if any: its text fills the field. */
+  editing?: { id: string; text: string } | null;
+  /** Saves an edit; the editing card stays until it succeeds. */
+  saveEdit?: (id: string, text: string) => Promise<void>;
+  onCancelEditing?: () => void;
+  disabled?: boolean;
+}
+
+/**
+ * The composer for text alone (a private chat): the same field, emoji and
+ * send button as a channel's, with no files, commands, mentions or voice
+ * messages, and a send function of the caller's.
+ */
+export function TextComposer({
+  placeholder,
+  send,
+  onTyping,
+  editing = null,
+  saveEdit,
+  onCancelEditing,
+  disabled = false,
+}: TextComposerProps) {
+  const bottom = useDockBottom();
+  const [text, setText] = useState(() => editing?.text ?? '');
+  const [selection, setSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+
+  // Starting an edit fills the field with the message and brings the
+  // keyboard up on it.
+  const editingId = editing?.id ?? null;
+  const [prevEditingId, setPrevEditingId] = useState<string | null>(editingId);
+  if (editingId !== prevEditingId) {
+    setPrevEditingId(editingId);
+    setText(editing?.text ?? '');
+  }
+  useEffect(() => {
+    if (editingId !== null) input.current?.focus();
+  }, [editingId]);
+
+  const handleChangeText = useCallback(
+    (next: string) => {
+      setText(next);
+      if (next.length > 0 && editingId === null) onTyping?.();
+    },
+    [editingId, onTyping],
+  );
+
+  const handlePickEmoji = useCallback(
+    (char: string) => {
+      setText((prev) => {
+        const pos = Math.min(selection.start, prev.length);
+        setSelection({ start: pos + char.length, end: pos + char.length });
+        return prev.slice(0, pos) + char + prev.slice(pos);
+      });
+    },
+    [selection.start],
+  );
+  const handleCloseEmojiPicker = useCallback(() => {
+    setShowEmojiPicker(false);
+    input.current?.focus();
+  }, []);
+
+  const isOverLimit = text.length > MAX_CHARS;
+  const canSubmit = !disabled && !saving && text.trim().length > 0 && !isOverLimit;
+
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit) return;
+    const trimmed = text.trim();
+    if (editing) {
+      if (trimmed === editing.text || !saveEdit) {
+        onCancelEditing?.();
+        return;
+      }
+      setSaving(true);
+      try {
+        await saveEdit(editing.id, trimmed);
+      } finally {
+        setSaving(false);
+      }
+      onCancelEditing?.();
+      return;
+    }
+    setText('');
+    try {
+      await send(trimmed);
+    } catch (error: unknown) {
+      // Not lost: back in the field, unless something new is being written.
+      setText((current) => (current === '' ? trimmed : current));
+      throw error;
+    }
+  }, [canSubmit, text, editing, saveEdit, onCancelEditing, send]);
+
+  const hasSomething = editing !== null || text.trim().length > 0;
+
+  return (
+    <View style={[styles.dock, { paddingBottom: bottom }]} pointerEvents="box-none">
+      {editing && onCancelEditing && (
+        <GlassSurface style={styles.card}>
+          <EditingBar onCancel={onCancelEditing} />
+        </GlassSurface>
+      )}
+      <View style={styles.row}>
+        <EmojiButton onPress={() => setShowEmojiPicker(true)} />
+        <ComposerField
+          inputRef={input}
+          shown={text}
+          showPlaceholder={text === ''}
+          placeholder={placeholder}
+          editable={!disabled}
+          value={text}
+          onChangeText={handleChangeText}
+          onSelectionChange={setSelection}
+          remaining={text.length >= COUNTER_THRESHOLD ? MAX_CHARS - text.length : undefined}
+        />
+        {hasSomething && (
+          <SendButton
+            label={editing ? 'Save edit' : 'Send'}
+            icon={editing ? 'check' : 'send'}
+            disabled={!canSubmit}
+            onPress={() => report(handleSubmit(), editing ? 'edit' : 'send')}
+            testID="composer-send"
+          />
+        )}
+      </View>
+      <EmojiPicker visible={showEmojiPicker} onPick={handlePickEmoji} onClose={handleCloseEmojiPicker} />
     </View>
   );
 }

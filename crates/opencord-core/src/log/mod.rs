@@ -39,7 +39,7 @@ const FLUSH_EVERY: Duration = Duration::from_secs(1);
 /// What gets in: Opencord's own crates at INFO, its media and connection
 /// code at DEBUG, and other crates' warnings and errors.
 const LEVELS: &str = "warn,opencord_core=info,opencord_media=info,opencord_voice=info,\
-    opencord_common=info,opencord_media::video=debug,opencord_media::share_audio=debug,\
+    opencord_common=info,opencord_mobile=info,opencord_media::video=debug,opencord_media::share_audio=debug,\
     opencord_core::connection=debug,opencord_core::voice=debug,opencord_core::media=debug,\
     opencord_core::video=debug";
 
@@ -300,12 +300,17 @@ pub(crate) mod tests {
     fn events_and_app_lines_reach_the_file() {
         let session = test_session();
         tracing::info!(target: "opencord_core::connection", step = "tls", "connecting");
+        tracing::info!(target: "opencord_mobile::api", "facade initialized");
         tracing::debug!(target: "hyper::proto", "chatter from another crate");
         write_app(Level::WARN, "share", "picked a source");
         flush();
         let text = std::fs::read_to_string(&session.current).unwrap();
         assert!(
             text.contains("INFO  core::connection  connecting  step=tls"),
+            "{text}"
+        );
+        assert!(
+            text.contains("INFO  mobile::api  facade initialized"),
             "{text}"
         );
         assert!(text.contains("WARN  app::share  picked a source"), "{text}");

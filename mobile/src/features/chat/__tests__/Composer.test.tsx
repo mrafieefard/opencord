@@ -153,6 +153,58 @@ describe('Composer and message actions', () => {
     expect(useAppStore.getState().editingMessage).toBeNull();
   });
 
+  // Fails if mentions are not encoded to tokens on send or decoded to @Name on edit.
+  it('sending encodes mentions to tokens, and editing decodes tokens to @Name', async () => {
+    const sendSpy = jest.spyOn(getCore(), 'messageSend').mockResolvedValueOnce({
+      id: 'msg-mention-1',
+      channelId: CHANNELS.general,
+      authorId: '1000',
+      content: 'hello <@1000> in <#10>',
+      createdAtMs: Date.now(),
+      attachments: [],
+    });
+
+    const { getByPlaceholderText, getByTestId, unmount } = await render(
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
+    );
+
+    const input = getByPlaceholderText('Message #general');
+    await fireEvent.changeText(input, 'hello @Ava in #general');
+    const sendBtn = getByTestId('composer-send');
+    await fireEvent.press(sendBtn);
+
+    expect(sendSpy).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.general, 'hello <@1000> in <#10>', expect.any(String));
+    await settle();
+    await unmount();
+
+    const editSpy = jest.spyOn(getCore(), 'messageEdit').mockResolvedValueOnce({
+      id: 'msg-mention-1',
+      channelId: CHANNELS.general,
+      authorId: '1000',
+      content: 'hello <@1000> in <#10>',
+      createdAtMs: Date.now(),
+      attachments: [],
+    });
+
+    startEditingMessage(NIGHT_OWLS, CHANNELS.general, 'msg-mention-1', 'hello <@1000> in <#10>');
+
+    const second = await render(
+      <GestureHandlerRootView>
+        <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+      </GestureHandlerRootView>,
+    );
+
+    expect(second.getByDisplayValue('hello @Ava in #general')).toBeTruthy();
+    const saveBtn = second.getByTestId('composer-send');
+    await fireEvent.press(saveBtn);
+
+    expect(editSpy).toHaveBeenCalledWith(NIGHT_OWLS, 'msg-mention-1', 'hello <@1000> in <#10>');
+    await settle();
+    await second.unmount();
+  });
+
   it('deleting asks first', async () => {
     const deleteSpy = jest.spyOn(getCore(), 'messageDelete').mockResolvedValueOnce();
     const alertSpy = jest.spyOn(Alert, 'alert');
@@ -465,6 +517,47 @@ describe('Composer and message actions', () => {
       await fireEvent.changeText(view.getByPlaceholderText('Message #general'), '/play now');
 
       expect(view.queryByTestId('command-list')).toBeNull();
+    });
+  });
+
+  describe('suggestions', () => {
+    const composer = () =>
+      render(
+        <GestureHandlerRootView>
+          <Composer serverKey={NIGHT_OWLS} channelId={CHANNELS.general} />
+        </GestureHandlerRootView>,
+      );
+
+    it('commands win while the text starts with a slash', async () => {
+      // Fails if typing a slash still shows autocomplete suggestions instead of commands.
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      // Typing '/' triggers command list, not suggestion list
+      await fireEvent.changeText(input, '/');
+      expect(view.getByTestId('command-list')).toBeTruthy();
+      expect(view.queryByTestId('suggestion-list')).toBeNull();
+
+      // Even with '@' inside slash command name '/@kai'
+      await fireEvent.changeText(input, '/@kai');
+      expect(view.queryByTestId('suggestion-list')).toBeNull();
+    });
+
+    it('a tap replaces the token', async () => {
+      // Fails if tapping a suggestion does not replace the active token in the input.
+      const view = await composer();
+      const input = view.getByPlaceholderText('Message #general');
+
+      // Typing '@kai' triggers suggestions list
+      await fireEvent.changeText(input, '@kai');
+      expect(view.getByTestId('suggestion-list')).toBeTruthy();
+
+      // Tap suggestion for Kai (user id 1001)
+      await fireEvent.press(view.getByTestId('suggestion-member-1001'));
+
+      // Token '@kai' is replaced by '@Kai '
+      expect(view.queryByTestId('suggestion-list')).toBeNull();
+      expect(input.props.value).toBe('@Kai ');
     });
   });
 });

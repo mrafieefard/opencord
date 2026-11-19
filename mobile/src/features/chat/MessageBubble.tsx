@@ -3,9 +3,11 @@
 // its first, the user's own on the right. The time sits inside the last
 // line where it fits: the text keeps room for it (MarkdownText `trailing`)
 // and the time is drawn over that room.
-import { memo, useMemo } from 'react';
+import { memo, useMemo, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { CommandRunStateRecord } from '@opencord/core-native';
+import { Touchable } from 'react-native-gesture-handler';
+import { router } from 'expo-router';
+import { CommandRunStateRecord, type MessageRecord } from '@opencord/core-native';
 
 import { deviceLocale } from '@/features/servers/formatTime';
 import { useImageFile } from '@/features/servers/useImageFile';
@@ -22,12 +24,29 @@ import { MessageMenu } from './MessageMenu';
 import { SendRise } from './SendRise';
 import { ThinkingDots } from './ThinkingDots';
 
+/**
+ * A chat that isn't a server channel's (a private chat, with one person):
+ * no names or avatars beside the other side's bubbles, and its own answers
+ * to Retry, Delete and the long press. Keep it the same object between
+ * renders (useMemo): the bubble is memoised.
+ */
+export interface BubbleChat {
+  /** A failed message's Retry. */
+  retry: (message: MessageRecord) => void;
+  /** A failed message's Delete. */
+  discard: (message: MessageRecord) => void;
+  /** The long-press menu around a sent or received bubble. */
+  menu: (message: MessageRecord, bubble: ReactElement) => ReactElement;
+}
+
 export interface MessageBubbleProps {
   item: MessageBubbleItem;
   serverKey: string;
   /** 78 % of the pane (spec §8.5), measured by the list. */
   maxWidth: number;
   onSelectChannel?: (channelId: string) => void;
+  /** Given, the bubble is a private chat's, not the server channel's. */
+  chat?: BubbleChat;
 }
 
 export const AVATAR_SIZE = 32;
@@ -60,16 +79,17 @@ const FAILED_ACTIONS: MenuAction[] = [
   { id: 'delete', title: 'Delete', icon: 'delete', destructive: true },
 ];
 
-export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxWidth, onSelectChannel }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxWidth, onSelectChannel, chat }: MessageBubbleProps) {
   const { colors } = useTheme();
   const { message, pending, position, own, showAuthor, showAvatar } = item;
+  const sendState = pending?.state ?? item.sendState;
 
   const member = useMember(serverKey, message.authorId);
   const avatarFile = useImageFile(serverKey, member?.avatarHash);
   const authorName = member?.name ?? 'Someone';
 
-  const failed = pending?.state === 'failed';
-  const sending = pending?.state === 'sending';
+  const failed = sendState === 'failed';
+  const sending = sendState === 'sending';
   const time = useMemo(
     () => bubbleTime(message.createdAtMs, message.editedAtMs !== undefined),
     [message.createdAtMs, message.editedAtMs],
@@ -95,9 +115,15 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
   const padH = mediaOnly ? MEDIA_PAD : PAD_H;
 
   const retry = () => {
-    if (pending) retrySend(pending.nonce);
+    if (chat) chat.retry(message);
+    else if (pending) retrySend(pending.nonce);
   };
   const onFailedAction = (id: string) => {
+    if (chat) {
+      if (id === 'retry') chat.retry(message);
+      else if (id === 'delete') chat.discard(message);
+      return;
+    }
     if (!pending) return;
     if (id === 'retry') retrySend(pending.nonce);
     else if (id === 'delete') discardSend(pending.nonce);
@@ -105,7 +131,7 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
 
   const meta = (
     <View style={styles.meta}>
-      {sending && <Icon name="clock" size={12} color="textMuted" />}
+      {sending && <Icon name="clock" size={12} color="textMuted" testID="bubble-sending" />}
       <Text variant="footnote" color="textMuted" tabular>
         {time}
       </Text>
@@ -128,9 +154,15 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
     >
       {showAuthor && !own && (
         <View style={[styles.authorRow, mediaOnly && styles.mediaInset]}>
-          <Text variant="subhead" numberOfLines={1}>
-            {authorName}
-          </Text>
+          <Touchable
+            onPress={() => router.push(`/server/${serverKey}/member/${message.authorId}`)}
+            accessibilityRole="button"
+            accessibilityLabel={authorName}
+          >
+            <Text variant="subhead" numberOfLines={1}>
+              {authorName}
+            </Text>
+          </Touchable>
           {member?.isPlugin && (
             <View style={[styles.pluginBadge, { backgroundColor: colors.selected }]}>
               <Text variant="badge" color="textMuted">
@@ -208,9 +240,17 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
       style={[styles.row, own ? styles.rowOwn : null, groupEnd ? styles.groupEnd : styles.inGroup]}
       testID={`bubble-${message.id}`}
     >
-      {!own && (
+      {!own && !chat && (
         <View style={styles.avatarSlot}>
-          {showAvatar && <Avatar name={authorName} file={avatarFile} size={AVATAR_SIZE} />}
+          {showAvatar && (
+            <Touchable
+              onPress={() => router.push(`/server/${serverKey}/member/${message.authorId}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`${authorName} avatar`}
+            >
+              <Avatar name={authorName} file={avatarFile} size={AVATAR_SIZE} />
+            </Touchable>
+          )}
         </View>
       )}
       <View style={styles.bubbleColumn}>
@@ -225,6 +265,8 @@ export const MessageBubble = memo(function MessageBubble({ item, serverKey, maxW
           </Menu>
         ) : sending ? (
           bubble
+        ) : chat ? (
+          chat.menu(message, bubble)
         ) : (
           <MessageMenu serverKey={serverKey} channelId={message.channelId} message={message} trigger="longPress">
             {bubble}

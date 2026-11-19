@@ -11,7 +11,9 @@ use opencord_core::media::MediaOptions;
 use tokio::runtime::{Handle, Runtime};
 
 use crate::MobileError;
+use crate::convert;
 use crate::events::{EventPump, MobileEvent};
+use crate::private_types::PrivateOpenedRecord;
 use crate::types::ViewOutputRecord;
 use crate::views::ViewPump;
 
@@ -62,6 +64,21 @@ impl Mobile {
 
     pub async fn next_events(&self, generation: u64, max: u32) -> Vec<MobileEvent> {
         self.events.next(generation, max).await
+    }
+
+    /// Opens the private database with its master key. Its events reach
+    /// `next_events` from the first call on; a later call (a JavaScript
+    /// reload) keeps that stream.
+    pub async fn private_open(&self, key: [u8; 32]) -> Result<PrivateOpenedRecord, MobileError> {
+        // Before opening: an event sent while nobody listens is dropped.
+        if let Some(forward) = self.events.connect_private(|| self.client.private_events()) {
+            tracing::info!("private events connected");
+            self.runtime.spawn(forward);
+        }
+        self.run(move |client| async move {
+            Ok(convert::private_opened(client.private_open(key).await?))
+        })
+        .await
     }
 
     /// Starts a new generation of the plugin view stream; a
@@ -132,6 +149,12 @@ pub(crate) fn init(data_dir: &Path, cache_dir: &Path) -> Result<(), MobileError>
     if MOBILE.get().is_some() {
         return Ok(());
     }
+    std::fs::create_dir_all(data_dir).map_err(|error| MobileError::Storage {
+        message: error.to_string(),
+    })?;
+    std::fs::create_dir_all(cache_dir).map_err(|error| MobileError::Storage {
+        message: error.to_string(),
+    })?;
     let runtime = match RUNTIME.get() {
         Some(runtime) => runtime,
         None => {

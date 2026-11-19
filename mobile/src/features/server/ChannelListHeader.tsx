@@ -1,14 +1,17 @@
 // The channel list's pane header (spec §8.4): back, the server's name, and
-// the connection state under it while not connected.
-import { useRef } from 'react';
-import * as Clipboard from 'expo-clipboard';
+// the connection state under it while not connected. The name opens the
+// server sheet on both systems: it is the only way in while a chat is in
+// front and the tab bar is hidden. Android also has the server button at
+// the right (design §6.1); on iOS it is the tab bar's search slot.
+import { router } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
-import { describeError } from '@/core';
+import { canInvite, openServerSheet } from '@/features/serverMenu/serverRows';
+import { chrome } from '@/features/servers/chrome';
 import { connectionText } from '@/features/servers/connectionText';
-import { leaveServer, markServerRead } from '@/state/actions/servers';
-import { toast } from '@/state/actions/ui';
 import { useServerHeader } from '@/state/selectors';
-import { IconButton, Menu, PaneHeader, confirm, type MenuAction, type MenuHandle } from '@/ui';
+import { useAppStore } from '@/state/store';
+import { IconButton, PaneHeader } from '@/ui';
 
 export interface ChannelListHeaderProps {
   serverKey: string;
@@ -19,57 +22,46 @@ export interface ChannelListHeaderProps {
 
 export function ChannelListHeader({ serverKey, backLabel, onBack }: ChannelListHeaderProps) {
   const header = useServerHeader(serverKey);
+  const snapshot = useAppStore((state) => state.servers[serverKey]?.snapshot);
   const state = header ? connectionText(header.connection) : null;
-  const menu = useRef<MenuHandle>(null);
-
-  const confirmLeave = () => {
-    confirm({
-      title: `Leave ${header?.name ?? 'server'}?`,
-      message: 'You can come back with an invite.',
-      confirmTitle: 'Leave',
-      destructive: true,
-      onConfirm: () => {
-        leaveServer(serverKey).catch((error: unknown) => {
-          toast(describeError(error), 'error');
-        });
-      },
-    });
-  };
-
-  const menuActions: MenuAction[] = [
-    { id: 'mark-read', title: 'Mark all as read', icon: 'check' },
-    { id: 'copy-address', title: 'Copy address', icon: 'copy' },
-    { id: 'leave', title: 'Leave server', icon: 'leaveServer', destructive: true },
-  ];
-
-  const handleAction = (id: string) => {
-    switch (id) {
-      case 'mark-read':
-        markServerRead(serverKey);
-        break;
-      case 'copy-address':
-        if (header?.address) {
-          Clipboard.setStringAsync(header.address)
-            .then(() => toast('Address copied'))
-            .catch(() => toast('Could not copy address', 'error'));
-        }
-        break;
-      case 'leave':
-        confirmLeave();
-        break;
-    }
-  };
+  const open = () => openServerSheet(serverKey);
+  const openInvite = () => router.push(`/server/${serverKey}/invite`);
+  const mayInvite = canInvite(snapshot);
 
   return (
     <PaneHeader
       title={header?.name ?? ''}
       subtitle={state?.text}
       left={{ icon: 'back', label: backLabel, onPress: onBack }}
+      onTitlePress={open}
       rightElement={
-        <Menu ref={menu} actions={menuActions} onAction={handleAction} trigger="press" testID="channel-list-menu">
-          <IconButton icon="more" label="Server options" onPress={() => menu.current?.open()} />
-        </Menu>
+        <View style={styles.rightGroup}>
+          {mayInvite && (
+            <IconButton
+              icon="personAdd"
+              label="Invite people"
+              onPress={openInvite}
+              testID="invite-button"
+            />
+          )}
+          {!chrome.tabBarSearch && (
+            <IconButton
+              icon="serverMenu"
+              label="Server"
+              onPress={open}
+              testID="server-button"
+            />
+          )}
+        </View>
       }
     />
   );
 }
+
+const styles = StyleSheet.create({
+  rightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+});
+

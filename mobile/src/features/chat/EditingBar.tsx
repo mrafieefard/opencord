@@ -2,6 +2,9 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Icon, IconButton, Text, space } from '@/ui';
+import { decodeMentions } from './mentions';
+
+export { decodeMentions };
 
 export interface EditingBarProps {
   onCancel: () => void;

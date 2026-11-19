@@ -9,6 +9,7 @@ import { useCallback, useLayoutEffect, useState } from 'react';
 import { type NativeSyntheticEvent, StyleSheet, View } from 'react-native';
 
 import { ConnectedBar } from '@/features/voice/ConnectedBar';
+import { SearchResults } from '@/features/search/SearchResults';
 import { retryDisconnected } from '@/state/actions/servers';
 import { useServerRows } from '@/state/selectors';
 import { EmptyState, useTheme } from '@/ui';
@@ -74,6 +75,17 @@ export function ServerListScreen({ searchable, voiceBar }: ServerListScreenProps
           }}
         />
         {voiceBar && <ConnectedBar />}
+      </View>
+    );
+  }
+
+  if (query.trim().length > 0) {
+    const searchContent = <SearchResults query={query} />;
+    if (!voiceBar) return searchContent;
+    return (
+      <View style={[styles.container, { backgroundColor: colors.sidebar }]}>
+        {searchContent}
+        <ConnectedBar />
       </View>
     );
   }

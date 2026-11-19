@@ -1,12 +1,15 @@
 // A server's channels (spec §8.4), full screen in `channels` and as the
 // sidebar beside a channel. Only this server's channels: never servers.
 import { FlashList } from '@shopify/flash-list';
-import type { ChannelRecord, MusicNowPlayingRecord } from '@opencord/core-native';
-import { useCallback, useMemo } from 'react';
+import { ConnectionRecord_Tags, FailureKind, type ChannelRecord, type MusicNowPlayingRecord } from '@opencord/core-native';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useListEndRoom } from '@/features/voice/callPosition';
+import { markFingerprintShown } from '@/state/actions/servers';
 import { useChannelSections } from '@/state/selectors';
+import { useAppStore } from '@/state/store';
 import type { ChannelItem, VoiceMember } from '@/state/types';
 import { useTheme } from '@/ui';
 
@@ -38,6 +41,24 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
   const endRoom = useListEndRoom();
   const sections = useChannelSections(serverKey);
   const highlighted = variant === 'sidebar' ? selectedId : undefined;
+
+  const server = useAppStore((state) => state.servers[serverKey]);
+  const connection = server?.connection;
+  const shownFingerprint = server?.shownFingerprint;
+
+  useEffect(() => {
+    if (
+      connection &&
+      connection.tag === ConnectionRecord_Tags.Failed &&
+      connection.inner.reason === FailureKind.FingerprintChanged
+    ) {
+      const presented = connection.inner.presentedFingerprint ?? 'unknown';
+      if (shownFingerprint !== presented) {
+        markFingerprintShown(serverKey, presented);
+        router.push(`/server/${serverKey}/identity-changed`);
+      }
+    }
+  }, [connection, serverKey, shownFingerprint]);
 
   const items = useMemo(() => {
     const result: ListItem[] = [];
@@ -105,6 +126,8 @@ export function ChannelList({ serverKey, variant, selectedId, onSelect }: Channe
               channel={item.item.channel}
               count={item.item.count}
               limit={item.item.limit}
+              unread={item.item.unread}
+              mentions={item.item.mentions}
               selected={item.item.channel.id === highlighted}
               onSelect={onSelect}
             />

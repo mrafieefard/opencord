@@ -19,11 +19,16 @@ mod events;
 mod files;
 mod ids;
 mod mobile;
+mod private_types;
 mod types;
 mod views;
+
+#[cfg(test)]
+pub mod test_support;
 
 pub use error::MobileError;
 pub use events::MobileEvent;
 pub use ids::{id, parse_id};
 pub use mobile::Mobile;
+pub use private_types::*;
 pub use types::*;

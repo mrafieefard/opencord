@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { ConnectionRecord_Tags } from '@opencord/core-native';
 
 import { report } from '@/core';
+import { openServerSheet } from '@/features/serverMenu/serverRows';
 import { leaveServer, markServerRead, retryServer } from '@/state/actions/servers';
 import type { ServerRow as ServerRowType } from '@/state/types';
 import { Badge, Icon, type MenuAction, ServerIcon, Text, confirm, space } from '@/ui';
@@ -52,6 +53,8 @@ export function useServerRowActions(row: ServerRowType) {
   const menuActions: MenuAction[] = [
     { id: 'read', title: 'Mark as read', icon: 'check' },
     ...(connected ? [] : [{ id: 'retry', title: 'Retry now', icon: 'retry' } satisfies MenuAction]),
+    // The server sheet (design §6.1), as the server button opens it.
+    { id: 'settings', title: 'Settings', icon: 'settings' },
     { id: 'copy-address', title: 'Copy address', icon: 'copy' },
     { id: 'leave', title: 'Leave server', icon: 'leaveServer', destructive: true },
   ];
@@ -62,6 +65,9 @@ export function useServerRowActions(row: ServerRowType) {
         break;
       case 'retry':
         report(retryServer(row.key), 'retry server');
+        break;
+      case 'settings':
+        openServerSheet(row.key);
         break;
       case 'copy-address':
         report(Clipboard.setStringAsync(row.address), 'copy address');

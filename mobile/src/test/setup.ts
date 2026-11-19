@@ -2,6 +2,12 @@
 // Jest setup. @opencord/core-native maps to the generated bindings without
 // their native installer (jest.config.js); tests use FakeCore for calls.
 
+// ActionSheetIOS mock.
+const { ActionSheetIOS } = require('react-native');
+if (ActionSheetIOS) {
+  ActionSheetIOS.showActionSheetWithOptions = jest.fn();
+}
+
 // expo-secure-store, kept in memory.
 jest.mock('expo-secure-store', () => {
   const items = new Map<string, string>();
@@ -41,7 +47,25 @@ jest.mock('expo-sharing', () => ({
 // expo-image-picker in memory.
 jest.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images', All: 'All', Videos: 'Videos' },
+  PermissionStatus: {
+    UNDETERMINED: 'undetermined',
+    GRANTED: 'granted',
+    DENIED: 'denied',
+  },
   launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: [] })),
+  launchCameraAsync: jest.fn(async () => ({ canceled: true, assets: [] })),
+  requestCameraPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    status: 'granted',
+    canAskAgain: true,
+    expires: 'never',
+  })),
+  getCameraPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    status: 'granted',
+    canAskAgain: true,
+    expires: 'never',
+  })),
 }));
 
 // expo-document-picker in memory.
@@ -83,13 +107,113 @@ jest.mock('expo-constants', () => ({
 }));
 
 // expo-audio mock.
+class MockAudioPlayer {
+  playing = false;
+  currentTime = 0;
+  duration = 30;
+  volume = 1;
+  listeners: ((status: unknown) => void)[] = [];
+
+  play = jest.fn(() => {
+    this.playing = true;
+    this.emit();
+  });
+  pause = jest.fn(() => {
+    this.playing = false;
+    this.emit();
+  });
+  seekTo = jest.fn(async (seconds: number) => {
+    this.currentTime = seconds;
+    this.emit();
+  });
+  addListener = jest.fn((_event: string, listener: (status: unknown) => void) => {
+    this.listeners.push(listener);
+    return {
+      remove: () => {
+        this.listeners = this.listeners.filter((l) => l !== listener);
+      },
+    };
+  });
+  remove = jest.fn();
+  source: unknown = null;
+  replace = jest.fn((source: unknown) => {
+    this.source = source;
+  });
+
+  emit() {
+    for (const listener of this.listeners) {
+      listener({
+        currentTime: this.currentTime,
+        duration: this.duration,
+        playing: this.playing,
+        isLoaded: true,
+      });
+    }
+  }
+}
+
+export const mockAudioPlayer = new MockAudioPlayer();
+
 jest.mock('expo-audio', () => ({
   getRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
   requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
   requestNotificationPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: 'granted' })),
   setAudioModeAsync: jest.fn(async () => {}),
   setIsAudioActiveAsync: jest.fn(async () => {}),
+  createAudioPlayer: jest.fn(() => mockAudioPlayer),
+  useAudioPlayer: jest.fn(() => mockAudioPlayer),
+  useAudioPlayerStatus: jest.fn((player: { currentTime?: number; duration?: number; playing?: boolean } | null | undefined) => ({
+    currentTime: player?.currentTime ?? 0,
+    duration: player?.duration ?? 30,
+    playing: player?.playing ?? false,
+    isLoaded: true,
+    isBuffering: false,
+    playbackRate: 1,
+    muted: false,
+    loop: false,
+    didJustFinish: false,
+  })),
 }));
+
+// expo-video mock.
+class MockVideoPlayer {
+  playing = false;
+  currentTime = 0;
+  duration = 60;
+  volume = 1;
+  play = jest.fn(() => {
+    this.playing = true;
+  });
+  pause = jest.fn(() => {
+    this.playing = false;
+  });
+  seekBy = jest.fn();
+  replay = jest.fn();
+}
+
+export const mockVideoPlayer = new MockVideoPlayer();
+
+jest.mock('expo-video', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    VideoView: jest.fn(({ player: _player, style, testID, ...rest }: { player?: unknown; style?: unknown; testID?: string; [key: string]: unknown }) => {
+      return React.createElement(View, {
+        testID: testID ?? 'expo-video-view',
+        style,
+        accessibilityLabel: 'Video player',
+        ...rest,
+      });
+    }),
+    useVideoPlayer: jest.fn((_source: unknown, setup?: (p: MockVideoPlayer) => void) => {
+      const p = new MockVideoPlayer();
+      if (setup) setup(p);
+      return p;
+    }),
+    createVideoPlayer: jest.fn(() => new MockVideoPlayer()),
+    isPictureInPictureSupported: jest.fn(() => true),
+  };
+});
 
 // @expo/ui swift-ui mocks for Jest.
 jest.mock('@expo/ui/swift-ui', () => {

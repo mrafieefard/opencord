@@ -6,6 +6,7 @@ import { fonts, typography } from '@/ui/theme/typography';
 import { space } from '@/ui/theme/space';
 import { useTheme } from '@/ui/theme/useTheme';
 
+import { highlightCode } from './codeHighlight';
 import {
   MdChannelMention,
   MdCode,
@@ -215,6 +216,7 @@ export const MarkdownText = memo(function MarkdownText({
         }
 
         if (block instanceof MdCode) {
+          const highlighted = highlightCode(block.code, block.language, colors);
           return (
             <View
               key={index}
@@ -224,7 +226,16 @@ export const MarkdownText = memo(function MarkdownText({
                 selectable={selectable}
                 style={[typography.mono, { color: colors.text }]}
               >
-                {block.code}
+                {highlighted
+                  ? highlighted.map((span, sIdx) => (
+                      <NativeText
+                        key={sIdx}
+                        style={[typography.mono, span.style]}
+                      >
+                        {span.text}
+                      </NativeText>
+                    ))
+                  : block.code}
               </NativeText>
             </View>
           );

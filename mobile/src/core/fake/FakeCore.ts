@@ -15,9 +15,19 @@ import {
   MusicAction,
   MusicPlacement,
   MusicPlayState,
+  NoiseSuppression,
   PlaybackItemRecord,
+  PresenceStatus,
   UploadPhaseRecord,
+  VoiceCueKind,
   VoiceLinkState,
+  ConversationStatus,
+  FriendStatus,
+  OwnDeviceState,
+  PrivateEventRecord,
+  PrivateMessageKind,
+  PrivateSendState,
+  PrivateVerification,
   type ActivitySessionRecord,
   type CommandChoiceRecord,
   type CommandOptionValueRecord,
@@ -26,6 +36,8 @@ import {
   type VoiceDraftRecord,
   type ExternalSoundRecord,
   type IdentityInfo,
+  type InviteRecord,
+  type KeyWordsRecord,
   type MessageRecord,
   type MusicQueueItemRecord,
   type MusicRepeat,
@@ -34,13 +46,30 @@ import {
   type MusicSettingsRecord,
   type NewIdentity,
   type OutgoingFileRecord,
+  type OwnAvatarRecord,
+  type OwnDevicesRecord,
+  type PhoneAudioSettings,
+  type PrivacySettingsRecord,
+  type PrivateContactRecord,
+  type PrivateMessageRecord,
+  type PrivateOpenedRecord,
   type ServerEntry,
+  type SharedServerRecord,
   type UserRecord,
   type ViewOutputRecord,
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
-import type { CoreApi } from '../api';
+import type { CoreApi, PresenceStatusInput } from '../api';
+import {
+  createFakeContacts,
+  createFakeOwnDevices,
+  createFakePrivacySettings,
+  createFakePrivateMessages,
+  createFakeSharedServers,
+  KAI_PEER,
+  wordsForSeed,
+} from './privateWorld';
 import {
   CHANNELS,
   NIGHT_OWLS,
@@ -52,6 +81,7 @@ import {
   entries,
   history,
   item,
+  members,
   musicSettings,
   session,
   snapshot,
@@ -73,6 +103,30 @@ const ticketsSession: RecordedStep[] = [ticketsOpened, ticketsNew, ticketsTyped,
 
 /** What the fake answers for a plugin's asset or image. */
 const FAKE_PLUGIN_IMAGE = '/fake/cache/plugin-image.png';
+
+function toPresenceStatus(status: PresenceStatusInput): PresenceStatus {
+  if (typeof status === 'string') {
+    switch (status) {
+      case 'Online':
+        return PresenceStatus.Online;
+      case 'Idle':
+        return PresenceStatus.Idle;
+      case 'Dnd':
+        return PresenceStatus.Dnd;
+      case 'Offline':
+        return PresenceStatus.Offline;
+    }
+  }
+  return status;
+}
+
+function fakeHash(text: string): string {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) {
+    h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+  }
+  return 'fake-avatar-' + Math.abs(h).toString(16).padStart(8, '0');
+}
 
 export type Scenario = 'default' | 'empty';
 
@@ -99,6 +153,7 @@ interface Upload {
 }
 
 const SECRET_LEN = 32;
+const PRIVATE_KEY_LEN = 32;
 const MESSAGE_MAX_CHARS = 4000;
 const NAME_MAX_CHARS = 32;
 const BACKUP_PREFIX = 'opencord-identity-v1';
@@ -151,6 +206,7 @@ export class FakeCore implements CoreApi {
   private settings = new Map<string, string>();
   private servers: ServerEntry[];
   private trusted = new Set<string>();
+  private invites = new Map<string, InviteRecord[]>();
   private messages = new Map<string, MessageRecord[]>();
   private sessions = new Map<string, MusicSessionRecord>();
   private uploads = new Map<string, Upload>();
@@ -159,6 +215,14 @@ export class FakeCore implements CoreApi {
   private nextId = 900_000;
   private name = 'Ava';
   private loaded = false;
+  /** The key the private database is sealed with, in hex; null until made. */
+  private privateSealedWith: string | null = null;
+  private privateOpened = false;
+  private privateContactsMap = new Map<string, PrivateContactRecord>();
+  private privateMessagesMap = new Map<string, PrivateMessageRecord[]>();
+  private privateOwnDevicesData: OwnDevicesRecord = createFakeOwnDevices();
+  private privatePrivacySettingsData: PrivacySettingsRecord = createFakePrivacySettings();
+  private privateSharedServersData: SharedServerRecord[] = createFakeSharedServers();
   private readonly live: boolean;
 
   constructor(options: FakeOptions = {}) {
@@ -168,6 +232,11 @@ export class FakeCore implements CoreApi {
     this.files = options.files;
     this.uploadStepMs = options.uploadStepMs ?? 400;
     this.servers = this.scenario === 'empty' ? [] : entries();
+    if (this.scenario !== 'empty') {
+      const now = this.now();
+      this.privateContactsMap = createFakeContacts(now);
+      this.privateMessagesMap = createFakePrivateMessages(now);
+    }
     if (this.scenario === 'default') {
       const now = this.now();
       this.messages.set(this.key(NIGHT_OWLS, CHANNELS.general), history(CHANNELS.general, 120, now, 100_000));
@@ -288,6 +357,405 @@ export class FakeCore implements CoreApi {
     return bytes.buffer;
   }
 
+  // Private messages ---------------------------------------------------
+
+  /** A private database an earlier install left, sealed with `key`. */
+  sealPrivateDatabase(key: ArrayBuffer): void {
+    this.privateSealedWith = hex(new Uint8Array(key));
+  }
+
+  privateKeyGenerate(): ArrayBuffer {
+    this.enter('privateKeyGenerate', []);
+    const key = new Uint8Array(PRIVATE_KEY_LEN);
+    for (let index = 0; index < PRIVATE_KEY_LEN; index += 1) key[index] = Math.floor(Math.random() * 256);
+    return key.buffer;
+  }
+
+  /** As the core: a database it can't read with `key` is moved aside and
+   * starts fresh; opening again in the same process does nothing. */
+  async privateOpen(key: ArrayBuffer): Promise<PrivateOpenedRecord> {
+    this.enter('privateOpen', [key]);
+    if (key.byteLength !== PRIVATE_KEY_LEN) invalid(`the private key must be 32 bytes, not ${key.byteLength}`);
+    if (!this.loaded) throw new MobileError.NoIdentity();
+    if (this.privateOpened) return { startedFresh: false, keysReset: false };
+    const sealed = hex(new Uint8Array(key));
+    const startedFresh = this.privateSealedWith !== null && this.privateSealedWith !== sealed;
+    this.privateSealedWith = sealed;
+    this.privateOpened = true;
+    return { startedFresh, keysReset: false };
+  }
+
+  async privateContacts(): Promise<PrivateContactRecord[]> {
+    this.enter('privateContacts', []);
+    return Array.from(this.privateContactsMap.values());
+  }
+
+  async privateMessages(peer: string, before?: string, limit = 50): Promise<PrivateMessageRecord[]> {
+    this.enter('privateMessages', [peer, before, limit]);
+    const all = this.privateMessagesMap.get(peer) ?? [];
+    let list = all;
+    if (before !== undefined) {
+      const idx = all.findIndex((m) => m.id === before);
+      if (idx !== -1) {
+        list = all.slice(idx + 1);
+      }
+    }
+    return list.slice(0, Math.min(Math.max(limit, 1), 100));
+  }
+
+  async privateSend(peer: string, content: string): Promise<PrivateMessageRecord> {
+    this.enter('privateSend', [peer, content]);
+    const id = (this.nextId++).toString(16).padStart(16, '0');
+    const sentAtMs = this.now();
+    const message: PrivateMessageRecord = {
+      id,
+      peer,
+      outgoing: true,
+      kind: PrivateMessageKind.Text,
+      content,
+      sentAtMs,
+      state: PrivateSendState.Sending,
+    };
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    list.unshift(message);
+    this.privateMessagesMap.set(peer, list);
+
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updatedContact = {
+        ...contact,
+        lastActivityMs: sentAtMs,
+        preview: content.split('\n')[0].slice(0, 100),
+        conversation: ConversationStatus.Accepted,
+        hidden: false,
+      };
+      this.privateContactsMap.set(peer, updatedContact);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updatedContact }) }));
+    }
+
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageAdded.new({ message }) }));
+
+    setTimeout(() => {
+      const sentMessage = { ...message, state: PrivateSendState.Sent };
+      const currentList = this.privateMessagesMap.get(peer) ?? [];
+      const idx = currentList.findIndex((m) => m.id === id);
+      if (idx !== -1) currentList[idx] = sentMessage;
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: sentMessage }) }));
+    }, 400);
+
+    if (peer === KAI_PEER) {
+      setTimeout(() => {
+        this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.Typing.new({ peer }) }));
+      }, 2000);
+    }
+
+    return message;
+  }
+
+  async privateEdit(peer: string, messageId: string, content: string): Promise<void> {
+    this.enter('privateEdit', [peer, messageId, content]);
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    const idx = list.findIndex((m) => m.id === messageId);
+    const item = list[idx];
+    if (idx !== -1 && item) {
+      const edited = { ...item, content, editedAtMs: this.now() };
+      list[idx] = edited;
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: edited }) }));
+    }
+  }
+
+  async privateDelete(peer: string, messageId: string): Promise<void> {
+    this.enter('privateDelete', [peer, messageId]);
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    this.privateMessagesMap.set(peer, list.filter((m) => m.id !== messageId));
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageDeleted.new({ peer, messageId }) }));
+  }
+
+  async privateRetry(messageId: string): Promise<void> {
+    this.enter('privateRetry', [messageId]);
+    for (const [peer, list] of this.privateMessagesMap.entries()) {
+      const idx = list.findIndex((m) => m.id === messageId);
+      const item = list[idx];
+      if (idx !== -1 && item) {
+        const retrying = { ...item, state: PrivateSendState.Sending };
+        list[idx] = retrying;
+        this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: retrying }) }));
+        setTimeout(() => {
+          const sent = { ...retrying, state: PrivateSendState.Sent };
+          const cur = this.privateMessagesMap.get(peer) ?? [];
+          const curIdx = cur.findIndex((m) => m.id === messageId);
+          if (curIdx !== -1) cur[curIdx] = sent;
+          this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: sent }) }));
+        }, 400);
+        return;
+      }
+    }
+  }
+
+  async friendRequestSend(serverKey: string, userId: string): Promise<void> {
+    this.enter('friendRequestSend', [serverKey, userId]);
+    const peer = `peer-user-${userId}`;
+    const existing = this.privateContactsMap.get(peer) ?? {
+      peer,
+      name: `User ${userId}`,
+      friend: FriendStatus.None,
+      requestSpam: false,
+      blocked: false,
+      conversation: ConversationStatus.None,
+      unread: 0,
+      muted: false,
+      hidden: false,
+      newKeys: false,
+      verification: PrivateVerification.Unverified,
+      reachable: false,
+    };
+    const updated = { ...existing, friend: FriendStatus.Outgoing };
+    this.privateContactsMap.set(peer, updated);
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+  }
+
+  async friendRequestAnswer(peer: string, accept: boolean): Promise<void> {
+    this.enter('friendRequestAnswer', [peer, accept]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, friend: accept ? FriendStatus.Friends : FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async friendRequestCancel(peer: string): Promise<void> {
+    this.enter('friendRequestCancel', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, friend: FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async friendRemove(peer: string): Promise<void> {
+    this.enter('friendRemove', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, friend: FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async messageRequestAccept(peer: string): Promise<void> {
+    this.enter('messageRequestAccept', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, conversation: ConversationStatus.Accepted };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async messageRequestIgnore(peer: string): Promise<void> {
+    this.enter('messageRequestIgnore', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, conversation: ConversationStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateBlock(peer: string): Promise<void> {
+    this.enter('privateBlock', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, blocked: true, friend: FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateUnblock(peer: string): Promise<void> {
+    this.enter('privateUnblock', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, blocked: false };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privacySettings(): Promise<PrivacySettingsRecord> {
+    this.enter('privacySettings', []);
+    return { ...this.privatePrivacySettingsData };
+  }
+
+  async privacySettingsSet(settings: PrivacySettingsRecord): Promise<void> {
+    this.enter('privacySettingsSet', [settings]);
+    this.privatePrivacySettingsData = { ...settings };
+  }
+
+  async privateOpenConversation(serverKey: string, userId: string): Promise<PrivateContactRecord> {
+    this.enter('privateOpenConversation', [serverKey, userId]);
+    const peer = `peer-user-${userId}`;
+    let contact = this.privateContactsMap.get(peer);
+    if (!contact) {
+      contact = {
+        peer,
+        name: `User ${userId}`,
+        friend: FriendStatus.None,
+        requestSpam: false,
+        blocked: false,
+        conversation: ConversationStatus.Accepted,
+        relayServerKey: serverKey,
+        unread: 0,
+        muted: false,
+        hidden: false,
+        newKeys: false,
+        verification: PrivateVerification.Unverified,
+        reachable: true,
+      };
+    } else {
+      contact = { ...contact, conversation: ConversationStatus.Accepted, hidden: false, relayServerKey: serverKey };
+    }
+    this.privateContactsMap.set(peer, contact);
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact }) }));
+    return contact;
+  }
+
+  async privateSharedServers(peer: string): Promise<SharedServerRecord[]> {
+    this.enter('privateSharedServers', [peer]);
+    if (!this.privateContactsMap.has(peer) && !peer.startsWith('fake-peer-') && !peer.includes('peer')) {
+      return [];
+    }
+    return [...this.privateSharedServersData];
+  }
+
+  setPrivateSharedServers(servers: SharedServerRecord[]): void {
+    this.privateSharedServersData = [...servers];
+  }
+
+  async privateMove(peer: string, serverKey: string): Promise<void> {
+    this.enter('privateMove', [peer, serverKey]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, relayServerKey: serverKey };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateMoveToo(peer: string, messageId: string): Promise<void> {
+    this.enter('privateMoveToo', [peer, messageId]);
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    const msg = list.find((m) => m.id === messageId);
+    if (msg && msg.serverKey) {
+      await this.privateMove(peer, msg.serverKey);
+    }
+  }
+
+  async privateTyping(peer: string): Promise<void> {
+    this.enter('privateTyping', [peer]);
+  }
+
+  async privateMarkRead(peer: string): Promise<void> {
+    this.enter('privateMarkRead', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, unread: 0 };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateSetMuted(peer: string, muted: boolean): Promise<void> {
+    this.enter('privateSetMuted', [peer, muted]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, muted };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateHide(peer: string): Promise<void> {
+    this.enter('privateHide', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, hidden: true };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateOwnDevices(): Promise<OwnDevicesRecord> {
+    this.enter('privateOwnDevices', []);
+    return {
+      devices: [...this.privateOwnDevicesData.devices],
+      hasChats: this.privateOwnDevicesData.hasChats,
+    };
+  }
+
+  async privatePairingWords(deviceId: string): Promise<KeyWordsRecord> {
+    this.enter('privatePairingWords', [deviceId]);
+    return wordsForSeed(deviceId);
+  }
+
+  async privateApproveDevice(deviceId: string, keys: string): Promise<void> {
+    this.enter('privateApproveDevice', [deviceId, keys]);
+    const devices = this.privateOwnDevicesData.devices.map((d) =>
+      d.deviceId === deviceId ? { ...d, state: OwnDeviceState.Other } : d,
+    );
+    this.privateOwnDevicesData = { ...this.privateOwnDevicesData, devices };
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.OwnDevicesChanged.new(this.privateOwnDevicesData) }));
+  }
+
+  async privateAcceptKeysFrom(deviceId: string, matched: boolean, keys: string): Promise<void> {
+    this.enter('privateAcceptKeysFrom', [deviceId, matched, keys]);
+    if (matched) {
+      const devices = this.privateOwnDevicesData.devices.map((d) =>
+        d.deviceId === deviceId ? { ...d, state: OwnDeviceState.Other } : d,
+      );
+      this.privateOwnDevicesData = { ...this.privateOwnDevicesData, devices, hasChats: true };
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.OwnDevicesChanged.new(this.privateOwnDevicesData) }));
+    }
+  }
+
+  async privateWords(peer: string, newKeys: boolean): Promise<KeyWordsRecord> {
+    this.enter('privateWords', [peer, newKeys]);
+    return wordsForSeed(`${peer}${newKeys ? 'new' : ''}`);
+  }
+
+  async privateVerify(peer: string, newKeys: boolean, matched: boolean, keys: string): Promise<void> {
+    this.enter('privateVerify', [peer, newKeys, matched, keys]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = {
+        ...contact,
+        verification: matched ? PrivateVerification.Verified : PrivateVerification.Mismatch,
+        newKeys: false,
+      };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateAcceptNewKeys(peer: string): Promise<void> {
+    this.enter('privateAcceptNewKeys', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, newKeys: false };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateRejectDevice(deviceId: string): Promise<void> {
+    this.enter('privateRejectDevice', [deviceId]);
+    const devices = this.privateOwnDevicesData.devices.filter((d) => d.deviceId !== deviceId);
+    this.privateOwnDevicesData = { ...this.privateOwnDevicesData, devices };
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.OwnDevicesChanged.new(this.privateOwnDevicesData) }));
+  }
+
   private info(secret: Uint8Array): IdentityInfo {
     const publicKeyHex = hex(secret);
     const short = publicKeyHex.slice(0, 16).toUpperCase();
@@ -337,9 +805,181 @@ export class FakeCore implements CoreApi {
     return { ...user(SELF_ID), displayName: checkName(displayName) };
   }
 
+  async presenceUpdate(serverKey: string, status: PresenceStatusInput): Promise<void> {
+    this.enter('presenceUpdate', [serverKey, status]);
+    this.requireConnected(serverKey);
+    const resolved = toPresenceStatus(status);
+    this.emit(
+      new MobileEvent.PresenceChanged({
+        serverKey,
+        presence: {
+          userId: SELF_ID,
+          status: resolved,
+        },
+      }),
+    );
+  }
+
   async avatarFile(serverKey: string, hash: string): Promise<string> {
     this.enter('avatarFile', [serverKey, hash]);
     return `/fake/avatars/${hash}.png`;
+  }
+
+  private ownAvatarPath: string | undefined = undefined;
+  private ownAvatarHashVal: string | undefined = undefined;
+  private cacheSizeBytes = 42 * 1024 * 1024; // 42 MB
+
+  avatarSet(sourcePath: string | undefined): string | undefined {
+    this.enter('avatarSet', [sourcePath]);
+    this.ownAvatarPath = sourcePath;
+    this.ownAvatarHashVal = sourcePath ? fakeHash(sourcePath) : undefined;
+    for (const server of this.servers) {
+      const selfMember = members().find((m) => m.user.id === SELF_ID);
+      const updatedUser: UserRecord = {
+        ...(selfMember?.user ?? user(SELF_ID)),
+        avatarHash: this.ownAvatarHashVal,
+      };
+      const updatedMember = selfMember
+        ? { ...selfMember, user: updatedUser }
+        : {
+            user: updatedUser,
+            roleIds: [],
+            joinedAtMs: 1_791_374_400_000,
+          };
+      this.emit(
+        new MobileEvent.MemberUpserted({
+          serverKey: server.key,
+          member: updatedMember,
+        }),
+      );
+    }
+    return this.ownAvatarHashVal;
+  }
+
+  async avatarUpload(serverKey: string): Promise<UserRecord> {
+    this.enter('avatarUpload', [serverKey]);
+    this.requireConnected(serverKey);
+    return {
+      ...user(SELF_ID),
+      avatarHash: this.ownAvatarHashVal,
+    };
+  }
+
+  ownAvatar(): OwnAvatarRecord {
+    this.enter('ownAvatar', []);
+    return {
+      hash: this.ownAvatarHashVal,
+      file: this.ownAvatarPath,
+    };
+  }
+
+  async cacheSize(): Promise<number> {
+    this.enter('cacheSize', []);
+    return this.cacheSizeBytes;
+  }
+
+  async cacheClear(): Promise<void> {
+    this.enter('cacheClear', []);
+    this.cacheSizeBytes = 0;
+  }
+
+  async logsExport(): Promise<string> {
+    this.enter('logsExport', []);
+    return '/fake/logs/opencord-current.log';
+  }
+
+  async logsCrashed(): Promise<string | null> {
+    this.enter('logsCrashed', []);
+    return null;
+  }
+
+  async inviteCreate(
+    serverKey: string,
+    maxUses?: number,
+    expiresInS?: number,
+  ): Promise<InviteRecord> {
+    this.enter('inviteCreate', [serverKey, maxUses, expiresInS]);
+    const code = 'AbC123';
+    const now = this.now();
+    const invite: InviteRecord = {
+      code,
+      link: 'opencord://fake.invite/AbC123',
+      webLink: 'https://fake.invite/AbC123',
+      domainId: undefined,
+      createdBy: SELF_ID,
+      createdAtMs: now,
+      maxUses: maxUses ?? undefined,
+      uses: 0,
+      expiresAtMs: expiresInS ? now + expiresInS * 1000 : undefined,
+    };
+    const list = this.invites.get(serverKey) ?? [];
+    list.push(invite);
+    this.invites.set(serverKey, list);
+    return invite;
+  }
+
+  async invitesFetch(serverKey: string): Promise<InviteRecord[]> {
+    this.enter('invitesFetch', [serverKey]);
+    return [...(this.invites.get(serverKey) ?? [])];
+  }
+
+  async inviteRevoke(serverKey: string, code: string): Promise<void> {
+    this.enter('inviteRevoke', [serverKey, code]);
+    const list = this.invites.get(serverKey) ?? [];
+    this.invites.set(
+      serverKey,
+      list.filter((inv) => inv.code !== code),
+    );
+  }
+
+  private micTestOn = false;
+  private levelMeterOn = false;
+  private micTestTimer: ReturnType<typeof setInterval> | null = null;
+  private micTestPhase = 0;
+
+  private updateMicTestTimer(): void {
+    const running = this.micTestOn && this.levelMeterOn;
+    if (running && !this.micTestTimer) {
+      this.micTestTimer = setInterval(() => {
+        this.micTestPhase += 0.2;
+        const dbfs = -35 + 25 * Math.sin(this.micTestPhase);
+        this.emit(new MobileEvent.InputLevel({ dbfs }));
+      }, 100);
+    } else if (!running && this.micTestTimer) {
+      clearInterval(this.micTestTimer);
+      this.micTestTimer = null;
+    }
+  }
+
+  async micTestSet(on: boolean): Promise<void> {
+    this.enter('micTestSet', [on]);
+    this.micTestOn = on;
+    this.updateMicTestTimer();
+  }
+
+  levelMeterSet(on: boolean): void {
+    this.enter('levelMeterSet', [on]);
+    this.levelMeterOn = on;
+    this.updateMicTestTimer();
+  }
+
+  private audioSettings: PhoneAudioSettings = {
+    noiseSuppression: NoiseSuppression.Standard,
+    inputVolume: 1.0,
+    outputVolume: 1.0,
+  };
+
+  audioSettingsApply(settings: PhoneAudioSettings): void {
+    this.enter('audioSettingsApply', [settings]);
+    this.audioSettings = settings;
+  }
+
+  cuePlay(cue: VoiceCueKind, volume: number): void {
+    this.enter('cuePlay', [cue, volume]);
+  }
+
+  soundboardSetListening(volume: number, muted: boolean): void {
+    this.enter('soundboardSetListening', [volume, muted]);
   }
 
   /** What the core sends as it connects: each fake server has its state. */
@@ -534,6 +1174,15 @@ export class FakeCore implements CoreApi {
   async attachmentFile(serverKey: string, attachmentId: string, variant: AttachmentVariant): Promise<string> {
     this.enter('attachmentFile', [serverKey, attachmentId, variant]);
     if (this.files) return this.files(attachmentId, variant);
+    if (attachmentId.endsWith('.mp4') || attachmentId === '50010' || attachmentId.includes('mp4')) {
+      return '/data/user/0/dev.opencord.mobile/cache/demo.mp4';
+    }
+    if (attachmentId.endsWith('.mp3') || attachmentId === '50011' || attachmentId.includes('mp3')) {
+      return '/data/user/0/dev.opencord.mobile/cache/song.mp3';
+    }
+    if (attachmentId.endsWith('.txt') || attachmentId === '50012' || attachmentId.includes('txt')) {
+      return '/data/user/0/dev.opencord.mobile/cache/sample.txt';
+    }
     if (attachmentId.endsWith('1') || attachmentId.endsWith('8')) {
       return '/data/user/0/dev.opencord.mobile/cache/aurora.png';
     }

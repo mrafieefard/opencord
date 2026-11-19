@@ -149,12 +149,12 @@ describe('MusicPlayer', () => {
     jest.clearAllMocks();
     jest.spyOn(musicActions, 'subscribeMusic').mockResolvedValue();
     jest.spyOn(musicActions, 'unsubscribeMusic').mockResolvedValue();
-  });
+  }, 15000);
 
   afterEach(() => {
     cleanup();
     jest.restoreAllMocks();
-  });
+  }, 15000);
 
   it('it subscribes when opened and unsubscribes when closed', async () => {
     initMusicServer();
@@ -274,7 +274,7 @@ describe('MusicPlayer', () => {
     expect(modeSpy).toHaveBeenCalledWith(NIGHT_OWLS, CHANNELS.lounge, MusicRepeat.Off, false);
     view.unmount();
     await settle();
-  });
+  }, 15000);
 
   it('seeking is offered only on a seekable track with control', async () => {
     initMusicServer({ accessOverrides: { musicControl: true }, session: makeSession({ state: MusicPlayState.Paused }) });

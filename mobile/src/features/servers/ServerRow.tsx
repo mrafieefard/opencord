@@ -4,7 +4,7 @@
 // Second line: preview / connection status
 // Right of preview: unread / mentions badge, voice glyph if in voice
 // Swipes: leading Read, trailing Leave
-// Long press: Menu (Mark as read, Retry now, Copy address, Leave server)
+// Long press: Menu (Mark as read, Retry now, Settings, Copy address, Leave server)
 // (iOS draws its rows natively: ServerList.ios.)
 
 import { memo, useRef } from 'react';

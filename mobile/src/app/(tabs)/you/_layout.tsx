@@ -1,3 +1,4 @@
+// YouLayout: tabs stack layout.
 import { TabInsetProbe } from '@/features/voice/TabInsetProbe';
 import { Stack } from 'expo-router';
 
@@ -21,6 +22,10 @@ export default function YouLayout() {
       >
         <Stack.Screen name="index" options={{ title: 'You' }} />
         <Stack.Screen name="name" options={{ title: 'Display name', headerLargeTitle: false }} />
+        <Stack.Screen name="profile" options={{ title: 'Profile', headerLargeTitle: false }} />
+        <Stack.Screen name="voice" options={{ title: 'Voice & audio', headerLargeTitle: false }} />
+        <Stack.Screen name="sounds" options={{ title: 'Sounds', headerLargeTitle: false }} />
+        <Stack.Screen name="storage" options={{ title: 'Storage and logs', headerLargeTitle: false }} />
       </Stack>
       <TabInsetProbe />
     </>

@@ -4,14 +4,23 @@ import {
   AttachmentKind,
   ChannelKind,
   ConnectionRecord_Tags,
+  ConversationStatus,
+  FriendStatus,
   PluginChannelState,
+  PresenceStatus,
   type ActivitySessionRecord,
   type ChannelAccess,
   type ChannelRecord,
+  type ConnectionRecord,
   type MusicNowPlayingRecord,
   type MusicSessionRecord,
   type MusicSettingsRecord,
+  type OwnDevicesRecord,
   type PluginActivityRecord,
+  type PrivateContactRecord,
+  type PrivateMessageRecord,
+  type RoleRecord,
+  type ServerAccess,
   type ServerSnapshot,
 } from '@opencord/core-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -146,6 +155,7 @@ export function buildChannelSections(
     if (channel.kind === ChannelKind.Voice) {
       const members = buildVoiceMembers(server, channel.id, speaking[channelKey(server.key, channel.id)] ?? []);
       const nowPlaying: MusicNowPlayingRecord | null = server.nowPlaying[channel.id] ?? null;
+      const activity = server.activity[channel.id];
       return {
         kind: 'voice',
         channel,
@@ -154,6 +164,8 @@ export function buildChannelSections(
         nowPlaying: nowPlaying && !nowPlaying.ended ? nowPlaying : null,
         count: members.length,
         limit: channel.userLimit,
+        unread: activity?.unread ?? 0,
+        mentions: activity?.mentions ?? 0,
       };
     }
     if (channel.kind === ChannelKind.Plugin && channel.plugin) {
@@ -364,3 +376,166 @@ export function useSoundRing(serverKey: string, channelId: string, userId: strin
 
 /** When this device last played a sound on a server, for the cooldown. */
 export const useLastSound = (serverKey: string): number | undefined => useAppStore((state) => state.lastSound[serverKey]);
+
+export type ServerRowKey =
+  | 'overview'
+  | 'voice'
+  | 'commands'
+  | 'soundboard'
+  | 'privateMessages'
+  | 'channels'
+  | 'roles'
+  | 'plugins'
+  | 'hosting'
+  | 'uploads'
+  | 'members'
+  | 'invites'
+  | 'bans';
+
+export function memberColor(snapshot: ServerSnapshot | null | undefined, userId: string): number | null {
+  if (!snapshot) return null;
+  const member = snapshot.members.find((m) => m.user.id === userId);
+  if (!member) return null;
+  const coloredRoles = (snapshot.roles ?? [])
+    .filter((r) => member.roleIds.includes(r.id) && r.color !== 0 && r.color != null)
+    .sort((a, b) => b.position - a.position);
+  return coloredRoles[0]?.color ?? null;
+}
+
+export function selectPresence(snapshot: ServerSnapshot | null | undefined, userId: string): PresenceStatus {
+  const found = snapshot?.presences?.find((p) => p.userId === userId);
+  return found ? found.status : PresenceStatus.Offline;
+}
+
+export function serverSettingsRows(access: ServerAccess, voiceEnabled: boolean, isOwner = false): ServerRowKey[] {
+  const rows: ServerRowKey[] = [];
+  if (access.manageServer) rows.push('overview');
+  if (voiceEnabled && access.manageServer) rows.push('voice');
+  if (access.manageServer) rows.push('commands');
+  if (voiceEnabled && (access.manageServer || access.manageSoundboard)) rows.push('soundboard');
+  if (access.manageServer) rows.push('privateMessages');
+  if (access.manageChannels) rows.push('channels');
+  if (access.manageRoles) rows.push('roles');
+  if (access.managePlugins) rows.push('plugins');
+  if (isOwner || (voiceEnabled && (access.manageServer || access.musicManage))) rows.push('hosting');
+  if (access.manageServer) rows.push('uploads');
+  if (access.kickMembers || access.banMembers || access.manageRoles) rows.push('members');
+  if (access.manageServer) rows.push('invites');
+  if (access.banMembers) rows.push('bans');
+  return rows;
+}
+
+export function useServerAccess(serverKey: string): ServerAccess | null {
+  return useAppStore((state) => state.servers[serverKey]?.snapshot?.serverAccess ?? null);
+}
+
+const EMPTY_ROLES: RoleRecord[] = [];
+
+export function useRoles(serverKey: string): RoleRecord[] {
+  const roles = useAppStore((state) => state.servers[serverKey]?.snapshot?.roles);
+  return useMemo(() => {
+    if (!roles || roles.length === 0) return EMPTY_ROLES;
+    return [...roles].sort((a, b) => b.position - a.position);
+  }, [roles]);
+}
+
+export function usePresence(serverKey: string, userId: string): PresenceStatus {
+  return useAppStore((state) => selectPresence(state.servers[serverKey]?.snapshot, userId));
+}
+
+export function useMemberColor(serverKey: string, userId: string): number | null {
+  return useAppStore((state) => memberColor(state.servers[serverKey]?.snapshot, userId));
+}
+
+/**
+ * Whether the chat shows the last cached state greyed out with the
+ * banner (§4.13, Review Focus 5): while reconnecting, or after a failure
+ * (including a changed identity, where the chat stays readable, greyed,
+ * with the banner and disabled composer).
+ */
+export function isChatStale(connection: ConnectionRecord | undefined): boolean {
+  if (!connection) return false;
+  return (
+    connection.tag === ConnectionRecord_Tags.Reconnecting ||
+    connection.tag === ConnectionRecord_Tags.Failed
+  );
+}
+
+export function useChatStale(serverKey: string): boolean {
+  return useAppStore((state) => {
+    const server = state.servers[serverKey];
+    return isChatStale(server?.connection);
+  });
+}
+
+const EMPTY_PRIVATE_MESSAGES: PrivateMessageRecord[] = [];
+
+export type PrivateContactsFilter = 'chats' | 'friends' | 'pending' | 'blocked' | 'requests';
+
+export function selectPrivateContacts(
+  contacts: Record<string, PrivateContactRecord>,
+  filter: PrivateContactsFilter,
+): PrivateContactRecord[] {
+  const all = Object.values(contacts);
+  switch (filter) {
+    case 'chats':
+      return all
+        .filter((c) => c.conversation === ConversationStatus.Accepted && !c.hidden && !c.blocked)
+        .sort((a, b) => (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0));
+    case 'friends':
+      return all
+        .filter((c) => c.friend === FriendStatus.Friends && !c.blocked)
+        .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+    case 'pending':
+      return all
+        .filter((c) => !c.blocked && (c.friend === FriendStatus.Incoming || c.friend === FriendStatus.Outgoing))
+        .sort((a, b) => (a.requestSpam ? 1 : 0) - (b.requestSpam ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? ''));
+    case 'blocked':
+      return all
+        .filter((c) => c.blocked)
+        .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+    case 'requests':
+      return all
+        .filter((c) => c.conversation === ConversationStatus.Request && !c.blocked)
+        .sort((a, b) => (a.requestSpam ? 1 : 0) - (b.requestSpam ? 1 : 0) || (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0));
+  }
+}
+
+export function selectPrivateUnreadTotal(contacts: Record<string, PrivateContactRecord>): number {
+  let total = 0;
+  for (const contact of Object.values(contacts)) {
+    if (!contact.blocked && !contact.muted && contact.conversation === ConversationStatus.Accepted) {
+      total += contact.unread;
+    }
+  }
+  return total;
+}
+
+export function usePrivateContacts(filter: PrivateContactsFilter): PrivateContactRecord[] {
+  const contacts = useAppStore((state) => state.private.contacts);
+  return useMemo(() => selectPrivateContacts(contacts, filter), [contacts, filter]);
+}
+
+export function usePrivateMessages(peer: string): PrivateMessageRecord[] {
+  return useAppStore((state) => state.private.messages[peer] ?? EMPTY_PRIVATE_MESSAGES);
+}
+
+export function usePrivateTyping(peer: string): boolean {
+  const endsAt = useAppStore((state) => state.private.typing[peer]);
+  const [ended, setEnded] = useState<number>();
+  useEffect(() => {
+    if (endsAt === undefined) return;
+    const timer = setTimeout(() => setEnded(endsAt), Math.max(endsAt - Date.now(), 0));
+    return () => clearTimeout(timer);
+  }, [endsAt]);
+  return endsAt !== undefined && ended !== endsAt;
+}
+
+export function useOwnDevices(): OwnDevicesRecord {
+  return useAppStore((state) => state.private.ownDevices);
+}
+
+export function usePrivateUnreadTotal(): number {
+  const contacts = useAppStore((state) => state.private.contacts);
+  return useMemo(() => selectPrivateUnreadTotal(contacts), [contacts]);
+}

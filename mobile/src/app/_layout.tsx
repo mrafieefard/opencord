@@ -2,18 +2,33 @@
 // the boot state: onboarding before an identity, the rest after.
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useWindowDimensions } from 'react-native';
+import { LogBox, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BootGate } from '@/features/boot/BootGate';
 import { DETENTS, TWO_COLUMNS } from '@/features/music/sheet';
+import { SHEET_DETENTS } from '@/features/serverMenu/ServerSheet';
 import { CallSheet } from '@/features/voice/CallSheet';
+import { useVoiceCues } from '@/features/voice/useVoiceCues';
 import { useBoot } from '@/state/selectors';
 import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui';
 
+// Suppress library warnings from expo-router:
+// - useClearGuardedRoutes, set off by Stack.Protected guards during initial redirect.
+// - formSheet warning when deep-linking directly into a modal sheet as the initial screen.
+// - tab preloading action warning during deep link navigation.
+LogBox.ignoreLogs([
+  /REMOVE_ROUTES/,
+  /uses presentation.*first screen/,
+  /The action 'PRELOAD'/,
+  /ROUTE_NAMES_CHANGED/,
+  /Looks like you have configured linking in multiple places/,
+]);
+
 function Routes() {
+  useVoiceCues();
   const boot = useBoot();
   const { colors, scheme } = useTheme();
   const { width } = useWindowDimensions();
@@ -46,6 +61,28 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/members"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: SHEET_DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
+            name="server/[serverKey]/invite"
+            options={{
+              presentation: 'formSheet',
+              sheetAllowedDetents: [0.75, 1],
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
             name="server/[serverKey]/member/[userId]"
             options={{
               presentation: 'formSheet',
@@ -53,6 +90,19 @@ function Routes() {
               sheetGrabberVisible: true,
               sheetCornerRadius: sheetLook.cornerRadius,
               contentStyle: { backgroundColor: sheetLook.background(colors) },
+            }}
+          />
+          <Stack.Screen
+            name="server/[serverKey]/settings"
+            options={{
+              presentation: 'formSheet',
+              // Medium; the sheet's stack allows only large while a page is open.
+              sheetAllowedDetents: SHEET_DETENTS,
+              sheetInitialDetentIndex: 0,
+              sheetGrabberVisible: true,
+              sheetCornerRadius: sheetLook.cornerRadius,
+              // A grouped settings list, opaque as iOS Settings: its cards are `surface` on `chat`.
+              contentStyle: { backgroundColor: colors.chat },
             }}
           />
           <Stack.Screen
@@ -101,6 +151,14 @@ function Routes() {
             }}
           />
           <Stack.Screen
+            name="server/[serverKey]/identity-changed"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.chat },
+            }}
+          />
+          <Stack.Screen
             name="server/[serverKey]/activity/[sessionId]"
             options={{
               // Over the call (iOS draws modals above it): the activity's own page.
@@ -111,6 +169,10 @@ function Routes() {
           <Stack.Screen
             name="viewer"
             options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}
+          />
+          <Stack.Screen
+            name="text-preview"
+            options={{ presentation: 'modal', headerShown: false }}
           />
         </Stack.Protected>
         <Stack.Screen name="dev/gallery" />

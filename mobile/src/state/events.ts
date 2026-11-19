@@ -8,12 +8,14 @@ import {
   MobileEvent_Tags,
   UploadPhaseRecord_Tags,
   type ChannelAccess,
+  type ServerAccess,
   type MessageRecord,
   type ServerEntry,
   type ServerSnapshot,
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
+import { applyPrivateEvent } from './private';
 import {
   channelKey,
   compareIds,
@@ -222,9 +224,14 @@ function voiceStateChanged(state: AppState, serverKey: string, voiceState: Voice
   return next;
 }
 
-function accessChanged(state: AppState, serverKey: string, access: ChannelAccess[]): AppState {
+function accessChanged(
+  state: AppState,
+  serverKey: string,
+  access: ChannelAccess[],
+  serverAccess: ServerAccess,
+): AppState {
   return withServer(state, serverKey, (current) =>
-    current.snapshot ? { ...current, snapshot: { ...current.snapshot, access } } : current,
+    current.snapshot ? { ...current, snapshot: { ...current.snapshot, access, serverAccess } } : current,
   );
 }
 
@@ -274,7 +281,7 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.ChannelDeleted:
       return channelDeleted(state, event.inner.serverKey, event.inner.channelId);
     case MobileEvent_Tags.AccessChanged:
-      return accessChanged(state, event.inner.serverKey, [...event.inner.access]);
+      return accessChanged(state, event.inner.serverKey, [...event.inner.access], event.inner.serverAccess);
     case MobileEvent_Tags.MemberUpserted:
       return withServer(state, event.inner.serverKey, (current) => {
         if (!current.snapshot) return current;
@@ -425,8 +432,13 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
     case MobileEvent_Tags.SpeakingWhileMuted:
     case MobileEvent_Tags.MusicNotice:
     case MobileEvent_Tags.Notice:
-      // Shown, not kept: store.ts turns these into toasts.
+    case MobileEvent_Tags.InputLevel:
+    case MobileEvent_Tags.NoiseSuppressionFellBack:
+      // Shown, not kept: store.ts hands them on (toasts; Voice & audio's
+      // level, fallback and microphone problem to actions/audio.ts).
       return state;
+    case MobileEvent_Tags.Private:
+      return applyPrivateEvent(state, event.inner.event, nowMs);
     case MobileEvent_Tags.PluginChannelTypesUpdated:
       return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginChannelTypes: event.inner.types }));
     case MobileEvent_Tags.PluginActivitiesUpdated:
@@ -452,6 +464,36 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
         snapshot: current.snapshot ? { ...current.snapshot, pluginUsers: event.inner.pluginUsers } : null,
         pluginUsers: Object.fromEntries(event.inner.pluginUsers.map((u) => [u.userId, u])),
       }));
+    case MobileEvent_Tags.RoleUpserted:
+      return withServer(state, event.inner.serverKey, (current) => {
+        if (!current.snapshot) return current;
+        const role = event.inner.role;
+        const roles = current.snapshot.roles ?? [];
+        const exists = roles.some((r) => r.id === role.id);
+        const updated = exists ? roles.map((r) => (r.id === role.id ? role : r)) : [...roles, role];
+        return { ...current, snapshot: { ...current.snapshot, roles: updated } };
+      });
+    case MobileEvent_Tags.RoleDeleted:
+      return withServer(state, event.inner.serverKey, (current) => {
+        if (!current.snapshot) return current;
+        const { roleId } = event.inner;
+        const roles = (current.snapshot.roles ?? []).filter((r) => r.id !== roleId);
+        const members = (current.snapshot.members ?? []).map((m) =>
+          m.roleIds.includes(roleId) ? { ...m, roleIds: m.roleIds.filter((id) => id !== roleId) } : m,
+        );
+        return { ...current, snapshot: { ...current.snapshot, roles, members } };
+      });
+    case MobileEvent_Tags.PresenceChanged:
+      return withServer(state, event.inner.serverKey, (current) => {
+        if (!current.snapshot) return current;
+        const presence = event.inner.presence;
+        const presences = current.snapshot.presences ?? [];
+        const exists = presences.some((p) => p.userId === presence.userId);
+        const updated = exists
+          ? presences.map((p) => (p.userId === presence.userId ? presence : p))
+          : [...presences, presence];
+        return { ...current, snapshot: { ...current.snapshot, presences: updated } };
+      });
   }
 }
 

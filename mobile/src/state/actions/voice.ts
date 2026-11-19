@@ -2,15 +2,18 @@
 // foreground service, then the core), leaving, its toggles, and others'
 // volume. The service follows the store: it stops whenever this device's
 // voice ends, however it ended, and its notification follows the channel.
+import { VoiceCueKind } from '@opencord/core-native';
 import { VoiceService, type VoiceNotification } from '@opencord/voice-service';
 import * as Haptics from 'expo-haptics';
 
 import { getCore } from '@/core';
 import { enterVoiceAudio, leaveVoiceAudio } from '@/features/voice/audioSession';
+import { clearLeaveCueHandled, markLeaveCueHandled } from '@/features/voice/voiceCues';
 import { askForNotifications, ensureMicrophone, explainMicrophone } from '@/features/voice/micPermission';
 
 import { DEFAULT_USER_AUDIO, useAppStore } from '../store';
 import { channelKey, type AppState, type MyVoice, type UserAudio } from '../types';
+import { stopMicTestForCall } from './audio';
 
 /** The notification the service shows, or null while it isn't running. */
 let shown: string | null = null;
@@ -43,6 +46,9 @@ export async function joinVoice(serverKey: string, channelId: string): Promise<b
     return false;
   }
   await askForNotifications();
+  // Before the call's session and engine: the core would carry a running
+  // test into the call (Voice & audio, actions/audio.ts).
+  await stopMicTestForCall();
   await enterVoiceAudio();
   // Started before the join, while the app is in the foreground, as
   // Android 14 requires for a microphone service.
@@ -63,10 +69,25 @@ export async function joinVoice(serverKey: string, channelId: string): Promise<b
 
 export async function leaveVoice(): Promise<void> {
   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const state = useAppStore.getState();
+  const hadVoice = state.myVoice !== null;
+  const cuesOff = state.prefs.cuesOff;
+  if (hadVoice && !cuesOff.includes('joinLeave')) {
+    try {
+      getCore().cuePlay(VoiceCueKind.Leave, 1);
+      markLeaveCueHandled();
+    } catch (e) {
+      console.warn(`failed to play leave cue: ${e}`);
+    }
+  }
   try {
     await getCore().voiceLeave();
+  } catch (error) {
+    clearLeaveCueHandled();
+    throw error;
   } finally {
     stopService();
+    await new Promise((resolve) => setTimeout(resolve, 500));
     await leaveVoiceAudio();
   }
 }

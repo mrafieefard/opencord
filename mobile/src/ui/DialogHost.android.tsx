@@ -7,6 +7,7 @@ import { GestureHandlerRootView, Touchable } from 'react-native-gesture-handler'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Button } from './Button.android';
+import { closeActionSheet, useOpenActionSheet, type ActionSheetOptions } from './actionSheet.android';
 import { closeConfirm, useOpenConfirm, type ConfirmOptions } from './confirm.android';
 import { Text } from './Text';
 import { radius, space } from './theme/space';
@@ -18,9 +19,66 @@ const DIALOG_MARGIN = space.xxl;
 const OPEN_MS = 160;
 
 export function DialogHost() {
-  const options = useOpenConfirm();
-  if (options === null) return null;
-  return <Dialog options={options} />;
+  const confirmOptions = useOpenConfirm();
+  const actionSheetOptions = useOpenActionSheet();
+  if (confirmOptions !== null) return <Dialog options={confirmOptions} />;
+  if (actionSheetOptions !== null) return <ActionSheetDialog options={actionSheetOptions} />;
+  return null;
+}
+
+function ActionSheetDialog({ options }: { options: ActionSheetOptions }) {
+  const { colors } = useTheme();
+  const window = useWindowDimensions();
+  const width = Math.min(window.width - DIALOG_MARGIN * 2, DIALOG_MAX_WIDTH);
+
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.set(withTiming(1, { duration: OPEN_MS }));
+  }, [progress]);
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.get() }));
+  const cardStyle = useAnimatedStyle(() => ({
+    opacity: progress.get(),
+    transform: [{ scale: 0.95 + 0.05 * progress.get() }],
+  }));
+
+  return (
+    <Modal
+      transparent
+      visible
+      statusBarTranslucent
+      navigationBarTranslucent
+      animationType="none"
+      onRequestClose={() => closeActionSheet()}
+    >
+      <GestureHandlerRootView style={styles.center}>
+        <Touchable onPress={() => closeActionSheet()} style={StyleSheet.absoluteFill} accessibilityLabel="Close">
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }, scrimStyle]} />
+        </Touchable>
+        <Animated.View
+          accessibilityRole="menu"
+          accessibilityViewIsModal
+          style={[styles.card, { width, backgroundColor: colors.elevated }, cardStyle]}
+        >
+          {options.title !== undefined && (
+            <View style={styles.text}>
+              <Text variant="headline">{options.title}</Text>
+            </View>
+          )}
+          <View style={{ gap: space.md }}>
+            {options.actions.map((action) => (
+              <Button
+                key={action.id}
+                title={action.title}
+                variant={action.destructive ? 'danger' : 'primary'}
+                onPress={() => closeActionSheet(action.id)}
+              />
+            ))}
+            <Button title="Cancel" variant="plain" onPress={() => closeActionSheet()} />
+          </View>
+        </Animated.View>
+      </GestureHandlerRootView>
+    </Modal>
+  );
 }
 
 function Dialog({ options }: { options: ConfirmOptions }) {

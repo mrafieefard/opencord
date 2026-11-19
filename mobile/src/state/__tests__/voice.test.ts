@@ -1,4 +1,4 @@
-import { ConnectionRecord, MobileEvent } from '@opencord/core-native';
+import { ConnectionRecord, MobileEvent, VoiceCueKind } from '@opencord/core-native';
 import { VoiceService } from '@opencord/voice-service';
 import { PermissionStatus, type PermissionResponse } from 'expo';
 import * as Audio from 'expo-audio';
@@ -8,6 +8,7 @@ import { Alert, AppState, Linking, type AppStateStatus } from 'react-native';
 import type { FakeCore } from '@/core/fake/FakeCore';
 import { CHANNELS, NIGHT_OWLS, RUST_CLUB, snapshot } from '@/core/fake/world';
 import { startApp } from '@/core/lifecycle';
+import { consumeLeaveCueHandled } from '@/features/voice/voiceCues';
 import { freshStore, settle } from '@/test/store';
 
 import { joinVoice, leaveVoice, setDeafened, setMuted, watchVoiceService } from '../actions/voice';
@@ -114,6 +115,7 @@ describe('voice', () => {
   });
 
   it('leaving stops the service', async () => {
+    const cuePlaySpy = jest.spyOn(core, 'cuePlay');
     await joinVoice(NIGHT_OWLS, CHANNELS.lounge);
     await pump(core);
 
@@ -121,6 +123,15 @@ describe('voice', () => {
     await pump(core);
 
     expect(core.calls.some((call) => call.method === 'voiceLeave')).toBe(true);
+    // Leaving plays cuePlay(Leave) before setIsAudioActiveAsync(false)
+    expect(cuePlaySpy).toHaveBeenCalledWith(VoiceCueKind.Leave, 1);
+    expect(audio.setIsAudioActiveAsync).toHaveBeenCalledWith(false);
+    const cueCallOrder = cuePlaySpy.mock.invocationCallOrder[0] ?? 0;
+    const leaveAudioIndex = audio.setIsAudioActiveAsync.mock.calls.findIndex((args) => args[0] === false);
+    const leaveAudioCallOrder = audio.setIsAudioActiveAsync.mock.invocationCallOrder[leaveAudioIndex] ?? 0;
+    expect(cueCallOrder).toBeGreaterThan(0);
+    expect(leaveAudioCallOrder).toBeGreaterThan(0);
+    expect(cueCallOrder).toBeLessThan(leaveAudioCallOrder);
     expect(Haptics.impactAsync).toHaveBeenCalledTimes(2);
     expect(service.stop).toHaveBeenCalled();
     expect(useAppStore.getState().myVoice).toBeNull();
@@ -128,6 +139,17 @@ describe('voice', () => {
     expect(audio.setAudioModeAsync).toHaveBeenLastCalledWith(
       expect.objectContaining({ allowsRecording: false, shouldPlayInBackground: false }),
     );
+  });
+
+  // Fails if a leave that throws keeps the leaveCueHandled flag set.
+  it('a failed leave clears the leave cue handled flag', async () => {
+    await joinVoice(NIGHT_OWLS, CHANNELS.lounge);
+    await pump(core);
+
+    jest.spyOn(core, 'voiceLeave').mockRejectedValueOnce(new Error('server unreachable'));
+
+    await expect(leaveVoice()).rejects.toThrow('server unreachable');
+    expect(consumeLeaveCueHandled()).toBe(false);
   });
 
   it('a join that fails stops the service again', async () => {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, type ReactNode } from 'react';
 
 import { bootCore, bootDeps, getCore } from '@/core';
 import { startApp } from '@/core/lifecycle';
+import { toast } from '@/state/actions/ui';
 import { useBoot } from '@/state/selectors';
 import { useAppStore } from '@/state/store';
 
@@ -18,6 +19,7 @@ export async function boot(): Promise<void> {
   if (result.state === 'ready') {
     useAppStore.setState({ boot: { state: 'ready' }, self: result.self });
     startApp();
+    if (result.notice !== null) toast(result.notice);
   } else if (result.state === 'onboarding') {
     useAppStore.setState({ boot: { state: 'onboarding' } });
   } else {

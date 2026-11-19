@@ -2,7 +2,7 @@
 // starts seeding recent activity; the server's other events wait until it
 // ends, then apply in order (rust_repository.dart `_held`). A newer Ready
 // meanwhile throws the older seeding's result away.
-import { MobileEvent, MobileEvent_Tags, type ServerSnapshot } from '@opencord/core-native';
+import { MobileEvent, MobileEvent_Tags, NoiseSuppression, type PhoneAudioSettings, type ServerSnapshot } from '@opencord/core-native';
 import { create } from 'zustand';
 
 import { getCore } from '@/core';
@@ -10,12 +10,30 @@ import { errorKind } from '@/core/errors';
 
 import { seedActivity } from './activity';
 import { applyEvents, newServer } from './events';
+import { initialPrivateState } from './private';
 import { ReadPositions } from './readPositions';
-import type { AppState } from './types';
+import type { AppState, CueGroup, SoundboardPrefs, UserStatus } from './types';
 export { channelKey } from './types';
 
+export const DEFAULT_STATUS: UserStatus = 'online';
 export const DEFAULT_MUSIC = { volume: 0.5, muted: false, duck: false } as const;
 export const DEFAULT_USER_AUDIO = { volume: 1, mutedForMe: false } as const;
+/**
+ * The core's own defaults (`AudioSettings::default()`), which every phone
+ * call ran on before Voice & audio: unchanged, applying them changes nothing.
+ */
+export const DEFAULT_AUDIO: Readonly<PhoneAudioSettings> = {
+  noiseSuppression: NoiseSuppression.Standard,
+  inputVolume: 1,
+  outputVolume: 1,
+};
+
+export const DEFAULT_SOUNDBOARD: Readonly<SoundboardPrefs> = {
+  volume: 100,
+  muted: false,
+};
+
+export const DEFAULT_CUES_OFF: readonly CueGroup[] = [];
 
 export function initialState(): AppState {
   return {
@@ -35,6 +53,7 @@ export function initialState(): AppState {
     lastSound: {},
     voicePlayback: null,
     chatInFront: false,
+    serverInFront: null,
     voicePageInFront: null,
     call: null,
     openActivity: null,
@@ -42,9 +61,21 @@ export function initialState(): AppState {
     voiceSlot: null,
     voiceSpeed: 1,
     voiceRecording: null,
-    prefs: { theme: 'system', music: { ...DEFAULT_MUSIC }, soundFavorites: [] },
+    micTest: false,
+    prefs: {
+      theme: 'system',
+      music: { ...DEFAULT_MUSIC },
+      soundFavorites: [],
+      audio: { ...DEFAULT_AUDIO },
+      status: DEFAULT_STATUS,
+      soundboard: { ...DEFAULT_SOUNDBOARD },
+      cuesOff: [...DEFAULT_CUES_OFF],
+      recentEmoji: [],
+    },
     toasts: [],
     editingMessage: null,
+    recentChannels: [],
+    private: initialPrivateState(),
   };
 }
 
@@ -66,17 +97,27 @@ export function setReadyHook(next: ReadyHook): void {
   readyHook = next;
 }
 
+/** Takes the media events Voice & audio acts on (actions/audio.ts). */
+type AudioHook = (event: MobileEvent) => void;
+let audioHook: AudioHook = () => {};
+export function setAudioHook(next: AudioHook): void {
+  audioHook = next;
+}
+
 function serverOf(event: MobileEvent): string | null {
   switch (event.tag) {
     case MobileEvent_Tags.Ready:
       return event.inner.snapshot.serverKey;
     case MobileEvent_Tags.AudioProblem:
     case MobileEvent_Tags.SpeakingWhileMuted:
+    case MobileEvent_Tags.InputLevel:
+    case MobileEvent_Tags.NoiseSuppressionFellBack:
     case MobileEvent_Tags.VoiceRecordLevel:
     case MobileEvent_Tags.VoiceRecordStopped:
     case MobileEvent_Tags.Playback:
     case MobileEvent_Tags.PlaybackEnded:
     case MobileEvent_Tags.PlaybackFailed:
+    case MobileEvent_Tags.Private:
       return null;
     default:
       return event.inner.serverKey;
@@ -137,6 +178,13 @@ export function onEvents(events: MobileEvent[]): void {
   for (const event of events) {
     if (MobileEvent.MusicNotice.instanceOf(event)) toaster(event.inner.text);
     if (MobileEvent.PlaybackFailed.instanceOf(event)) toaster("Couldn't play that voice message.");
+    if (
+      MobileEvent.InputLevel.instanceOf(event) ||
+      MobileEvent.NoiseSuppressionFellBack.instanceOf(event) ||
+      MobileEvent.AudioProblem.instanceOf(event)
+    ) {
+      audioHook(event);
+    }
   }
 }
 

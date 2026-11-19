@@ -2,13 +2,14 @@ import {
   MobileEvent,
   MusicAction,
   MusicPlayState,
+  PresenceStatus,
   UploadPhaseRecord,
   UploadPhaseRecord_Tags,
   VoiceLinkState,
 } from '@opencord/core-native';
 
 import { FakeCore } from '../fake/FakeCore';
-import { CHANNELS, NIGHT_OWLS } from '../fake/world';
+import { CHANNELS, NIGHT_OWLS, RUST_CLUB, SELF_ID, snapshot } from '../fake/world';
 
 async function drain(core: FakeCore): Promise<MobileEvent[]> {
   const generation = core.eventsAttach();
@@ -88,5 +89,149 @@ describe('FakeCore answers as the core does', () => {
     expect(state?.inner.state).toMatchObject({ thisDevice: true, channelId: CHANNELS.lounge });
     const links = events.filter(MobileEvent.VoiceLink.instanceOf).map((event) => event.inner.state.tag);
     expect(links.at(-1)).toBe(new VoiceLinkState.Connected().tag);
+  });
+
+  // Fails if presenceUpdate does not emit a PresenceChanged event for the caller's self user.
+  it('the fake sends presence changes as events', async () => {
+    const core = new FakeCore();
+    await core.presenceUpdate(NIGHT_OWLS, 'Idle');
+    const events = await drain(core);
+    const presence = events.find(MobileEvent.PresenceChanged.instanceOf);
+    expect(presence).toBeDefined();
+    expect(presence?.inner.serverKey).toBe(NIGHT_OWLS);
+    expect(presence?.inner.presence.userId).toBe(SELF_ID);
+    expect(presence?.inner.presence.status).toBe(PresenceStatus.Idle);
+  });
+
+  // Fails if the fake world does not provide roles/owner on the first server or leaks them to the second.
+  it('the fake world has roles and an owner on its first server only', () => {
+    const first = snapshot(NIGHT_OWLS);
+    expect(first.ownerId).toBe(SELF_ID);
+    expect(first.roles).toHaveLength(2);
+
+    const mods = first.roles.find((r) => r.name === 'Moderators');
+    expect(mods).toBeDefined();
+    expect(mods?.hoist).toBe(true);
+    expect(mods?.color).toBe(0x5865f2);
+    expect(mods?.access.kickMembers).toBe(true);
+    expect(mods?.access.manageMessages).toBe(true);
+    expect(mods?.access.administrator).toBe(false);
+
+    const owner = first.roles.find((r) => r.name === 'Owner');
+    expect(owner).toBeDefined();
+    expect(owner?.hoist).toBe(true);
+    expect(owner?.access.administrator).toBe(true);
+
+    expect(first.presences).toHaveLength(first.members.length);
+    const statuses = new Set(first.presences.map((p) => p.status));
+    expect(statuses.has(PresenceStatus.Online)).toBe(true);
+    expect(statuses.has(PresenceStatus.Idle)).toBe(true);
+    expect(statuses.has(PresenceStatus.Dnd)).toBe(true);
+    expect(statuses.has(PresenceStatus.Offline)).toBe(true);
+
+    const second = snapshot(RUST_CLUB);
+    expect(second.ownerId).not.toBe(SELF_ID);
+    expect(second.roles).toHaveLength(0);
+  });
+
+  // Fails if input level runs when either mic test or level meter is off, or does not emit within [-60, -10] dBFS.
+  it("the fake's level runs only while the meter is on", async () => {
+    jest.useFakeTimers();
+    try {
+      const core = new FakeCore();
+      // Neither on
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      let events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+
+      // Only mic test on
+      jest.useFakeTimers();
+      await core.micTestSet(true);
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+
+      // Both on -> emits InputLevel every 100ms
+      jest.useFakeTimers();
+      core.levelMeterSet(true);
+      await jest.advanceTimersByTimeAsync(400);
+      jest.useRealTimers();
+      events = await drain(core);
+      const levels = events.filter(MobileEvent.InputLevel.instanceOf);
+      expect(levels.length).toBeGreaterThanOrEqual(3);
+      for (const level of levels) {
+        expect(level.inner.dbfs).toBeGreaterThanOrEqual(-60);
+        expect(level.inner.dbfs).toBeLessThanOrEqual(-10);
+      }
+
+      // Turn level meter off -> stops emitting
+      jest.useFakeTimers();
+      core.levelMeterSet(false);
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+
+      // Level meter back on, mic test off -> stops emitting
+      jest.useFakeTimers();
+      core.levelMeterSet(true);
+      await core.micTestSet(false);
+      await jest.advanceTimersByTimeAsync(200);
+      jest.useRealTimers();
+      events = await drain(core);
+      expect(events.filter(MobileEvent.InputLevel.instanceOf)).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  // Fails if cacheSize does not report 42 MB initially or is not cleared to 0 by cacheClear.
+  it("the fake's cache clears", async () => {
+    const core = new FakeCore();
+    const initial = await core.cacheSize();
+    expect(initial).toBe(42 * 1024 * 1024);
+    await core.cacheClear();
+    const after = await core.cacheSize();
+    expect(after).toBe(0);
+  });
+
+  // Fails if avatarSet does not persist avatar file/hash or does not emit MemberUpserted for self on every server.
+  it('avatarSet stores the path and emits MemberUpserted on every server', async () => {
+    const core = new FakeCore();
+    const hash = core.avatarSet('/path/to/avatar.png');
+    expect(hash).toBeDefined();
+    const own = core.ownAvatar();
+    expect(own.file).toBe('/path/to/avatar.png');
+    expect(own.hash).toBe(hash);
+
+    const events = await drain(core);
+    const memberEvents = events.filter(MobileEvent.MemberUpserted.instanceOf);
+    expect(memberEvents.length).toBeGreaterThanOrEqual(core.serversList().length);
+    for (const event of memberEvents) {
+      if (event.inner.member.user.id === SELF_ID) {
+        expect(event.inner.member.user.avatarHash).toBe(hash);
+      }
+    }
+  });
+
+  // Fails if inviteCreate does not return the expected link or does not add to the invites list.
+  it('the fake returns an invite link and keeps a list of invites', async () => {
+    const core = new FakeCore();
+    const created = await core.inviteCreate(NIGHT_OWLS, 5, 86400);
+    expect(created.link).toBe('opencord://fake.invite/AbC123');
+    expect(created.code).toBe('AbC123');
+    expect(created.maxUses).toBe(5);
+    expect(created.uses).toBe(0);
+    expect(created.expiresAtMs).toBeGreaterThan(created.createdAtMs);
+
+    const list = await core.invitesFetch(NIGHT_OWLS);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toEqual(created);
+
+    await core.inviteRevoke(NIGHT_OWLS, 'AbC123');
+    const afterRevoke = await core.invitesFetch(NIGHT_OWLS);
+    expect(afterRevoke).toHaveLength(0);
   });
 });

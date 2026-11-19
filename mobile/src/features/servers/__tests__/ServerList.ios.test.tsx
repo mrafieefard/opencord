@@ -106,8 +106,19 @@ describe('ServerList on iOS', () => {
 
     const items = (serverKey: string) =>
       within(row(serverKey)).getAllByRole('menuitem').map((item) => item.props.accessibilityLabel);
-    expect(items(NIGHT_OWLS)).toEqual(['Mark as read', 'Copy address', 'Leave server']);
+    expect(items(NIGHT_OWLS)).toEqual(['Mark as read', 'Settings', 'Copy address', 'Leave server']);
     expect(items(RUST_CLUB)).toContain('Retry now');
+  });
+
+  // Fails if the long-press menu's Settings doesn't open the server sheet, each time.
+  it('the context menu opens the server sheet from Settings', async () => {
+    await setupServers();
+    await render(<ServerListScreen searchable={false} voiceBar={false} />);
+
+    const settings = () => within(row(NIGHT_OWLS)).getByRole('menuitem', { name: 'Settings' });
+    await fireEvent.press(settings());
+    await fireEvent.press(settings());
+    expect(mockPush.mock.calls).toEqual([['/server/fake-night-owls/settings'], ['/server/fake-night-owls/settings']]);
   });
 
   it("pull to refresh retries the servers that aren't connected", async () => {

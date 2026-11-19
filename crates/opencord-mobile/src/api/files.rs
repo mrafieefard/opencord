@@ -43,3 +43,15 @@ pub async fn attachment_file(
         .await?;
     path_text(path)
 }
+
+#[uniffi::export]
+pub async fn cache_size() -> Result<f64, MobileError> {
+    let mobile = mobile()?;
+    files::cache_size(mobile.cache_dir()).await
+}
+
+#[uniffi::export]
+pub async fn cache_clear() -> Result<(), MobileError> {
+    let mobile = mobile()?;
+    files::cache_clear(mobile.cache_dir()).await
+}

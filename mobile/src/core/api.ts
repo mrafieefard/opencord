@@ -11,6 +11,8 @@ import type {
   DefaultSoundRecord,
   ExternalSoundRecord,
   IdentityInfo,
+  InviteRecord,
+  KeyWordsRecord,
   MessageRecord,
   MobileEvent,
   MusicAction,
@@ -21,13 +23,25 @@ import type {
   MusicSettingsRecord,
   NewIdentity,
   OutgoingFileRecord,
+  OwnAvatarRecord,
+  OwnDevicesRecord,
+  PhoneAudioSettings,
   PlaybackItemRecord,
+  PrivacySettingsRecord,
+  PrivateContactRecord,
+  PrivateMessageRecord,
+  PrivateOpenedRecord,
+  SharedServerRecord,
+  VoiceCueKind,
   VoiceDraftRecord,
   ServerEntry,
   UserRecord,
   VoiceStateRecord,
   ViewOutputRecord,
+  PresenceStatus,
 } from '@opencord/core-native';
+
+export type PresenceStatusInput = PresenceStatus | 'Online' | 'Idle' | 'Dnd' | 'Offline';
 
 export type * from '@opencord/core-native';
 
@@ -51,7 +65,19 @@ export interface CoreApi {
   serverRetryNow(serverKey: string): Promise<void>;
   serverRemove(serverKey: string): Promise<void>;
   profileUpdate(serverKey: string, displayName: string): Promise<UserRecord>;
+  presenceUpdate(serverKey: string, status: PresenceStatusInput): Promise<void>;
   avatarFile(serverKey: string, hash: string): Promise<string>;
+  avatarSet(sourcePath: string | undefined): string | undefined;
+  avatarUpload(serverKey: string): Promise<UserRecord>;
+  ownAvatar(): OwnAvatarRecord;
+  cacheSize(): Promise<number>;
+  cacheClear(): Promise<void>;
+  logsExport(): Promise<string>;
+  logsCrashed(): Promise<string | null>;
+
+  inviteCreate(serverKey: string, maxUses?: number, expiresInS?: number): Promise<InviteRecord>;
+  invitesFetch(serverKey: string): Promise<InviteRecord[]>;
+  inviteRevoke(serverKey: string, code: string): Promise<void>;
 
   messagesFetch(serverKey: string, channelId: string, before: string | undefined, limit: number): Promise<MessageRecord[]>;
   messageSend(serverKey: string, channelId: string, content: string, nonce: string): Promise<MessageRecord>;
@@ -92,6 +118,11 @@ export interface CoreApi {
   voiceSetUserVolume(serverKey: string, userId: string, volume: number): void;
   voiceSetUserLocalMute(serverKey: string, userId: string, muted: boolean): void;
 
+  audioSettingsApply(settings: PhoneAudioSettings): void;
+  micTestSet(on: boolean): Promise<void>;
+  levelMeterSet(on: boolean): void;
+  cuePlay(cue: VoiceCueKind, volume: number): void;
+
   musicSettings(serverKey: string): Promise<MusicSettingsRecord>;
   musicSubscribe(serverKey: string, channelId: string): Promise<MusicSessionRecord>;
   musicUnsubscribe(serverKey: string, channelId: string): Promise<void>;
@@ -129,6 +160,7 @@ export interface CoreApi {
   soundboardDefaultSounds(): DefaultSoundRecord[];
   soundboardPlay(serverKey: string, channelId: string, soundRef: string, external: ExternalSoundRecord | undefined): Promise<void>;
   soundboardPreview(serverKey: string, soundRef: string): Promise<void>;
+  soundboardSetListening(volume: number, muted: boolean): void;
 
   voiceRecordStart(maxSeconds: number): void;
   voiceRecordStop(): VoiceDraftRecord;
@@ -156,4 +188,42 @@ export interface CoreApi {
   viewUpload(viewId: string, nodeId: bigint, path: string): Promise<void>;
   activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string): Promise<ActivitySessionRecord>;
   activityEnd(serverKey: string, sessionId: string): Promise<void>;
+
+  // Private messages (phone P3).
+  /** 32 bytes from the operating system's random source. */
+  privateKeyGenerate(): ArrayBuffer;
+  /** Opens the private database with its 32-byte master key. */
+  privateOpen(key: ArrayBuffer): Promise<PrivateOpenedRecord>;
+  privateContacts(): Promise<PrivateContactRecord[]>;
+  privateMessages(peer: string, before?: string, limit?: number): Promise<PrivateMessageRecord[]>;
+  privateSend(peer: string, content: string): Promise<PrivateMessageRecord>;
+  privateEdit(peer: string, messageId: string, content: string): Promise<void>;
+  privateDelete(peer: string, messageId: string): Promise<void>;
+  privateRetry(messageId: string): Promise<void>;
+  friendRequestSend(serverKey: string, userId: string): Promise<void>;
+  friendRequestAnswer(peer: string, accept: boolean): Promise<void>;
+  friendRequestCancel(peer: string): Promise<void>;
+  friendRemove(peer: string): Promise<void>;
+  messageRequestAccept(peer: string): Promise<void>;
+  messageRequestIgnore(peer: string): Promise<void>;
+  privateBlock(peer: string): Promise<void>;
+  privateUnblock(peer: string): Promise<void>;
+  privacySettings(): Promise<PrivacySettingsRecord>;
+  privacySettingsSet(settings: PrivacySettingsRecord): Promise<void>;
+  privateOpenConversation(serverKey: string, userId: string): Promise<PrivateContactRecord>;
+  privateSharedServers(peer: string): Promise<SharedServerRecord[]>;
+  privateMove(peer: string, serverKey: string): Promise<void>;
+  privateMoveToo(peer: string, messageId: string): Promise<void>;
+  privateTyping(peer: string): Promise<void>;
+  privateMarkRead(peer: string): Promise<void>;
+  privateSetMuted(peer: string, muted: boolean): Promise<void>;
+  privateHide(peer: string): Promise<void>;
+  privateOwnDevices(): Promise<OwnDevicesRecord>;
+  privatePairingWords(deviceId: string): Promise<KeyWordsRecord>;
+  privateApproveDevice(deviceId: string, keys: string): Promise<void>;
+  privateAcceptKeysFrom(deviceId: string, matched: boolean, keys: string): Promise<void>;
+  privateWords(peer: string, newKeys: boolean): Promise<KeyWordsRecord>;
+  privateVerify(peer: string, newKeys: boolean, matched: boolean, keys: string): Promise<void>;
+  privateAcceptNewKeys(peer: string): Promise<void>;
+  privateRejectDevice(deviceId: string): Promise<void>;
 }
