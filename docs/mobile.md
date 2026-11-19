@@ -118,7 +118,7 @@ The first screen offers **Create an identity**, which asks only what people shou
   - Long-press a message to **Copy text**. On your own messages you can also **Edit** it, and **Delete** it, which people with the Manage messages permission can do to anyone's.
   - Scrolling down closes the keyboard. **Jump to latest** brings you back to the newest messages.
   - **Syntax highlighted code blocks:** fenced code blocks (` ```lang `) render with syntax highlighting for common languages using highlight.js with dark and light themes (blocks over 400 lines or 20 KB stay plain).
-  - **Autocomplete:** typing `@` brings up an autocomplete list of every server member; typing `#` autocompletes text and voice channels; typing `:` suggests emoji.
+  - **Autocomplete:** typing `@` suggests matching server members (up to 8 matches); typing `#` autocompletes text channels; typing `:` suggests emoji.
   - **Emojis:** the smiley button opens the emoji picker sheet with Unicode emojis, organized by categories with quick search and recently used emojis.
   - **Media & Previews:**
     - **Videos:** MP4 and common video attachments show a video player tile with playback duration. Tapping downloads the file and opens one full-screen `VideoView` in a modal with native controls.
