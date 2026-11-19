@@ -36,6 +36,9 @@ export const icons = {
   clock: { ios: 'clock', android: 'schedule' },
   warning: { ios: 'exclamationmark.triangle.fill', android: 'warning' },
   lock: { ios: 'lock.fill', android: 'lock' },
+  // A private chat whose words were compared.
+  shield: { ios: 'checkmark.shield.fill', android: 'verified_user' },
+  key: { ios: 'key.fill', android: 'key' },
   mic: { ios: 'mic.fill', android: 'mic' },
   micOff: { ios: 'mic.slash.fill', android: 'mic_off' },
   deafen: { ios: 'headphones.slash', android: 'headset_off' },

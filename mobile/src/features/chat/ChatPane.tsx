@@ -3,7 +3,7 @@
 // Telegram's, the messages scrolling under it.
 import { ChannelKind } from '@opencord/core-native';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -38,30 +38,6 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
   const { colors } = useTheme();
   const info = useChannelInfo(serverKey, channelId);
   const isStale = useChatStale(serverKey);
-  const lift = useDockLift();
-  const padding = useSharedValue(0);
-  const [height, setHeight] = useState(0);
-  const fieldGrowth = useSharedValue(0);
-  const onDockLayout = (event: LayoutChangeEvent) => {
-    const next = Math.round(event.nativeEvent.layout.height);
-    padding.set(next);
-    setHeight(next);
-  };
-  const away = useSharedValue(covered ? 1 : 0);
-  const [bodyHeight, setBodyHeight] = useState<number | undefined>();
-  const dock = useMemo(() => ({ padding, height, bodyHeight, fieldGrowth, away }), [padding, height, bodyHeight, fieldGrowth, away]);
-  useEffect(() => {
-    away.set(withTiming(covered ? 1 : 0, { duration: AWAY_MS }));
-  }, [covered, away]);
-  // Never wholly faded out: iOS drops a Liquid Glass effect whose view
-  // reaches (near) no opacity and doesn't put it back, so the composer's
-  // field came back from the sidebar or the full channel list without its
-  // glass. Hidden under the sidebar's scrim, or off the screen, 5 % shows
-  // nothing.
-  const awayStyle = useAnimatedStyle(() => ({
-    opacity: Math.max(1 - away.get(), AWAY_FLOOR),
-    transform: [{ translateY: away.get() * AWAY_DROP }],
-  }));
 
   const isVoice = info?.channel.kind === ChannelKind.Voice;
 
@@ -91,23 +67,78 @@ export function ChatPane({ serverKey, channelId, onOpenSidebar, onSelectChannel,
         }
       />
       <ConnectionBanner serverKey={serverKey} />
-      <ChatDockContext.Provider value={dock}>
-        <View style={styles.body} onLayout={(event) => setBodyHeight(Math.round(event.nativeEvent.layout.height))}>
-          <View testID="chat-messages-container" style={[{ flex: 1 }, isStale && { opacity: 0.6 }]}>
-            <MessageList serverKey={serverKey} channelId={channelId} onSelectChannel={onSelectChannel} />
-          </View>
-          {/* The dock rides the keyboard: it stands on its bottom margin, so it
-              rises by the keyboard's height less that margin, and the list
-              lifts by the same (MessageList's ChatScrollView). */}
-          <KeyboardStickyView offset={{ closed: 0, opened: lift }} style={styles.dock} pointerEvents="box-none">
-            <Animated.View onLayout={onDockLayout} pointerEvents={covered ? 'none' : 'box-none'} style={awayStyle}>
-              {onOpenChannel && <ChatVoicePill covered={covered} />}
-              <Composer serverKey={serverKey} channelId={channelId} disabled={isStale} />
-            </Animated.View>
-          </KeyboardStickyView>
-        </View>
-      </ChatDockContext.Provider>
+      <ChatBody
+        covered={covered}
+        dimmed={isStale}
+        list={<MessageList serverKey={serverKey} channelId={channelId} onSelectChannel={onSelectChannel} />}
+        dock={
+          <>
+            {onOpenChannel && <ChatVoicePill covered={covered} />}
+            <Composer serverKey={serverKey} channelId={channelId} disabled={isStale} />
+          </>
+        }
+      />
     </View>
+  );
+}
+
+export interface ChatBodyProps {
+  /** The messages: a ChatList. */
+  list: ReactNode;
+  /** What floats over the messages' bottom on the keyboard: the composer, or what stands in for it. */
+  dock: ReactNode;
+  /** The sidebar is over the chat: the dock steps aside (ChatPaneProps.covered). */
+  covered?: boolean;
+  /** The messages are out of date (the server is reconnecting). */
+  dimmed?: boolean;
+}
+
+/**
+ * A chat under its header: the messages, with the dock floating over their
+ * bottom and riding the keyboard, the list lifting by the same amount.
+ */
+export function ChatBody({ list, dock: dockContent, covered = false, dimmed = false }: ChatBodyProps) {
+  const lift = useDockLift();
+  const padding = useSharedValue(0);
+  const [height, setHeight] = useState(0);
+  const fieldGrowth = useSharedValue(0);
+  const onDockLayout = (event: LayoutChangeEvent) => {
+    const next = Math.round(event.nativeEvent.layout.height);
+    padding.set(next);
+    setHeight(next);
+  };
+  const away = useSharedValue(covered ? 1 : 0);
+  const [bodyHeight, setBodyHeight] = useState<number | undefined>();
+  const dock = useMemo(() => ({ padding, height, bodyHeight, fieldGrowth, away }), [padding, height, bodyHeight, fieldGrowth, away]);
+  useEffect(() => {
+    away.set(withTiming(covered ? 1 : 0, { duration: AWAY_MS }));
+  }, [covered, away]);
+  // Never wholly faded out: iOS drops a Liquid Glass effect whose view
+  // reaches (near) no opacity and doesn't put it back, so the composer's
+  // field came back from the sidebar or the full channel list without its
+  // glass. Hidden under the sidebar's scrim, or off the screen, 5 % shows
+  // nothing.
+  const awayStyle = useAnimatedStyle(() => ({
+    opacity: Math.max(1 - away.get(), AWAY_FLOOR),
+    transform: [{ translateY: away.get() * AWAY_DROP }],
+  }));
+
+  return (
+    <ChatDockContext.Provider value={dock}>
+      <View style={styles.body} onLayout={(event) => setBodyHeight(Math.round(event.nativeEvent.layout.height))}>
+        <View testID="chat-messages-container" style={[{ flex: 1 }, dimmed && { opacity: 0.6 }]}>
+          {list}
+        </View>
+        {/* The dock rides the keyboard: it stands on its bottom margin, so it
+            rises by the keyboard's height less that margin, and the list
+            lifts by the same (MessageList's ChatScrollView). */}
+        <KeyboardStickyView offset={{ closed: 0, opened: lift }} style={styles.dock} pointerEvents="box-none">
+          <Animated.View onLayout={onDockLayout} pointerEvents={covered ? 'none' : 'box-none'} style={awayStyle}>
+            {dockContent}
+          </Animated.View>
+        </KeyboardStickyView>
+      </View>
+    </ChatDockContext.Provider>
   );
 }
 

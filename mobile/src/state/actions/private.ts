@@ -81,10 +81,17 @@ export async function loadOlder(peer: string): Promise<void> {
   }
 }
 
+/**
+ * The newest page of a chat. Merged with what the store holds, never in
+ * place of it: a message the event stream added or changed while the page
+ * loaded is newer than the page's copy, so the store's copy wins.
+ */
 export async function loadMessages(peer: string): Promise<void> {
   const messages = await getCore().privateMessages(peer, undefined, 50);
   useAppStore.setState((state) => {
-    const sorted = [...messages].sort(comparePrivateMessages);
+    const held = state.private.messages[peer] ?? [];
+    const heldIds = new Set(held.map((m) => m.id));
+    const sorted = [...held, ...messages.filter((m) => !heldIds.has(m.id))].sort(comparePrivateMessages);
     return {
       ...state,
       private: {

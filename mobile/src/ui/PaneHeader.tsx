@@ -23,6 +23,8 @@ export interface PaneHeaderProps {
   title: string;
   subtitle?: string;
   titleIcon?: IconName;
+  /** Before the title, in its line: a person's avatar. */
+  titleLeading?: ReactNode;
   left?: HeaderAction;
   right?: HeaderAction[];
   rightElement?: ReactNode;
@@ -40,6 +42,7 @@ export function PaneHeader({
   title,
   subtitle,
   titleIcon,
+  titleLeading,
   left,
   right = [],
   rightElement,
@@ -52,6 +55,7 @@ export function PaneHeader({
   const titles = (
     <>
       <View style={styles.titleLine}>
+        {titleLeading}
         {titleIcon && <Icon name={titleIcon} size={17} color="textSecondary" />}
         <Text variant="headline" numberOfLines={1} accessibilityRole="header">
           {title}
