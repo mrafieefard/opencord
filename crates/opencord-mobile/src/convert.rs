@@ -89,6 +89,7 @@ pub(crate) fn user(user: core::User) -> UserRecord {
         display_name: user.display_name,
         avatar_hash: user.avatar_hash,
         fingerprint: user.fingerprint,
+        public_key_hex: user.public_key_hex,
     }
 }
 

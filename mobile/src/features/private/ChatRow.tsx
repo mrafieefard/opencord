@@ -7,7 +7,7 @@ import type { PrivateContactRecord } from '@opencord/core-native';
 import { report } from '@/core';
 import { formatTime } from '@/features/servers/formatTime';
 import { blockPeer, hidePrivate, markPrivateRead, setPrivateMuted } from '@/state/actions/private';
-import { Avatar, Badge, Icon, Menu, type MenuAction, type MenuHandle, Row, Text, confirm, space, useTheme } from '@/ui';
+import { Avatar, Badge, Icon, Menu, type MenuAction, type MenuHandle, Row, Text, confirm, fonts, space, useTheme } from '@/ui';
 
 import { privateName } from './privateAdapter';
 
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     marginTop: space.xs,
-    fontWeight: '600',
+    fontFamily: fonts.semiBold,
   },
   content: {
     flex: 1,

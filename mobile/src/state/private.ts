@@ -4,6 +4,7 @@ import {
   PrivateContactRecord,
   PrivateEventRecord,
   PrivateEventRecord_Tags,
+  PrivateMessageKind,
   PrivateMessageRecord,
 } from '@opencord/core-native';
 
@@ -96,9 +97,15 @@ export function applyPrivateEvent(state: AppState, event: PrivateEventRecord, no
       let nextContacts = state.private.contacts;
       const contact = nextContacts[peer];
       if (contact) {
+        const preview = message.text
+          ? message.text.split('\n')[0].slice(0, 100)
+          : (message.kind === PrivateMessageKind.File ? 'Attachment' : contact.preview);
+        const unread = !message.outgoing ? (contact.unread ?? 0) + 1 : contact.unread;
         const updatedContact: PrivateContactRecord = {
           ...contact,
           hidden: false,
+          preview,
+          unread,
           lastActivityMs: Math.max(contact.lastActivityMs ?? 0, message.sentAtMs),
         };
         nextContacts = { ...nextContacts, [peer]: updatedContact };

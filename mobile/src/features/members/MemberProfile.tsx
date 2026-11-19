@@ -27,21 +27,24 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
   const allRoles = useRoles(serverKey);
   const avatarFile = useImageFile(serverKey, memberRecord?.user.avatarHash);
 
+  const peer = memberRecord?.user.publicKeyHex;
   const [sharedServers, setSharedServers] = useState<SharedServerRecord[] | null>(null);
   useEffect(() => {
     let live = true;
-    report(
-      getCore()
-        .privateSharedServers(userId)
-        .then((list) => {
-          if (live) setSharedServers(list);
-        }),
-      'load shared servers',
-    );
+    if (peer) {
+      report(
+        getCore()
+          .privateSharedServers(peer)
+          .then((list) => {
+            if (live) setSharedServers(list);
+          }),
+        'load shared servers',
+      );
+    }
     return () => {
       live = false;
     };
-  }, [userId]);
+  }, [peer]);
 
   const contacts = useAppStore((state) => state.private.contacts);
 
@@ -92,22 +95,20 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
   const isSelf = userId === selfId;
   const isPluginUser = server.snapshot?.pluginUsers?.some((p) => p.userId === userId) ?? (server.pluginUsers ? userId in server.pluginUsers : false);
 
-  const contact = Object.values(contacts).find(
-    (c) => c.peer === `peer-user-${userId}` || c.name === memberRecord.user.displayName || c.name === name || (c.relayServerKey === serverKey && c.name === name),
-  );
+  const contact = peer ? contacts[peer] : undefined;
 
   const shared = sharedServers?.find((s) => s.serverKey === serverKey);
   const serverAllowsPrivate = shared ? shared.privateMessages : true;
   const friendsOnlyOk = shared && shared.friendsOnly ? contact?.friend === FriendStatus.Friends : true;
   const canMessage = serverAllowsPrivate && friendsOnlyOk;
 
-  const handleMessage = async () => {
-    try {
-      const c = await openPrivateConversation(serverKey, userId);
-      router.push(`/(tabs)/messages/${c.peer}` as never);
-    } catch (err) {
-      console.warn('Failed to open conversation', err);
-    }
+  const handleMessage = () => {
+    report(
+      openPrivateConversation(serverKey, userId).then((c) => {
+        router.push(`/(tabs)/messages/${c.peer}` as never);
+      }),
+      'open conversation',
+    );
   };
 
   let friendTitle = 'Add friend';

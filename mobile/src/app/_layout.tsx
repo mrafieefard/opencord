@@ -19,7 +19,13 @@ import { DialogHost, ThemeProvider, ToastHost, sheetLook, useTheme } from '@/ui'
 // - useClearGuardedRoutes, set off by Stack.Protected guards during initial redirect.
 // - formSheet warning when deep-linking directly into a modal sheet as the initial screen.
 // - tab preloading action warning during deep link navigation.
-LogBox.ignoreLogs([/REMOVE_ROUTES/, /uses presentation.*first screen/, /The action 'PRELOAD'/, /ROUTE_NAMES_CHANGED/]);
+LogBox.ignoreLogs([
+  /REMOVE_ROUTES/,
+  /uses presentation.*first screen/,
+  /The action 'PRELOAD'/,
+  /ROUTE_NAMES_CHANGED/,
+  /Looks like you have configured linking in multiple places/,
+]);
 
 function Routes() {
   useVoiceCues();

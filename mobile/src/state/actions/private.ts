@@ -18,10 +18,18 @@ export async function loadPrivate(): Promise<void> {
   ]);
 
   useAppStore.setState((state) => {
-    const mergedContacts = { ...state.private.contacts };
+    const corePeers = new Set(contacts.map((c) => c.peer));
+    const mergedContacts: Record<string, PrivateContactRecord> = {};
     for (const contact of contacts) {
-      if (!state.private.touchedPeers.includes(contact.peer)) {
+      if (state.private.touchedPeers.includes(contact.peer) && state.private.contacts[contact.peer]) {
+        mergedContacts[contact.peer] = state.private.contacts[contact.peer]!;
+      } else if (!state.private.touchedPeers.includes(contact.peer)) {
         mergedContacts[contact.peer] = contact;
+      }
+    }
+    for (const peer of state.private.touchedPeers) {
+      if (!corePeers.has(peer) && state.private.contacts[peer]) {
+        mergedContacts[peer] = state.private.contacts[peer]!;
       }
     }
     return {
@@ -31,6 +39,7 @@ export async function loadPrivate(): Promise<void> {
         loaded: true,
         contacts: mergedContacts,
         ownDevices,
+        touchedPeers: [],
       },
     };
   });
@@ -108,39 +117,11 @@ export async function sendPrivateMessage(peer: string, content: string): Promise
 }
 
 export async function editPrivateMessage(peer: string, messageId: string, content: string): Promise<void> {
-  await getCore().privateEdit(peer, messageId, content);
-  useAppStore.setState((state) => {
-    const list = state.private.messages[peer];
-    if (!list) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        messages: {
-          ...state.private.messages,
-          [peer]: list.map((m) => (m.id === messageId ? { ...m, content, editedAtMs: Date.now() } : m)),
-        },
-      },
-    };
-  });
+  return getCore().privateEdit(peer, messageId, content);
 }
 
 export async function deletePrivateMessage(peer: string, messageId: string): Promise<void> {
-  await getCore().privateDelete(peer, messageId);
-  useAppStore.setState((state) => {
-    const list = state.private.messages[peer];
-    if (!list) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        messages: {
-          ...state.private.messages,
-          [peer]: list.filter((m) => m.id !== messageId),
-        },
-      },
-    };
-  });
+  return getCore().privateDelete(peer, messageId);
 }
 
 export async function retryPrivateMessage(messageId: string): Promise<void> {
@@ -152,129 +133,31 @@ export async function sendFriendRequest(serverKey: string, userId: string): Prom
 }
 
 export async function answerFriendRequest(peer: string, accept: boolean): Promise<void> {
-  await getCore().friendRequestAnswer(peer, accept);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, friend: accept ? FriendStatus.Friends : FriendStatus.None },
-        },
-      },
-    };
-  });
+  return getCore().friendRequestAnswer(peer, accept);
 }
 
 export async function cancelFriendRequest(peer: string): Promise<void> {
-  await getCore().friendRequestCancel(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, friend: FriendStatus.None },
-        },
-      },
-    };
-  });
+  return getCore().friendRequestCancel(peer);
 }
 
 export async function removeFriend(peer: string): Promise<void> {
-  await getCore().friendRemove(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, friend: FriendStatus.None },
-        },
-      },
-    };
-  });
+  return getCore().friendRemove(peer);
 }
 
 export async function acceptMessageRequest(peer: string): Promise<void> {
-  await getCore().messageRequestAccept(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, conversation: ConversationStatus.Accepted },
-        },
-      },
-    };
-  });
+  return getCore().messageRequestAccept(peer);
 }
 
 export async function ignoreMessageRequest(peer: string): Promise<void> {
-  await getCore().messageRequestIgnore(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, conversation: ConversationStatus.None },
-        },
-      },
-    };
-  });
+  return getCore().messageRequestIgnore(peer);
 }
 
 export async function blockPeer(peer: string): Promise<void> {
-  await getCore().privateBlock(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, blocked: true, friend: FriendStatus.None },
-        },
-      },
-    };
-  });
+  return getCore().privateBlock(peer);
 }
 
 export async function unblockPeer(peer: string): Promise<void> {
-  await getCore().privateUnblock(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, blocked: false },
-        },
-      },
-    };
-  });
+  return getCore().privateUnblock(peer);
 }
 
 export async function setPrivacySettings(settings: PrivacySettingsRecord): Promise<void> {
@@ -282,36 +165,11 @@ export async function setPrivacySettings(settings: PrivacySettingsRecord): Promi
 }
 
 export async function openPrivateConversation(serverKey: string, userId: string): Promise<PrivateContactRecord> {
-  const contact = await getCore().privateOpenConversation(serverKey, userId);
-  useAppStore.setState((state) => ({
-    ...state,
-    private: {
-      ...state.private,
-      contacts: {
-        ...state.private.contacts,
-        [contact.peer]: contact,
-      },
-    },
-  }));
-  return contact;
+  return getCore().privateOpenConversation(serverKey, userId);
 }
 
 export async function movePrivate(peer: string, serverKey: string): Promise<void> {
-  await getCore().privateMove(peer, serverKey);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, relayServerKey: serverKey },
-        },
-      },
-    };
-  });
+  return getCore().privateMove(peer, serverKey);
 }
 
 export async function movePrivateToo(peer: string, messageId: string): Promise<void> {
@@ -323,57 +181,15 @@ export async function sendPrivateTyping(peer: string): Promise<void> {
 }
 
 export async function markPrivateRead(peer: string): Promise<void> {
-  await getCore().privateMarkRead(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact || contact.unread === 0) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, unread: 0 },
-        },
-      },
-    };
-  });
+  return getCore().privateMarkRead(peer);
 }
 
 export async function setPrivateMuted(peer: string, muted: boolean): Promise<void> {
-  await getCore().privateSetMuted(peer, muted);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, muted },
-        },
-      },
-    };
-  });
+  return getCore().privateSetMuted(peer, muted);
 }
 
 export async function hidePrivate(peer: string): Promise<void> {
-  await getCore().privateHide(peer);
-  useAppStore.setState((state) => {
-    const contact = state.private.contacts[peer];
-    if (!contact) return state;
-    return {
-      ...state,
-      private: {
-        ...state.private,
-        contacts: {
-          ...state.private.contacts,
-          [peer]: { ...contact, hidden: true },
-        },
-      },
-    };
-  });
+  return getCore().privateHide(peer);
 }
 
 export async function approveDevice(deviceId: string, keys: string): Promise<void> {

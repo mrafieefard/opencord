@@ -62,9 +62,15 @@ const people: [string, string][] = [
   ['1007', 'Leo'],
 ];
 
+import { KAI_PEER, MIRA_PEER } from './privateWorld';
+
 export function user(id: string): UserRecord {
   const name = people.find(([personId]) => personId === id)?.[1] ?? `Person ${id}`;
-  return { id, displayName: name, fingerprint: `FAKE-${id}-0000-0000` };
+  let publicKeyHex = `fake-peer-${id}`;
+  if (id === '1001') publicKeyHex = KAI_PEER;
+  else if (id === '1002') publicKeyHex = MIRA_PEER;
+  else if (id === SELF_ID) publicKeyHex = 'self-peer';
+  return { id, displayName: name, fingerprint: `FAKE-${id}-0000-0000`, publicKeyHex };
 }
 
 export function members(): MemberRecord[] {

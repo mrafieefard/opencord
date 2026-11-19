@@ -9,6 +9,7 @@ import { watchAudioEvents } from '@/state/actions/audio';
 import { loadPrefs } from '@/state/actions/prefs';
 import { catchUpAvatar, catchUpPresence } from '@/state/actions/presence';
 import { catchUpName } from '@/state/actions/profile';
+import { loadPrivate } from '@/state/actions/private';
 import { loadServers, retryDisconnected } from '@/state/actions/servers';
 import { setAppActive, toast } from '@/state/actions/ui';
 import { watchVoiceService } from '@/state/actions/voice';
@@ -37,6 +38,7 @@ export function startApp(): void {
   watchAudioEvents();
   loadPrefs();
   loadServers();
+  report(loadPrivate(), 'load private');
   loop?.stop();
   loop = startEventLoop(getCore(), onEvents);
   unwatchVoice?.();

@@ -11,7 +11,10 @@ import {
 } from '@opencord/core-native';
 
 import { act, renderHook } from '@testing-library/react-native';
-import { freshStore } from '@/test/store';
+import { startEventLoop, type EventLoop } from '@/core';
+import type { FakeCore } from '@/core/fake/FakeCore';
+import { KAI_PEER, MIRA_PEER } from '@/core/fake/privateWorld';
+import { freshStore, settle } from '@/test/store';
 import {
   hidePrivate,
   loadOlder,
@@ -61,14 +64,28 @@ function createMessage(peer: string, id: string, overrides: Partial<PrivateMessa
 }
 
 describe('private store', () => {
+  let core: FakeCore;
+  let loop: EventLoop;
+
   beforeEach(() => {
-    freshStore();
+    core = freshStore();
+    loop = startEventLoop(core, onEvents);
   });
+
+  afterEach(() => {
+    loop?.stop();
+  });
+
+  async function flush() {
+    await act(async () => {
+      await settle();
+    });
+  }
 
   // Fails if loadPrivate overwrites contacts that were updated by events prior to initial load.
   it('events before the first load apply after it', async () => {
-    // 1. Send a ContactChanged event before loadPrivate() has been called
-    const eventContact = createContact('peer-1', { name: 'Updated Via Event', unread: 5 });
+    // 1. Send a ContactChanged event for KAI_PEER (which exists in fake core) before loadPrivate()
+    const eventContact = createContact(KAI_PEER, { name: 'Kai (Updated Via Event)', unread: 42, muted: true });
     onEvents([
       MobileEvent.Private.new({
         event: PrivateEventRecord.ContactChanged.new({ contact: eventContact }),
@@ -76,16 +93,40 @@ describe('private store', () => {
     ]);
 
     // Ensure the event modified store state
-    expect(useAppStore.getState().private.contacts['peer-1']?.name).toBe('Updated Via Event');
+    expect(useAppStore.getState().private.contacts[KAI_PEER]?.name).toBe('Kai (Updated Via Event)');
+    expect(useAppStore.getState().private.contacts[KAI_PEER]?.unread).toBe(42);
 
     // 2. Now call loadPrivate(), which returns the core's baseline contacts
     await loadPrivate();
 
     // 3. The contact touched by the earlier event must retain its event-updated state
-    const contactAfter = useAppStore.getState().private.contacts['peer-1'];
+    const contactAfter = useAppStore.getState().private.contacts[KAI_PEER];
     expect(contactAfter).toBeDefined();
-    expect(contactAfter?.name).toBe('Updated Via Event');
-    expect(contactAfter?.unread).toBe(5);
+    expect(contactAfter?.name).toBe('Kai (Updated Via Event)');
+    expect(contactAfter?.unread).toBe(42);
+    expect(contactAfter?.muted).toBe(true);
+  });
+
+  // Fails if an event arriving while loadPrivate is awaiting core overwrites the event-updated contact.
+  it('events during the load apply after it', async () => {
+    // Start loadPrivate (in flight)
+    const loadPromise = loadPrivate();
+
+    // An event arrives for MIRA_PEER while load is in flight
+    const eventMira = createContact(MIRA_PEER, { name: 'Mira (In Flight Event)', unread: 77, muted: true });
+    onEvents([
+      MobileEvent.Private.new({
+        event: PrivateEventRecord.ContactChanged.new({ contact: eventMira }),
+      }),
+    ]);
+
+    await loadPromise;
+
+    const miraAfter = useAppStore.getState().private.contacts[MIRA_PEER];
+    expect(miraAfter).toBeDefined();
+    expect(miraAfter?.name).toBe('Mira (In Flight Event)');
+    expect(miraAfter?.unread).toBe(77);
+    expect(miraAfter?.muted).toBe(true);
   });
 
   // Fails if message state updates do not apply in order or discard subsequent state transitions.
@@ -135,6 +176,7 @@ describe('private store', () => {
 
     // Hide the chat
     await hidePrivate(peer);
+    await flush();
     const chatsAfterHide = selectPrivateContacts(useAppStore.getState().private.contacts, 'chats');
     expect(chatsAfterHide.some((c) => c.peer === peer)).toBe(false);
 
@@ -158,6 +200,10 @@ describe('private store', () => {
     const contact1 = createContact('peer-unmuted', { unread: 4, muted: false });
     const contact2 = createContact('peer-muted', { unread: 7, muted: true });
 
+    // Seed into fake core's contacts map as well so setPrivateMuted emits ContactChanged
+    core.privateContactsMap.set('peer-unmuted', contact1);
+    core.privateContactsMap.set('peer-muted', contact2);
+
     onEvents([
       MobileEvent.Private.new({
         event: PrivateEventRecord.ContactChanged.new({ contact: contact1 }),
@@ -171,10 +217,12 @@ describe('private store', () => {
 
     // Muting the first contact drops the total to 0
     await setPrivateMuted('peer-unmuted', true);
+    await flush();
     expect(selectPrivateUnreadTotal(useAppStore.getState().private.contacts)).toBe(0);
 
     // Unmuting the second contact raises the total to 7
     await setPrivateMuted('peer-muted', false);
+    await flush();
     expect(selectPrivateUnreadTotal(useAppStore.getState().private.contacts)).toBe(7);
   });
 

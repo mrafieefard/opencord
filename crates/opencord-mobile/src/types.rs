@@ -96,6 +96,7 @@ pub struct UserRecord {
     /// For `avatar_file`; `None` without a picture.
     pub avatar_hash: Option<String>,
     pub fingerprint: String,
+    pub public_key_hex: String,
 }
 
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]

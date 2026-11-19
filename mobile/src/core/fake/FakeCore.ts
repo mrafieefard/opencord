@@ -422,7 +422,13 @@ export class FakeCore implements CoreApi {
 
     const contact = this.privateContactsMap.get(peer);
     if (contact) {
-      const updatedContact = { ...contact, lastActivityMs: sentAtMs, conversation: ConversationStatus.Accepted, hidden: false };
+      const updatedContact = {
+        ...contact,
+        lastActivityMs: sentAtMs,
+        preview: content.split('\n')[0].slice(0, 100),
+        conversation: ConversationStatus.Accepted,
+        hidden: false,
+      };
       this.privateContactsMap.set(peer, updatedContact);
       this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updatedContact }) }));
     }
@@ -618,6 +624,9 @@ export class FakeCore implements CoreApi {
 
   async privateSharedServers(peer: string): Promise<SharedServerRecord[]> {
     this.enter('privateSharedServers', [peer]);
+    if (!this.privateContactsMap.has(peer) && !peer.startsWith('fake-peer-') && !peer.includes('peer')) {
+      return [];
+    }
     return [...this.privateSharedServersData];
   }
 
@@ -651,7 +660,7 @@ export class FakeCore implements CoreApi {
   async privateMarkRead(peer: string): Promise<void> {
     this.enter('privateMarkRead', [peer]);
     const contact = this.privateContactsMap.get(peer);
-    if (contact && contact.unread > 0) {
+    if (contact) {
       const updated = { ...contact, unread: 0 };
       this.privateContactsMap.set(peer, updated);
       this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));

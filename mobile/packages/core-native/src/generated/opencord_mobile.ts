@@ -5007,7 +5007,8 @@ export type UserRecord = {
      * For `avatar_file`; `None` without a picture.
      */
     avatarHash?: string,
-    fingerprint: string
+    fingerprint: string,
+    publicKeyHex: string
 }
 
 /**
@@ -5034,7 +5035,8 @@ const FfiConverterTypeUserRecord = (() => {
                 id: FfiConverterString.readFromCursor(c), 
                 displayName: FfiConverterString.readFromCursor(c), 
                 avatarHash: FfiConverterOptionalString.readFromCursor(c), 
-                fingerprint: FfiConverterString.readFromCursor(c)
+                fingerprint: FfiConverterString.readFromCursor(c), 
+                publicKeyHex: FfiConverterString.readFromCursor(c)
             };
         }
         writeIntoCursor(value: TypeName, c: Cursor): void {
@@ -5042,12 +5044,14 @@ const FfiConverterTypeUserRecord = (() => {
             FfiConverterString.writeIntoCursor(value.displayName, c);
             FfiConverterOptionalString.writeIntoCursor(value.avatarHash, c);
             FfiConverterString.writeIntoCursor(value.fingerprint, c);
+            FfiConverterString.writeIntoCursor(value.publicKeyHex, c);
         }
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.id) +
              FfiConverterString.allocationSize(value.displayName) +
              FfiConverterOptionalString.allocationSize(value.avatarHash) +
-             FfiConverterString.allocationSize(value.fingerprint);
+             FfiConverterString.allocationSize(value.fingerprint) +
+             FfiConverterString.allocationSize(value.publicKeyHex);
             
         }
     };

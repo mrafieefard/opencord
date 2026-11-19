@@ -79,7 +79,7 @@ export const ChatList = memo(function ChatList({ onSelectChat, activePeer }: Cha
               <Icon name="chat" size={20} color="accent" />
             </View>
             <View style={styles.requestsDetails}>
-              <Text variant="headline" style={styles.requestsTitle}>
+              <Text variant="headline">
                 Message requests
               </Text>
               <Text variant="footnote" color="textSecondary">
@@ -171,9 +171,6 @@ const styles = StyleSheet.create({
   requestsDetails: {
     flex: 1,
     marginLeft: space.md,
-  },
-  requestsTitle: {
-    fontWeight: '600',
   },
   tabletContainer: {
     flex: 1,
