@@ -115,6 +115,7 @@ function serverOf(event: MobileEvent): string | null {
     case MobileEvent_Tags.Playback:
     case MobileEvent_Tags.PlaybackEnded:
     case MobileEvent_Tags.PlaybackFailed:
+    case MobileEvent_Tags.Private:
       return null;
     default:
       return event.inner.serverKey;

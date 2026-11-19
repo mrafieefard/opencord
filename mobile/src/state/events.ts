@@ -436,6 +436,9 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
       // Shown, not kept: store.ts hands them on (toasts; Voice & audio's
       // level, fallback and microphone problem to actions/audio.ts).
       return state;
+    case MobileEvent_Tags.Private:
+      // Kept by the private store (Task 4), not here.
+      return state;
     case MobileEvent_Tags.PluginChannelTypesUpdated:
       return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginChannelTypes: event.inner.types }));
     case MobileEvent_Tags.PluginActivitiesUpdated:

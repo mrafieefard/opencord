@@ -6,7 +6,7 @@
 use crate::MobileError;
 use crate::convert;
 use crate::ids::parse_id;
-use crate::mobile::on_runtime;
+use crate::mobile::{mobile, on_runtime};
 use crate::private_types::{
     KeyWordsRecord, OwnDevicesRecord, PrivacySettingsRecord, PrivateContactRecord,
     PrivateMessageRecord, PrivateOpenedRecord, SharedServerRecord,
@@ -23,14 +23,25 @@ fn master_key(key: Vec<u8>) -> Result<[u8; 32], MobileError> {
     })
 }
 
+/// A new master key: 32 bytes from the operating system's random source.
+/// The phone keeps it in its keystore; JavaScript has no random source of
+/// its own it can be sure of.
+#[uniffi::export]
+pub fn private_key_generate() -> Result<Vec<u8>, MobileError> {
+    let mut key = [0u8; 32];
+    getrandom::fill(&mut key).map_err(|error| MobileError::Other {
+        message: format!("the operating system's random source failed: {error}"),
+    })?;
+    Ok(key.to_vec())
+}
+
 /// Opens the private database with its master key, after the identity.
+/// Its events come through `next_events` from then on, also after a
+/// JavaScript reload calls this again.
 #[uniffi::export]
 pub async fn private_open(key: Vec<u8>) -> Result<PrivateOpenedRecord, MobileError> {
     let key = master_key(key)?;
-    on_runtime(
-        move |client| async move { Ok(convert::private_opened(client.private_open(key).await?)) },
-    )
-    .await
+    mobile()?.private_open(key).await
 }
 
 #[uniffi::export]
@@ -319,5 +330,16 @@ mod tests {
             }
         }
         assert_eq!(master_key(vec![7; 32]).unwrap(), [7; 32]);
+    }
+
+    // Fails if a new key is the wrong length (private_open refuses it) or
+    // isn't random (every phone would seal its chats with one key).
+    #[test]
+    fn a_new_master_key_is_32_random_bytes() {
+        let first = private_key_generate().unwrap();
+        let second = private_key_generate().unwrap();
+        assert!(master_key(first.clone()).is_ok());
+        assert_ne!(first, second);
+        assert_ne!(first, vec![0; 32]);
     }
 }

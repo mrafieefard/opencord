@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import Index from '@/app/index';
 import { setCore } from '@/core';
 import { FakeCore } from '@/core/fake/FakeCore';
+import { STARTED_FRESH } from '@/core/privateKey';
 import { BootGate, boot } from '@/features/boot/BootGate';
 import { initialState, useAppStore } from '@/state/store';
 import { Text } from '@/ui';
@@ -118,6 +119,32 @@ describe('starting and onboarding', () => {
     expect(useAppStore.getState().boot).toEqual({ state: 'ready' });
     await render(<Index />);
     expect(screen.getByText('redirect:/servers')).toBeTruthy();
+  });
+
+  // Fails if a start that set the private chats aside doesn't tell the
+  // person, or tells them twice.
+  it('a start that lost the private key says so once', async () => {
+    const core = fresh();
+    core.sealPrivateDatabase(new Uint8Array(32).fill(4).buffer);
+    items.set('opencord.identity', btoa(String.fromCharCode(...new Uint8Array(32).fill(9))));
+    core.settingsSet('mobile.displayName', 'Ava');
+    await boot();
+    await boot();
+    const texts = useAppStore.getState().toasts.map((toast) => toast.text);
+    expect(texts).toEqual([STARTED_FRESH]);
+  });
+
+  // Fails if an identity made or imported on onboarding gets no private
+  // messages until the next start, or a restored database set aside goes
+  // unsaid.
+  it('onboarding opens private messages and says when they start fresh', async () => {
+    const core = fresh();
+    core.sealPrivateDatabase(new Uint8Array(32).fill(4).buffer);
+    await createIdentity('Ava');
+    await new Promise((resolve) => setImmediate(resolve));
+    const methods = core.calls.map((call) => call.method);
+    expect(methods.indexOf('privateOpen')).toBeGreaterThan(methods.indexOf('identityLoad'));
+    expect(useAppStore.getState().toasts.map((toast) => toast.text)).toEqual([STARTED_FRESH]);
   });
 
   it('a failed start shows its sentence and Try again', async () => {

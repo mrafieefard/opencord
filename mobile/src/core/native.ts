@@ -132,4 +132,7 @@ export const NativeCore: CoreApi = {
   viewUpload: (view, node, path) => native.viewUpload(view, node, path),
   activityStart: (key, channel, plugin, activity) => native.activityStart(key, channel, plugin, activity),
   activityEnd: (key, session) => native.activityEnd(key, session),
+
+  privateKeyGenerate: () => native.privateKeyGenerate(),
+  privateOpen: (key) => native.privateOpen(key),
 };

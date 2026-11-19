@@ -40,6 +40,7 @@ import {
   type OutgoingFileRecord,
   type OwnAvatarRecord,
   type PhoneAudioSettings,
+  type PrivateOpenedRecord,
   type ServerEntry,
   type UserRecord,
   type ViewOutputRecord,
@@ -130,6 +131,7 @@ interface Upload {
 }
 
 const SECRET_LEN = 32;
+const PRIVATE_KEY_LEN = 32;
 const MESSAGE_MAX_CHARS = 4000;
 const NAME_MAX_CHARS = 32;
 const BACKUP_PREFIX = 'opencord-identity-v1';
@@ -191,6 +193,9 @@ export class FakeCore implements CoreApi {
   private nextId = 900_000;
   private name = 'Ava';
   private loaded = false;
+  /** The key the private database is sealed with, in hex; null until made. */
+  private privateSealedWith: string | null = null;
+  private privateOpened = false;
   private readonly live: boolean;
 
   constructor(options: FakeOptions = {}) {
@@ -318,6 +323,34 @@ export class FakeCore implements CoreApi {
     const bytes = new Uint8Array(SECRET_LEN);
     for (let index = 0; index < SECRET_LEN; index += 1) bytes[index] = parseInt(secretHex.slice(index * 2, index * 2 + 2), 16);
     return bytes.buffer;
+  }
+
+  // Private messages ---------------------------------------------------
+
+  /** A private database an earlier install left, sealed with `key`. */
+  sealPrivateDatabase(key: ArrayBuffer): void {
+    this.privateSealedWith = hex(new Uint8Array(key));
+  }
+
+  privateKeyGenerate(): ArrayBuffer {
+    this.enter('privateKeyGenerate', []);
+    const key = new Uint8Array(PRIVATE_KEY_LEN);
+    for (let index = 0; index < PRIVATE_KEY_LEN; index += 1) key[index] = Math.floor(Math.random() * 256);
+    return key.buffer;
+  }
+
+  /** As the core: a database it can't read with `key` is moved aside and
+   * starts fresh; opening again in the same process does nothing. */
+  async privateOpen(key: ArrayBuffer): Promise<PrivateOpenedRecord> {
+    this.enter('privateOpen', [key]);
+    if (key.byteLength !== PRIVATE_KEY_LEN) invalid(`the private key must be 32 bytes, not ${key.byteLength}`);
+    if (!this.loaded) throw new MobileError.NoIdentity();
+    if (this.privateOpened) return { startedFresh: false, keysReset: false };
+    const sealed = hex(new Uint8Array(key));
+    const startedFresh = this.privateSealedWith !== null && this.privateSealedWith !== sealed;
+    this.privateSealedWith = sealed;
+    this.privateOpened = true;
+    return { startedFresh, keysReset: false };
   }
 
   private info(secret: Uint8Array): IdentityInfo {

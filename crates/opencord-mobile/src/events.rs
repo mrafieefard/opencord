@@ -5,15 +5,22 @@
 //! Each JavaScript start (a reload too) calls `events_attach` first: a
 //! newer generation releases a call still waiting under an older one, so
 //! the stream is never held by a JavaScript context that is gone.
+//!
+//! Three sources feed the one queue: the core's server events, voice
+//! media's, and private messages' once `private_open` has run.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use opencord_core::api::types::{self as core, CoreEvent, CoreEventPayload, MediaEvent};
-use tokio::sync::mpsc::UnboundedReceiver;
+use opencord_core::api::types::{
+    self as core, CoreEvent, CoreEventPayload, MediaEvent, PrivateEvent,
+};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::sync::{Mutex, Notify};
 
 use crate::convert;
 use crate::ids::id;
+use crate::private_types::{OwnDeviceRecord, PrivateContactRecord, PrivateMessageRecord};
 use crate::types::*;
 
 /// The most one batch holds.
@@ -245,34 +252,76 @@ pub enum MobileEvent {
         channel_id: String,
         reason: ActivityEndReason,
     },
+    /// Private messages and friends, from `private_open` on.
+    Private {
+        event: PrivateEventRecord,
+    },
+}
+
+/// The core's `PrivateEvent`, one variant each, with the same names.
+#[derive(Debug, Clone, PartialEq, uniffi::Enum)]
+pub enum PrivateEventRecord {
+    /// This person's other devices with other chat keys, and whether this
+    /// device has any chats.
+    OwnDevicesChanged {
+        devices: Vec<OwnDeviceRecord>,
+        has_chats: bool,
+    },
+    ContactChanged {
+        contact: PrivateContactRecord,
+    },
+    ContactRemoved {
+        peer: String,
+    },
+    MessageAdded {
+        message: PrivateMessageRecord,
+    },
+    MessageChanged {
+        message: PrivateMessageRecord,
+    },
+    MessageDeleted {
+        peer: String,
+        message_id: String,
+    },
+    Typing {
+        peer: String,
+    },
+    FriendRequestReceived {
+        peer: String,
+        spam: bool,
+    },
 }
 
 enum Incoming {
     Core(Box<CoreEvent>),
     Media(MediaEvent),
+    Private(PrivateEvent),
 }
 
 struct Receivers {
     core: UnboundedReceiver<CoreEvent>,
     media: Option<UnboundedReceiver<MediaEvent>>,
+    /// Fed by the forwarder `EventPump::connect_private` hands out; the
+    /// pump keeps its sender, so this never ends.
+    private: UnboundedReceiver<PrivateEvent>,
 }
 
 impl Receivers {
-    /// The next event from either stream; `None` once the core's has ended.
+    /// The next event from any stream; `None` once the core's has ended.
     async fn recv(&mut self) -> Option<Incoming> {
         loop {
-            let Some(media) = self.media.as_mut() else {
-                return self
-                    .core
-                    .recv()
-                    .await
-                    .map(|event| Incoming::Core(Box::new(event)));
-            };
+            let media_open = self.media.is_some();
             tokio::select! {
                 event = self.core.recv() => return event.map(|event| Incoming::Core(Box::new(event))),
-                event = media.recv() => match event {
+                Some(event) = self.private.recv() => return Some(Incoming::Private(event)),
+                event = async {
+                    match self.media.as_mut() {
+                        Some(media) => media.recv().await,
+                        None => None,
+                    }
+                }, if media_open => match event {
                     Some(event) => return Some(Incoming::Media(event)),
-                    // Media has stopped for good; carry on with the core's.
+                    // Media has stopped for good; carry on with the others.
                     None => self.media = None,
                 },
             }
@@ -283,19 +332,25 @@ impl Receivers {
         if let Ok(event) = self.core.try_recv() {
             return Some(Incoming::Core(Box::new(event)));
         }
-        self.media
-            .as_mut()
-            .and_then(|media| media.try_recv().ok())
-            .map(Incoming::Media)
+        if let Some(event) = self.media.as_mut().and_then(|media| media.try_recv().ok()) {
+            return Some(Incoming::Media(event));
+        }
+        self.private.try_recv().ok().map(Incoming::Private)
     }
 }
 
-/// The core's two event streams, handed out in batches to one waiter at a
+/// The core's event streams, handed out in batches to one waiter at a
 /// time.
 pub struct EventPump {
     receivers: Mutex<Receivers>,
     generation: AtomicU64,
     attached: Notify,
+    /// Into `Receivers::private`. A sender of its own, so connecting the
+    /// core's private stream never waits for the lock a waiting `next`
+    /// holds.
+    private_in: UnboundedSender<PrivateEvent>,
+    /// Whether the core's private stream has been taken.
+    private_connected: AtomicBool,
 }
 
 impl EventPump {
@@ -303,11 +358,43 @@ impl EventPump {
         core: UnboundedReceiver<CoreEvent>,
         media: Option<UnboundedReceiver<MediaEvent>>,
     ) -> Self {
+        let (private_in, private) = unbounded_channel();
         Self {
-            receivers: Mutex::new(Receivers { core, media }),
+            receivers: Mutex::new(Receivers {
+                core,
+                media,
+                private,
+            }),
             generation: AtomicU64::new(0),
             attached: Notify::new(),
+            private_in,
+            private_connected: AtomicBool::new(false),
         }
+    }
+
+    /// The task that feeds the core's private stream into the queue, the
+    /// first time only: `take` (`Client::private_events`) is called once
+    /// per process, since taking the stream again silences the receiver
+    /// taken first, and every JavaScript start (a reload too) opens again.
+    /// `None` when it is connected already.
+    pub fn connect_private(
+        &self,
+        take: impl FnOnce() -> UnboundedReceiver<PrivateEvent>,
+    ) -> Option<impl Future<Output = ()> + Send + 'static> {
+        if self.private_connected.swap(true, Ordering::SeqCst) {
+            return None;
+        }
+        let mut from = take();
+        let into = self.private_in.clone();
+        Some(async move {
+            while let Some(event) = from.recv().await {
+                if into.send(event).is_err() {
+                    tracing::info!("the event pump is gone; private events stop");
+                    return;
+                }
+            }
+            tracing::warn!("the core's private event stream ended");
+        })
     }
 
     /// Starts a new generation: a call waiting under an older one returns
@@ -363,6 +450,39 @@ fn convert_incoming(incoming: Incoming) -> Option<MobileEvent> {
     match incoming {
         Incoming::Core(event) => core_event(*event),
         Incoming::Media(event) => media_event(event),
+        Incoming::Private(event) => Some(MobileEvent::Private {
+            event: private_event(event),
+        }),
+    }
+}
+
+/// A private event as JavaScript sees it; every kind reaches it.
+pub(crate) fn private_event(event: PrivateEvent) -> PrivateEventRecord {
+    match event {
+        PrivateEvent::OwnDevicesChanged { devices, has_chats } => {
+            let own = convert::own_devices(devices, has_chats);
+            PrivateEventRecord::OwnDevicesChanged {
+                devices: own.devices,
+                has_chats: own.has_chats,
+            }
+        }
+        PrivateEvent::ContactChanged(contact) => PrivateEventRecord::ContactChanged {
+            contact: convert::private_contact(contact),
+        },
+        PrivateEvent::ContactRemoved { peer } => PrivateEventRecord::ContactRemoved { peer },
+        PrivateEvent::MessageAdded(message) => PrivateEventRecord::MessageAdded {
+            message: convert::private_message(message),
+        },
+        PrivateEvent::MessageChanged(message) => PrivateEventRecord::MessageChanged {
+            message: convert::private_message(message),
+        },
+        PrivateEvent::MessageDeleted { peer, message_id } => {
+            PrivateEventRecord::MessageDeleted { peer, message_id }
+        }
+        PrivateEvent::Typing { peer } => PrivateEventRecord::Typing { peer },
+        PrivateEvent::FriendRequestReceived { peer, spam } => {
+            PrivateEventRecord::FriendRequestReceived { peer, spam }
+        }
     }
 }
 
@@ -685,16 +805,259 @@ mod tests {
         pump: Arc<EventPump>,
         core: UnboundedSender<CoreEvent>,
         media: UnboundedSender<MediaEvent>,
+        /// Stands in for the core's private stream, connected as
+        /// `private_open` connects it.
+        private: UnboundedSender<PrivateEvent>,
     }
 
     fn fed() -> Fed {
         let (core, core_rx) = unbounded_channel();
         let (media, media_rx) = unbounded_channel();
+        let (private, private_rx) = unbounded_channel();
+        let pump = Arc::new(EventPump::new(core_rx, Some(media_rx)));
+        let forward = pump
+            .connect_private(|| private_rx)
+            .expect("the first connection is taken");
+        tokio::spawn(forward);
         Fed {
-            pump: Arc::new(EventPump::new(core_rx, Some(media_rx))),
+            pump,
             core,
             media,
+            private,
         }
+    }
+
+    fn contact(peer: &str) -> core::PrivateContact {
+        core::PrivateContact {
+            peer: peer.to_owned(),
+            name: Some("Kai".to_owned()),
+            friend: core::FriendStatus::Friends,
+            request_spam: false,
+            blocked: false,
+            conversation: core::ConversationStatus::Accepted,
+            relay_server_key: Some("s".to_owned()),
+            last_activity_ms: Some(1_700_000_000_123),
+            unread: 2,
+            muted: true,
+            hidden: false,
+            preview: Some("hi".to_owned()),
+            verification: core::PrivateVerification::Verified,
+            new_keys: true,
+            reachable: true,
+        }
+    }
+
+    fn private_message(id: &str, state: core::PrivateSendState) -> core::PrivateMessage {
+        core::PrivateMessage {
+            id: id.to_owned(),
+            peer: "aa".to_owned(),
+            outgoing: true,
+            kind: core::PrivateMessageKind::Text,
+            content: "hello".to_owned(),
+            server_key: None,
+            sent_at_ms: 1_700_000_000_456,
+            edited_at_ms: Some(1_700_000_000_789),
+            state,
+        }
+    }
+
+    /// Batches under `generation` until `count` events came, or panics.
+    async fn pull(pump: &EventPump, generation: u64, count: usize) -> Vec<MobileEvent> {
+        let mut events = Vec::new();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while events.len() < count {
+                let batch = pump.next(generation, 64).await;
+                assert!(!batch.is_empty(), "the stream ended");
+                events.extend(batch);
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("got {events:?}, not {count} events"));
+        events
+    }
+
+    // Fails if a private event is dropped on its way to the queue, or a
+    // field is lost or changed on the way (times as numbers, enums as the
+    // core's).
+    #[tokio::test]
+    async fn private_events_reach_javascript() {
+        let fed = fed();
+        let generation = fed.pump.attach();
+        let sent = vec![
+            PrivateEvent::OwnDevicesChanged {
+                devices: vec![core::OwnDevice {
+                    device_id: "d1".to_owned(),
+                    state: core::OwnDeviceState::Offering,
+                }],
+                has_chats: true,
+            },
+            PrivateEvent::ContactChanged(contact("aa")),
+            PrivateEvent::ContactRemoved {
+                peer: "bb".to_owned(),
+            },
+            PrivateEvent::MessageAdded(private_message("m1", core::PrivateSendState::Sending)),
+            PrivateEvent::MessageChanged(private_message("m1", core::PrivateSendState::Sent)),
+            PrivateEvent::MessageDeleted {
+                peer: "aa".to_owned(),
+                message_id: "m1".to_owned(),
+            },
+            PrivateEvent::Typing {
+                peer: "aa".to_owned(),
+            },
+            PrivateEvent::FriendRequestReceived {
+                peer: "cc".to_owned(),
+                spam: true,
+            },
+        ];
+        for event in sent {
+            fed.private.send(event).unwrap();
+        }
+        let message = |state| PrivateMessageRecord {
+            id: "m1".to_owned(),
+            peer: "aa".to_owned(),
+            outgoing: true,
+            kind: crate::private_types::PrivateMessageKind::Text,
+            content: "hello".to_owned(),
+            server_key: None,
+            sent_at_ms: 1_700_000_000_456.0,
+            edited_at_ms: Some(1_700_000_000_789.0),
+            state,
+        };
+        let expected: Vec<_> = [
+            PrivateEventRecord::OwnDevicesChanged {
+                devices: vec![OwnDeviceRecord {
+                    device_id: "d1".to_owned(),
+                    state: crate::private_types::OwnDeviceState::Offering,
+                }],
+                has_chats: true,
+            },
+            PrivateEventRecord::ContactChanged {
+                contact: PrivateContactRecord {
+                    peer: "aa".to_owned(),
+                    name: Some("Kai".to_owned()),
+                    friend: crate::private_types::FriendStatus::Friends,
+                    request_spam: false,
+                    blocked: false,
+                    conversation: crate::private_types::ConversationStatus::Accepted,
+                    relay_server_key: Some("s".to_owned()),
+                    last_activity_ms: Some(1_700_000_000_123.0),
+                    unread: 2,
+                    muted: true,
+                    hidden: false,
+                    preview: Some("hi".to_owned()),
+                    verification: crate::private_types::PrivateVerification::Verified,
+                    new_keys: true,
+                    reachable: true,
+                },
+            },
+            PrivateEventRecord::ContactRemoved {
+                peer: "bb".to_owned(),
+            },
+            PrivateEventRecord::MessageAdded {
+                message: message(crate::private_types::PrivateSendState::Sending),
+            },
+            PrivateEventRecord::MessageChanged {
+                message: message(crate::private_types::PrivateSendState::Sent),
+            },
+            PrivateEventRecord::MessageDeleted {
+                peer: "aa".to_owned(),
+                message_id: "m1".to_owned(),
+            },
+            PrivateEventRecord::Typing {
+                peer: "aa".to_owned(),
+            },
+            PrivateEventRecord::FriendRequestReceived {
+                peer: "cc".to_owned(),
+                spam: true,
+            },
+        ]
+        .into_iter()
+        .map(|event| MobileEvent::Private { event })
+        .collect();
+        assert_eq!(pull(&fed.pump, generation, 8).await, expected);
+    }
+
+    // Fails if the private stream ignores the generation rule: a call
+    // left waiting by a reload would take events the new start never sees.
+    #[tokio::test]
+    async fn an_old_generation_gets_no_private_events() {
+        let fed = fed();
+        let old = fed.pump.attach();
+        let new = fed.pump.attach();
+        fed.private
+            .send(PrivateEvent::Typing {
+                peer: "aa".to_owned(),
+            })
+            .unwrap();
+        // Let the forwarder put it in the queue first.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let stale = tokio::time::timeout(Duration::from_millis(100), fed.pump.next(old, 10))
+            .await
+            .expect("a stale generation waited");
+        assert!(stale.is_empty());
+        assert_eq!(
+            pull(&fed.pump, new, 1).await,
+            vec![MobileEvent::Private {
+                event: PrivateEventRecord::Typing {
+                    peer: "aa".to_owned()
+                },
+            }]
+        );
+    }
+
+    /// The peers of the contacts in `events`' `ContactChanged`s.
+    fn changed_peers(events: &[MobileEvent]) -> Vec<String> {
+        events
+            .iter()
+            .filter_map(|event| match event {
+                MobileEvent::Private {
+                    event: PrivateEventRecord::ContactChanged { contact },
+                } => Some(contact.peer.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    // Fails if a second `private_open` (a JavaScript reload) takes the
+    // core's private stream again: the first receiver then hears nothing
+    // more, and what it had queued is lost. The real core and its real
+    // database: blocking someone sends `ContactChanged` with no server.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_reload_keeps_the_private_stream() {
+        let dir = tempfile::tempdir().unwrap();
+        let mobile = crate::Mobile::start(
+            &dir.path().join("data"),
+            &dir.path().join("cache"),
+            tokio::runtime::Handle::current(),
+            false,
+        )
+        .unwrap();
+        mobile.client().set_identity(
+            opencord_core::identity::Identity::generate(),
+            "Ava".to_owned(),
+        );
+        let first_peer = "aa".repeat(32);
+        let second_peer = "bb".repeat(32);
+
+        mobile.attach();
+        mobile.private_open([7; 32]).await.unwrap();
+        mobile.client().private_block(&first_peer).await.unwrap();
+
+        // A JavaScript reload: a new generation, and boot opens again.
+        let generation = mobile.attach();
+        let opened = mobile.private_open([7; 32]).await.unwrap();
+        assert!(!opened.started_fresh);
+        mobile.client().private_block(&second_peer).await.unwrap();
+
+        let mut events = Vec::new();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while changed_peers(&events).len() < 2 {
+                events.extend(mobile.next_events(generation, 64).await);
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("got {:?}", changed_peers(&events)));
+        assert_eq!(changed_peers(&events), [first_peer, second_peer]);
     }
 
     fn message(id: i64) -> CoreEvent {

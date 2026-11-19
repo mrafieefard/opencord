@@ -136,6 +136,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_fn_func_private_delete(peer: Uint8Array, messageId: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_private_edit(peer: Uint8Array, messageId: Uint8Array, content: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_private_hide(peer: Uint8Array): bigint;
+    ubrn_uniffi_opencord_mobile_fn_func_private_key_generate(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_opencord_mobile_fn_func_private_mark_read(peer: Uint8Array): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_private_messages(peer: Uint8Array, before: Uint8Array, limit: number): bigint;
     ubrn_uniffi_opencord_mobile_fn_func_private_move(peer: Uint8Array, serverKey: Uint8Array): bigint;
@@ -261,6 +262,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_opencord_mobile_checksum_func_private_delete(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_private_edit(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_private_hide(): number;
+    ubrn_uniffi_opencord_mobile_checksum_func_private_key_generate(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_private_mark_read(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_private_messages(): number;
     ubrn_uniffi_opencord_mobile_checksum_func_private_move(): number;

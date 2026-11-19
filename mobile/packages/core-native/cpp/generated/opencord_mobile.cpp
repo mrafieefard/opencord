@@ -247,6 +247,8 @@ uniffi_opencord_mobile_fn_func_private_delete(RustBuffer peer,
     RustBuffer peer, RustBuffer message_id, RustBuffer content);
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_private_hide(RustBuffer peer);
+RustBuffer uniffi_opencord_mobile_fn_func_private_key_generate(
+    RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t
 uniffi_opencord_mobile_fn_func_private_mark_read(RustBuffer peer);
 /*handle*/ uint64_t uniffi_opencord_mobile_fn_func_private_messages(
@@ -563,6 +565,7 @@ uint16_t uniffi_opencord_mobile_checksum_func_private_contacts();
 uint16_t uniffi_opencord_mobile_checksum_func_private_delete();
 uint16_t uniffi_opencord_mobile_checksum_func_private_edit();
 uint16_t uniffi_opencord_mobile_checksum_func_private_hide();
+uint16_t uniffi_opencord_mobile_checksum_func_private_key_generate();
 uint16_t uniffi_opencord_mobile_checksum_func_private_mark_read();
 uint16_t uniffi_opencord_mobile_checksum_func_private_messages();
 uint16_t uniffi_opencord_mobile_checksum_func_private_move();
@@ -2739,6 +2742,18 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_fn_func_private_hide(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_fn_func_private_key_generate"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_opencord_mobile_fn_func_private_key_generate"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_fn_func_private_key_generate(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_fn_func_private_mark_read"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4703,6 +4718,19 @@ NativeOpencordMobile::NativeOpencordMobile(
             return this->cpp_uniffi_opencord_mobile_checksum_func_private_hide(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_opencord_mobile_checksum_func_private_key_generate"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_opencord_mobile_checksum_func_private_key_generate"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_opencord_mobile_checksum_func_private_key_generate(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_opencord_mobile_checksum_func_private_mark_read"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -6496,6 +6524,19 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_private_hide(
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
+}
+jsi::Value
+NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_private_key_generate(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::opencord_mobile::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_opencord_mobile_fn_func_private_key_generate(&status);
+  uniffi::opencord_mobile::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::opencord_mobile::Bridging<RustBuffer>::toJs(rt, callInvoker,
+                                                             value);
 }
 jsi::Value
 NativeOpencordMobile::cpp_uniffi_opencord_mobile_fn_func_private_mark_read(
@@ -8348,6 +8389,14 @@ NativeOpencordMobile::cpp_uniffi_opencord_mobile_checksum_func_private_hide(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_opencord_mobile_checksum_func_private_hide();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeOpencordMobile::
+    cpp_uniffi_opencord_mobile_checksum_func_private_key_generate(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_opencord_mobile_checksum_func_private_key_generate();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

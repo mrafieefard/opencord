@@ -25,6 +25,7 @@ import type {
   OwnAvatarRecord,
   PhoneAudioSettings,
   PlaybackItemRecord,
+  PrivateOpenedRecord,
   VoiceCueKind,
   VoiceDraftRecord,
   ServerEntry,
@@ -181,4 +182,11 @@ export interface CoreApi {
   viewUpload(viewId: string, nodeId: bigint, path: string): Promise<void>;
   activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string): Promise<ActivitySessionRecord>;
   activityEnd(serverKey: string, sessionId: string): Promise<void>;
+
+  // Private messages (phone P3). The rest of the private calls come with
+  // Task 3.
+  /** 32 bytes from the operating system's random source. */
+  privateKeyGenerate(): ArrayBuffer;
+  /** Opens the private database with its 32-byte master key. */
+  privateOpen(key: ArrayBuffer): Promise<PrivateOpenedRecord>;
 }

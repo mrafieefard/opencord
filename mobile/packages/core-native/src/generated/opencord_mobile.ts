@@ -2183,6 +2183,27 @@ export async function privateHide(peer: string, asyncOpts_?: { signal: AbortSign
     }
     }
 
+/**
+ * A new master key: 32 bytes from the operating system's random source.
+ * The phone keeps it in its keystore; JavaScript has no random source of
+ * its own it can be sure of.
+ */
+export function privateKeyGenerate(): ArrayBuffer /*throws*/ {
+    const __rb: Uint8Array = uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeMobileError.lift.bind(FfiConverterTypeMobileError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_opencord_mobile_fn_func_private_key_generate(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+    );
+    try {
+        return FfiConverterArrayBuffer.lift(__rb);
+    } finally {
+        nativeModule().rustbuffer_free(__rb);
+    }
+    }
+
 export async function privateMarkRead(peer: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
@@ -2307,6 +2328,8 @@ export async function privateMoveToo(peer: string, messageId: string, asyncOpts_
 
 /**
  * Opens the private database with its master key, after the identity.
+ * Its events come through `next_events` from then on, also after a
+ * JavaScript reload calls this again.
  */
 export async function privateOpen(key: ArrayBuffer, asyncOpts_?: { signal: AbortSignal }): Promise<PrivateOpenedRecord> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
@@ -9545,6 +9568,434 @@ const FfiConverterTypeUploadPhaseRecord = (() => {
 })();
 
 
+// Enum: PrivateEventRecord
+export enum PrivateEventRecord_Tags {
+    OwnDevicesChanged = "OwnDevicesChanged",
+    ContactChanged = "ContactChanged",
+    ContactRemoved = "ContactRemoved",
+    MessageAdded = "MessageAdded",
+    MessageChanged = "MessageChanged",
+    MessageDeleted = "MessageDeleted",
+    Typing = "Typing",
+    FriendRequestReceived = "FriendRequestReceived"
+}
+/**
+ * The core's `PrivateEvent`, one variant each, with the same names.
+ */
+export const PrivateEventRecord = (() => {
+
+    type OwnDevicesChanged__interface = {
+        tag: PrivateEventRecord_Tags.OwnDevicesChanged;
+        inner: 
+Readonly<{devices: Array<OwnDeviceRecord>; hasChats: boolean}>
+    };
+    /**
+     * This person's other devices with other chat keys, and whether this
+     * device has any chats.
+     */
+    class OwnDevicesChanged_ extends UniffiEnum implements OwnDevicesChanged__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.OwnDevicesChanged;
+        readonly inner: 
+Readonly<{devices: Array<OwnDeviceRecord>; hasChats: boolean}>;
+        constructor(
+inner: {devices: Array<OwnDeviceRecord>; hasChats: boolean }) {
+            super("PrivateEventRecord", "OwnDevicesChanged");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {devices: Array<OwnDeviceRecord>; hasChats: boolean }): OwnDevicesChanged_ {
+            return new OwnDevicesChanged_(inner);
+        }
+
+        static instanceOf(obj: any): obj is OwnDevicesChanged_ {
+            return obj.tag === PrivateEventRecord_Tags.OwnDevicesChanged;
+        }
+
+    }
+
+    type ContactChanged__interface = {
+        tag: PrivateEventRecord_Tags.ContactChanged;
+        inner: 
+Readonly<{contact: PrivateContactRecord}>
+    };
+    class ContactChanged_ extends UniffiEnum implements ContactChanged__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.ContactChanged;
+        readonly inner: 
+Readonly<{contact: PrivateContactRecord}>;
+        constructor(
+inner: {contact: PrivateContactRecord }) {
+            super("PrivateEventRecord", "ContactChanged");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {contact: PrivateContactRecord }): ContactChanged_ {
+            return new ContactChanged_(inner);
+        }
+
+        static instanceOf(obj: any): obj is ContactChanged_ {
+            return obj.tag === PrivateEventRecord_Tags.ContactChanged;
+        }
+
+    }
+
+    type ContactRemoved__interface = {
+        tag: PrivateEventRecord_Tags.ContactRemoved;
+        inner: 
+Readonly<{peer: string}>
+    };
+    class ContactRemoved_ extends UniffiEnum implements ContactRemoved__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.ContactRemoved;
+        readonly inner: 
+Readonly<{peer: string}>;
+        constructor(
+inner: {peer: string }) {
+            super("PrivateEventRecord", "ContactRemoved");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {peer: string }): ContactRemoved_ {
+            return new ContactRemoved_(inner);
+        }
+
+        static instanceOf(obj: any): obj is ContactRemoved_ {
+            return obj.tag === PrivateEventRecord_Tags.ContactRemoved;
+        }
+
+    }
+
+    type MessageAdded__interface = {
+        tag: PrivateEventRecord_Tags.MessageAdded;
+        inner: 
+Readonly<{message: PrivateMessageRecord}>
+    };
+    class MessageAdded_ extends UniffiEnum implements MessageAdded__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.MessageAdded;
+        readonly inner: 
+Readonly<{message: PrivateMessageRecord}>;
+        constructor(
+inner: {message: PrivateMessageRecord }) {
+            super("PrivateEventRecord", "MessageAdded");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {message: PrivateMessageRecord }): MessageAdded_ {
+            return new MessageAdded_(inner);
+        }
+
+        static instanceOf(obj: any): obj is MessageAdded_ {
+            return obj.tag === PrivateEventRecord_Tags.MessageAdded;
+        }
+
+    }
+
+    type MessageChanged__interface = {
+        tag: PrivateEventRecord_Tags.MessageChanged;
+        inner: 
+Readonly<{message: PrivateMessageRecord}>
+    };
+    class MessageChanged_ extends UniffiEnum implements MessageChanged__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.MessageChanged;
+        readonly inner: 
+Readonly<{message: PrivateMessageRecord}>;
+        constructor(
+inner: {message: PrivateMessageRecord }) {
+            super("PrivateEventRecord", "MessageChanged");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {message: PrivateMessageRecord }): MessageChanged_ {
+            return new MessageChanged_(inner);
+        }
+
+        static instanceOf(obj: any): obj is MessageChanged_ {
+            return obj.tag === PrivateEventRecord_Tags.MessageChanged;
+        }
+
+    }
+
+    type MessageDeleted__interface = {
+        tag: PrivateEventRecord_Tags.MessageDeleted;
+        inner: 
+Readonly<{peer: string; messageId: string}>
+    };
+    class MessageDeleted_ extends UniffiEnum implements MessageDeleted__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.MessageDeleted;
+        readonly inner: 
+Readonly<{peer: string; messageId: string}>;
+        constructor(
+inner: {peer: string; messageId: string }) {
+            super("PrivateEventRecord", "MessageDeleted");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {peer: string; messageId: string }): MessageDeleted_ {
+            return new MessageDeleted_(inner);
+        }
+
+        static instanceOf(obj: any): obj is MessageDeleted_ {
+            return obj.tag === PrivateEventRecord_Tags.MessageDeleted;
+        }
+
+    }
+
+    type Typing__interface = {
+        tag: PrivateEventRecord_Tags.Typing;
+        inner: 
+Readonly<{peer: string}>
+    };
+    class Typing_ extends UniffiEnum implements Typing__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.Typing;
+        readonly inner: 
+Readonly<{peer: string}>;
+        constructor(
+inner: {peer: string }) {
+            super("PrivateEventRecord", "Typing");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {peer: string }): Typing_ {
+            return new Typing_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Typing_ {
+            return obj.tag === PrivateEventRecord_Tags.Typing;
+        }
+
+    }
+
+    type FriendRequestReceived__interface = {
+        tag: PrivateEventRecord_Tags.FriendRequestReceived;
+        inner: 
+Readonly<{peer: string; spam: boolean}>
+    };
+    class FriendRequestReceived_ extends UniffiEnum implements FriendRequestReceived__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "PrivateEventRecord";
+        readonly tag = PrivateEventRecord_Tags.FriendRequestReceived;
+        readonly inner: 
+Readonly<{peer: string; spam: boolean}>;
+        constructor(
+inner: {peer: string; spam: boolean }) {
+            super("PrivateEventRecord", "FriendRequestReceived");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {peer: string; spam: boolean }): FriendRequestReceived_ {
+            return new FriendRequestReceived_(inner);
+        }
+
+        static instanceOf(obj: any): obj is FriendRequestReceived_ {
+            return obj.tag === PrivateEventRecord_Tags.FriendRequestReceived;
+        }
+
+    }
+
+    function instanceOf(obj: any): obj is PrivateEventRecord {
+        return obj[uniffiTypeNameSymbol] === "PrivateEventRecord";
+    }
+
+    return Object.freeze({
+        instanceOf,
+  OwnDevicesChanged: OwnDevicesChanged_, 
+  ContactChanged: ContactChanged_, 
+  ContactRemoved: ContactRemoved_, 
+  MessageAdded: MessageAdded_, 
+  MessageChanged: MessageChanged_, 
+  MessageDeleted: MessageDeleted_, 
+  Typing: Typing_, 
+  FriendRequestReceived: FriendRequestReceived_
+    });
+
+})();
+/**
+ * The core's `PrivateEvent`, one variant each, with the same names.
+ */
+export type PrivateEventRecord = InstanceType<
+    typeof PrivateEventRecord['OwnDevicesChanged' | 'ContactChanged' | 'ContactRemoved' | 'MessageAdded' | 'MessageChanged' | 'MessageDeleted' | 'Typing' | 'FriendRequestReceived']
+>;
+
+// FfiConverter for enum PrivateEventRecord
+const FfiConverterTypePrivateEventRecord = (() => {
+    type TypeName = PrivateEventRecord;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        readFromCursor(c: Cursor): TypeName {
+            switch (c.readI32()) {
+                case 1: return new PrivateEventRecord.OwnDevicesChanged({devices: FfiConverterSequenceTypeOwnDeviceRecord.readFromCursor(c), hasChats: FfiConverterBool.readFromCursor(c) });
+                case 2: return new PrivateEventRecord.ContactChanged({contact: FfiConverterTypePrivateContactRecord.readFromCursor(c) });
+                case 3: return new PrivateEventRecord.ContactRemoved({peer: FfiConverterString.readFromCursor(c) });
+                case 4: return new PrivateEventRecord.MessageAdded({message: FfiConverterTypePrivateMessageRecord.readFromCursor(c) });
+                case 5: return new PrivateEventRecord.MessageChanged({message: FfiConverterTypePrivateMessageRecord.readFromCursor(c) });
+                case 6: return new PrivateEventRecord.MessageDeleted({peer: FfiConverterString.readFromCursor(c), messageId: FfiConverterString.readFromCursor(c) });
+                case 7: return new PrivateEventRecord.Typing({peer: FfiConverterString.readFromCursor(c) });
+                case 8: return new PrivateEventRecord.FriendRequestReceived({peer: FfiConverterString.readFromCursor(c), spam: FfiConverterBool.readFromCursor(c) });
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        writeIntoCursor(value: TypeName, c: Cursor): void {
+            switch (value.tag) {
+                case PrivateEventRecord_Tags.OwnDevicesChanged: {
+                    c.writeI32(1);
+                    const inner = value.inner;
+                    FfiConverterSequenceTypeOwnDeviceRecord.writeIntoCursor(inner.devices, c);
+                    FfiConverterBool.writeIntoCursor(inner.hasChats, c);
+                    return;
+                }
+                case PrivateEventRecord_Tags.ContactChanged: {
+                    c.writeI32(2);
+                    const inner = value.inner;
+                    FfiConverterTypePrivateContactRecord.writeIntoCursor(inner.contact, c);
+                    return;
+                }
+                case PrivateEventRecord_Tags.ContactRemoved: {
+                    c.writeI32(3);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.peer, c);
+                    return;
+                }
+                case PrivateEventRecord_Tags.MessageAdded: {
+                    c.writeI32(4);
+                    const inner = value.inner;
+                    FfiConverterTypePrivateMessageRecord.writeIntoCursor(inner.message, c);
+                    return;
+                }
+                case PrivateEventRecord_Tags.MessageChanged: {
+                    c.writeI32(5);
+                    const inner = value.inner;
+                    FfiConverterTypePrivateMessageRecord.writeIntoCursor(inner.message, c);
+                    return;
+                }
+                case PrivateEventRecord_Tags.MessageDeleted: {
+                    c.writeI32(6);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.peer, c);
+                    FfiConverterString.writeIntoCursor(inner.messageId, c);
+                    return;
+                }
+                case PrivateEventRecord_Tags.Typing: {
+                    c.writeI32(7);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.peer, c);
+                    return;
+                }
+                case PrivateEventRecord_Tags.FriendRequestReceived: {
+                    c.writeI32(8);
+                    const inner = value.inner;
+                    FfiConverterString.writeIntoCursor(inner.peer, c);
+                    FfiConverterBool.writeIntoCursor(inner.spam, c);
+                    return;
+                }
+                default:
+                    // Throwing from here means that PrivateEventRecord_Tags hasn't matched an ordinal.
+                    throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        allocationSize(value: TypeName): number {
+            switch (value.tag) {
+                case PrivateEventRecord_Tags.OwnDevicesChanged: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterSequenceTypeOwnDeviceRecord.allocationSize(inner.devices);
+                    size += FfiConverterBool.allocationSize(inner.hasChats);
+                    return size;
+                }
+                case PrivateEventRecord_Tags.ContactChanged: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterTypePrivateContactRecord.allocationSize(inner.contact);
+                    return size;
+                }
+                case PrivateEventRecord_Tags.ContactRemoved: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.peer);
+                    return size;
+                }
+                case PrivateEventRecord_Tags.MessageAdded: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterTypePrivateMessageRecord.allocationSize(inner.message);
+                    return size;
+                }
+                case PrivateEventRecord_Tags.MessageChanged: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterTypePrivateMessageRecord.allocationSize(inner.message);
+                    return size;
+                }
+                case PrivateEventRecord_Tags.MessageDeleted: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.peer);
+                    size += FfiConverterString.allocationSize(inner.messageId);
+                    return size;
+                }
+                case PrivateEventRecord_Tags.Typing: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.peer);
+                    return size;
+                }
+                case PrivateEventRecord_Tags.FriendRequestReceived: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterString.allocationSize(inner.peer);
+                    size += FfiConverterBool.allocationSize(inner.spam);
+                    return size;
+                }
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+    }
+    return new FFIConverter();
+})();
+
+
 // Enum: MobileEvent
 export enum MobileEvent_Tags {
     CommandsUpdated = "CommandsUpdated",
@@ -9593,7 +10044,8 @@ export enum MobileEvent_Tags {
     PluginActivitiesUpdated = "PluginActivitiesUpdated",
     ActivitySessionCreated = "ActivitySessionCreated",
     ActivitySessionUpdated = "ActivitySessionUpdated",
-    ActivitySessionDeleted = "ActivitySessionDeleted"
+    ActivitySessionDeleted = "ActivitySessionDeleted",
+    Private = "Private"
 }
 export const MobileEvent = (() => {
 
@@ -11094,6 +11546,40 @@ inner: {serverKey: string; sessionId: string; channelId: string; reason: Activit
 
     }
 
+    type Private__interface = {
+        tag: MobileEvent_Tags.Private;
+        inner: 
+Readonly<{event: PrivateEventRecord}>
+    };
+    /**
+     * Private messages and friends, from `private_open` on.
+     */
+    class Private_ extends UniffiEnum implements Private__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MobileEvent";
+        readonly tag = MobileEvent_Tags.Private;
+        readonly inner: 
+Readonly<{event: PrivateEventRecord}>;
+        constructor(
+inner: {event: PrivateEventRecord }) {
+            super("MobileEvent", "Private");
+
+            this.inner = Object.freeze(inner);
+        }
+        static new(
+inner: {event: PrivateEventRecord }): Private_ {
+            return new Private_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Private_ {
+            return obj.tag === MobileEvent_Tags.Private;
+        }
+
+    }
+
     function instanceOf(obj: any): obj is MobileEvent {
         return obj[uniffiTypeNameSymbol] === "MobileEvent";
     }
@@ -11146,12 +11632,13 @@ inner: {serverKey: string; sessionId: string; channelId: string; reason: Activit
   PluginActivitiesUpdated: PluginActivitiesUpdated_, 
   ActivitySessionCreated: ActivitySessionCreated_, 
   ActivitySessionUpdated: ActivitySessionUpdated_, 
-  ActivitySessionDeleted: ActivitySessionDeleted_
+  ActivitySessionDeleted: ActivitySessionDeleted_, 
+  Private: Private_
     });
 
 })();
 export type MobileEvent = InstanceType<
-    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'RoleUpserted' | 'RoleDeleted' | 'PresenceChanged' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'InputLevel' | 'NoiseSuppressionFellBack' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated' | 'PluginChannelTypesUpdated' | 'PluginActivitiesUpdated' | 'ActivitySessionCreated' | 'ActivitySessionUpdated' | 'ActivitySessionDeleted']
+    typeof MobileEvent['CommandsUpdated' | 'EphemeralReceived' | 'Connection' | 'Ready' | 'MessageCreated' | 'MessageUpdated' | 'MessageDeleted' | 'ChannelUpserted' | 'ChannelDeleted' | 'RoleUpserted' | 'RoleDeleted' | 'PresenceChanged' | 'AccessChanged' | 'MemberUpserted' | 'MemberLeft' | 'Typing' | 'ServerInfoChanged' | 'VoiceStateChanged' | 'VoiceLink' | 'Speaking' | 'AudioProblem' | 'SpeakingWhileMuted' | 'InputLevel' | 'NoiseSuppressionFellBack' | 'MusicSession' | 'MusicNowPlaying' | 'MusicNotice' | 'MusicSettingsChanged' | 'SoundboardSettingsChanged' | 'SoundboardSoundUpserted' | 'SoundboardSoundDeleted' | 'VoiceMessageLimitChanged' | 'VoiceRecordLevel' | 'VoiceRecordStopped' | 'Playback' | 'PlaybackEnded' | 'PlaybackFailed' | 'SoundPlayed' | 'MusicUpload' | 'SendProgress' | 'Notice' | 'PluginUsersUpdated' | 'PluginChannelTypesUpdated' | 'PluginActivitiesUpdated' | 'ActivitySessionCreated' | 'ActivitySessionUpdated' | 'ActivitySessionDeleted' | 'Private']
 >;
 
 // FfiConverter for enum MobileEvent
@@ -11207,6 +11694,7 @@ const FfiConverterTypeMobileEvent = (() => {
                 case 45: return new MobileEvent.ActivitySessionCreated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
                 case 46: return new MobileEvent.ActivitySessionUpdated({serverKey: FfiConverterString.readFromCursor(c), session: FfiConverterTypeActivitySessionRecord.readFromCursor(c) });
                 case 47: return new MobileEvent.ActivitySessionDeleted({serverKey: FfiConverterString.readFromCursor(c), sessionId: FfiConverterString.readFromCursor(c), channelId: FfiConverterString.readFromCursor(c), reason: FfiConverterTypeActivityEndReason.readFromCursor(c) });
+                case 48: return new MobileEvent.Private({event: FfiConverterTypePrivateEventRecord.readFromCursor(c) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -11554,6 +12042,12 @@ const FfiConverterTypeMobileEvent = (() => {
                     FfiConverterTypeActivityEndReason.writeIntoCursor(inner.reason, c);
                     return;
                 }
+                case MobileEvent_Tags.Private: {
+                    c.writeI32(48);
+                    const inner = value.inner;
+                    FfiConverterTypePrivateEventRecord.writeIntoCursor(inner.event, c);
+                    return;
+                }
                 default:
                     // Throwing from here means that MobileEvent_Tags hasn't matched an ordinal.
                     throw new UniffiInternalError.UnexpectedEnumCase();
@@ -11899,6 +12393,12 @@ const FfiConverterTypeMobileEvent = (() => {
                     size += FfiConverterString.allocationSize(inner.sessionId);
                     size += FfiConverterString.allocationSize(inner.channelId);
                     size += FfiConverterTypeActivityEndReason.allocationSize(inner.reason);
+                    return size;
+                }
+                case MobileEvent_Tags.Private: {
+                    const inner = value.inner;
+                    let size = 4;
+                    size += FfiConverterTypePrivateEventRecord.allocationSize(inner.event);
                     return size;
                 }
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
@@ -12392,6 +12892,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_private_hide() !== 48559) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_private_hide");
     }
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_private_key_generate() !== 34640) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_private_key_generate");
+    }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_private_mark_read() !== 16652) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_private_mark_read");
     }
@@ -12404,7 +12907,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_private_move_too() !== 19274) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_private_move_too");
     }
-    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_private_open() !== 21721) {
+    if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_private_open() !== 35083) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_opencord_mobile_checksum_func_private_open");
     }
     if (nativeModule().ubrn_uniffi_opencord_mobile_checksum_func_private_open_conversation() !== 16254) {
@@ -12625,6 +13128,7 @@ export default Object.freeze({
     FfiConverterTypePresenceStatus,
     FfiConverterTypePrivacySettingsRecord,
     FfiConverterTypePrivateContactRecord,
+    FfiConverterTypePrivateEventRecord,
     FfiConverterTypePrivateMessageKind,
     FfiConverterTypePrivateMessageRecord,
     FfiConverterTypePrivateOpenedRecord,
