@@ -105,6 +105,20 @@ The first screen offers **Create an identity**, which asks only what people shou
   - The clip button attaches photos and files.
   - Long-press a message to **Copy text**. On your own messages you can also **Edit** it, and **Delete** it, which people with the Manage messages permission can do to anyone's.
   - Scrolling down closes the keyboard. **Jump to latest** brings you back to the newest messages.
+  - **Formatting & Spoilers:** markdown formatting is supported: `*italic*`, `**bold**`, `~~strikethrough~~`, `> blockquote`, and `||spoiler||` text that blurs and reveals on tap.
+  - **Syntax highlighted code blocks:** fenced code blocks (` ```lang `) render with syntax highlighting across common languages and a one-tap copy button in the top right.
+  - **Autocomplete:** typing `@` brings up an autocomplete list of server members (ranked by relevance and nickname); typing `#` autocompletes text and voice channels.
+  - **Emojis:** the smiley button opens the emoji picker sheet with Unicode emojis and custom server emojis, organized by categories with quick search and recently used emojis.
+  - **Media & Previews:**
+    - **Videos:** MP4 and common video attachments show a video player tile with playback duration. Tapping opens full-screen video playback with native controls.
+    - **Audio files:** MP3 and audio attachments stream and play directly in the chat row with play/pause, position timer, and an interactive seek scrubber.
+    - **Text previews:** text files up to 256 KB offer an in-app text preview modal with line numbers and monospace font.
+  - **Text in voice channels:** voice channels with text enabled display a **Chat** button in the call header, opening the channel's chat pane as a sheet over the call on phones and as a side column on tablets.
+  - **Reconnecting & Identity changes:**
+    - When a server is reconnecting or has failed, a connection banner appears above messages with a **Retry now** button; messages remain visible at 60% opacity with composer disabled.
+    - If a server's identity key changes, chat is greyed out and a full-screen **Server identity changed** warning opens showing trusted vs present fingerprints, with buttons to **Disconnect** or destructive **Forget server**.
+  - **Invites:** generate instant invite links with custom expiration (1 hour, 1 day, 7 days, Never) and max uses (1, 5, 10, 25, 100, No limit), with quick **Share** via the system share sheet and **Copy** to clipboard.
+  - **Switcher / Search:** tap search to find channels, servers, and members by prefix or fuzzy match, instantly navigating on tap.
 - **Voice messages:** hold the mic beside the field to record, and let go to send. Slide left to cancel, or slide up to lock the recording and keep both hands free; a locked recording can be stopped and heard before it is sent. Voice messages play in the chat at 1×, 1.5× or 2×.
 - **Members:** tap the people button in the chat header (or view the 280 pt right column on tablet width ≥ 1000 pt). Members are grouped with voice participants first (`In this voice channel`), followed by hoisted roles in hierarchy order, then `Online` and `Offline` (collapsed after 30). Tapping a member opens their profile with their avatar, status badge, role chips, `Member since` date, identity key fingerprint with copy button, and local volume and mute controls.
 - **The server button and settings:** on Android, tap the three-dots menu button in the header (or tap the server's name in the channel list). On iOS, while inside a server, the tab bar's Search tab transforms into the `Server` tab. Both open the server settings sheet with server icon, name, member and online counts, the Hosting row (`Open on a computer` for the owner, or, with voice on, a member who can manage the server or the music; later plans register additional admin rows), and `Leave server`.
@@ -152,9 +166,8 @@ The upload button sends audio files from the phone for the server to play, with 
 | Camera, screen sharing, watching streams | The next phone plan: it needs the phones' video codecs. |
 | Private messages and friends | A later plan. The core has them; the phone needs their screens. |
 | Notifications when the app is closed | A later plan, with a push relay on the server. |
-| Server administration: managing channels, roles, bans | Later plans (P2 invites, P4 settings). P0 adds the server button and its sheet. |
+| Server administration: managing channels, roles, bans | Later plans (P4 settings). P0 added the server button and sheet, P2 added invites. |
 | A list of your own uploaded songs | Later: the server can't list a member's uploads yet. |
-| Trusting a server again after its certificate changed | Later. Until then, leave the server (long-press it) and add it again. |
 
 ## Developing
 
@@ -248,6 +261,9 @@ Certain features require manual verification on physical iOS hardware:
 - **High noise suppression on older iPhones:** verify audio performance and frame latency with High noise suppression on older hardware (e.g., iPhone 11), ensuring graceful fallback to Standard if audio threads lag.
 - **Voice cue sounds:** confirm Join, Leave, Mute, Unmute, and Deafen cues play audibly with headphones and that Leave does not clip before audio session deactivation.
 - **Voice cue timing against a real server:** confirm that deafening and undeafening each play one single sound on both iPhone and Android against a real server, verifying that the 50 ms / 100 ms debounce hold prevents double sounds.
+- **Video player & Picture in Picture:** open a video attachment from chat into the full-screen player, verify playback controls and audio track playback, and test Picture-in-Picture transitions when swiping to background.
+- **Share sheet with invite:** open the Invite sheet, tap **Share**, and verify the native iOS `UIActivityViewController` opens with the server link and recipient options.
+- **Emoji sheet with keyboard interaction:** open the emoji sheet from the composer, verify smooth sheet presentation without layout jumps, and ensure seamless transition when tapping into the text input to raise the iOS keyboard.
 
 ### Android's minimum is 8.0
 
