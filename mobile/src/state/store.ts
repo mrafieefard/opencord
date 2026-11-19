@@ -10,6 +10,7 @@ import { errorKind } from '@/core/errors';
 
 import { seedActivity } from './activity';
 import { applyEvents, newServer } from './events';
+import { initialPrivateState } from './private';
 import { ReadPositions } from './readPositions';
 import type { AppState, CueGroup, SoundboardPrefs, UserStatus } from './types';
 export { channelKey } from './types';
@@ -74,6 +75,7 @@ export function initialState(): AppState {
     toasts: [],
     editingMessage: null,
     recentChannels: [],
+    private: initialPrivateState(),
   };
 }
 

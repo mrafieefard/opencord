@@ -19,6 +19,7 @@ import type {
 } from '@opencord/core-native';
 
 import type { SelfInfo } from '@/core/boot';
+import type { PrivateState } from './private';
 
 export interface ChannelActivity {
   /** The newest message known. */
@@ -237,6 +238,7 @@ export interface AppState {
   editingMessage: EditingMessage | null;
   /** Recent channel visits in order of most recent visit (§4.9). */
   recentChannels: { serverKey: string; channelId: string }[];
+  private: PrivateState;
 }
 
 /** A row of the server list (design §8.2). */

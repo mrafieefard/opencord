@@ -4,6 +4,8 @@ import {
   AttachmentKind,
   ChannelKind,
   ConnectionRecord_Tags,
+  ConversationStatus,
+  FriendStatus,
   PluginChannelState,
   PresenceStatus,
   type ActivitySessionRecord,
@@ -13,7 +15,10 @@ import {
   type MusicNowPlayingRecord,
   type MusicSessionRecord,
   type MusicSettingsRecord,
+  type OwnDevicesRecord,
   type PluginActivityRecord,
+  type PrivateContactRecord,
+  type PrivateMessageRecord,
   type RoleRecord,
   type ServerAccess,
   type ServerSnapshot,
@@ -461,4 +466,76 @@ export function useChatStale(serverKey: string): boolean {
     const server = state.servers[serverKey];
     return isChatStale(server?.connection);
   });
+}
+
+const EMPTY_PRIVATE_MESSAGES: PrivateMessageRecord[] = [];
+
+export type PrivateContactsFilter = 'chats' | 'friends' | 'pending' | 'blocked' | 'requests';
+
+export function selectPrivateContacts(
+  contacts: Record<string, PrivateContactRecord>,
+  filter: PrivateContactsFilter,
+): PrivateContactRecord[] {
+  const all = Object.values(contacts);
+  switch (filter) {
+    case 'chats':
+      return all
+        .filter((c) => c.conversation === ConversationStatus.Accepted && !c.hidden && !c.blocked)
+        .sort((a, b) => (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0));
+    case 'friends':
+      return all
+        .filter((c) => c.friend === FriendStatus.Friends && !c.blocked)
+        .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+    case 'pending':
+      return all
+        .filter((c) => !c.blocked && (c.friend === FriendStatus.Incoming || c.friend === FriendStatus.Outgoing))
+        .sort((a, b) => (a.requestSpam ? 1 : 0) - (b.requestSpam ? 1 : 0) || (a.name ?? '').localeCompare(b.name ?? ''));
+    case 'blocked':
+      return all
+        .filter((c) => c.blocked)
+        .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+    case 'requests':
+      return all
+        .filter((c) => c.conversation === ConversationStatus.Request && !c.blocked)
+        .sort((a, b) => (a.requestSpam ? 1 : 0) - (b.requestSpam ? 1 : 0) || (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0));
+  }
+}
+
+export function selectPrivateUnreadTotal(contacts: Record<string, PrivateContactRecord>): number {
+  let total = 0;
+  for (const contact of Object.values(contacts)) {
+    if (!contact.blocked && !contact.muted && contact.conversation === ConversationStatus.Accepted) {
+      total += contact.unread;
+    }
+  }
+  return total;
+}
+
+export function usePrivateContacts(filter: PrivateContactsFilter): PrivateContactRecord[] {
+  const contacts = useAppStore((state) => state.private.contacts);
+  return useMemo(() => selectPrivateContacts(contacts, filter), [contacts, filter]);
+}
+
+export function usePrivateMessages(peer: string): PrivateMessageRecord[] {
+  return useAppStore((state) => state.private.messages[peer] ?? EMPTY_PRIVATE_MESSAGES);
+}
+
+export function usePrivateTyping(peer: string): boolean {
+  const endsAt = useAppStore((state) => state.private.typing[peer]);
+  const [ended, setEnded] = useState<number>();
+  useEffect(() => {
+    if (endsAt === undefined) return;
+    const timer = setTimeout(() => setEnded(endsAt), Math.max(endsAt - Date.now(), 0));
+    return () => clearTimeout(timer);
+  }, [endsAt]);
+  return endsAt !== undefined && ended !== endsAt;
+}
+
+export function useOwnDevices(): OwnDevicesRecord {
+  return useAppStore((state) => state.private.ownDevices);
+}
+
+export function usePrivateUnreadTotal(): number {
+  const contacts = useAppStore((state) => state.private.contacts);
+  return useMemo(() => selectPrivateUnreadTotal(contacts), [contacts]);
 }

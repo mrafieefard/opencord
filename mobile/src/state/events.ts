@@ -15,6 +15,7 @@ import {
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
+import { applyPrivateEvent } from './private';
 import {
   channelKey,
   compareIds,
@@ -437,8 +438,7 @@ function applyEvent(state: AppState, event: MobileEvent, nowMs: number): AppStat
       // level, fallback and microphone problem to actions/audio.ts).
       return state;
     case MobileEvent_Tags.Private:
-      // Kept by the private store (Task 4), not here.
-      return state;
+      return applyPrivateEvent(state, event.inner.event, nowMs);
     case MobileEvent_Tags.PluginChannelTypesUpdated:
       return withSnapshot(state, event.inner.serverKey, (snapshot) => ({ ...snapshot, pluginChannelTypes: event.inner.types }));
     case MobileEvent_Tags.PluginActivitiesUpdated:

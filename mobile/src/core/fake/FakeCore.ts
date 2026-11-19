@@ -47,7 +47,6 @@ import {
   type NewIdentity,
   type OutgoingFileRecord,
   type OwnAvatarRecord,
-  type OwnDeviceRecord,
   type OwnDevicesRecord,
   type PhoneAudioSettings,
   type PrivacySettingsRecord,
@@ -423,7 +422,7 @@ export class FakeCore implements CoreApi {
 
     const contact = this.privateContactsMap.get(peer);
     if (contact) {
-      const updatedContact = { ...contact, lastActivityMs: sentAtMs, conversation: ConversationStatus.Accepted };
+      const updatedContact = { ...contact, lastActivityMs: sentAtMs, conversation: ConversationStatus.Accepted, hidden: false };
       this.privateContactsMap.set(peer, updatedContact);
       this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updatedContact }) }));
     }
@@ -451,8 +450,9 @@ export class FakeCore implements CoreApi {
     this.enter('privateEdit', [peer, messageId, content]);
     const list = this.privateMessagesMap.get(peer) ?? [];
     const idx = list.findIndex((m) => m.id === messageId);
-    if (idx !== -1) {
-      const edited = { ...list[idx]!, content, editedAtMs: this.now() };
+    const item = list[idx];
+    if (idx !== -1 && item) {
+      const edited = { ...item, content, editedAtMs: this.now() };
       list[idx] = edited;
       this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: edited }) }));
     }
@@ -469,8 +469,9 @@ export class FakeCore implements CoreApi {
     this.enter('privateRetry', [messageId]);
     for (const [peer, list] of this.privateMessagesMap.entries()) {
       const idx = list.findIndex((m) => m.id === messageId);
-      if (idx !== -1) {
-        const retrying = { ...list[idx]!, state: PrivateSendState.Sending };
+      const item = list[idx];
+      if (idx !== -1 && item) {
+        const retrying = { ...item, state: PrivateSendState.Sending };
         list[idx] = retrying;
         this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: retrying }) }));
         setTimeout(() => {

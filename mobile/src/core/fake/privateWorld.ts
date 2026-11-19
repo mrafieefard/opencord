@@ -33,7 +33,7 @@ export function wordsForSeed(seed: string): KeyWordsRecord {
   const words: string[] = [];
   for (let i = 0; i < 16; i += 1) {
     const code = seed.charCodeAt(i % seed.length);
-    words.push(WORDS[(code + i * 7) % WORDS.length]!);
+    words.push(WORDS[(code + i * 7) % WORDS.length] ?? 'word');
   }
   const keys = Array.from(seed)
     .map((c) => c.charCodeAt(0).toString(16).padStart(2, '0'))
