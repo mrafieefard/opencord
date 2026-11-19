@@ -5,12 +5,14 @@ import { NativeTabs } from 'expo-router/native-tabs';
 
 import { openServerSheet } from '@/features/serverMenu/serverRows';
 import { chrome } from '@/features/servers/chrome';
+import { usePrivateUnreadTotal } from '@/state/selectors';
 import { useAppStore } from '@/state/store';
 import { useTheme } from '@/ui';
 import { icons } from '@/ui/icons';
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const unreadTotal = usePrivateUnreadTotal();
   // Under every screen, a server's too, but a text channel in front.
   const chatInFront = useAppStore((state) => state.chatInFront);
   // On iOS the search slot is this server's button while its screen is in front.
@@ -30,6 +32,11 @@ export default function TabsLayout() {
       <NativeTabs.Trigger name="servers">
         <NativeTabs.Trigger.Icon sf={icons.servers.ios} md={icons.servers.android} />
         <NativeTabs.Trigger.Label>Servers</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="messages">
+        <NativeTabs.Trigger.Icon sf="bubble.left.and.bubble.right" md="chat" />
+        <NativeTabs.Trigger.Label>Messages</NativeTabs.Trigger.Label>
+        {unreadTotal > 0 && <NativeTabs.Trigger.Badge>{String(unreadTotal)}</NativeTabs.Trigger.Badge>}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="you">
         <NativeTabs.Trigger.Icon sf={icons.you.ios} md={icons.you.android} />

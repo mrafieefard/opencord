@@ -39,6 +39,10 @@ export const icons = {
   // A private chat whose words were compared.
   shield: { ios: 'checkmark.shield.fill', android: 'verified_user' },
   key: { ios: 'key.fill', android: 'key' },
+  bell: { ios: 'bell.fill', android: 'notifications' },
+  bellSlash: { ios: 'bell.slash.fill', android: 'notifications_off' },
+  messages: { ios: 'bubble.left.and.bubble.right', android: 'chat' },
+  block: { ios: 'circle.slash', android: 'block' },
   mic: { ios: 'mic.fill', android: 'mic' },
   micOff: { ios: 'mic.slash.fill', android: 'mic_off' },
   deafen: { ios: 'headphones.slash', android: 'headset_off' },
