@@ -79,6 +79,18 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | Sounds settings: soundboard volume and mute toggle, voice sound cues toggles | fake world | not run |
 | Storage and logs: media cache calculation and clear cache, session log export | fake world | not run |
 | Voice cue timing: deafening and undeafening each play one sound against a real server | not run | not run |
+| Full-screen video playback with native controls | fake world | not run |
+| Audio file playback with seek scrubber | fake world | not run |
+| Text file preview modal up to 256 KB | fake world | not run |
+| Autocomplete for members (`@`), channels (`#`), and emoji (`:`) | fake world | not run |
+| Emoji picker sheet with categories and search | fake world | not run |
+| Syntax highlighted code blocks in common languages | fake world | not run |
+| Reconnecting banner with `Retry now` and disabled composer | fake world | not run |
+| Server identity changed screen with fingerprint comparison | fake world | not run |
+| Invite sheet with share sheet and copy link | fake world | not run |
+| Switcher search across channels, servers, and members | fake world | not run |
+| Text chat overlay in voice channels | fake world | not run |
+| Multi-client chat sync against a real server with desktop beside it | not run | not run |
 
 ## Using the app
 
@@ -105,20 +117,19 @@ The first screen offers **Create an identity**, which asks only what people shou
   - The clip button attaches photos and files.
   - Long-press a message to **Copy text**. On your own messages you can also **Edit** it, and **Delete** it, which people with the Manage messages permission can do to anyone's.
   - Scrolling down closes the keyboard. **Jump to latest** brings you back to the newest messages.
-  - **Formatting & Spoilers:** markdown formatting is supported: `*italic*`, `**bold**`, `~~strikethrough~~`, `> blockquote`, and `||spoiler||` text that blurs and reveals on tap.
-  - **Syntax highlighted code blocks:** fenced code blocks (` ```lang `) render with syntax highlighting across common languages and a one-tap copy button in the top right.
-  - **Autocomplete:** typing `@` brings up an autocomplete list of server members (ranked by relevance and nickname); typing `#` autocompletes text and voice channels.
-  - **Emojis:** the smiley button opens the emoji picker sheet with Unicode emojis and custom server emojis, organized by categories with quick search and recently used emojis.
+  - **Syntax highlighted code blocks:** fenced code blocks (` ```lang `) render with syntax highlighting for common languages using highlight.js with dark and light themes (blocks over 400 lines or 20 KB stay plain).
+  - **Autocomplete:** typing `@` brings up an autocomplete list of every server member; typing `#` autocompletes text and voice channels; typing `:` suggests emoji.
+  - **Emojis:** the smiley button opens the emoji picker sheet with Unicode emojis, organized by categories with quick search and recently used emojis.
   - **Media & Previews:**
-    - **Videos:** MP4 and common video attachments show a video player tile with playback duration. Tapping opens full-screen video playback with native controls.
-    - **Audio files:** MP3 and audio attachments stream and play directly in the chat row with play/pause, position timer, and an interactive seek scrubber.
-    - **Text previews:** text files up to 256 KB offer an in-app text preview modal with line numbers and monospace font.
+    - **Videos:** MP4 and common video attachments show a video player tile with playback duration. Tapping downloads the file and opens one full-screen `VideoView` in a modal with native controls.
+    - **Audio files:** audio files (MP3, OGG, M4A, WAV, FLAC) download on tap, then play directly in the chat row with play/pause, position timer, and an interactive seek scrubber.
+    - **Text previews:** text files from the desktop's preview list, up to 256 KB, offer an in-app selectable monospace text preview modal with share.
   - **Text in voice channels:** voice channels with text enabled display a **Chat** button in the call header, opening the channel's chat pane as a sheet over the call on phones and as a side column on tablets.
   - **Reconnecting & Identity changes:**
-    - When a server is reconnecting or has failed, a connection banner appears above messages with a **Retry now** button; messages remain visible at 60% opacity with composer disabled.
+    - When a server is reconnecting or has failed with `Incompatible`, a connection banner appears above messages with a **Retry now** button (no retry after a rejection, kick or ban); messages remain visible at 60% opacity with composer disabled.
     - If a server's identity key changes, chat is greyed out and a full-screen **Server identity changed** warning opens showing trusted vs present fingerprints, with buttons to **Disconnect** or destructive **Forget server**.
   - **Invites:** generate instant invite links with custom expiration (1 hour, 1 day, 7 days, Never) and max uses (1, 5, 10, 25, 100, No limit), with quick **Share** via the system share sheet and **Copy** to clipboard.
-  - **Switcher / Search:** tap search to find channels, servers, and members by prefix or fuzzy match, instantly navigating on tap.
+  - **Switcher / Search:** tap search to find channels on every server, the servers, and members of the last opened server, ranked by prefix, then word prefix, then substring, instantly navigating on tap.
 - **Voice messages:** hold the mic beside the field to record, and let go to send. Slide left to cancel, or slide up to lock the recording and keep both hands free; a locked recording can be stopped and heard before it is sent. Voice messages play in the chat at 1×, 1.5× or 2×.
 - **Members:** tap the people button in the chat header (or view the 280 pt right column on tablet width ≥ 1000 pt). Members are grouped with voice participants first (`In this voice channel`), followed by hoisted roles in hierarchy order, then `Online` and `Offline` (collapsed after 30). Tapping a member opens their profile with their avatar, status badge, role chips, `Member since` date, identity key fingerprint with copy button, and local volume and mute controls.
 - **The server button and settings:** on Android, tap the three-dots menu button in the header (or tap the server's name in the channel list). On iOS, while inside a server, the tab bar's Search tab transforms into the `Server` tab. Both open the server settings sheet with server icon, name, member and online counts, the Hosting row (`Open on a computer` for the owner, or, with voice on, a member who can manage the server or the music; later plans register additional admin rows), and `Leave server`.
@@ -168,6 +179,7 @@ The upload button sends audio files from the phone for the server to play, with 
 | Notifications when the app is closed | A later plan, with a push relay on the server. |
 | Server administration: managing channels, roles, bans | Later plans (P4 settings). P0 added the server button and sheet, P2 added invites. |
 | A list of your own uploaded songs | Later: the server can't list a member's uploads yet. |
+| Trusting a server again after its certificate changed | Later. Until then, forget the server from the identity changed warning and add it again. |
 
 ## Developing
 
