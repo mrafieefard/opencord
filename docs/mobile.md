@@ -81,15 +81,17 @@ None of these has been run on a real phone, and **none on an iPhone**. "Emulator
 | Voice cue timing: deafening and undeafening each play one sound against a real server | not run | not run |
 | Full-screen video playback with native controls | fake world | not run |
 | Audio file playback with seek scrubber | fake world | not run |
-| Text file preview modal up to 256 KB | fake world | not run |
-| Autocomplete for members (`@`), channels (`#`), and emoji (`:`) | fake world | not run |
+| Text file preview modal up to 256 KB | not run | not run |
+| Autocomplete for text channels (`#`) | fake world | not run |
+| Autocomplete for members (`@`) and emoji (`:`) | not run | not run |
 | Emoji picker sheet with categories and search | fake world | not run |
-| Syntax highlighted code blocks in common languages | fake world | not run |
-| Reconnecting banner with `Retry now` and disabled composer | fake world | not run |
+| Syntax highlighted code blocks in common languages | not run | not run |
+| Reconnecting banner with `Retry now` and disabled composer | not run | not run |
 | Server identity changed screen with fingerprint comparison | fake world | not run |
-| Invite sheet with share sheet and copy link | fake world | not run |
-| Switcher search across channels, servers, and members | fake world | not run |
-| Text chat overlay in voice channels | fake world | not run |
+| Invite sheet with copy link | fake world | not run |
+| The system share sheet opened from an invite | not run | not run |
+| Switcher search across channels, servers, and members | not run | not run |
+| Text chat in a voice channel, open as a sheet | fake world | not run |
 | Multi-client chat sync against a real server with desktop beside it | not run | not run |
 
 ## Using the app
