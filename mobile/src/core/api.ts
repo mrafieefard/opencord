@@ -12,6 +12,7 @@ import type {
   ExternalSoundRecord,
   IdentityInfo,
   InviteRecord,
+  KeyWordsRecord,
   MessageRecord,
   MobileEvent,
   MusicAction,
@@ -23,9 +24,14 @@ import type {
   NewIdentity,
   OutgoingFileRecord,
   OwnAvatarRecord,
+  OwnDevicesRecord,
   PhoneAudioSettings,
   PlaybackItemRecord,
+  PrivacySettingsRecord,
+  PrivateContactRecord,
+  PrivateMessageRecord,
   PrivateOpenedRecord,
+  SharedServerRecord,
   VoiceCueKind,
   VoiceDraftRecord,
   ServerEntry,
@@ -183,10 +189,41 @@ export interface CoreApi {
   activityStart(serverKey: string, channelId: string, pluginId: string, activityKey: string): Promise<ActivitySessionRecord>;
   activityEnd(serverKey: string, sessionId: string): Promise<void>;
 
-  // Private messages (phone P3). The rest of the private calls come with
-  // Task 3.
+  // Private messages (phone P3).
   /** 32 bytes from the operating system's random source. */
   privateKeyGenerate(): ArrayBuffer;
   /** Opens the private database with its 32-byte master key. */
   privateOpen(key: ArrayBuffer): Promise<PrivateOpenedRecord>;
+  privateContacts(): Promise<PrivateContactRecord[]>;
+  privateMessages(peer: string, before?: string, limit?: number): Promise<PrivateMessageRecord[]>;
+  privateSend(peer: string, content: string): Promise<PrivateMessageRecord>;
+  privateEdit(peer: string, messageId: string, content: string): Promise<void>;
+  privateDelete(peer: string, messageId: string): Promise<void>;
+  privateRetry(messageId: string): Promise<void>;
+  friendRequestSend(serverKey: string, userId: string): Promise<void>;
+  friendRequestAnswer(peer: string, accept: boolean): Promise<void>;
+  friendRequestCancel(peer: string): Promise<void>;
+  friendRemove(peer: string): Promise<void>;
+  messageRequestAccept(peer: string): Promise<void>;
+  messageRequestIgnore(peer: string): Promise<void>;
+  privateBlock(peer: string): Promise<void>;
+  privateUnblock(peer: string): Promise<void>;
+  privacySettings(): Promise<PrivacySettingsRecord>;
+  privacySettingsSet(settings: PrivacySettingsRecord): Promise<void>;
+  privateOpenConversation(serverKey: string, userId: string): Promise<PrivateContactRecord>;
+  privateSharedServers(peer: string): Promise<SharedServerRecord[]>;
+  privateMove(peer: string, serverKey: string): Promise<void>;
+  privateMoveToo(peer: string, messageId: string): Promise<void>;
+  privateTyping(peer: string): Promise<void>;
+  privateMarkRead(peer: string): Promise<void>;
+  privateSetMuted(peer: string, muted: boolean): Promise<void>;
+  privateHide(peer: string): Promise<void>;
+  privateOwnDevices(): Promise<OwnDevicesRecord>;
+  privatePairingWords(deviceId: string): Promise<KeyWordsRecord>;
+  privateApproveDevice(deviceId: string, keys: string): Promise<void>;
+  privateAcceptKeysFrom(deviceId: string, matched: boolean, keys: string): Promise<void>;
+  privateWords(peer: string, newKeys: boolean): Promise<KeyWordsRecord>;
+  privateVerify(peer: string, newKeys: boolean, matched: boolean, keys: string): Promise<void>;
+  privateAcceptNewKeys(peer: string): Promise<void>;
+  privateRejectDevice(deviceId: string): Promise<void>;
 }

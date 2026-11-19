@@ -21,6 +21,13 @@ import {
   UploadPhaseRecord,
   VoiceCueKind,
   VoiceLinkState,
+  ConversationStatus,
+  FriendStatus,
+  OwnDeviceState,
+  PrivateEventRecord,
+  PrivateMessageKind,
+  PrivateSendState,
+  PrivateVerification,
   type ActivitySessionRecord,
   type CommandChoiceRecord,
   type CommandOptionValueRecord,
@@ -30,6 +37,7 @@ import {
   type ExternalSoundRecord,
   type IdentityInfo,
   type InviteRecord,
+  type KeyWordsRecord,
   type MessageRecord,
   type MusicQueueItemRecord,
   type MusicRepeat,
@@ -39,15 +47,30 @@ import {
   type NewIdentity,
   type OutgoingFileRecord,
   type OwnAvatarRecord,
+  type OwnDeviceRecord,
+  type OwnDevicesRecord,
   type PhoneAudioSettings,
+  type PrivacySettingsRecord,
+  type PrivateContactRecord,
+  type PrivateMessageRecord,
   type PrivateOpenedRecord,
   type ServerEntry,
+  type SharedServerRecord,
   type UserRecord,
   type ViewOutputRecord,
   type VoiceStateRecord,
 } from '@opencord/core-native';
 
 import type { CoreApi, PresenceStatusInput } from '../api';
+import {
+  createFakeContacts,
+  createFakeOwnDevices,
+  createFakePrivacySettings,
+  createFakePrivateMessages,
+  createFakeSharedServers,
+  KAI_PEER,
+  wordsForSeed,
+} from './privateWorld';
 import {
   CHANNELS,
   NIGHT_OWLS,
@@ -196,6 +219,11 @@ export class FakeCore implements CoreApi {
   /** The key the private database is sealed with, in hex; null until made. */
   private privateSealedWith: string | null = null;
   private privateOpened = false;
+  private privateContactsMap = new Map<string, PrivateContactRecord>();
+  private privateMessagesMap = new Map<string, PrivateMessageRecord[]>();
+  private privateOwnDevicesData: OwnDevicesRecord = createFakeOwnDevices();
+  private privatePrivacySettingsData: PrivacySettingsRecord = createFakePrivacySettings();
+  private privateSharedServersData: SharedServerRecord[] = createFakeSharedServers();
   private readonly live: boolean;
 
   constructor(options: FakeOptions = {}) {
@@ -205,6 +233,11 @@ export class FakeCore implements CoreApi {
     this.files = options.files;
     this.uploadStepMs = options.uploadStepMs ?? 400;
     this.servers = this.scenario === 'empty' ? [] : entries();
+    if (this.scenario !== 'empty') {
+      const now = this.now();
+      this.privateContactsMap = createFakeContacts(now);
+      this.privateMessagesMap = createFakePrivateMessages(now);
+    }
     if (this.scenario === 'default') {
       const now = this.now();
       this.messages.set(this.key(NIGHT_OWLS, CHANNELS.general), history(CHANNELS.general, 120, now, 100_000));
@@ -351,6 +384,362 @@ export class FakeCore implements CoreApi {
     this.privateSealedWith = sealed;
     this.privateOpened = true;
     return { startedFresh, keysReset: false };
+  }
+
+  async privateContacts(): Promise<PrivateContactRecord[]> {
+    this.enter('privateContacts', []);
+    return Array.from(this.privateContactsMap.values());
+  }
+
+  async privateMessages(peer: string, before?: string, limit = 50): Promise<PrivateMessageRecord[]> {
+    this.enter('privateMessages', [peer, before, limit]);
+    const all = this.privateMessagesMap.get(peer) ?? [];
+    let list = all;
+    if (before !== undefined) {
+      const idx = all.findIndex((m) => m.id === before);
+      if (idx !== -1) {
+        list = all.slice(idx + 1);
+      }
+    }
+    return list.slice(0, Math.min(Math.max(limit, 1), 100));
+  }
+
+  async privateSend(peer: string, content: string): Promise<PrivateMessageRecord> {
+    this.enter('privateSend', [peer, content]);
+    const id = (this.nextId++).toString(16).padStart(16, '0');
+    const sentAtMs = this.now();
+    const message: PrivateMessageRecord = {
+      id,
+      peer,
+      outgoing: true,
+      kind: PrivateMessageKind.Text,
+      content,
+      sentAtMs,
+      state: PrivateSendState.Sending,
+    };
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    list.unshift(message);
+    this.privateMessagesMap.set(peer, list);
+
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updatedContact = { ...contact, lastActivityMs: sentAtMs, conversation: ConversationStatus.Accepted };
+      this.privateContactsMap.set(peer, updatedContact);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updatedContact }) }));
+    }
+
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageAdded.new({ message }) }));
+
+    setTimeout(() => {
+      const sentMessage = { ...message, state: PrivateSendState.Sent };
+      const currentList = this.privateMessagesMap.get(peer) ?? [];
+      const idx = currentList.findIndex((m) => m.id === id);
+      if (idx !== -1) currentList[idx] = sentMessage;
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: sentMessage }) }));
+    }, 400);
+
+    if (peer === KAI_PEER) {
+      setTimeout(() => {
+        this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.Typing.new({ peer }) }));
+      }, 2000);
+    }
+
+    return message;
+  }
+
+  async privateEdit(peer: string, messageId: string, content: string): Promise<void> {
+    this.enter('privateEdit', [peer, messageId, content]);
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    const idx = list.findIndex((m) => m.id === messageId);
+    if (idx !== -1) {
+      const edited = { ...list[idx]!, content, editedAtMs: this.now() };
+      list[idx] = edited;
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: edited }) }));
+    }
+  }
+
+  async privateDelete(peer: string, messageId: string): Promise<void> {
+    this.enter('privateDelete', [peer, messageId]);
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    this.privateMessagesMap.set(peer, list.filter((m) => m.id !== messageId));
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageDeleted.new({ peer, messageId }) }));
+  }
+
+  async privateRetry(messageId: string): Promise<void> {
+    this.enter('privateRetry', [messageId]);
+    for (const [peer, list] of this.privateMessagesMap.entries()) {
+      const idx = list.findIndex((m) => m.id === messageId);
+      if (idx !== -1) {
+        const retrying = { ...list[idx]!, state: PrivateSendState.Sending };
+        list[idx] = retrying;
+        this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: retrying }) }));
+        setTimeout(() => {
+          const sent = { ...retrying, state: PrivateSendState.Sent };
+          const cur = this.privateMessagesMap.get(peer) ?? [];
+          const curIdx = cur.findIndex((m) => m.id === messageId);
+          if (curIdx !== -1) cur[curIdx] = sent;
+          this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.MessageChanged.new({ message: sent }) }));
+        }, 400);
+        return;
+      }
+    }
+  }
+
+  async friendRequestSend(serverKey: string, userId: string): Promise<void> {
+    this.enter('friendRequestSend', [serverKey, userId]);
+    const peer = `peer-user-${userId}`;
+    const existing = this.privateContactsMap.get(peer) ?? {
+      peer,
+      name: `User ${userId}`,
+      friend: FriendStatus.None,
+      requestSpam: false,
+      blocked: false,
+      conversation: ConversationStatus.None,
+      unread: 0,
+      muted: false,
+      hidden: false,
+      newKeys: false,
+      verification: PrivateVerification.Unverified,
+      reachable: false,
+    };
+    const updated = { ...existing, friend: FriendStatus.Outgoing };
+    this.privateContactsMap.set(peer, updated);
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+  }
+
+  async friendRequestAnswer(peer: string, accept: boolean): Promise<void> {
+    this.enter('friendRequestAnswer', [peer, accept]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, friend: accept ? FriendStatus.Friends : FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async friendRequestCancel(peer: string): Promise<void> {
+    this.enter('friendRequestCancel', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, friend: FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async friendRemove(peer: string): Promise<void> {
+    this.enter('friendRemove', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, friend: FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async messageRequestAccept(peer: string): Promise<void> {
+    this.enter('messageRequestAccept', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, conversation: ConversationStatus.Accepted };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async messageRequestIgnore(peer: string): Promise<void> {
+    this.enter('messageRequestIgnore', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, conversation: ConversationStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateBlock(peer: string): Promise<void> {
+    this.enter('privateBlock', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, blocked: true, friend: FriendStatus.None };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateUnblock(peer: string): Promise<void> {
+    this.enter('privateUnblock', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, blocked: false };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privacySettings(): Promise<PrivacySettingsRecord> {
+    this.enter('privacySettings', []);
+    return { ...this.privatePrivacySettingsData };
+  }
+
+  async privacySettingsSet(settings: PrivacySettingsRecord): Promise<void> {
+    this.enter('privacySettingsSet', [settings]);
+    this.privatePrivacySettingsData = { ...settings };
+  }
+
+  async privateOpenConversation(serverKey: string, userId: string): Promise<PrivateContactRecord> {
+    this.enter('privateOpenConversation', [serverKey, userId]);
+    const peer = `peer-user-${userId}`;
+    let contact = this.privateContactsMap.get(peer);
+    if (!contact) {
+      contact = {
+        peer,
+        name: `User ${userId}`,
+        friend: FriendStatus.None,
+        requestSpam: false,
+        blocked: false,
+        conversation: ConversationStatus.Accepted,
+        relayServerKey: serverKey,
+        unread: 0,
+        muted: false,
+        hidden: false,
+        newKeys: false,
+        verification: PrivateVerification.Unverified,
+        reachable: true,
+      };
+    } else {
+      contact = { ...contact, conversation: ConversationStatus.Accepted, hidden: false, relayServerKey: serverKey };
+    }
+    this.privateContactsMap.set(peer, contact);
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact }) }));
+    return contact;
+  }
+
+  async privateSharedServers(peer: string): Promise<SharedServerRecord[]> {
+    this.enter('privateSharedServers', [peer]);
+    return [...this.privateSharedServersData];
+  }
+
+  async privateMove(peer: string, serverKey: string): Promise<void> {
+    this.enter('privateMove', [peer, serverKey]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, relayServerKey: serverKey };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateMoveToo(peer: string, messageId: string): Promise<void> {
+    this.enter('privateMoveToo', [peer, messageId]);
+    const list = this.privateMessagesMap.get(peer) ?? [];
+    const msg = list.find((m) => m.id === messageId);
+    if (msg && msg.serverKey) {
+      await this.privateMove(peer, msg.serverKey);
+    }
+  }
+
+  async privateTyping(peer: string): Promise<void> {
+    this.enter('privateTyping', [peer]);
+  }
+
+  async privateMarkRead(peer: string): Promise<void> {
+    this.enter('privateMarkRead', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact && contact.unread > 0) {
+      const updated = { ...contact, unread: 0 };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateSetMuted(peer: string, muted: boolean): Promise<void> {
+    this.enter('privateSetMuted', [peer, muted]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, muted };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateHide(peer: string): Promise<void> {
+    this.enter('privateHide', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, hidden: true };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateOwnDevices(): Promise<OwnDevicesRecord> {
+    this.enter('privateOwnDevices', []);
+    return {
+      devices: [...this.privateOwnDevicesData.devices],
+      hasChats: this.privateOwnDevicesData.hasChats,
+    };
+  }
+
+  async privatePairingWords(deviceId: string): Promise<KeyWordsRecord> {
+    this.enter('privatePairingWords', [deviceId]);
+    return wordsForSeed(deviceId);
+  }
+
+  async privateApproveDevice(deviceId: string, keys: string): Promise<void> {
+    this.enter('privateApproveDevice', [deviceId, keys]);
+    const devices = this.privateOwnDevicesData.devices.map((d) =>
+      d.deviceId === deviceId ? { ...d, state: OwnDeviceState.Other } : d,
+    );
+    this.privateOwnDevicesData = { ...this.privateOwnDevicesData, devices };
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.OwnDevicesChanged.new(this.privateOwnDevicesData) }));
+  }
+
+  async privateAcceptKeysFrom(deviceId: string, matched: boolean, keys: string): Promise<void> {
+    this.enter('privateAcceptKeysFrom', [deviceId, matched, keys]);
+    if (matched) {
+      const devices = this.privateOwnDevicesData.devices.map((d) =>
+        d.deviceId === deviceId ? { ...d, state: OwnDeviceState.Other } : d,
+      );
+      this.privateOwnDevicesData = { ...this.privateOwnDevicesData, devices, hasChats: true };
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.OwnDevicesChanged.new(this.privateOwnDevicesData) }));
+    }
+  }
+
+  async privateWords(peer: string, newKeys: boolean): Promise<KeyWordsRecord> {
+    this.enter('privateWords', [peer, newKeys]);
+    return wordsForSeed(`${peer}${newKeys ? 'new' : ''}`);
+  }
+
+  async privateVerify(peer: string, newKeys: boolean, matched: boolean, keys: string): Promise<void> {
+    this.enter('privateVerify', [peer, newKeys, matched, keys]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = {
+        ...contact,
+        verification: matched ? PrivateVerification.Verified : PrivateVerification.Mismatch,
+        newKeys: false,
+      };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateAcceptNewKeys(peer: string): Promise<void> {
+    this.enter('privateAcceptNewKeys', [peer]);
+    const contact = this.privateContactsMap.get(peer);
+    if (contact) {
+      const updated = { ...contact, newKeys: false };
+      this.privateContactsMap.set(peer, updated);
+      this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.ContactChanged.new({ contact: updated }) }));
+    }
+  }
+
+  async privateRejectDevice(deviceId: string): Promise<void> {
+    this.enter('privateRejectDevice', [deviceId]);
+    const devices = this.privateOwnDevicesData.devices.filter((d) => d.deviceId !== deviceId);
+    this.privateOwnDevicesData = { ...this.privateOwnDevicesData, devices };
+    this.emit(MobileEvent.Private.new({ event: PrivateEventRecord.OwnDevicesChanged.new(this.privateOwnDevicesData) }));
   }
 
   private info(secret: Uint8Array): IdentityInfo {
