@@ -1,10 +1,16 @@
+import { useEffect, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
+import { FriendStatus, type SharedServerRecord } from '@opencord/core-native';
 
+import { getCore, report } from '@/core';
 import { longDate } from '@/features/servers/formatTime';
 import { useImageFile } from '@/features/servers/useImageFile';
+import { answerFriendRequest, openPrivateConversation, sendFriendRequest } from '@/state/actions/private';
 import { toast } from '@/state/actions/ui';
 import { useMemberColor, usePresence, useRoles, useServer } from '@/state/selectors';
+import { useAppStore } from '@/state/store';
 import { Avatar, Button, Text, presenceLabel, radius, space, useTheme } from '@/ui';
 
 export interface MemberProfileProps {
@@ -20,6 +26,24 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
   const roleColorNumber = useMemberColor(serverKey, userId);
   const allRoles = useRoles(serverKey);
   const avatarFile = useImageFile(serverKey, memberRecord?.user.avatarHash);
+
+  const [sharedServers, setSharedServers] = useState<SharedServerRecord[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    report(
+      getCore()
+        .privateSharedServers(userId)
+        .then((list) => {
+          if (live) setSharedServers(list);
+        }),
+      'load shared servers',
+    );
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+
+  const contacts = useAppStore((state) => state.private.contacts);
 
   if (!server || !memberRecord) {
     return (
@@ -64,6 +88,55 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
   const statusText = presenceLabel(presence);
   const subtitle = isOwner ? `${statusText} · Server owner` : statusText;
 
+  const selfId = server.snapshot?.selfUser.id;
+  const isSelf = userId === selfId;
+  const isPluginUser = server.snapshot?.pluginUsers?.some((p) => p.userId === userId) ?? (server.pluginUsers ? userId in server.pluginUsers : false);
+
+  const contact = Object.values(contacts).find(
+    (c) => c.peer === `peer-user-${userId}` || c.name === memberRecord.user.displayName || c.name === name || (c.relayServerKey === serverKey && c.name === name),
+  );
+
+  const shared = sharedServers?.find((s) => s.serverKey === serverKey);
+  const serverAllowsPrivate = shared ? shared.privateMessages : true;
+  const friendsOnlyOk = shared && shared.friendsOnly ? contact?.friend === FriendStatus.Friends : true;
+  const canMessage = serverAllowsPrivate && friendsOnlyOk;
+
+  const handleMessage = async () => {
+    try {
+      const c = await openPrivateConversation(serverKey, userId);
+      router.push(`/(tabs)/messages/${c.peer}` as never);
+    } catch (err) {
+      console.warn('Failed to open conversation', err);
+    }
+  };
+
+  let friendTitle = 'Add friend';
+  let friendDisabled = false;
+  let friendVariant: 'primary' | 'secondary' = 'secondary';
+  let friendIcon: 'check' | 'add' | undefined = 'add';
+  let onFriendPress: (() => void) | undefined = () => {
+    report(sendFriendRequest(serverKey, userId), 'add friend');
+  };
+
+  if (contact?.friend === FriendStatus.Friends) {
+    friendTitle = 'Friends';
+    friendDisabled = true;
+    friendIcon = 'check';
+    onFriendPress = undefined;
+  } else if (contact?.friend === FriendStatus.Outgoing) {
+    friendTitle = 'Pending';
+    friendDisabled = true;
+    friendIcon = undefined;
+    onFriendPress = undefined;
+  } else if (contact?.friend === FriendStatus.Incoming) {
+    friendTitle = 'Accept request';
+    friendVariant = 'primary';
+    friendIcon = 'check';
+    onFriendPress = () => {
+      report(answerFriendRequest(contact.peer, true), 'accept friend request');
+    };
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -87,6 +160,25 @@ export function MemberProfile({ serverKey, userId }: MemberProfileProps) {
             </Text>
           )}
         </View>
+        {!isSelf && !isPluginUser && (
+          <View style={styles.actionButtons}>
+            <Button
+              title={friendTitle}
+              variant={friendVariant}
+              icon={friendIcon}
+              disabled={friendDisabled}
+              onPress={onFriendPress ?? (() => {})}
+            />
+            {canMessage && (
+              <Button
+                title="Message"
+                variant="primary"
+                icon="messages"
+                onPress={handleMessage}
+              />
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -167,6 +259,12 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   voiceText: {
+    marginTop: space.xs,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
     marginTop: space.xs,
   },
   section: {

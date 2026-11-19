@@ -621,6 +621,10 @@ export class FakeCore implements CoreApi {
     return [...this.privateSharedServersData];
   }
 
+  setPrivateSharedServers(servers: SharedServerRecord[]): void {
+    this.privateSharedServersData = [...servers];
+  }
+
   async privateMove(peer: string, serverKey: string): Promise<void> {
     this.enter('privateMove', [peer, serverKey]);
     const contact = this.privateContactsMap.get(peer);
